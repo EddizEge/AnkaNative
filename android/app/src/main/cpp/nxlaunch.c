@@ -237,13 +237,20 @@ JNIEXPORT void JNICALL Java_dev_nxnative_android_Native_skipSet(JNIEnv *env, jcl
 JNIEXPORT jint JNICALL Java_dev_nxnative_android_Native_skipStatus(JNIEnv *env, jclass cls) { (void)env; (void)cls; return nxhost_skip_status ? nxhost_skip_status() : -1; }
 
 // ---- The readiness check (Readiness.java): the Vulkan facts of the driver the game would run on (nxhost_vk_readiness), before the host starts. Of env (KEY=VALUE, the
-// game's environment as start would get it) only the driver's keys are set here, the last of each winning as in start; null when this host has no such entry point ----
+// game's environment as start would get it) only the driver's keys are set here, the last of each winning as in start; null when this host has no such entry point.
+// The driver's keys are the lines that pick it (DM_VK_DRIVER, DM_VK_HOOKDIR) and the variables a Mesa driver reads itself (Readiness.DRIVER_KEYS: TU_*, FD_*, IR3_*,
+// MESA_*): the check makes the process's first Vulkan instance, and Turnip reads TU_DEBUG once per process, there (tu_env_init), so set only at start they did nothing ----
+static int driver_key(const char *kv, const char *eq) {
+    static const char *const pre[] = {"TU_", "FD_", "IR3_", "MESA_"};
+    for (size_t i = 0; i < sizeof pre / sizeof *pre; i++) { size_t l = strlen(pre[i]); if (!strncmp(kv, pre[i], l) && eq > kv + l) return 1; }
+    return 0;
+}
 #pragma weak nxhost_vk_readiness
 JNIEXPORT jstring JNICALL Java_dev_nxnative_android_Native_readiness(JNIEnv *env, jclass cls, jobjectArray envs) {
     (void)cls; if (!nxhost_vk_readiness) return NULL;
     for (jsize i = 0, n = envs ? (*env)->GetArrayLength(env, envs) : 0; i < n; i++) {
         char *kv = jstr(env, (jstring)(*env)->GetObjectArrayElement(env, envs, i)); char *eq = strchr(kv, '=');
-        if (eq && (!strncmp(kv, "DM_VK_DRIVER=", 13) || !strncmp(kv, "DM_VK_HOOKDIR=", 14))) { *eq = 0; setenv(kv, eq + 1, 1); }
+        if (eq && (!strncmp(kv, "DM_VK_DRIVER=", 13) || !strncmp(kv, "DM_VK_HOOKDIR=", 14) || driver_key(kv, eq))) { *eq = 0; setenv(kv, eq + 1, 1); }
         free(kv);
     }
     size_t cap = 16384; char *buf = calloc(1, cap);
