@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * What an emulator frontend (ES-DE, Daijisho, Beacon, Pegasus…) asks FrontendLaunch for, as plain Java (no Android, checked on the JVM by FrontendJvmTest): the
- * game's path from a file:// URI or from a content:// URI that carries a /storage path, the phone's aliases of its shared storage made one, the card that holds a
- * path, and a title ID. FRONTENDS.md says what each frontend sends.
+ * What an emulator frontend (ES-DE, Daijisho, iiSU, Beacon, Pegasus…) asks FrontendLaunch for, as plain Java (no Android, checked on the JVM by FrontendJvmTest):
+ * the game's path from a file:// URI or from a content:// URI that carries a /storage path, the phone's aliases of its shared storage made one, the paths another
+ * app may name (shared storage only), the card a request names, and a title ID. FRONTENDS.md says what each frontend sends and what the app does with it.
  */
 final class Frontend {
     private Frontend() {}
@@ -105,8 +105,70 @@ final class Frontend {
 
     /** The first of the cards' game paths that names path, or -1 */
     static int card(List<String> gameDirs, String path) {
+        if (path == null) return -1;
         for (int i = 0; i < gameDirs.size(); i++) if (same(gameDirs.get(i), path)) return i;
         return -1;
+    }
+
+    /**
+     * A path another app sent, as FrontendLaunch may act on it: its normal name when it is an absolute path on shared storage (/storage/…, or an alias of it,
+     * or /mnt/media_rw/…) with no "." or ".." step and no control character; else null. The app's own folders (/data/…) and Android/data and Android/obb are never
+     * named by a frontend: a SAF id or a provider path with ".." in it ("primary:../../data/…") cannot walk out of shared storage
+     */
+    static String sharedPath(String p) {
+        if (p == null || !p.startsWith("/")) return null;
+        for (int i = 0; i < p.length(); i++) if (p.charAt(i) < 0x20 || p.charAt(i) == 0x7f) return null;
+        for (String step : p.split("/")) if (step.equals("..")) return null;
+        String n = normal(p);
+        if (!(n.startsWith("/storage/") || n.startsWith("/mnt/media_rw/"))) return null;
+        String[] s = n.split("/");   // "", "storage", <volume>[, <user>], …
+        int top = n.equals(PRIMARY) || n.startsWith(PRIMARY + "/") || n.startsWith("/mnt/media_rw/") ? 4 : 3;   // the first folder under the volume's root
+        if (s.length <= top) return null;   // a volume's root, or /storage itself, is no game
+        if (s[top].equalsIgnoreCase("Android") && s.length > top + 1 && (s[top + 1].equalsIgnoreCase("data") || s[top + 1].equalsIgnoreCase("obb"))) return null;
+        return n;
+    }
+
+    /**
+     * The value of the extra "game": an absolute path, or a file:// URI as a string (some frontends only fill extras with their URI placeholder); a content://
+     * URI in it is the caller's to parse (FrontendLaunch, as the intent's data). null: neither
+     */
+    static String extraPath(String v) {
+        if (v == null) return null;
+        String t = v.trim();
+        if (t.startsWith("/")) return t;
+        return fileUri(t);
+    }
+
+    /** Whether the extra "game" holds a content:// URI (read as the intent's data) */
+    static boolean contentUri(String v) { return v != null && v.trim().regionMatches(true, 0, "content://", 0, 10); }
+
+    /**
+     * Frontends' own FileProviders whose URIs name a folder of the shared storage by a root name of their own, not by its path: authority → { root name, the
+     * folder }. Pegasus's {file.uri} is content://org.pegasus_frontend.android.files/ext/<path under /storage/emulated/0> (its fileprovider_paths.xml: external-path
+     * "ext", root-path "root"; "root" carries the path and is read by embeddedPath)
+     */
+    private static final String[][] PROVIDER_ROOTS = {{"org.pegasus_frontend.android.files", "ext", PRIMARY}};
+
+    /** A content:// URI's authority and decoded path → the file's path, by a known frontend's provider root (PROVIDER_ROOTS) or a path it carries (embeddedPath) */
+    static String providerPath(String authority, String uriPath) {
+        if (uriPath == null) return null;
+        for (String[] r : PROVIDER_ROOTS) {
+            String pre = "/" + r[1] + "/";
+            if (r[0].equals(authority) && uriPath.startsWith(pre)) return r[2] + "/" + uriPath.substring(pre.length());
+        }
+        return embeddedPath(uriPath);
+    }
+
+    /**
+     * Which card a frontend's request names, as FrontendLaunch decides it: by the title ID when one was sent (the first card of that title), else by the path (the
+     * card that holds the same file, by any alias). -1: no card; a path that is no card is a new game, which only Home adds, after the user says so
+     */
+    static int target(List<String> gameDirs, List<String> titleIds, String titleId, String path) {
+        if (titleId != null) {
+            for (int i = 0; i < titleIds.size(); i++) if (titleId.equalsIgnoreCase(titleIds.get(i))) return i;
+            return -1;
+        }
+        return card(gameDirs, path);
     }
 
     /** A title ID as the cards keep it (16 hex digits, upper case), or null */

@@ -61,6 +61,45 @@ public final class FrontendJvmTest {
         eq(-1, Frontend.card(cards, "/storage/emulated/0/Games/A.nup"), "case matters");
         eq(true, Frontend.same("/sdcard/x", "/storage/self/primary/x"), "two aliases");
         eq(false, Frontend.same(null, "/x"), "null");
+        // the paths another app may name: shared storage only, no "..", not Android/data or obb, not a volume's root
+        eq("/storage/emulated/0/ROMs/x.nup", Frontend.sharedPath("/sdcard/ROMs/x.nup"), "alias becomes the primary name");
+        eq("/storage/1234-ABCD/ROMs/x.nup", Frontend.sharedPath("/storage/1234-ABCD/ROMs/x.nup"), "SD card");
+        eq("/mnt/media_rw/1234-ABCD/x.nup", Frontend.sharedPath("/mnt/media_rw/1234-ABCD/x.nup"), "media_rw");
+        eq("/storage/emulated/0/ROMs/dump", Frontend.sharedPath("/storage/emulated/0/ROMs/./dump/"), "./ and trailing slash");
+        eq(null, Frontend.sharedPath("/storage/emulated/0/../../../data/user/0/dev.ankanative.android/files/x.nup"), "traversal into the app's data");
+        eq(null, Frontend.sharedPath("/storage/emulated/0/ROMs/../x.nup"), "any .. step");
+        eq(null, Frontend.sharedPath("/data/user/0/dev.ankanative.android/files/packs/x"), "the app's own folder");
+        eq(null, Frontend.sharedPath("/data/local/tmp/x.nup"), "outside shared storage");
+        eq(null, Frontend.sharedPath("/proc/self/fd/3"), "proc");
+        eq(null, Frontend.sharedPath("/storage/emulated/0/Android/data/org.evil/files/x.nup"), "Android/data");
+        eq(null, Frontend.sharedPath("/sdcard/Android/obb/x/x.nup"), "Android/obb by an alias");
+        eq("/storage/emulated/0/Android/media/x.nup", Frontend.sharedPath("/storage/emulated/0/Android/media/x.nup"), "Android/media is shared");
+        eq(null, Frontend.sharedPath("/storage/emulated/0"), "the volume's root");
+        eq(null, Frontend.sharedPath("/storage/1234-ABCD"), "an SD card's root");
+        eq(null, Frontend.sharedPath("/storage"), "/storage");
+        eq(null, Frontend.sharedPath("/storage/emulated/0/a\nb.nup"), "a control character");
+        eq(null, Frontend.sharedPath("ROMs/x.nup"), "relative");
+        eq(null, Frontend.sharedPath(null), "null");
+        // the extra "game": a path or a file:// URI as a string; content:// is parsed as the data
+        eq("/sdcard/x.nup", Frontend.extraPath(" /sdcard/x.nup "), "path, trimmed");
+        eq("/storage/emulated/0/a b.nup", Frontend.extraPath("file:///storage/emulated/0/a%20b.nup"), "file URI string");
+        eq(null, Frontend.extraPath("content://x/y"), "content URI is not a path");
+        eq(null, Frontend.extraPath("x.nup"), "relative");
+        eq(true, Frontend.contentUri(" Content://com.android.externalstorage.documents/document/primary%3Ax.nup"), "content URI string");
+        eq(false, Frontend.contentUri("/sdcard/x.nup"), "a path is no content URI");
+        // frontends' own providers: Pegasus's "ext" root is the primary storage, "root" carries the path
+        eq("/storage/emulated/0/Download/switch/x.nup", Frontend.providerPath("org.pegasus_frontend.android.files", "/ext/Download/switch/x.nup"), "Pegasus ext");
+        eq("/storage/emulated/0/ROMs/x.nup", Frontend.providerPath("org.pegasus_frontend.android.files", "/root/storage/emulated/0/ROMs/x.nup"), "Pegasus root");
+        eq(null, Frontend.providerPath("org.evil", "/ext/Download/x.nup"), "ext of an unknown provider");
+        eq(null, Frontend.sharedPath(Frontend.providerPath("org.pegasus_frontend.android.files", "/ext/../../../data/x")), "Pegasus ext with ..");
+        // which card a request names: title ID first, else the file; a file that is no card names none (Home asks before adding it)
+        List<String> ids = Arrays.asList("0400486024DEC000", "040074A01BF12000", "0400486024DEC000");
+        eq(0, Frontend.target(cards, ids, "0400486024DEC000", null), "first card of the title");
+        eq(1, Frontend.target(cards, ids, "040074a01bf12000", "/storage/1234-ABCD/c.nup"), "title ID wins over the path");
+        eq(-1, Frontend.target(cards, ids, "0100000000010000", "/sdcard/Games/a.nup"), "unknown title: none, even when the path is a card");
+        eq(2, Frontend.target(cards, ids, null, "/storage/1234-ABCD/c.nup"), "by path");
+        eq(-1, Frontend.target(cards, ids, null, "/sdcard/Games/new.nup"), "a new file: no card");
+        eq(-1, Frontend.target(cards, ids, null, null), "nothing");
         // title IDs
         eq("040074A01BF12000", Frontend.titleId("040074a01bf12000"), "lower case");
         eq("040074A01BF12000", Frontend.titleId(" 0x040074A01BF12000 "), "0x and spaces");
