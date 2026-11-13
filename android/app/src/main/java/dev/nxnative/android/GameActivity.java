@@ -467,6 +467,8 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             String gpuNote = GpuDriver.env(this, id, env);   // the game's GPU driver, else the main screen's (DM_VK_DRIVER)
             String ts = Prefs.gpuTs(this, id);   // Game settings › GPU timing; unset: the profile's gpu_timestamps (a DM_NVN_GPU_TS line of env.txt or the game's own lines comes later and wins)
             if (ts != null) env.add("DM_NVN_GPU_TS=" + ts);
+            // Game settings › 3D resolution: the game's dynamic-resolution level held or capped (loader.c drs_level_apply); a DM_RES_LEVEL line of env.txt comes later and wins
+            if (prof != null) env.addAll(prof.resLevelEnv(Prefs.resLevel(this, id)));
             if (Prefs.introSkip(this, id)) env.add("DM_SKIP=1");   // Game settings › Intro skip: Minus+Plus held 1 s skips the intro (hle_hid.c); a DM_SKIP line of env.txt comes later and wins
             if (Prefs.ramSaver(this, id)) { env.add("DM_MEM_FILEBACK=1"); env.add("DM_MEM_FILEBACK_KINDS=shader,texture"); }   // Game settings › RAM saver: texture pools in a file (vka_mem.c "File-backed pools"); lines of env.txt or the game's own come later and win
             env.addAll(user);
