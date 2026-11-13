@@ -3,7 +3,8 @@
 // threads) are in one session whose target is the present period, and each frame reports how long the submitting thread worked on it (its CPU time between two presents).
 // The system then keeps the clocks those threads need, and moves them to faster cores, instead of ramping down between frames and back up late (the frame-to-frame swings on the
 // SM8850 phone). The replay's own threads also run at THREAD_PRIORITY_URGENT_DISPLAY (nice -8). DM_VK_ADPF=0 turns the session off.
-// The entry points are looked up at run time: libandroid has them from API 33, setThreads from 34.
+// The entry points are looked up at run time: libandroid has them from API 33, setThreads from 34. Android 12 and 12L (API 31-32) have the hint session in Java only
+// (android.os.PerformanceHintManager), which this library does not call: there the frame's threads run on the default governor, as the [RED] line in avail says.
 // From API 35 the report also carries the frame's GPU time (APerformanceHint_reportActualWorkDuration2, AWorkDuration_setActualGpuDurationNanos): the GPU's governor sees
 // the frame's GPU work against the target instead of only its busy percentage (on the SM8850 phone the same replayed frame took 35 ms of GPU time right after a busy
 // stretch and 94-98 ms after 2.6 s of idle GPU: its clock follows load). DM_VK_ADPF_GPU=0 (live) reports CPU time only
@@ -52,7 +53,7 @@ static int avail(void) {
     H.wd_create = dlsym(h, "AWorkDuration_create"); H.wd_release = dlsym(h, "AWorkDuration_release"); H.wd_start = dlsym(h, "AWorkDuration_setWorkPeriodStartTimestampNanos");
     H.wd_total = dlsym(h, "AWorkDuration_setActualTotalDurationNanos"); H.wd_cpu = dlsym(h, "AWorkDuration_setActualCpuDurationNanos");
     H.wd_gpu = dlsym(h, "AWorkDuration_setActualGpuDurationNanos"); H.report2 = dlsym(h, "APerformanceHint_reportActualWorkDuration2");
-    if (!H.get || !H.create || !H.target || !H.report || !H.get()) { VRED("no ADPF performance hint manager: the frame's threads run on the default governor"); return 0; }
+    if (!H.get || !H.create || !H.target || !H.report || !H.get()) { VRED("no ADPF performance hint manager (libandroid has it from Android 13): the frame's threads run on the default governor"); return 0; }
     H.cfg_create = dlsym(h, "ASessionCreationConfig_create"); H.cfg_release = dlsym(h, "ASessionCreationConfig_release"); H.cfg_tids = dlsym(h, "ASessionCreationConfig_setTids");
     H.cfg_target = dlsym(h, "ASessionCreationConfig_setTargetWorkDurationNanos"); H.cfg_pipeline = dlsym(h, "ASessionCreationConfig_setGraphicsPipeline");
     H.create_cfg = dlsym(h, "APerformanceHint_createSessionUsingConfig"); H.feature = dlsym(h, "APerformanceHint_isFeatureSupported");

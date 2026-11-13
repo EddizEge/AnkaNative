@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -486,8 +487,9 @@ final class Ondevice {
         }
 
         void startService(Job j) {
-            // Android 13+: the progress notification needs the user's yes; the job runs either way (without it the notification shows only in the task manager)
-            if (a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            // Android 13+: the progress notification needs the user's yes; the job runs either way (without it the notification shows only in the task manager).
+            // Android 12 has no such permission: notifications are allowed unless the user turns them off in the app's settings
+            if (Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 a.requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, ASK_NOTIFY);
             a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, j.file.getPath()));
             if (!bound) bound = a.bindService(new Intent(a, PackService.class), this, 0);

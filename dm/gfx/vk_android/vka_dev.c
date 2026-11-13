@@ -75,7 +75,12 @@ static int init_once(void) {
     VKA_GLOBAL_FNS(G)
 #undef G
     uint32_t api = VK_API_VERSION_1_0; if (vk.vkEnumerateInstanceVersion) vk.vkEnumerateInstanceVersion(&api);
-    if (api < VK_API_VERSION_1_3) { VRED("Vulkan instance %u.%u: the replay needs 1.3", VK_API_VERSION_MAJOR(api), VK_API_VERSION_MINOR(api)); return 0; }
+    // The replay is Vulkan 1.3 device-level work; Vulkan 1.3 added no instance-level commands, so a 1.1 loader with a 1.3 device is enough (the spec: device-level
+    // functionality follows the device's apiVersion and the one asked for here). Android 12 and 12L's loader reports 1.1 (frameworks/native vulkan/libvulkan
+    // EnumerateInstanceVersion; 1.3 from Android 13), passes this instance's apiVersion to the driver, and hands device commands it does not wrap to the driver's
+    // vkGetDeviceProcAddr; the device check below still needs 1.3. A 1.0 loader cannot take apiVersion 1.3
+    if (api < VK_API_VERSION_1_1) { VRED("Vulkan instance %u.%u: the replay needs a 1.1 loader and a 1.3 device", VK_API_VERSION_MAJOR(api), VK_API_VERSION_MINOR(api)); return 0; }
+    if (api < VK_API_VERSION_1_3) VLOG("Vulkan loader %u.%u (Android 12/12L): the replay's 1.3 commands go to the driver through vkGetDeviceProcAddr", VK_API_VERSION_MAJOR(api), VK_API_VERSION_MINOR(api));
     uint32_t ne = 0; vk.vkEnumerateInstanceExtensionProperties(NULL, &ne, NULL);
     VkExtensionProperties *ie = calloc(ne ? ne : 1, sizeof *ie); vk.vkEnumerateInstanceExtensionProperties(NULL, &ne, ie);
     const char *iext[4]; uint32_t niext = 0;

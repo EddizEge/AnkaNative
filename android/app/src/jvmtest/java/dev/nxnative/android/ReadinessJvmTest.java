@@ -77,14 +77,21 @@ public final class ReadinessJvmTest {
         check(find(l, "Memory").status == Readiness.Status.FAIL && Readiness.of(l, Readiness.Status.WARNING).isEmpty(), "the degraded row of a failed fact is left out");
 
         // No Vulkan facts (no answer, or a host that cannot report): one warning, nothing called missing; the launcher's own facts still checked
-        l = Readiness.evaluate(Readiness.merge(null, 15, 32), game);
-        check(Readiness.of(l, Readiness.Status.FAIL).size() == 1 && find(l, "Android 13 or newer").status == Readiness.Status.FAIL && find(l, "GPU features").status == Readiness.Status.WARNING, "no facts: " + l);
+        l = Readiness.evaluate(Readiness.merge(null, 15, 30), game);
+        check(Readiness.of(l, Readiness.Status.FAIL).size() == 1 && find(l, "Android 12 or newer").status == Readiness.Status.FAIL && find(l, "GPU features").status == Readiness.Status.WARNING, "no facts: " + l);
+        l = Readiness.evaluate(Readiness.merge(null, 15, 31), game);
+        check(!Readiness.any(l, Readiness.Status.FAIL) && find(l, "Android 12 or newer").status == Readiness.Status.PASS, "Android 12 (SDK 31) passes: " + l);
+        // Android 12's Vulkan loader reports 1.1: with a 1.3 driver that passes; a 1.1 driver does not
+        l = Readiness.evaluate(Readiness.merge(all.replace("vk.instance=1.4.0", "vk.instance=1.1.0"), 15.0, 31), game);
+        check(find(l, "Vulkan 1.1 loader or newer").status == Readiness.Status.PASS && find(l, "Vulkan 1.3 GPU driver").status == Readiness.Status.PASS, "a 1.1 loader with a 1.3 driver: " + l);
+        l = Readiness.evaluate(Readiness.merge(all.replace("vk.instance=1.4.0", "vk.instance=1.1.0").replace("vk.api=1.4.295", "vk.api=1.1.128"), 15.0, 31), game);
+        check(find(l, "Vulkan 1.3 GPU driver").status == Readiness.Status.FAIL, "a 1.1 driver fails: " + l);
         l = Readiness.evaluate(Readiness.merge("unchecked=the GPU check did not answer in 8 s\n", 15, 36), game);
         check(!Readiness.any(l, Readiness.Status.FAIL) && find(l, "GPU features").message.contains("did not answer"), "a timeout is no failure: " + l);
         // The driver answered and failed: one failure
         l = Readiness.evaluate(Readiness.merge("error=vkCreateInstance returned -9\nvk.instance=1.3.0\n", 15, 36), game);
         check(find(l, "GPU features").status == Readiness.Status.FAIL && find(l, "GPU features").message.contains("vkCreateInstance returned -9")
-                && find(l, "Vulkan 1.3 loader").status == Readiness.Status.PASS && Readiness.of(l, Readiness.Status.FAIL).size() == 1, "an error line: " + l);
+                && find(l, "Vulkan 1.1 loader or newer").status == Readiness.Status.PASS && Readiness.of(l, Readiness.Status.FAIL).size() == 1, "an error line: " + l);
 
         // Status and the driver's environment
         check(Readiness.status("playable") == null && Readiness.status("") == null && Readiness.status("bring-up").status == Readiness.Status.WARNING, "status");
