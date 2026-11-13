@@ -45,7 +45,7 @@
     X(vkCmdSetDepthTestEnable) X(vkCmdSetDepthWriteEnable) X(vkCmdSetDepthCompareOp) X(vkCmdSetDepthBoundsTestEnable) X(vkCmdSetStencilTestEnable) X(vkCmdSetStencilOp) \
     X(vkCmdSetStencilCompareMask) X(vkCmdSetStencilWriteMask) X(vkCmdSetStencilReference) X(vkCmdSetDepthBias) X(vkCmdSetDepthBiasEnable) \
     X(vkCmdSetRasterizerDiscardEnable) X(vkCmdSetPrimitiveRestartEnable) X(vkCmdSetBlendConstants) X(vkCmdSetLineWidth) \
-    X(vkCmdPushDescriptorSetKHR) X(vkCmdSetVertexInputEXT) X(vkCmdPushConstants) X(vkCmdDrawMeshTasksEXT)
+    X(vkCmdPushDescriptorSetKHR) X(vkCmdSetVertexInputEXT) X(vkCmdPushConstants) X(vkCmdDrawMeshTasksEXT) X(vkCmdDrawMeshTasksIndirectEXT)
 #define VKA_DECL(f) PFN_##f f;
 typedef struct { PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr; VKA_GLOBAL_FNS(VKA_DECL) VKA_INSTANCE_FNS(VKA_DECL) VKA_DEVICE_FNS(VKA_DECL) } vka_fns;
 extern vka_fns vk;   // a missing optional entry point is NULL
@@ -447,6 +447,9 @@ void vka_dyn_invalidate(void);                       // the draws' dynamic state
 int vka_rp_open(void);                               // a render pass is open in the recording command buffer
 int vka_pass_keep(void);                             // DM_VK_PASS_KEEP=0: a SET_RT ends the pass, as before
 int vka_rp_open_for(const p_set_rt *rt, int has_rt);   // a pass is open over these targets
+int vka_mesh_on(void);                               // VK_EXT_mesh_shader is on (vka_draw.c)
+int vka_cpu_read(uint64_t addr, void *out, size_t n);   // guest bytes as the CPU sees them now (1 = read)
+int vka_mdx_args(uint64_t ind, VkBuffer *b, VkDeviceSize *o);   // an indirect mesh draw's {x, y, z} arguments: its record's {count, 1, 1} copy (vka_exec.c)
 int vka_rp_game_barrier(uint32_t bits);                // a game barrier (OP_BARRIER): 1 = taken inside the open pass (DM_VK_BAR_KEEP), 0 = the caller ends the pass and records a full barrier
 void vka_rp_bar_stats(char *b, size_t n, double frames);
 void vka_rp_prep_clear(const p_set_rt *rt, int has_rt); // before a clear of these targets: a pass or pending clears of other targets end

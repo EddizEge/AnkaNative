@@ -487,6 +487,8 @@ static int cpu_read(uint64_t addr, void *out, size_t n) {   // guest bytes as th
     return !plat_mem_read(addr, out, n);
 }
 static int rd_cb(void *ctx, uint64_t addr, void *out, size_t n) { (void)ctx; return cpu_read(addr, out, n); }
+int vka_cpu_read(uint64_t addr, void *out, size_t n) { return cpu_read(addr, out, n); }
+int vka_mesh_on(void) { return V.mesh; }
 // A uniform buffer: bound in place when Vulkan's offset alignment allows, else a copy of what the CPU sees now (a GPU write earlier in this submission is missed: logged)
 static int ubo_desc(uint64_t addr, uint64_t size, VkDescriptorBufferInfo *bi) {
     uint64_t given = size; g_cut.what = 0;
@@ -1516,7 +1518,7 @@ void vka_draw(vka_dstate *d, const p_set_rt *rt, int has_rt, const p_scissor *sc
         if (sh[1] && !(sh[1]->e->flags & DMSH_VK_F_MESH_PRIM) && (sh[7]->e->flags & DMSH_VK_F_MESH_PRIM))
             VRED_ONCE("mesh draw: mesh shader %016llx writes per-primitive outputs and pixel shader %016llx has no per-primitive inputs: any it reads there are undefined", (unsigned long long)sh[7]->key, (unsigned long long)sh[1]->key);
         if (dw->first) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 4) VRED("mesh draw with first workgroup %d (count %d): drawn from 0 (the translated task / mesh shaders read their workgroup index with no base; open)", dw->first, dw->count); }
-        if (dw->count <= 0) return;
+        if (!dw->ind && dw->count <= 0) return;
         if (d->tf_on) VRED_ONCE("transform feedback with a mesh draw: drawn without capture");
     } else {
         for (int st = 0; st < 5; st++) if (!resolve(d->bst[st], st, &sh[st], &bad)) SKIP("draw skipped: no shader library");
@@ -1714,10 +1716,17 @@ void vka_draw(vka_dstate *d, const p_set_rt *rt, int has_rt, const p_scissor *sc
     uint32_t inst = (uint32_t)((dw ? dw->instances : di->instances) > 0 ? (dw ? dw->instances : di->instances) : 1), binst = d->b.base_instance;
     if (vka_gp_split) vka_gp_draw(g_cb, p, mesh ? (sh[7] ? sh[7]->key : 0) : sh[0] ? sh[0]->key : 0, fs ? fs->key : 0, ind ? 0 : (uint64_t)(uint32_t)(dw ? dw->count : di->count) * inst, ind != 0);   // DM_VK_GPUPROF_SPLIT
     if (mesh) {   // count workgroups of the task shader, or of the mesh shader without one (the device's limit per dimension: maxTaskWorkGroupCount / maxMeshWorkGroupCount, 65535 on the Adreno 840)
-        static uint32_t largest; if ((uint32_t)dw->count > largest) { largest = (uint32_t)dw->count; static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VLOG("mesh draw: largest so far %u workgroups (task %016llx mesh %016llx)", largest, sh[6] ? (unsigned long long)sh[6]->key : 0ull, (unsigned long long)sh[7]->key); }
-        uint32_t maxg = sh[6] ? V.task_groups : V.mesh_groups;
-        if ((uint32_t)dw->count > maxg) SKIP("mesh draw of %d workgroups: more than the device's %u in one dimension; skipped", dw->count, maxg);
-        vk.vkCmdDrawMeshTasksEXT(g_cb, (uint32_t)dw->count, 1, 1);
+        if (ind) {   // nvnCommandBufferDrawMeshTasksIndirect: its {count, first} record's {count, 1, 1} copy, made before the pass (vka_exec.c mdx_*)
+            VkBuffer b; VkDeviceSize o;
+            if (!vka_mdx_args(ind, &b, &o)) SKIP("indirect mesh draw record at %#llx not in placed guest RAM, or its {count, 1, 1} copy not made: skipped", (unsigned long long)ind);
+            if (!vk.vkCmdDrawMeshTasksIndirectEXT) SKIP("vkCmdDrawMeshTasksIndirectEXT not available: skipped");
+            vk.vkCmdDrawMeshTasksIndirectEXT(g_cb, b, o, 1, 12);
+        } else {
+            static uint32_t largest; if ((uint32_t)dw->count > largest) { largest = (uint32_t)dw->count; static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VLOG("mesh draw: largest so far %u workgroups (task %016llx mesh %016llx)", largest, sh[6] ? (unsigned long long)sh[6]->key : 0ull, (unsigned long long)sh[7]->key); }
+            uint32_t maxg = sh[6] ? V.task_groups : V.mesh_groups;
+            if ((uint32_t)dw->count > maxg) SKIP("mesh draw of %d workgroups: more than the device's %u in one dimension; skipped", dw->count, maxg);
+            vk.vkCmdDrawMeshTasksEXT(g_cb, (uint32_t)dw->count, 1, 1);
+        }
     } else if (expand) {   // quads or a line loop: the indices made here, 32-bit, in scratch memory
         uint32_t count = (uint32_t)(dw ? dw->count : di->count), *src = NULL;
         if (di && !(src = read_indices(di->ibuf, di->itype, count))) SKIP("indices at %#llx are not readable: the draw is skipped", (unsigned long long)di->ibuf);
