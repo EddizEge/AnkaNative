@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-uint64_t vka_memu_n_batches, vka_memu_n_draws, vka_memu_n_splits, vka_memu_n_skip;
+uint64_t vka_memu_n_batches, vka_memu_n_draws, vka_memu_n_splits, vka_memu_n_skip, vka_memu_n_wait;
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static const char *stage_name(int st) { return st == DMSH_VK_STAGE_TS ? "task" : "mesh"; }
 
@@ -199,11 +199,12 @@ int vka_memu_helpers(VkPipeline *setup, VkPipeline *dist, VkPipelineLayout *layo
     *setup = ps; *dist = pd; *layout = pl; return 1;
 }
 void vka_memu_stats(char *b, size_t n) {
-    static uint64_t b0, d0, s0, k0;
-    uint64_t nb = vka_memu_n_batches - b0, nd = vka_memu_n_draws - d0, ns = vka_memu_n_splits - s0, nk = vka_memu_n_skip - k0;
-    b0 = vka_memu_n_batches; d0 = vka_memu_n_draws; s0 = vka_memu_n_splits; k0 = vka_memu_n_skip;
+    static uint64_t b0, d0, s0, k0, w0;
+    uint64_t nb = vka_memu_n_batches - b0, nd = vka_memu_n_draws - d0, ns = vka_memu_n_splits - s0, nk = vka_memu_n_skip - k0, nw = vka_memu_n_wait - w0;
+    b0 = vka_memu_n_batches; d0 = vka_memu_n_draws; s0 = vka_memu_n_splits; k0 = vka_memu_n_skip; w0 = vka_memu_n_wait;
     if (!nb && !nd) { if (n) b[0] = 0; return; }
-    snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared", (unsigned long long)nd, (unsigned long long)nb,
-             nb ? (double)nd / (double)nb : 0.0, (unsigned long long)ns, (unsigned long long)nk);
+    char pl[240]; vka_memu_pso_line(pl, sizeof pl);
+    snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared, %llu skipped waiting for their compute pipelines%s",
+             (unsigned long long)nd, (unsigned long long)nb, nb ? (double)nd / (double)nb : 0.0, (unsigned long long)ns, (unsigned long long)nk, (unsigned long long)nw, pl);
 }
 #endif

@@ -16,7 +16,7 @@
 // A draw's entry is the next one of its record in walk order, not the first one of its record (vka_memu_order.h: one look-ahead can meet a record more than once)
 #include "vka_memu_order.h"
 enum { MEMU_MAX = VKA_MEMU_ORDER_MAX };
-typedef struct { int ok, rec, indexed, points; vka_shader *vs, *ts, *ms, *tcs, *mcs; vka_layout tl, ml; VkPipeline tp, mp; } memu_ent;
+typedef struct { int ok, wait, rec, indexed, points; vka_shader *vs, *ts, *ms, *tcs, *mcs; vka_layout tl, ml; VkPipeline tp, mp; } memu_ent;
 static struct { int live; vka_memu_order o; memu_ent e[MEMU_MAX]; vka_span rec; VkBuffer arena, ctl; uint32_t cap; } MB;
 static memu_ent *g_memu_cur;
 // The record being replayed: its entry (the next of its record from the batch's cursor, taken), NULL when the batch has none left for it
@@ -87,8 +87,13 @@ void vka_memu_batch(int phase, const vka_dstate *d, const p_draw *dw, const uint
         E->ts = ts; E->ms = ms; E->vs = vka_memu_vs_of(ms); E->mcs = vka_memu_cs_of(ms, !vka_depth_zero()); E->tcs = ts ? vka_memu_cs_of(ts, 0) : NULL;
         if (!E->vs || !E->mcs || (ts && !E->tcs)) return;
         vka_shader *c5[VKA_NSTAGE] = {0};
-        c5[5] = E->mcs; if (!vka_layout_of(c5, 1, &E->ml) || !(E->mp = vka_cs_pipeline(E->mcs, &E->ml))) return;
-        if (ts) { c5[5] = E->tcs; if (!vka_layout_of(c5, 1, &E->tl) || !(E->tp = vka_cs_pipeline(E->tcs, &E->tl))) return; }
+        // (their compute pipelines are made in the background, one at a time: until both are there the draw is skipped, E->wait; vka_pso.c vka_memu_pipeline)
+        int pm = 0, pt = 0;
+        c5[5] = E->mcs; if (!vka_layout_of(c5, 1, &E->ml)) return;
+        E->mp = vka_memu_pipeline(E->mcs, &E->ml, &pm);
+        if (ts) { c5[5] = E->tcs; if (!vka_layout_of(c5, 1, &E->tl)) return; E->tp = vka_memu_pipeline(E->tcs, &E->tl, &pt); }
+        if (pm || pt) { E->wait = 1; return; }
+        if (!E->mp || (ts && !E->tp)) return;
         vka_memu_rec_mesh(&mi->L, r);
         r[VKA_MEMU_R_FLAGS] |= ts ? VKA_MEMU_F_TASK : 0; r[VKA_MEMU_R_WT] = ts ? ti->L.payload_words : 0;
         r[VKA_MEMU_R_MAXG] = V.cs_groups < 65535 ? V.cs_groups : 65535;

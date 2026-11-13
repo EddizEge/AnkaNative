@@ -1539,7 +1539,7 @@ void vka_draw(vka_dstate *d, const p_set_rt *rt, int has_rt, const p_scissor *sc
         if (V.memu) {   // through compute: its mesh work was done before the pass opened (vka_exec.c memu_scan); it draws the arena with the mesh shader's vertex shader
             memu_e = memu_find();
             if (!memu_e) { vka_memu_n_skip++; SKIP("mesh draw through compute that the look-ahead did not prepare: skipped"); }
-            if (!memu_e->ok) { g_skipped++; return; }   // (logged where its shaders were refused)
+            if (!memu_e->ok) { g_skipped++; if (memu_e->wait) vka_memu_n_wait++; return; }   // (logged where its shaders were refused; or its compute pipelines are still being made)
             if (memu_e->ms != sh[7] || memu_e->ts != sh[6]) {   // the look-ahead's state at this draw was not the replay's: its compute work and vertex shader are another program's
                 vka_memu_n_skip++;
                 SKIP("mesh draw through compute prepared for mesh %016llx, drawn with mesh %016llx (the look-ahead's state differed): skipped", memu_e->ms ? (unsigned long long)memu_e->ms->key : 0ull, (unsigned long long)sh[7]->key);
