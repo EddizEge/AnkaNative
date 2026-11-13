@@ -40,9 +40,8 @@ class Workers(unittest.TestCase):
         self.assertEqual(got[(6, 2.0)][0], 1)    # at least one, whatever the memory
 
     def test_translator_generation(self):
-        got = self.ask((6, 7.3), (6, 11.2))
-        self.assertEqual(got[(6, 7.3)][1], '4000000')     # 64 MiB in .NET's hexadecimal
-        self.assertEqual(got[(6, 11.2)][1], '10000000')   # 256 MiB
+        got = self.ask((6, 7.3), (6, 15.0))
+        self.assertEqual({v[1] for v in got.values()}, {'4000000'})   # 64 MiB in .NET's hexadecimal, on every phone
 
 
 class Service(unittest.TestCase):
@@ -52,7 +51,7 @@ class Service(unittest.TestCase):
         i, g, e = s.find('"DMSH_VK_INTERPS"'), s.find('"DOTNET_GCgen0size"'), s.find('File envFile = new File(od, "env.txt")')
         self.assertTrue(0 < i < e and 0 < g < e, 'set before env.txt is read')
         self.assertRegex(s, r'ShaderWorkers\.interps\(')
-        self.assertRegex(s, r'ShaderWorkers\.gen0\(')
+        self.assertRegex(s, r'ShaderWorkers\.gen0\(\)')
         sp = s.find('"DM_SPLIT_INTERPS"')
         self.assertTrue(0 < sp < e, 'the split\'s workers set before env.txt is read')
 

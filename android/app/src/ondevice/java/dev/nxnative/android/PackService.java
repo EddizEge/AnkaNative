@@ -449,7 +449,7 @@ public final class PackService extends Service {
         int interps = s.equals("shaders") || s.equals("split") ? ShaderWorkers.interps(workers, totalGib) : 1;
         PackEngine.setenv("DMSH_VK_INTERPS", String.valueOf(s.equals("shaders") ? interps : 1));
         PackEngine.setenv("DM_SPLIT_INTERPS", String.valueOf(s.equals("split") ? interps : 1));
-        PackEngine.setenv("DOTNET_GCgen0size", ShaderWorkers.gen0(totalGib));
+        PackEngine.setenv("DOTNET_GCgen0size", ShaderWorkers.gen0());
         Log.i(TAG, s + ": " + workers + " workers, " + interps + " subinterpreters (" + String.format(Locale.ROOT, "%.1f", totalGib) + " GiB)");
         // Tests: ondevice/env.txt, KEY=VALUE lines, overrides any of the above for the tools (e.g. DMSH_VK_XLATE_J=6 to compare the translator's threads)
         File envFile = new File(od, "env.txt");
