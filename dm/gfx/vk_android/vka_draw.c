@@ -164,6 +164,7 @@ static struct {
     int swrite;                                          // a draw of the pass wrote memory (storage buffers or images, raw global stores, a geometry shader's claim)
     int bar_pending;                                     // a game barrier came inside the pass and was taken there (vka_rp_game_barrier): the draws after it are checked (bar_hazard)
     vka_img *wim[9]; int8_t wslot[9]; int nw;            // its watched big attachments (DM_VK_RTWATCH_MB, vka_tex.c "Big targets"): colour index, or -1 depth / stencil
+    uint64_t bigd;                                       // its depth attachment's serial when that is a big depth target and DM_VK_BIGDEPTH_SYNC is on (vka_bigdepth.c), else 0
 } R;
 // Clears waiting for the pass of their targets (vka_rp_clear), in order: the next draw over the same targets opens its pass with them (loadOp CLEAR, or vkCmdClearAttachments),
 // anything else does them outside a pass first (pc_flush), as before
@@ -194,6 +195,7 @@ void vka_rp_end(void) {
     vka_barrier(g_cb);   // the pass's writes before whatever reads them next (copies, the present, the next pass's samples)
     R.on = 0; vka_tex_feedback(NULL, NULL, 0);
     if (vka_nan_on()) vka_nan_pass(g_cb, R.cim, R.clv, R.cl0, R.nci);
+    if (R.bigd) { vka_bigdepth_pass_serial = R.bigd; R.bigd = 0; }   // (DM_VK_BIGDEPTH_SYNC: waited for at the next draw, vka_exec.c chunk_check)
 }
 static void rt_range(const vka_img *im, const view_t *v, int has_v, uint32_t *lv, uint32_t *l0, uint32_t *nl) {
     *lv = has_v && v->set_levels ? v->base_level : 0;
@@ -236,7 +238,7 @@ static int rp_begin(const p_set_rt *rt, int has_rt, const vka_dstate *d) {
         vka_img_written(im);
     }
     R.ncolor = (uint32_t)n;
-    VkRenderingAttachmentInfo *dp = NULL, *sp = NULL;
+    VkRenderingAttachmentInfo *dp = NULL, *sp = NULL; vka_img *bigd = NULL;   // (bigd: a big depth target as the attachment, vka_bigdepth.c)
     if (has_rt && rt->depth) {
         vka_rl_site = VKA_RL_ATT; vka_img *im = vka_tex_get(rt->depth, g_cb); vka_rl_site = 0;
         if (im && im->f.kind >= 3 && (im->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) && (!samples || im->samples == samples)) {
@@ -252,6 +254,7 @@ static int rp_begin(const p_set_rt *rt, int has_rt, const vka_dstate *d) {
                 R.dnl = nl; R.dext = (VkExtent2D){lw, lh};
                 if (lw < w) w = lw; if (lh < h) h = lh; if (nl < layers) layers = nl;
                 if (im->rtw && R.nw < 9) { R.wim[R.nw] = im; R.wslot[R.nw++] = -1; vka_rtw(im, VKA_RTW_PASS); }
+                if (vka_bigdepth(im)) { bigd = im; if (vka_bigdepth_sync_on()) R.bigd = im->serial; }
                 vka_img_written(im);
             }
         } else if (im) VRED_ONCE("depth target (format %#x) cannot be a Vulkan depth attachment: drawn without depth", rt->depth->d.format);
@@ -294,6 +297,13 @@ static int rp_begin(const p_set_rt *rt, int has_rt, const vka_dstate *d) {
     if (VKA_ENV("DM_VK_DRAW_LOG", 0) >= 1) {   // (the draws that follow draw into these: a UI's text layers)
         char b[256]; int o = 0; for (int i = 0; i < R.nci && o < 200; i++) o += snprintf(b + o, sizeof b - o, " serial %llu %ux%u fmt %d;", (unsigned long long)R.cim[i]->serial, R.cim[i]->w, R.cim[i]->h, R.cim[i]->f.vk);
         VLOG("draw pass: %d colour targets%s %ux%u", R.nci, o ? b : "", R.area.extent.width, R.area.extent.height); }
+    if (bigd && vka_bigdepth_log_on()) {   // DM_VK_BIGDEPTH_LOG: the pass over a big depth target, as the driver gets it
+        const VkRenderingAttachmentInfo *a = dp ? dp : sp; uint64_t vka_frame(void);
+        vka_bigdepth_log("pass over serial %llu (frame %llu): vkCmdBeginRendering render area %ux%u layers %u samples %u, depth %s loadOp %d storeOp %d clear %g, stencil %s loadOp %d clear %u, "
+                         "%u colour attachments, %d vkCmdClearAttachments at its start; vkCmdEndRendering then a full barrier at its end", (unsigned long long)bigd->serial, (unsigned long long)vka_frame(),
+                         w, h, layers, R.samples, dp ? "yes" : "no", a ? a->loadOp : -1, a ? a->storeOp : -1, dp ? dp->clearValue.depthStencil.depth : 0.0f, sp ? "yes" : "no",
+                         sp ? sp->loadOp : -1, sp ? sp->clearValue.depthStencil.stencil : 0u, (uint32_t)n, nlate);
+    }
     vk.vkCmdBeginRendering(g_cb, &ri);
     if (vka_gp_active) vka_gp_rp_begin(g_cb, w, h);   // DM_VK_GPUPROF_SPLIT: a split frame's pass of the chosen size
     R.on = 1; vka_n_rp++; if (g_dyn_filter == 2) vka_dyn_invalidate();   // DM_VK_DYN_FILTER=2: the dynamic state set again at each pass (bisect)

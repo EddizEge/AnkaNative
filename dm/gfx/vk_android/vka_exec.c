@@ -12,6 +12,7 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct { uint64_t serial; p_set_rt rt; int has_rt; p_scissor sc; int has_sc; int64_t copy_stride, copy_img_stride; int rc_skip; vka_dstate d; } qstate;   // what a queue keeps between submissions (d: the draw state, vka_draw.c)
 static qstate S;
@@ -377,8 +378,27 @@ static void chunk(void) {
 // same targets (loadOp LOAD, after the pass end's barrier), so its contents and the draws' order are kept. A pass of 1,700 draws whose GPU work (14-18 ms) only began after
 // all of it was recorded then starts on the GPU while the rest is recorded. Donkey Kong Bananza's level (Adreno 840, DM_VK_GPUPROF): the extra splits cost no measurable GPU
 // time (20.2-20.5 ms a frame with them, 20.8-21.0 without); with the GPU clock floor the GPU finished 6-10 ms after recording instead of 10-33
+// DM_VK_BIGDEPTH_SYNC (vka_bigdepth.c): the part recorded so far goes to the queue (chunk) and the queue is waited for, so a lost device shows which step of a big depth
+// target's first use the GPU did not finish. Outside a pass only (the caller ended it); no part left in the slot (NCHUNK) or a hang already declared: not waited for, logged
+void vka_bigdepth_sync(const char *what, uint64_t serial) {
+    if (!vka_bigdepth_sync_on() || !g_cb) return;
+    if (vka_hung()) { vka_bigdepth_log("sync after %s of serial %llu: a GPU hang was already declared", what, (unsigned long long)serial); return; }
+    vka_rp_end();
+    VkCommandBuffer before = g_cb; chunk();
+    if (g_cb == before) { VLOG("bigdepth: sync after %s of serial %llu: not waited for (no command buffer left for a part of this submission)", what, (unsigned long long)serial); return; }
+    vka_enc_sync();   // the part's end and submit are made (on the encoder thread when it is on)
+    uint64_t t0 = now_ns();
+    pthread_mutex_lock(&V.qmu); VkResult r = vk.vkQueueWaitIdle(V.q); pthread_mutex_unlock(&V.qmu);
+    VLOG("bigdepth: sync after %s of serial %llu (frame %llu): %s (vkQueueWaitIdle %d, %.1f ms; DM_VK_BIGDEPTH_SYNC)", what, (unsigned long long)serial, (unsigned long long)g_frame,
+         r ? "the GPU did NOT finish it" : "the GPU finished it", r, (now_ns() - t0) / 1e6);
+    fflush(stderr); fsync(STDERR_FILENO);
+}
 static inline void chunk_check(void) {
     if (!g_cb) return;
+    if (vka_bigdepth_pass_serial && !vka_rp_is_open()) {   // a pass over a big depth target ended (vka_draw.c; only with DM_VK_BIGDEPTH_SYNC): its first DM_VK_BIGDEPTH_SYNC_PASSES waited for
+        static int np; uint64_t sr = vka_bigdepth_pass_serial; vka_bigdepth_pass_serial = 0;
+        if (np < VKA_ENV("DM_VK_BIGDEPTH_SYNC_PASSES", 4)) { np++; vka_bigdepth_sync("a pass with it as the depth attachment (and what was recorded after it up to this draw)", sr); }
+    }
     uint64_t in = g_stat_draws - g_chunk_d0;
     if (g_chunk_draws > 0 && in >= (uint64_t)g_chunk_draws && vka_rp_split_ok(&S.rt, S.has_rt)) { vka_rp_end(); chunk(); return; }
     int cp = VKA_ENV("DM_VK_CHUNK_PASS", 600);
@@ -647,7 +667,18 @@ static void clear_ds(const p_clear_ds *c) {
     VkClearValue val = {.depthStencil = {c->depth, (uint32_t)c->stencil & 0xff}};
     vka_pclear pc = {-1, im, im->f.vk, asp, lv, l0, nl, rc, !part, val, val};
     vka_rtw_clear(im, zero, (asp & VK_IMAGE_ASPECT_DEPTH_BIT) ? dbits : (uint32_t)c->stencil & 0xff);   // (DM_VK_RTWATCH_MB)
-    if (!masked && asp && clear_in_pass(&pc)) { vka_img_written(im); g_stat_ops++; return; }
+    if (vka_bigdepth(im)) {   // a big depth target (vka_bigdepth.c, GitHub issue 5): logged with DM_VK_BIGDEPTH_LOG; DM_VK_BIGDEPTH_CLEAR's method instead of the passes'
+        vka_bigdepth_log("clear of serial %llu (frame %llu): aspect %#x depth %g stencil %u (mask %#x), level %u layers %u+%u, rectangle %d,%d %ux%u of %ux%u, scissored %d, DM_VK_BIGDEPTH_CLEAR %d, "
+                         "a pass open over these targets %d", (unsigned long long)im->serial, (unsigned long long)g_frame, asp, c->depth, (unsigned)c->stencil & 0xff, sm, lv, l0, nl, rc.offset.x,
+                         rc.offset.y, rc.extent.width, rc.extent.height, im->w >> lv, im->h >> lv, part, VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0), vka_rp_open_for(&S.rt, S.has_rt));
+        if (!masked && asp && VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0) > 0) {
+            vka_rp_end();
+            if (vka_bigdepth_clear(g_cb, &pc)) { vka_img_written(im); g_stat_ops++; vka_bigdepth_sync("its clear", im->serial); return; }
+        }
+    }
+    if (!masked && asp && clear_in_pass(&pc)) { if (vka_bigdepth(im)) vka_bigdepth_log("clear of serial %llu: left to the next pass over it (loadOp CLEAR or vkCmdClearAttachments there: its pass line)", (unsigned long long)im->serial);
+                                                vka_img_written(im); g_stat_ops++; return; }
+    if (vka_bigdepth(im)) vka_bigdepth_log("clear of serial %llu: outside a pass, %s", (unsigned long long)im->serial, masked ? "a stencil-masked draw" : pc.whole ? "vkCmdClearDepthStencilImage" : "vkCmdClearAttachments in a pass of its own");
     vka_rp_end();
     if (masked) { stencil_masked(im, lv, l0, nl, rc, sm, (uint32_t)c->stencil & 0xff); vka_img_written(im); g_stat_ops++; vka_barrier(g_cb); if (!asp) return; }
     vka_clear_outside(&pc);
