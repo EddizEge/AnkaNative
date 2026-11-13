@@ -56,7 +56,7 @@ __attribute__((visibility("default"))) int nxhost_vk_readiness(char *buf, int n)
     put_ver(&o, "vk.instance", api);
     if (!vkCreateInstance) { put(&o, "error=no vkCreateInstance\n"); return 1; }
     VkApplicationInfo ai = {VK_STRUCTURE_TYPE_APPLICATION_INFO, .pApplicationName = "Anka Native readiness", .pEngineName = "Anka Native",
-                            .apiVersion = api >= VK_API_VERSION_1_3 ? VK_API_VERSION_1_3 : api >= VK_API_VERSION_1_1 ? VK_API_VERSION_1_1 : VK_API_VERSION_1_0};
+                            .apiVersion = api >= VK_API_VERSION_1_1 ? VK_API_VERSION_1_3 : VK_API_VERSION_1_0};   // as vka_dev.c asks: a 1.1 loader (Android 12) takes 1.3
     VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, .pApplicationInfo = &ai};
     VkInstance inst; VkResult r = vkCreateInstance(&ici, NULL, &inst);
     if (r) { put(&o, "error=vkCreateInstance returned %d\n", r); return 1; }
