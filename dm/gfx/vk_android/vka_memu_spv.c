@@ -299,6 +299,246 @@ static uint32_t label(fn_t *f) { uint32_t id = f->B->next++; INS(f->F, OpLabel, 
 static uint32_t fn_if(fn_t *f, uint32_t c) { uint32_t t = f->B->next++, mg = f->B->next++; INS(f->F, OpSelectionMerge, mg, 0); INS(f->F, OpBranchConditional, c, t, mg); INS(f->F, OpLabel, t); return mg; }
 static void fn_endif(fn_t *f, uint32_t mg) { INS(f->F, OpBranch, mg); INS(f->F, OpLabel, mg); }
 
+// ---------- Ladders of exclusive stores made one store each ----------
+// The translator writes a mesh output whose plane is computed at run time through a helper (mesh_plane_store) that tests the plane against each constant in turn:
+// "if (plane == 0) store A; if (plane == 1) store B; ..." with one or two stores in each branch (the output word, and for the position's z and w a workgroup copy).
+// After conversion every branch stores into the arena (or that workgroup array) at its own word. Turnip inlines the helper at each call (Ocarina of Time: up to 216
+// calls of a 53-block helper, 11,000 blocks in one program), and its compiler's costs grow with blocks times values: nir_opt_copy_prop_vars copies its table at every
+// if (2 GB) and the spiller keeps per-block tables of every value (4 GB), so the phone ran out of memory compiling them (docs/reference/shaders.md "Turnip runs out of
+// memory compiling a mesh program through compute"). Here a run of such ifs, at most one of which is taken (each condition an OpIEqual of one value with a different
+// constant), becomes straight code: each branch's pure instructions run unconditionally, and for each variable stored, one if (the OR of the conditions of the branches
+// that store it) does one store, its last index and its value selected by those conditions. The same stores run with the same values as before: a branch is taken only
+// when its condition holds, and then it is the only one. Only branches of pure instructions (arithmetic, conversions, comparisons, access chains, loads of Private,
+// Function, Input, push constant or uniform memory) and stores into StorageBuffer or Workgroup variables are taken, the headers after the first pure too, with no OpPhi
+// at the merges; anything else is left as it is. → the words (malloc), or NULL with *nflat 0 when nothing changed
+typedef struct { size_t at; uint32_t op, len; } lins_t;
+static int lad_pure(uint32_t op) { return op == OpExtInst || op == OpAccessChain || op == OpInBoundsAccessChain || op == OpCompositeConstruct || op == OpCompositeExtract || op == 83 || (op >= 109 && op <= 205); }
+uint32_t *vka_memu_ladders(const uint32_t *w, size_t n, size_t *on, int *nflat) {
+    *nflat = 0; *on = 0;
+    if (n < 5 || w[0] != 0x07230203) return NULL;
+    uint32_t bound = w[3], next = bound;
+    size_t *def = calloc(bound, sizeof *def); uint8_t *isc = calloc(bound, 1); uint32_t *cval = calloc(bound, 4);
+    lins_t *I = NULL; size_t ni = 0, cap = 0;
+    sb_t O = {0}; uint32_t *out = NULL;
+    if (!def || !isc || !cval) goto done;
+    for (size_t i = 5; i < n;) {   // every instruction; the defining one of each id
+        uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
+        if (!len || i + len > n) goto done;
+        if (ni == cap) { size_t c = cap ? 2 * cap : 4096; lins_t *p = realloc(I, c * sizeof *I); if (!p) goto done; I = p; cap = c; }
+        I[ni++] = (lins_t){i, op, len};
+        if (type_decl(op) && len >= 2 && w[i + 1] < bound) def[w[i + 1]] = i;
+        else if (!no_result(op) && len >= 3 && w[i + 2] < bound) def[w[i + 2]] = i;
+        if (op == OpConstant && len == 4 && w[i + 2] < bound) { isc[w[i + 2]] = 1; cval[w[i + 2]] = w[i + 3]; }
+        i += len;
+    }
+    #define DOP(id) ((id) < bound && def[id] ? w[def[id]] & 0xffff : 0)
+    #define DW(id) (w + def[id])
+    // A global or function variable's storage class (through access chains): 0 not a variable
+    #define BASE_SC(p, scv) do { uint32_t q_ = (p); for (int g_ = 0; g_ < 16 && (DOP(q_) == OpAccessChain || DOP(q_) == OpInBoundsAccessChain); g_++) q_ = DW(q_)[3]; \
+                                 scv = DOP(q_) == OpVariable ? DW(q_)[3] : 0xffffffffu; } while (0)
+    size_t copied = 0;   // instructions up to I[copied] are in O
+    for (size_t k = 0; k + 2 < ni; k++) {
+        // A rung starts at a block whose last two instructions are OpSelectionMerge M and OpBranchConditional c T M, T the next block, ending OpBranch M, M after it
+        enum { MAXR = 64, MAXS = 4 };
+        struct { size_t hdr, sm, t0, t1; uint32_t c, x, kval; uint32_t st[MAXS]; int ns; } R[MAXR]; int nr = 0;
+        size_t j = k;
+        if (I[j].op != OpLabel) continue;
+        while (nr < MAXR) {
+            size_t h = j, e = j + 1; while (e < ni && I[e].op != OpLabel && I[e].op != OpFunctionEnd) e++;   // block [h, e)
+            if (e - h < 3 || I[e - 2].op != OpSelectionMerge || I[e - 1].op != OpBranchConditional || I[e - 1].len != 4) break;
+            const uint32_t *sm = w + I[e - 2].at, *bc = w + I[e - 1].at;
+            uint32_t M = sm[1], c = bc[1], T = bc[2];
+            if (bc[3] != M || e >= ni || I[e].op != OpLabel || w[I[e].at + 1] != T) break;
+            if (DOP(c) != OpIEqual) break;
+            uint32_t a0 = DW(c)[3], a1 = DW(c)[4], x, kc;
+            if (a1 < bound && isc[a1]) { x = a0; kc = a1; } else if (a0 < bound && isc[a0]) { x = a1; kc = a0; } else break;
+            if (nr && x != R[0].x) break;
+            int dup = 0; for (int r = 0; r < nr; r++) dup |= R[r].kval == cval[kc]; if (dup) break;
+            int ok = 1;
+            if (nr) for (size_t q = h + 1; q < e - 2 && ok; q++) {   // a later header: pure only (it runs before the stores now)
+                uint32_t op = I[q].op;
+                if (op == 245) ok = 0;   // (OpPhi)
+                else if (op == OpLoad) { uint32_t sc; BASE_SC(w[I[q].at + 3], sc); ok = I[q].len == 4 && (sc == SCPrivate || sc == SCFunction || sc == SCInput || sc == SCPushConstant || sc == 2 || sc == SCUniformConstant); }
+                else ok = lad_pure(op);
+            }
+            if (!ok) break;
+            size_t t1 = e + 1; while (t1 < ni && I[t1].op != OpLabel && I[t1].op != OpFunctionEnd) t1++;   // T = [e, t1)
+            if (t1 >= ni || I[t1].op != OpLabel || w[I[t1].at + 1] != M || I[t1 - 1].op != OpBranch || w[I[t1 - 1].at + 1] != M) break;
+            if (t1 + 1 < ni && I[t1 + 1].op == 245) break;
+            int ns = 0;
+            for (size_t q = e + 1; q < t1 - 1 && ok; q++) {
+                uint32_t op = I[q].op;
+                if (op == OpStore) {
+                    const uint32_t *s = w + I[q].at; uint32_t sc; BASE_SC(s[1], sc);
+                    if (I[q].len != 3 || (sc != SCStorageBuffer && sc != SCWorkgroup) || (DOP(s[1]) != OpAccessChain && DOP(s[1]) != OpInBoundsAccessChain) || ns == MAXS) ok = 0;
+                    else R[nr].st[ns++] = (uint32_t)q;
+                } else if (op == OpLoad) { uint32_t sc; BASE_SC(w[I[q].at + 3], sc); ok = I[q].len == 4 && (sc == SCPrivate || sc == SCFunction || sc == SCInput || sc == SCPushConstant || sc == 2 || sc == SCUniformConstant); }
+                else ok = lad_pure(op);
+            }
+            if (!ok || !ns) break;
+            R[nr].hdr = h; R[nr].sm = e - 2; R[nr].t0 = e; R[nr].t1 = t1; R[nr].c = c; R[nr].x = x; R[nr].kval = cval[kc]; R[nr].ns = ns; nr++;
+            j = t1;   // the merge is the next rung's header
+        }
+        if (nr < 2) continue;
+        // The groups: per stored variable (the chain's base), every chain of the same length, result type and indices but the last; each rung's stores in group order
+        enum { MAXG = 8 };
+        struct { uint32_t var, ptype, n; const uint32_t *ch; int nr; int r[MAXR]; uint32_t idx[MAXR], val[MAXR]; } G[MAXG]; int ng = 0, ok = 1;
+        for (int r = 0; r < nr && ok; r++) {
+            int lastg = -1;
+            for (int s = 0; s < R[r].ns && ok; s++) {
+                const uint32_t *st = w + I[R[r].st[s]].at, *ch = DW(st[1]);
+                uint32_t cl = ch[0] >> 16, var = ch[3];
+                if (cl < 5 || DOP(var) != OpVariable) { ok = 0; break; }
+                int g = 0; while (g < ng && G[g].var != var) g++;
+                if (g == ng) { if (ng == MAXG) { ok = 0; break; } G[g].var = var; G[g].ptype = ch[1]; G[g].n = cl; G[g].ch = ch; G[g].nr = 0; ng++; }
+                else if (G[g].ptype != ch[1] || G[g].n != cl || memcmp(G[g].ch + 4, ch + 4, (cl - 5) * 4)) { ok = 0; break; }
+                if (g <= lastg || (G[g].nr && G[g].r[G[g].nr - 1] == r)) { ok = 0; break; }   // (in group order, one store a variable a rung)
+                lastg = g; G[g].r[G[g].nr] = r; G[g].idx[G[g].nr] = ch[cl - 1]; G[g].val[G[g].nr] = st[2]; G[g].nr++;
+            }
+        }
+        for (int g = 0; g < ng && ok; g++) {   // a differing last index must index an array (or vector): the type walk of the chain
+            int same = 1; for (int q = 1; q < G[g].nr; q++) same &= G[g].idx[q] == G[g].idx[0];
+            uint32_t pt = DW(G[g].var)[1], t = DOP(pt) == OpTypePointer ? DW(pt)[3] : 0;
+            for (uint32_t q = 4; q < G[g].n - 1 && t; q++) {
+                uint32_t op = DOP(t);
+                if (op == OpTypeStruct) { uint32_t ix = G[g].ch[q]; t = ix < bound && isc[ix] && 2 + cval[ix] < (DW(t)[0] >> 16) ? DW(t)[2 + cval[ix]] : 0; }
+                else if (op == OpTypeArray || op == OpTypeRuntimeArray || op == OpTypeVector) t = DW(t)[2];
+                else t = 0;
+            }
+            uint32_t lop = DOP(t);
+            if (!same && lop != OpTypeArray && lop != OpTypeRuntimeArray && lop != OpTypeVector) ok = 0;
+            uint32_t vt = DOP(G[g].ptype) == OpTypePointer ? DW(G[g].ptype)[3] : 0, vop = DOP(vt);   // (OpSelect with a scalar condition: a scalar value, as SPIR-V 1.3 asks)
+            if (vop != OpTypeInt && vop != OpTypeFloat && vop != OpTypeBool) ok = 0;
+            for (int q = 0; q < G[g].nr && ok; q++) { uint32_t ix = G[g].idx[q]; if (!(ix < bound && def[ix]) || DW(ix)[1] != DW(G[g].idx[0])[1] || DOP(DW(ix)[1]) != OpTypeInt) ok = 0; }   // (the indices: one integer type)
+        }
+        if (!ok) continue;
+        uint32_t t_bool = DOP(R[0].c) == OpIEqual ? DW(R[0].c)[1] : 0;
+        // Out: everything before the first rung's merge instruction, then each rung's header (after the first) and branch, without their control flow and stores
+        for (; copied < R[0].sm; copied++) sb_raw(&O, w + I[copied].at, I[copied].len);
+        for (int r = 0; r < nr; r++) {
+            if (r) for (size_t q = R[r].hdr + 1; q < R[r].sm; q++) sb_raw(&O, w + I[q].at, I[q].len);
+            for (size_t q = R[r].t0 + 1; q < R[r].t1 - 1; q++) if (I[q].op != OpStore) sb_raw(&O, w + I[q].at, I[q].len);
+        }
+        uint32_t lastM = w[I[R[nr - 1].t1].at + 1];
+        for (int g = 0; g < ng; g++) {
+            uint32_t vt = DW(G[g].ptype)[3], it = DW(G[g].idx[0])[1], idx = G[g].idx[G[g].nr - 1], val = G[g].val[G[g].nr - 1], cond = R[G[g].r[G[g].nr - 1]].c;
+            for (int q = G[g].nr - 2; q >= 0; q--) {
+                uint32_t c = R[G[g].r[q]].c;
+                if (G[g].idx[q] != idx) { uint32_t id = next++; INS(&O, OpSelect, it, id, c, G[g].idx[q], idx); idx = id; }
+                if (G[g].val[q] != val) { uint32_t id = next++; INS(&O, OpSelect, vt, id, c, G[g].val[q], val); val = id; }
+                uint32_t id = next++; INS(&O, 166, t_bool, id, c, cond); cond = id;   // OpLogicalOr
+            }
+            uint32_t tl = next++, mg = g == ng - 1 ? lastM : next++, ch = next++;
+            INS(&O, OpSelectionMerge, mg, 0); INS(&O, OpBranchConditional, cond, tl, mg); INS(&O, OpLabel, tl);
+            sb_put(&O, G[g].n << 16 | (G[g].ch[0] & 0xffff)); sb_put(&O, G[g].ptype); sb_put(&O, ch); sb_raw(&O, G[g].ch + 3, G[g].n - 4); sb_put(&O, idx);
+            INS(&O, OpStore, ch, val); INS(&O, OpBranch, mg); INS(&O, OpLabel, mg);
+        }
+        copied = R[nr - 1].t1 + 1;   // (the last merge's label was placed above)
+        k = copied - 1; (*nflat)++;
+    }
+    #undef DOP
+    #undef DW
+    #undef BASE_SC
+    if (!*nflat) goto done;
+    for (; copied < ni; copied++) sb_raw(&O, w + I[copied].at, I[copied].len);
+    if (O.oom) { *nflat = 0; goto done; }
+    out = malloc((5 + O.n) * 4);
+    if (!out) { *nflat = 0; goto done; }
+    memcpy(out, w, 20); out[3] = next; memcpy(out + 5, O.w, O.n * 4); *on = 5 + O.n;
+done:
+    free(def); free(isc); free(cval); free(I); free(O.w);
+    return out;
+}
+
+// The plane helper keeps two guards around that ladder (the index within the outputs, the vertex within OutputVertices): "if (a) { pure; if (c1) { stores } pure;
+// if (c2) { stores } pure }". Such an if becomes "pure; if (a && c1) { stores } pure; if (a && c2) { stores } pure": the same stores under the same conditions, two
+// blocks fewer for each guard at each inlined call. Its body must be pure code (as above) and ifs without else whose branch holds only pure code and stores into
+// StorageBuffer or Workgroup variables, ending in a branch to the guard's merge, no OpPhi at a merge. One if at a time, innermost first. → the words (malloc) or NULL
+static uint32_t *nest_once(const uint32_t *w, size_t n, size_t *on) {
+    uint32_t bound = w[3], next = bound;
+    size_t *def = calloc(bound, sizeof *def); lins_t *I = NULL; size_t ni = 0, cap = 0; sb_t O = {0}; uint32_t *out = NULL;
+    if (!def) return NULL;
+    for (size_t i = 5; i < n;) {
+        uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
+        if (!len || i + len > n) goto done;
+        if (ni == cap) { size_t c = cap ? 2 * cap : 4096; lins_t *p = realloc(I, c * sizeof *I); if (!p) goto done; I = p; cap = c; }
+        I[ni++] = (lins_t){i, op, len};
+        if (type_decl(op) && len >= 2 && w[i + 1] < bound) def[w[i + 1]] = i;
+        else if (!no_result(op) && len >= 3 && w[i + 2] < bound) def[w[i + 2]] = i;
+        i += len;
+    }
+    #define DOP(id) ((id) < bound && def[id] ? w[def[id]] & 0xffff : 0)
+    #define DW(id) (w + def[id])
+    #define LOAD_OK(q) ({ uint32_t p_ = w[I[q].at + 3]; for (int g_ = 0; g_ < 16 && (DOP(p_) == OpAccessChain || DOP(p_) == OpInBoundsAccessChain); g_++) p_ = DW(p_)[3]; \
+                          uint32_t sc_ = DOP(p_) == OpVariable ? DW(p_)[3] : 0xffffffffu; \
+                          I[q].len == 4 && (sc_ == SCPrivate || sc_ == SCFunction || sc_ == SCInput || sc_ == SCPushConstant || sc_ == 2 || sc_ == SCUniformConstant); })
+    #define STORE_OK(q) ({ uint32_t p_ = w[I[q].at + 1]; for (int g_ = 0; g_ < 16 && (DOP(p_) == OpAccessChain || DOP(p_) == OpInBoundsAccessChain); g_++) p_ = DW(p_)[3]; \
+                           uint32_t sc_ = DOP(p_) == OpVariable ? DW(p_)[3] : 0xffffffffu; I[q].len == 3 && (sc_ == SCStorageBuffer || sc_ == SCWorkgroup); })
+    // The candidate with the most deeply nested start that matches: scan every header, keep the last match (an inner if comes after its guard's header)
+    size_t best = 0; int found = 0;
+    for (size_t h = 0; h + 3 < ni; h++) {
+        if (I[h].op != OpSelectionMerge || I[h + 1].op != OpBranchConditional || I[h + 1].len != 4) continue;
+        uint32_t M = w[I[h].at + 1], T = w[I[h + 1].at + 2];
+        if (w[I[h + 1].at + 3] != M || I[h + 2].op != OpLabel || w[I[h + 2].at + 1] != T) continue;
+        size_t q = h + 3; int inner = 0, ok = 1;
+        for (;;) {
+            while (q < ni && ok && I[q].op != OpSelectionMerge && I[q].op != OpBranch) { ok = I[q].op == OpLoad ? LOAD_OK(q) : lad_pure(I[q].op); q++; }
+            if (!ok || q >= ni) { ok = 0; break; }
+            if (I[q].op == OpBranch) { ok = w[I[q].at + 1] == M && q + 1 < ni && I[q + 1].op == OpLabel && w[I[q + 1].at + 1] == M && !(q + 2 < ni && I[q + 2].op == 245); break; }
+            // an inner if without else: its branch only pure code and stores
+            if (q + 3 >= ni || I[q + 1].op != OpBranchConditional || I[q + 1].len != 4) { ok = 0; break; }
+            uint32_t Mi = w[I[q].at + 1], Ti = w[I[q + 1].at + 2];
+            if (w[I[q + 1].at + 3] != Mi || I[q + 2].op != OpLabel || w[I[q + 2].at + 1] != Ti) { ok = 0; break; }
+            q += 3;
+            while (q < ni && ok && I[q].op != OpBranch && I[q].op != OpLabel) { ok = I[q].op == OpStore ? STORE_OK(q) : I[q].op == OpLoad ? LOAD_OK(q) : lad_pure(I[q].op); q++; }
+            if (!ok || q + 1 >= ni || I[q].op != OpBranch || w[I[q].at + 1] != Mi || I[q + 1].op != OpLabel || w[I[q + 1].at + 1] != Mi || (q + 2 < ni && I[q + 2].op == 245)) { ok = 0; break; }
+            q += 2; inner++;
+        }
+        if (ok && inner) { best = h; found = 1; }
+    }
+    if (!found) goto done;
+    {
+        size_t h = best; uint32_t a = w[I[h + 1].at + 1], tb = DOP(a) ? DW(a)[1] : 0;
+        if (!tb) goto done;
+        size_t q;
+        for (q = 0; q < h; q++) sb_raw(&O, w + I[q].at, I[q].len);   // up to the guard's merge instruction
+        for (q = h + 3;;) {
+            while (I[q].op != OpSelectionMerge && I[q].op != OpBranch) { sb_raw(&O, w + I[q].at, I[q].len); q++; }
+            if (I[q].op == OpBranch) { q += 2; break; }   // (the branch to M and M's label: M's code goes on in this block)
+            uint32_t c = w[I[q + 1].at + 1], id = next++;
+            INS(&O, 167, tb, id, a, c);   // OpLogicalAnd
+            sb_raw(&O, w + I[q].at, I[q].len);
+            INS(&O, OpBranchConditional, id, w[I[q + 1].at + 2], w[I[q + 1].at + 3]);
+            q += 2;
+            do { sb_raw(&O, w + I[q].at, I[q].len); q++; } while (I[q - 1].op != OpBranch);   // the branch: its label, code and stores, the branch to Mi
+            sb_raw(&O, w + I[q].at, I[q].len); q++;   // Mi's label
+        }
+        for (; q < ni; q++) sb_raw(&O, w + I[q].at, I[q].len);
+    }
+    #undef DOP
+    #undef DW
+    #undef LOAD_OK
+    #undef STORE_OK
+    if (O.oom) goto done;
+    out = malloc((5 + O.n) * 4);
+    if (out) { memcpy(out, w, 20); out[3] = next; memcpy(out + 5, O.w, O.n * 4); *on = 5 + O.n; }
+done:
+    free(def); free(I); free(O.w);
+    return out;
+}
+uint32_t *vka_memu_nest(const uint32_t *w, size_t n, size_t *on, int *nflat) {
+    *nflat = 0; *on = 0;
+    if (n < 5 || w[0] != 0x07230203) return NULL;
+    uint32_t *cur = NULL; size_t cn = n;
+    for (;;) {
+        size_t nn = 0; uint32_t *x = nest_once(cur ? cur : w, cn, &nn);
+        if (!x) break;
+        free(cur); cur = x; cn = nn; (*nflat)++;
+    }
+    *on = cn;
+    return cur;
+}
+
 // ---------- Task / mesh as compute ----------
 typedef struct { uint32_t var; uint32_t idx[6]; int n; } chain_t;
 uint32_t *vka_memu_cs(const uint32_t *w, size_t nw, size_t *out_nw, char *err, size_t errn) {
@@ -559,6 +799,10 @@ uint32_t *vka_memu_cs(const uint32_t *w, size_t nw, size_t *out_nw, char *err, s
         memcpy(o, O.w, tpos * 4); memcpy(o + tpos, B.T.w, B.T.n * 4); memcpy(o + tpos + B.T.n, O.w + tpos, (O.n - tpos) * 4);
         o[3] = B.next; *out_nw = O.n + B.T.n;
         free(O.w); free(A.w); free(B.T.w); free(F.w); free(ch); free(oid); free(wgch); mod_free(&m);
+        size_t fn = 0; int nl = 0; uint32_t *fl = vka_memu_ladders(o, *out_nw, &fn, &nl);   // the plane helpers' ladders of stores made straight code (above)
+        if (fl) { free(o); o = fl; *out_nw = fn; }
+        fl = vka_memu_nest(o, *out_nw, &fn, &nl);   // and their guards folded into the stores' conditions
+        if (fl) { free(o); o = fl; *out_nw = fn; }
         return o;
     }
 fail:

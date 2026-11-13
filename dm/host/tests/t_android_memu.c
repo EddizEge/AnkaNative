@@ -130,6 +130,19 @@ int main(void) {
         CHECK(bind == 2, "the arena and the records bound at VKA_MEMU_ARENA_BINDING / _REC_BINDING");
         free(o);
     }
+    {   // the plane store helper's ladder (8 ifs, two of them storing z / w into a workgroup array too) and its two guards: one if for the arena, one for the
+        // workgroup array, each under the guards' and the planes' conditions; the module's other selection is the entry point's (vka_memu_cs's own)
+        vka_memu_layout Lp; CHECK(vka_memu_layout_of(MEMU_MESH_PLANE, sizeof MEMU_MESH_PLANE / 4, &Lp, err, sizeof err), "plane mesh layout (%s)", err);
+        convert(MEMU_MESH_PLANE, sizeof MEMU_MESH_PLANE / 4, 0, "mesh_plane", &Lp);
+        size_t n; uint32_t *o = vka_memu_cs(MEMU_MESH_PLANE, sizeof MEMU_MESH_PLANE / 4, &n, err, sizeof err);
+        CHECK(o && count_op(o, n, 247) == 3, "plane helper: 3 selections left of 11 (%d)", o ? count_op(o, n, 247) : -1);
+        CHECK(o && count_op(o, n, 62) == 4 + 1 + 3, "plane helper: one arena store, one workgroup store, the index store's 3 words and the entry's (%d stores)", o ? count_op(o, n, 62) : -1);
+        CHECK(o && count_op(o, n, 167) == 4, "the guards folded into both stores' conditions (%d OpLogicalAnd)", o ? count_op(o, n, 167) : -1);
+        free(o);
+        size_t ln = 0; int nl = 0; uint32_t *x = vka_memu_ladders(MEMU_MESH_TRI, sizeof MEMU_MESH_TRI / 4, &ln, &nl);
+        CHECK(!x && !nl, "a module without a ladder is left as it is");
+        free(x);
+    }
     {   // the pixel shader made flat
         uint32_t *o = vka_memu_fs_flat(MEMU_FS_PRIM, sizeof MEMU_FS_PRIM / 4, &on, err, sizeof err);
         CHECK(o && count_dec(o, on, 5271) == 0 && count_dec(o, on, 14) == 1 && count_op(o, on, 10) == 0, "per-primitive input made flat, the extension dropped (%s)", err);

@@ -39,6 +39,10 @@ uint32_t *vka_memu_cs(const uint32_t *w, size_t nw, size_t *out_nw, char *err, s
 // The vertex shader that draws a mesh layout's arena words: indexed (VertexIndex = the arena vertex) or expanded (VertexIndex = slot x DRAWV + primitive x corners +
 // corner), with Position (Invariant), PointSize for points, every per-vertex location, and every per-primitive location as an output of each of its corners. Set 0
 // binding VKA_MEMU_ARENA_BINDING. malloc'd (*out_nw words), NULL with the reason in err
+// A run of if (x == K_i) { pure code; stores } of distinct K_i made one if a stored variable (vka_memu_cs applies it): the words (malloc), NULL when none changed
+uint32_t *vka_memu_ladders(const uint32_t *w, size_t n, size_t *on, int *nflat);
+// if (a) { pure; if (c) { stores } ... } made if (a && c) { stores } ... (vka_memu_cs applies it after the ladders): the words (malloc), NULL when none changed
+uint32_t *vka_memu_nest(const uint32_t *w, size_t n, size_t *on, int *nflat);
 uint32_t *vka_memu_vs(const vka_memu_layout *L, size_t *out_nw, char *err, size_t errn);
 // A pixel shader of per-primitive inputs (PerPrimitiveEXT, made Flat by the library build) for a vertex pipeline: the decoration, MeshShadingEXT and SPV_EXT_mesh_shader
 // dropped, every such input flat. malloc'd (*out_nw words); NULL with err empty when the module has none
