@@ -2818,9 +2818,64 @@ class InProcess:
         return f
     def map(self, fn, it): return map(fn, it)
 
+class InterpPool:
+    """J=1 with DM_SPLIT_INTERPS=<n> (n > 1): the scan's batches in n subinterpreters of this process (Python 3.14 concurrent.interpreters), each with its own GIL, so
+    the scan's Python runs on n cores where the process may not fork (the phone's packer: android/ONDEVICE.md). Each worker imports this file as a module and runs
+    _pool_init with the pool's arguments; a batch goes in and its results come back pickled (bytes cross interpreters as they are), with what the batch printed
+    (its red lines), which is printed here. Results are taken in job order by pooled, so the outputs are those of InProcess"""
+    BOOT = ('import io, os, pickle, sys\n'
+            'sys.path.insert(0, _here)\n'
+            'import shader_split as _ss\n'
+            '_ss._pool_init(*pickle.loads(_init))\n'
+            'def _run(b):\n'
+            '    out, sys.stdout = sys.stdout, io.StringIO()\n'
+            '    try: r = _ss.scan_batch(pickle.loads(b))\n'
+            '    finally: text, sys.stdout = sys.stdout.getvalue(), out\n'
+            '    return pickle.dumps((r, text), pickle.HIGHEST_PROTOCOL)\n')
+
+    def __init__(self, n, initializer, initargs):
+        import queue
+        from concurrent import interpreters
+        self.I, self.Empty, self.n, self.init = interpreters, queue.Empty, n, pickle.dumps(initargs, pickle.HIGHEST_PROTOCOL)
+        self.idle, self.made, self.ex = queue.SimpleQueue(), [], cf.ThreadPoolExecutor(n)
+        initializer(*initargs)   # (this process too, as InProcess: the parent's own scans, if any)
+
+    def __enter__(self): return self
+
+    def __exit__(self, *exc):
+        self.ex.shutdown(wait=True, cancel_futures=True)
+        for it in self.made: it.close()
+
+    def _one(self, fn, args):
+        if fn is not scan_batch: raise ValueError('InterpPool runs scan_batch only')
+        try: it, res = self.idle.get_nowait()
+        except self.Empty:   # none idle: a new worker
+            it, res = self.I.create(), self.I.create_queue(); self.made.append(it)
+            it.prepare_main(_here=os.path.dirname(os.path.abspath(__file__)), _init=self.init, _out=res)
+            try: it.exec(self.BOOT)
+            except self.I.ExecutionFailed as e: raise RuntimeError(f'split worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        try:
+            it.prepare_main(_b=pickle.dumps(args[0], pickle.HIGHEST_PROTOCOL))
+            it.exec('_out.put(_run(_b))')
+            r, text = pickle.loads(res.get())
+        except self.I.ExecutionFailed as e:
+            raise RuntimeError(f'split worker: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        finally: self.idle.put((it, res))
+        if text: print(text, end='', flush=True)
+        return r
+
+    def submit(self, fn, *args): return self.ex.submit(self._one, fn, args)
+
+    def map(self, fn, it):   # (the second pass: scan_file one job at a time, as scan_batch of one)
+        if fn is not scan_file: raise ValueError('InterpPool maps scan_file only')
+        return (r[0] for r in self.ex.map(lambda j: self._one(scan_batch, ([j],)), list(it)))
+
+
 def pool(J, *initargs):
-    """The scan's workers: J processes, or this process when J is 1 (InProcess)"""
-    return cf.ProcessPoolExecutor(J, initializer=_pool_init, initargs=initargs) if J > 1 else InProcess(_pool_init, initargs)
+    """The scan's workers: J processes, or this process when J is 1 (InProcess), or with DM_SPLIT_INTERPS > 1 that many subinterpreters of it (InterpPool)"""
+    if J > 1: return cf.ProcessPoolExecutor(J, initializer=_pool_init, initargs=initargs)
+    n = int(os.environ.get('DM_SPLIT_INTERPS') or 1)
+    return InterpPool(n, _pool_init, initargs) if n > 1 else InProcess(_pool_init, initargs)
 
 class ScanCache:
     """The scan's finished jobs kept in a folder (DM_SPLIT_RESUME), so a split stopped part way scans only the jobs it had not finished. The phone's split runs
