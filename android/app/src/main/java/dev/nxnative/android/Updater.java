@@ -10,6 +10,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageInstaller;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -72,6 +73,8 @@ final class Updater {
     private static final String TAG = "nxupdate";
     private static final long MAX_APK = 1L << 30;
     private static final String ACTION = ".UPDATE_INSTALL_STATUS";
+    /** The signature permission that guards the status receiver before Android 13 (receiver; declared in AndroidManifest.xml as ${applicationId} + this) */
+    private static final String STATUS_PERMISSION = ".permission.UPDATE_INSTALL_STATUS";
     private static final Handler UI = new Handler(Looper.getMainLooper());
 
     private static boolean checkedThisStart;   // one check per app start (process)
@@ -146,7 +149,7 @@ final class Updater {
     static List<UpdateCheck.Release> releases(Context ctx) throws IOException, JSONException {
         HttpsURLConnection c = open(apiUrl(ctx), "application/vnd.github+json");
         String body;
-        try (InputStream in = c.getInputStream()) { body = new String(in.readAllBytes(), StandardCharsets.UTF_8); }
+        try (InputStream in = c.getInputStream()) { body = new String(Streams.readAll(in), StandardCharsets.UTF_8); }
         finally { c.disconnect(); }
         List<UpdateCheck.Release> out = new ArrayList<>();
         JSONArray rel = new JSONArray(body);
@@ -428,13 +431,13 @@ final class Updater {
     private static synchronized void receiver(Context app) {
         if (receiverOn) return;
         receiverOn = true;
-        app.registerReceiver(new BroadcastReceiver() {
+        BroadcastReceiver r = new BroadcastReceiver() {
             @Override public void onReceive(Context c, Intent i) {
                 int st = i.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
                 String msg = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
                 Activity a = front.get();
                 if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-                    Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class);
+                    Intent confirm = Build.VERSION.SDK_INT >= 33 ? i.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class) : intentExtra(i);
                     if (confirm == null) return;
                     if (a != null && !gone(a)) a.startActivity(confirm);
                     else c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -446,6 +449,19 @@ final class Updater {
                         msg(a, "Update not installed", msg != null ? msg : "The installer answered status " + st + ".");
                 }
             }
-        }, new IntentFilter(app.getPackageName() + ACTION), Context.RECEIVER_NOT_EXPORTED);
+        };
+        // Only this app may send the status: Android 13+ registers the receiver as not exported; before 13 a receiver registered at run time is exported, so it
+        // takes only broadcasts from holders of the app's signature permission (AndroidManifest.xml), which the installer's answer has: the PendingIntent sends it
+        // as this app. Without that another app could hand the receiver an EXTRA_INTENT to start as this app
+        IntentFilter f = new IntentFilter(app.getPackageName() + ACTION);
+        if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(r, f, Context.RECEIVER_NOT_EXPORTED);
+        else app.registerReceiver(r, f, app.getPackageName() + STATUS_PERMISSION, null);
+    }
+
+    /** The installer's confirmation screen before Android 13, which has no typed getParcelableExtra */
+    @SuppressWarnings("deprecation")
+    private static Intent intentExtra(Intent i) {
+        Object o = i.getParcelableExtra(Intent.EXTRA_INTENT);
+        return o instanceof Intent ? (Intent) o : null;
     }
 }

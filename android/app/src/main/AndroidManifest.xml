@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- The in-app updater installs a newer release's APK through PackageInstaller (Updater); Android asks the player to allow it and to confirm each install -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- The updater's install status before Android 13 (Updater.receiver): only this app, which holds it, can send to that receiver -->
+    <permission android:name="${applicationId}.permission.UPDATE_INSTALL_STATUS" android:protectionLevel="signature" />
+    <uses-permission android:name="${applicationId}.permission.UPDATE_INSTALL_STATUS" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x402000" android:required="false" />
     <!-- allowNativeHeapPointerTagging off: the host hands malloc'd blocks to guest code, which must see untagged pointers (also turned off in nxhost_main) -->
     <!-- hasFragileUserData: the app's storage holds the saves and the packs (AppStorage); uninstalling asks whether to keep it -->

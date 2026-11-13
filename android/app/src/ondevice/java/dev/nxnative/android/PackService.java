@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -94,7 +95,9 @@ public final class PackService extends Service {
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nxnative:pack");
         wake.setReferenceCounted(false);
         engine = PackEngine.create(this);
-        battery(registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED));
+        // ACTION_BATTERY_CHANGED is a protected broadcast (only the system sends it); the export flag exists from Android 13
+        IntentFilter bf = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        battery(Build.VERSION.SDK_INT >= 33 ? registerReceiver(batteryReceiver, bf, Context.RECEIVER_NOT_EXPORTED) : registerReceiver(batteryReceiver, bf));
         thermal = pm.getCurrentThermalStatus();
         pm.addThermalStatusListener(getMainExecutor(), thermalListener);
         policy();
