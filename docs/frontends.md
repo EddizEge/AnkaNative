@@ -7,6 +7,8 @@ A graphical app that packs games, keeps a library of them or starts them is a pr
 - [Starting a game](#starting-a-game)
 - [What a front end cannot see yet](#what-a-front-end-cannot-see-yet)
 
+On Android, emulator frontends (ES-DE, Daijisho, iiSU, Pegasus, LaunchBox…) start a game through the app's play intent: [android/FRONTENDS.md](../android/FRONTENDS.md) has its forms, what another app can and cannot do with it, and the configuration for each frontend.
+
 ## Building: the NSP script
 
 `scripts/build_ipa_from_nsp.py <NSP folder>` builds one game: an IPA by default, a Mac app with `--platform mac-app`, at the path `-o` names. Its options are in [The packing script in detail](development.md#the-packing-script-in-detail) and `--help`.

@@ -261,8 +261,8 @@ public final class MainActivity extends Activity {
         Ondevice.fromIntent(this, i);   // --es ondevice_dump <dump folder> [--ez ondevice_start true] (Ondevice)
         GpuDriver.fromIntent(this, i);   // --es gpu_driver_zip <zip> / --es gpu_driver <name | system>
         PackUi.fromIntent(this, i);   // test app: --es pack_title <id> --es pack_export <folder> | --es pack_import <zip or folder>
-        String fg = i.getStringExtra("frontend_game");   // FrontendLaunch: a game it could not start at once
-        if (fg != null) { fromFrontend(new File(fg)); return; }
+        String[] fg = FrontendLaunch.take(i.getStringExtra("frontend_token"));   // FrontendLaunch: a game it could not start at once, handed over in this process
+        if (fg != null) { fromFrontend(new File(fg[0]), fg[1].equals("card")); return; }
         String ag = i.getStringExtra("add_game");   // Add game's own path for a picked folder or .nup (gamePicked), without the picker
         if (ag != null) { if (!needAccess()) gamePicked(new File(ag)); return; }
         String game = i.getStringExtra("game");
@@ -279,19 +279,38 @@ public final class MainActivity extends Activity {
         if (i.getBooleanExtra("run", false)) for (Game g : games) if (GameList.samePath(g.gameDir, dir.getPath())) { launch(g); break; }
     }
 
-    /** A game a frontend sent that needs the user (FrontendLaunch.ready): its card's Play says what is missing and offers the fix; a new game takes the steps of a picked one */
-    private void fromFrontend(File game) {
+    /**
+     * A game a frontend sent that FrontendLaunch could not start at once: Home asks first, as nothing another app sends may act on its own. A card (card: the
+     * game path is the card's): Play, whose steps then say what is missing and offer the fix (a pack, Prepare, a shader update). A file that is no card: Add game,
+     * whose own steps then check it and add it (and ask about another dump of the same game). The buttons ignore taps through an overlay another app draws
+     */
+    private void fromFrontend(File game, boolean card) {
         if (settingsPage) page(false);
-        refresh();   // FrontendLaunch may have added its card
+        refresh();
         if (needAccess()) return;
-        for (Game g : games) if (GameList.samePath(g.gameDir, game.getPath())) { launch(g); return; }
-        gamePicked(game);
+        Game g = null;
+        if (card) for (Game x : games) if (GameList.samePath(x.gameDir, game.getPath())) { g = x; break; }
+        if (card && g == null) return;   // the card went in the meantime
+        Game fg = g;
+        AlertDialog d = new AlertDialog.Builder(this)
+                .setTitle(fg != null ? "Start " + fg.name + "?" : "Add this game?")
+                .setMessage(fg != null
+                        ? "Another app asked to start " + fg.name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything."
+                        : "Another app asked " + getString(R.string.app_name) + " to open\n\n" + game.getPath() + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add.")
+                .setPositiveButton(fg != null ? "Play" : "Add", (x, w) -> { if (fg != null) launch(fg); else gamePicked(game); })
+                .setNegativeButton("Cancel", null).create();
+        d.setOnShowListener(x -> {
+            for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
+            Button n = d.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (n != null) n.requestFocus();
+        });
+        d.show();
     }
 
     @Override protected void onResume() {
         super.onResume();
         resumed = true;
-        if (gameBox != null && Game.load(this).size() != games.size()) refresh();   // a card FrontendLaunch added while Home was in the background
+        if (gameBox != null && Game.load(this).size() != games.size()) refresh();   // the list changed while Home was in the background
         onResumeViews();
         Ondevice.resume(this);
         Updater.resume(this);   // back from "Install unknown apps" with an update download waiting
