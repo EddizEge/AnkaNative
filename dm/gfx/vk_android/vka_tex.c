@@ -1293,6 +1293,14 @@ int vka_tex_zclear(vka_img *im) {
     pthread_mutex_unlock(&g_tmu);
     return r;
 }
+// A depth / stencil image's first content (its zero clear at its first use, img_first_use, or with the memory of its own a zero-shared one gets, img_own) is recorded into
+// the submission being recorded when no pass is open there, not into the upload batch: a clear has no staging for the batch to retire. On Turnip (Adreno 840, Mainline
+// Turnip v32) a depth image first cleared in the upload batch (another command buffer, earlier on the queue) and then cleared and drawn into with LRZ by a pass right after a
+// pass over another depth target lost the device (Banana Native's docs/reference/rendering.md "Turnip hangs in the first 3D frame of a cold run"; the same 12288x12288 D16
+// pass as Anka Native issues #5 / #9); with the clear in the pass's own command buffer it did not. No valid-usage rule was found broken (queue order, a full barrier at the
+// batch's end), so this is a workaround for the driver, whose cause is open; it holds for every driver. DM_VK_DS_FIRST_HERE=0 (live): through the upload batch, as before.
+// From Banana Native 1d2aec48 (v0.2.0, git.eden-emu.dev/moceure/BananaNative)
+static int ds_here(const vka_img *im, VkCommandBuffer cb) { return im->f.kind >= 3 && cb && cb == vka_rp_cb() && !vka_rp_is_open() && VKA_ENV("DM_VK_DS_FIRST_HERE", 1); }
 static int img_own(vka_img *im, VkCommandBuffer cb) {   // caller holds g_tmu; 1 = im has memory of its own
     if (!im->m.z) return 1;
     if (VKA_ENV("DM_VK_ZSHARE_ADOPT", 0) && vka_imem_zadopt(&im->m)) {   // (alone in its allocation: it becomes the image's own)
@@ -1305,7 +1313,7 @@ static int img_own(vka_img *im, VkCommandBuffer cb) {   // caller holds g_tmu; 1
     }
     tex_t t = {0}; t.serial = im->serial; t.mem = (uint8_t *)im->mem; t.d = im->d; t.L = im->L;
     if (im->usage & VK_IMAGE_USAGE_STORAGE_BIT) t.d.flags |= NVN_TEXTURE_FLAGS_IMAGE;   // (made with storage use, or upgraded to it)
-    VkCommandBuffer ucb = !vka_scr_up && cb && cb == vka_rp_cb() && vka_up_on() ? vka_up_begin() : VK_NULL_HANDLE, rc = ucb ? ucb : cb;
+    VkCommandBuffer ucb = !vka_scr_up && !ds_here(im, cb) && cb && cb == vka_rp_cb() && vka_up_on() ? vka_up_begin() : VK_NULL_HANDLE, rc = ucb ? ucb : cb;
     vka_img *n = rc ? img_create(&t, &im->f, im->base) : NULL;   // (g_zwant is 0: memory of its own)
     if (!n) { if (ucb) vka_up_end();
         static _Atomic int k; if (atomic_fetch_add(&k, 1) < 8) VRED("zero-shared image serial %llu %ux%u format %#x: no memory of its own (%.0f MiB%s): its writes go to the memory it shares", (unsigned long long)im->serial,
@@ -2132,7 +2140,7 @@ vka_img *vka_tex_get(const tex_t *t, VkCommandBuffer cb) {
             ev_remade(t->serial);
             big_note(im, t);
             // Its first content through the upload batch when cb is the replay's (vka_dev.c "Upload batches"): staging that retires on the batch's own completion
-            VkCommandBuffer ucb = cb && cb == vka_rp_cb() && vka_up_on() ? vka_up_begin() : VK_NULL_HANDLE;
+            VkCommandBuffer ucb = !ds_here(im, cb) && cb && cb == vka_rp_cb() && vka_up_on() ? vka_up_begin() : VK_NULL_HANDLE;
             img_first_use(im, t, ucb ? ucb : cb, mode);
             if (ucb) { vka_up_point(vka_up_cur(ucb)); vka_up_end(); }   // (an upload of many pieces, upload_mt, checks the batch budget only here)
             throttle = ucb != VK_NULL_HANDLE;
