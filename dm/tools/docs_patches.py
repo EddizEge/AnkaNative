@@ -134,6 +134,10 @@ SWITCH_BINDING = [
      'why': "the game's own constant window size, at fixed offsets per main build; a function fingerprint (two leaf functions returning the size, found from their callers) could carry it over the game's updates"}),
     ('graphics_scale', '', {'what': "the Switch 2 graphics scale and operation mode for each Game resolution choice (DM_GRAPHICS_SCALE, DM_OPMODE; the Android launcher)", 'now': 'game', 'goal': 'game', 'purpose': 'rendering',
      'why': "the game sizes its 3D scenes by the graphics scale, not by its window; which crop each scale gives was measured on the game"}),
+    ('drs_level', '', {'what': "the game's own dynamic-resolution level held or capped, written at load (DM_RES_LEVEL, the Android launcher's 3D resolution)", 'now': 'build', 'goal': 'game', 'purpose': 'rendering',
+     'why': "a workaround on the game's own controller, which jumps to levels the phone cannot draw in time; its call site and padding are at fixed offsets per main build (checked at load); a function fingerprint of the controller could carry it over the game's updates"}),
+    ('res_choice', '', {'what': "the Android launcher's 3D resolution choices (DM_RES_LEVEL values with their labels)", 'now': 'game', 'goal': 'game', 'purpose': 'rendering',
+     'why': "the levels and their sizes come from the game's own palette"}),
     ('op_mode', '', {'what': 'the operation mode at start', 'now': 'game', 'goal': 'game', 'purpose': 'runtime', 'why': "the game's controls (handheld: the touch screen instead of a gyro pointer)"}),
 ]
 

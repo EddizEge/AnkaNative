@@ -10,7 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A game's own settings (its Manage sheet › Game settings…): resolution, frame rate cap, GPU driver, GPU timing and extra environment lines, stored per title ID (Prefs.gameKey,
+ * A game's own settings (its Manage sheet › Game settings…): resolution, 3D resolution, frame rate cap, GPU driver, GPU timing and extra environment lines, stored per title ID (Prefs.gameKey,
  * GpuDriver.choice). Each starts as "Default", which follows the main screen's Settings (global); a value set here wins for this game only. The in-game panel's frame
  * rate cap is this game's too. GameActivity reads them at start.
  */
@@ -27,6 +27,8 @@ final class GameSettings {
         Profile prof = Profile.of(id);
         if (prof != null && prof.hasResolution())   // only where it does something: a profile with window_fn or graphics_scale rows
             Ui.add(box, new Ui.Setting(a, "🖼️", "Game resolution", v -> resolution(a, g, again)).value(windowLabel(a, id)).chevron(a).view, 8);
+        if (prof != null && prof.hasResLevel())   // a profile with drs_level and res_choice rows (Ocarina of Time)
+            Ui.add(box, new Ui.Setting(a, "🔍", "3D resolution", v -> resLevel(a, g, again)).value(resLevelLabel(a, id)).chevron(a).view, 0);
         if (Prefs.ownRate(a, id)) {   // the host found no limiter it can hold for this game: choices would do nothing
             Ui.Setting fixed = new Ui.Setting(a, "⏱️", "Frame rate cap", null).value("This game picks its own frame rate");
             fixed.view.setClickable(false);
@@ -108,6 +110,47 @@ final class GameSettings {
         });
         Ui.add(box, rg, 8);
         d[0] = Ui.sheet(a, "GPU timing · " + g.name, box).setNegativeButton("Cancel", null).show();
+    }
+
+    static String resLevelLabel(MainActivity a, String id) {
+        Profile p = Profile.of(id);
+        String v = Prefs.resLevel(a, id), l = p == null ? null : p.resLevelLabel(v);
+        return l != null ? l : "Dynamic (the game's own; the stored " + v + " is no longer offered)";
+    }
+
+    /**
+     * 3D resolution: the game's own dynamic resolution (the default), a level it keeps, or a level it never goes above (DM_RES_LEVEL; loader.c drs_level_apply writes
+     * the game's code at load, so no Prepare is needed). The choices and their sizes are the profile's res_choice rows
+     */
+    private static void resLevel(MainActivity a, Game g, Runnable done) {
+        Profile p = Profile.of(g.titleId);
+        List<String[]> ch = p.resLevels();
+        String[] labels = new String[ch.size() + 1];
+        labels[0] = p.resLevelLabel(null);
+        for (int k = 0; k < ch.size(); k++) labels[k + 1] = ch.get(k)[1];
+        String cur = Prefs.resLevel(a, g.titleId);
+        int checked = 0;
+        for (int k = 0; k < ch.size(); k++) if (ch.get(k)[0].equals(cur)) checked = k + 1;
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        AlertDialog[] d = new AlertDialog[1];
+        box.addView(Ui.small(a, "The game changes the sharpness of its 3D picture by itself. A fixed level keeps it there: lower runs cooler, higher is sharper but slower. "
+                + "\"Never above\" lets the game lower it under load. From the next start; a DM_RES_LEVEL line in env.txt wins."));
+        android.widget.RadioGroup rg = new android.widget.RadioGroup(a);
+        for (int k = 0; k < labels.length; k++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(a);
+            rb.setText(labels[k]);
+            rb.setId(k + 1);
+            rg.addView(rb);
+        }
+        rg.check(checked + 1);
+        rg.setOnCheckedChangeListener((x, w) -> {
+            Prefs.resLevel(a, g.titleId, w <= 1 ? null : ch.get(w - 2)[0]);
+            d[0].dismiss();
+            done.run();
+        });
+        Ui.add(box, rg, 8);
+        d[0] = Ui.sheet(a, "3D resolution · " + g.name, box).setNegativeButton("Cancel", null).show();
     }
 
     private static void resolution(MainActivity a, Game g, Runnable done) {

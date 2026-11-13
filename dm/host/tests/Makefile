@@ -70,6 +70,7 @@ run: $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_touch $(B)/t_gesture 
 	$(B)/t_android_rtalias
 	$(B)/t_android_memfoot
 	$(B)/t_android_place
+	$(B)/t_drs_level
 run: $(B)/t_nro
 run: $(B)/t_symbols
 $(B)/t_symbols: t_symbols.c ../hle.c ../loader.c ../hle.h ../dm.h $(GAME_H) | $(B)
@@ -374,6 +375,13 @@ $(B)/t_android_memfoot: t_android_memfoot.c ../mem_foot.h | $(B)
 # Large memory pools placed by parts: the range arithmetic (vka_place.h; vka_mem.c mtl_pool_need)
 $(B)/t_android_place: t_android_place.c $(VKA)/vka_place.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_place.c
+# The dynamic-resolution level switch (drs_level.h; loader.c drs_level_apply, DM_RES_LEVEL): the parser and the code words for Ocarina of Time v131072's drs_level row
+run: $(B)/t_drs_level
+.PHONY: drs_level
+drs_level: $(B)/t_drs_level
+	$(B)/t_drs_level
+$(B)/t_drs_level: t_drs_level.c ../drs_level.h | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_drs_level.c
 # Linux only (mremap, O_TMPFILE, SEEK_DATA, fallocate; the file in TMPDIR, made and removed by the test): make fileback (in `run` on a Linux host)
 .PHONY: fileback
 fileback: $(B)/t_android_fileback

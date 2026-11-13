@@ -120,6 +120,13 @@ final class Prefs {
     static String gpuTs(Context c, String titleId) { return of(c).getString(gameKey("gpu_ts", titleId), null); }
     static void gpuTs(Context c, String titleId, String mode) { put(c, gameKey("gpu_ts", titleId), mode); }
 
+    /**
+     * 3D resolution (Game settings, games whose profile has res_choice rows): a DM_RES_LEVEL value ("fixed:1", "fixed:lowest", "cap:4", …) that holds or caps the game's
+     * own dynamic-resolution level (loader.c drs_level_apply), null for the game's own dynamic resolution (the default). A DM_RES_LEVEL line in env.txt or the game's own lines wins
+     */
+    static String resLevel(Context c, String titleId) { return of(c).getString(gameKey("res_level", titleId), null); }
+    static void resLevel(Context c, String titleId, String value) { put(c, gameKey("res_level", titleId), value); }
+
     static String gameEnv(Context c, String titleId) { return of(c).getString(gameKey("env", titleId), ""); }
     static void gameEnv(Context c, String titleId, String text) { put(c, gameKey("env", titleId), text == null || text.trim().isEmpty() ? null : text.trim()); }
 

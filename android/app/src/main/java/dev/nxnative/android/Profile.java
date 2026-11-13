@@ -22,6 +22,7 @@ final class Profile {
     String resolution = "";   // what Game resolution sets (build.gradle resolutionOf): "window", "scale:<choice>=<scale>/<console|handheld>,…" or "" (nothing: not offered)
     String gpuTs = "submission";   // game.tsv gpu_timestamps (build.gradle gpuTsOf): "segment" or "submission", what the host does without DM_NVN_GPU_TS (Game settings › GPU timing)
     String window = "";   // game.tsv android_window (build.gradle windowOf): the default Game resolution when the player chose none (Prefs.gameWindow), "" for the main screen's
+    String resChoices = "";   // game.tsv res_choice rows (build.gradle resChoicesOf): "<DM_RES_LEVEL value>=<label>", ';' between them; "" = no 3D resolution setting
     String romfsChecks = "";   // game.tsv romfs_check rows (build.gradle romfsChecksOf): "<path>|<line>|<expected or main>", ';' between them (RomfsCheck)
 
     /** Whether Game resolution does something for this game (its profile has window_fn or graphics_scale rows) */
@@ -44,6 +45,34 @@ final class Profile {
                 break;
             }
         }
+        return env;
+    }
+
+    /** Whether Game settings › 3D resolution is offered (the profile's drs_level, with res_choice rows: loader.c drs_level_apply) */
+    boolean hasResLevel() { return !resChoices.isEmpty(); }
+
+    /** The 3D resolution choices, in the profile's order: [DM_RES_LEVEL value, label] each; a malformed entry is skipped */
+    List<String[]> resLevels() {
+        List<String[]> out = new ArrayList<>();
+        if (resChoices.isEmpty()) return out;
+        for (String c : resChoices.split(";")) {
+            int eq = c.indexOf('=');
+            if (eq > 0 && eq < c.length() - 1) out.add(new String[] {c.substring(0, eq), c.substring(eq + 1)});
+        }
+        return out;
+    }
+
+    /** The label of a stored 3D resolution value (Prefs.resLevel): "Dynamic (the game's own)" for null, the choice's label, or null for a value this profile no longer offers */
+    String resLevelLabel(String value) {
+        if (value == null) return "Dynamic (the game's own)";
+        for (String[] c : resLevels()) if (c[0].equals(value)) return c[1];
+        return null;
+    }
+
+    /** The host's environment line for a stored 3D resolution value: DM_RES_LEVEL=<value> for one of the profile's choices, none for null (the game's own) or a value it no longer offers */
+    List<String> resLevelEnv(String value) {
+        List<String> env = new ArrayList<>();
+        if (value != null && resLevelLabel(value) != null) env.add("DM_RES_LEVEL=" + value);
         return env;
     }
 
@@ -75,6 +104,7 @@ final class Profile {
             p.romfsChecks = c.length > 10 ? c[10] : "";
             if (c.length > 11 && !c[11].isEmpty()) p.gpuTs = c[11];
             p.window = c.length > 12 ? c[12] : "";
+            p.resChoices = c.length > 13 ? c[13] : "";
             out.add(p);
         }
         return Collections.unmodifiableList(out);

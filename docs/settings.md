@@ -3,7 +3,7 @@
 The screen before the game starts shows the settings the game supports. A setting that only matters while another is on appears under it and disappears when that one is turned off. Tap **Play** to start; the app remembers your choices for the next start. All settings are on one scrollable screen, under **Game**, **Controls** and **Performance**. Tap a menu or move a slider there; no settings page needs opening. **Upscaling** is in **Game**, beside **Console mode**. A Mac app shows the same settings in a [window of its own](#the-mac-settings-window).
 
 - [Tested defaults](#tested-defaults)
-- [Game](#game): [Frame rate](#frame-rate), [Render scale](#render-scale), [Console mode](#console-mode), [Upscaling](#upscaling), [Game language](#game-language), [Frame-rate counter](#frame-rate-counter)
+- [Game](#game): [Frame rate](#frame-rate), [Render scale](#render-scale), [3D resolution (Android)](#3d-resolution-android), [Console mode](#console-mode), [Upscaling](#upscaling), [Game language](#game-language), [Frame-rate counter](#frame-rate-counter)
 - [Controls](#controls): [Touch feedback](#touch-feedback), [Game rumble](#game-rumble), [Rumble strength](#rumble-strength), [Rumble cutoff](#rumble-cutoff)
 - [Performance](#performance): [Frame buffering](#frame-buffering), [Metal 4 pipelines](#metal-4-pipelines), [Pipeline prebuild](#pipeline-prebuild), [Encode thread](#encode-thread), [Hold frames when late](#hold-frames-when-late), [Performance HUD](#performance-hud), [Reset to tested defaults](#reset-to-tested-defaults)
 - [The Mac settings window](#the-mac-settings-window): [Display mode](#display-mode)
@@ -27,6 +27,10 @@ Games whose speed the app controls (Breath of the Wild, Tears of the Kingdom and
 ### Render scale
 
 The size of the 3D picture, from 50 to 100 %. Below 100 % the size is fixed there and the game's own dynamic resolution is off; 100 % keeps the game's own. Lower can be lighter on the GPU but is blurrier; the HUD and text keep their sharpness. Only games the app can scale offer it.
+
+### 3D resolution (Android)
+
+Ocarina of Time changes the sharpness of its 3D picture by itself, every frame, from a list of levels (level 0 is the sharpest). On the Android app, its **Game settings › 3D resolution** keeps it at one level or never lets it go above one: **Dynamic** (the default) is the game's own choice; **Max**, **High** (one step below the top), **Medium**, **Low** and **Lowest** hold that level; **Dynamic, never above High** or **Medium** lets the game lower it under load but not raise it past that level. Lowest keeps a weaker phone coolest; High on a strong phone stops the game's sudden jumps to its sharpest level, which can freeze the picture for a few seconds. It applies from the next start and needs no Prepare. In a file: `DM_RES_LEVEL` = `dynamic`, `fixed:<level>`, `fixed:lowest` or `cap:<level>` (also on the Mac; not on iOS, where the game's code cannot be changed at load).
 
 ### Console mode
 
