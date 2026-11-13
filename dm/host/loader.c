@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include "hle.h"
+#include "drs_level.h"
 
 module_t *g_mod;
 int g_nmod;
@@ -622,6 +623,9 @@ static void map_image(module_t *m, const char *dir) {
     if (z1) remap_at(m, base + m->patch_off, x1, z1, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
     if (z2) remap_at(m, base + m->back_off, x2, z2, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
     m->base = (uint8_t *)base; install_key_page(m);
+    // DM_RES_LEVEL (loader.c drs_level_apply) writes main's text at load: the text is signed code here
+    const char *rl = getenv("DM_RES_LEVEL");
+    if (!strcmp(m->name, "main") && !m->nro && rl && *rl && strcmp(rl, "dynamic")) LOG("[RED] DM_RES_LEVEL=%s: not on iOS (the text is signed code); the game keeps its own dynamic resolution", rl);
 }
 #else
 // The game's window size (profile key window_fn): two leaf functions of main return the width and the height (movz w0,#imm; ret: Donkey Kong Bananza's main+0x5bf770 / +0x5bf780).
@@ -655,6 +659,40 @@ static void window_apply(module_t *m) {
         (unsigned long long)fn[0], (unsigned long long)fn[1], rows[r].w, rows[r].h, was[0], was[1]);
 }
 
+// The game's own dynamic-resolution level held or capped (profile key drs_level, DM_RES_LEVEL; drs_level.h has what the written code does). Written into main's text at
+// load, as window_apply, so no new rewrite (Prepare) is needed: only for the main build the row names, after checking the site's word, that a BL comes before it and
+// that the padding it uses is zero; anything else leaves the game's own dynamic resolution and says why. A workaround on the game's own code (the controller is tuned
+// for the Switch 2's GPU and jumps to sharp levels the phone cannot draw in time; dm/games/0400486024DEC000/README.md "Dynamic resolution")
+static void drs_level_apply(module_t *m) {
+    if (strcmp(m->name, "main") || m->nro) return;
+    const char *e = getenv("DM_RES_LEVEL");
+    int mode; unsigned n; char why[128];
+    if (!drs_level_parse(e, &mode, &n, why, sizeof why)) { LOG("[RED] DM_RES_LEVEL=%s: %s; the game keeps its own dynamic resolution", e, why); return; }
+    if (mode == DRS_DYNAMIC) return;
+    static const struct { const char *build; uint64_t site; uint32_t word; unsigned ctl, count_off; uint64_t area[4]; unsigned len[4]; int nareas; } rows[] = DM_GAME_DRS_LEVEL;
+    int r = -1;
+    for (int i = 0; i < DM_GAME_NDRS_LEVEL; i++) if (!strcmp(rows[i].build, m->build_id)) r = i;
+    if (r < 0) { LOG("[RED] DM_RES_LEVEL=%s: the profile has no drs_level row for main build %s; the game keeps its own dynamic resolution", e, m->build_id); return; }
+    uint64_t site = rows[r].site;
+    if (site < 4 || site + 4 > m->text_end) { LOG("[RED] drs_level: main+%#llx is outside main's text; the game keeps its own dynamic resolution", (unsigned long long)site); return; }
+    uint32_t prev = *(const uint32_t *)(m->base + site - 4), at = *(const uint32_t *)(m->base + site);
+    if ((prev & 0xFC000000u) != 0x94000000u || at != rows[r].word) {
+        LOG("[RED] drs_level: main+%#llx is %08x %08x, not a BL then %08x; the game keeps its own dynamic resolution", (unsigned long long)site - 4, prev, at, rows[r].word); return;
+    }
+    for (int a = 0; a < rows[r].nareas; a++) {
+        if (rows[r].area[a] + 4ull * rows[r].len[a] > m->text_end) { LOG("[RED] drs_level: padding main+%#llx is outside main's text; the game keeps its own dynamic resolution", (unsigned long long)rows[r].area[a]); return; }
+        for (unsigned k = 0; k < rows[r].len[a]; k++) if (*(const uint32_t *)(m->base + rows[r].area[a] + 4 * k)) {
+            LOG("[RED] drs_level: main+%#llx is not zero padding; the game keeps its own dynamic resolution", (unsigned long long)(rows[r].area[a] + 4 * k)); return;
+        }
+    }
+    drs_write w[16]; int nw = drs_level_layout(mode, n, rows[r].ctl, rows[r].count_off, site, rows[r].area, rows[r].len, rows[r].nareas, w);
+    if (!nw) { LOG("[RED] drs_level: the profile's padding is too small for the code; the game keeps its own dynamic resolution"); return; }
+    for (int i = 0; i < nw; i++) { *(uint32_t *)(m->base + w[i].off) = w[i].word; __builtin___clear_cache((char *)(m->base + w[i].off), (char *)(m->base + w[i].off + 4)); }
+    char lv[16]; snprintf(lv, sizeof lv, n == DRS_LAST ? "the last" : "%u", n);
+    LOG("resolution: the game's dynamic-resolution level %s %s (DM_RES_LEVEL=%s; 0 = its sharpest level; main+%#llx -> main+%#llx, %d words)",
+        mode == DRS_FIXED ? "held at" : "never above", lv, e, (unsigned long long)site, (unsigned long long)rows[r].area[0], nw);
+}
+
 static uint8_t *slurp(const char *path, size_t *n) {
     int fd = open(path, O_RDONLY);
     if (fd < 0) die("open %s", path);
@@ -680,7 +718,7 @@ static void map_image(module_t *m, const char *dir) {
         if (a == MAP_FAILED) die("%s mmap %#llx", m->name, (unsigned long long)(pre + m->size));
         m->base = a + pre;
         memcpy(m->base, raw, fl); memcpy(a, raw + fl, sz - bl - fl); if (bl) memcpy(m->base + m->back_off, raw + sz - bl, bl);
-        free(raw); install_key_page(m); window_apply(m);
+        free(raw); install_key_page(m); window_apply(m); drs_level_apply(m);
         if (bl && mprotect(m->base + m->back_off, bl, PROT_READ | PROT_EXEC)) die("%s mprotect back patch", m->name);
         uint64_t rx = (m->text_end + 0x3FFF) & ~0x3FFFull;
         if (mprotect(m->base, rx, PROT_READ | PROT_EXEC)) die("%s mprotect text", m->name);
@@ -691,7 +729,7 @@ static void map_image(module_t *m, const char *dir) {
     m->size = (sz + 0x3FFF) & ~0x3FFFull;
     m->base = mmap(NULL, m->size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (m->base == MAP_FAILED) die("%s mmap", m->name);
-    memcpy(m->base, raw, sz); free(raw); install_key_page(m); window_apply(m);
+    memcpy(m->base, raw, sz); free(raw); install_key_page(m); window_apply(m); drs_level_apply(m);
     uint64_t rx = (m->text_end + 0x3FFF) & ~0x3FFFull;
     if (mprotect(m->base, rx, PROT_READ | PROT_EXEC)) die("%s mprotect text", m->name);
     uint64_t po = m->patch_off & ~0x3FFFull;
