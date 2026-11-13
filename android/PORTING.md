@@ -1,6 +1,6 @@
 # Porting the host to Android
 
-This page tracks the Android port of nxnative's CPU / HLE host: what is Apple-bound, what replaces it, how the rewritten guest code finds its thread slots on Bionic, what is still a stub, and the order of the next pieces. `libnxhost.so` builds and links for arm64-v8a, API 33+, and the Mac and iPhone builds behave as before. The test APK is built from the merge of three branches: the launcher and bring-up fixes (`android-host`), audio, movies and input (`android-av`) and the NVN → Vulkan replay (`android-vk`); the shader side (`android-shaders`) is not in it. The packer (`scripts/pack_android.py`) makes Donkey Kong Bananza's pack. [README.md](README.md) describes the pieces and [TESTING.md](TESTING.md) the tests on the phone. Nothing has run on the phone yet.
+This page tracks the Android port of nxnative's CPU / HLE host: what is Apple-bound, what replaces it, how the rewritten guest code finds its thread slots on Bionic, what is still a stub, and the order of the next pieces. `libnxhost.so` builds and links for arm64-v8a, API 31+, and the Mac and iPhone builds behave as before. The test APK is built from the merge of three branches: the launcher and bring-up fixes (`android-host`), audio, movies and input (`android-av`) and the NVN → Vulkan replay (`android-vk`); the shader side (`android-shaders`) is not in it. The packer (`scripts/pack_android.py`) makes Donkey Kong Bananza's pack. [README.md](README.md) describes the pieces and [TESTING.md](TESTING.md) the tests on the phone. Nothing has run on the phone yet.
 
 ## Status
 
@@ -21,7 +21,7 @@ Build:
 ```sh
 NDK=$HOME/Library/Android/sdk/ndk/28.2.13676358
 cmake -S android/host -B <build folder> -G Ninja -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
-      -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=33 -DGAME=040074A01BF12000
+      -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=31 -DGAME=040074A01BF12000
 cmake --build <build folder>          # → <build folder>/libnxhost.so
 ```
 
