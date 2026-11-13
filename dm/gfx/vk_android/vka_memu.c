@@ -204,7 +204,9 @@ void vka_memu_stats(char *b, size_t n) {
     b0 = vka_memu_n_batches; d0 = vka_memu_n_draws; s0 = vka_memu_n_splits; k0 = vka_memu_n_skip; w0 = vka_memu_n_wait;
     if (!nb && !nd) { if (n) b[0] = 0; return; }
     char pl[240]; vka_memu_pso_line(pl, sizeof pl);
-    snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared, %llu skipped waiting for their compute pipelines%s",
-             (unsigned long long)nd, (unsigned long long)nb, nb ? (double)nd / (double)nb : 0.0, (unsigned long long)ns, (unsigned long long)nk, (unsigned long long)nw, pl);
+    uint64_t aw = 0; int na = 0; for (int i = 0; i < NARENA; i++) if (g_ar[i].buf) { aw += g_ar[i].words; na++; }   // (read without the replay's lock: a statistic)
+    snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared, %llu skipped waiting for their compute pipelines; "
+             "arenas %d, %.0f MiB of device memory%s",
+             (unsigned long long)nd, (unsigned long long)nb, nb ? (double)nd / (double)nb : 0.0, (unsigned long long)ns, (unsigned long long)nk, (unsigned long long)nw, na, aw / 262144.0, pl);
 }
 #endif
