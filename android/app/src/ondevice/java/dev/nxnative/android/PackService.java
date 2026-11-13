@@ -443,6 +443,14 @@ public final class PackService extends Service {
         PackEngine.setenv("SPIRV_VAL", "libSPIRV-Tools-shared.so");
         PackEngine.setenv("DMSH_VK_REQUIRE_ALL", "1");   // a library without every shader is a failed step, never a finished one
         PackEngine.setenv("DMSH_VK_XLATE_J", "1");       // one translator call at a time (one thread was faster on the phone); the env file below can change it
+        // the shaders' Python half on several cores (subinterpreters, as many as the memory allows) and the translator's garbage collector less often (ShaderWorkers)
+        // and the split's scan likewise (shader_split.py DM_SPLIT_INTERPS, with its J=1 above)
+        double totalGib = totalMemGib();
+        int interps = s.equals("shaders") || s.equals("split") ? ShaderWorkers.interps(workers, totalGib) : 1;
+        PackEngine.setenv("DMSH_VK_INTERPS", String.valueOf(s.equals("shaders") ? interps : 1));
+        PackEngine.setenv("DM_SPLIT_INTERPS", String.valueOf(s.equals("split") ? interps : 1));
+        PackEngine.setenv("DOTNET_GCgen0size", ShaderWorkers.gen0(totalGib));
+        Log.i(TAG, s + ": " + workers + " workers, " + interps + " subinterpreters (" + String.format(Locale.ROOT, "%.1f", totalGib) + " GiB)");
         // Tests: ondevice/env.txt, KEY=VALUE lines, overrides any of the above for the tools (e.g. DMSH_VK_XLATE_J=6 to compare the translator's threads)
         File envFile = new File(od, "env.txt");
         if (envFile.isFile()) for (String l : Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8)) {
@@ -470,6 +478,13 @@ public final class PackService extends Service {
         long t = j.stepTotal(i);
         j.stepProgress(s, t > 0 ? t : 1, t > 0 ? t : 1, "");
         return null;
+    }
+
+    /** The phone's memory as Android reports it (ActivityManager totalMem, GiB; an 8 GB phone reports about 7.3), for ShaderWorkers */
+    private double totalMemGib() {
+        android.app.ActivityManager.MemoryInfo m = new android.app.ActivityManager.MemoryInfo();
+        getSystemService(android.app.ActivityManager.class).getMemoryInfo(m);
+        return m.totalMem / (double) (1L << 30);
     }
 
     /**
