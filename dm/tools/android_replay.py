@@ -27,7 +27,7 @@ def sh(cmd, **kw):
 def build(a):
     if not os.path.exists(os.path.join(a.build, 'build.ninja')):
         sh([os.path.join(CMAKE, 'cmake'), '-S', os.path.join(ROOT, 'android', 'host'), '-B', a.build, '-G', 'Ninja', '-DCMAKE_MAKE_PROGRAM=' + os.path.join(CMAKE, 'ninja'),
-            '-DCMAKE_TOOLCHAIN_FILE=' + os.path.join(NDK, 'build', 'cmake', 'android.toolchain.cmake'), '-DANDROID_ABI=arm64-v8a', '-DANDROID_PLATFORM=33',
+            '-DCMAKE_TOOLCHAIN_FILE=' + os.path.join(NDK, 'build', 'cmake', 'android.toolchain.cmake'), '-DANDROID_ABI=arm64-v8a', '-DANDROID_PLATFORM=31',
             '-DGAME=' + a.game, '-DCMAKE_BUILD_TYPE=Release', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'], check=True)
     sh(['nice', os.path.join(CMAKE, 'cmake'), '--build', a.build, '--target', 'nxreplay', '-j6'], check=True)
 

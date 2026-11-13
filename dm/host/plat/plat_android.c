@@ -1,4 +1,4 @@
-// Platform layer, Android side (Bionic, arm64, API 33+): the services plat.h names, on Linux system calls. android/PORTING.md maps each Apple call to what replaces it here.
+// Platform layer, Android side (Bionic, arm64, API 31+): the services plat.h names, on Linux system calls. android/PORTING.md maps each Apple call to what replaces it here.
 // What Android cannot do yet logs a [RED] line once and fails as the Apple call fails, so the caller's fallback runs.
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE   // process_vm_readv, pipe2 (the Android build defines it for every file)
