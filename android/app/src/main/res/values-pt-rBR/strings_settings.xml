@@ -51,7 +51,7 @@
     <string name="settings_game_gpu_timing_title">Temporização da GPU · %1$s</string>
     <!-- %1$s: the stored DM_RES_LEVEL value -->
     <string name="settings_game_res_level_gone">Dinâmica (a do próprio jogo; o valor salvo %1$s não é mais oferecido)</string>
-    <string name="settings_game_res_level_about">O jogo muda sozinho a nitidez da imagem 3D. Um nível fixo a mantém ali: um nível mais baixo dá menos trabalho à GPU, um mais alto é mais nítido. As opções \"never above\" (nunca acima de) deixam o jogo baixar o nível quando está pesado, mas não subir além daquele nível. Vale a partir da próxima vez que o jogo for iniciado; uma linha DM_RES_LEVEL no env.txt tem prioridade.</string>
+    <string name="settings_game_res_level_about">O jogo muda sozinho a nitidez da imagem 3D. Um nível fixo a mantém ali: um nível mais baixo dá menos trabalho à GPU, um mais alto é mais nítido. Uma opção que limita o nível deixa o jogo baixá-lo quando está pesado, mas não subir além daquele nível. Vale a partir da próxima vez que o jogo for iniciado; uma linha DM_RES_LEVEL no env.txt tem prioridade.</string>
     <string name="settings_game_res_level_title">Resolução 3D · %1$s</string>
     <!-- %1$s: the default window size's name -->
     <string name="settings_game_default_choice">Padrão (%1$s)</string>

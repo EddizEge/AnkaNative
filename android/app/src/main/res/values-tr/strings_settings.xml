@@ -47,7 +47,7 @@
     <string name="settings_game_gpu_ts_about">Bölüm başına: oyunun zaman damgaları gerçek GPU süresini görür, böylece dinamik çözünürlüğü buna uyum sağlayabilir. Gönderim başına: tüm gönderim için tek bir süre (eski davranış). env.txt içindeki bir DM_NVN_GPU_TS satırı önceliklidir.</string>
     <string name="settings_game_gpu_timing_title">GPU zamanlaması · %1$s</string>
     <string name="settings_game_res_level_gone">Dinamik (oyunun kendi ayarı; kayıtlı %1$s değeri artık sunulmuyor)</string>
-    <string name="settings_game_res_level_about">Oyun 3D görüntüsünün netliğini kendisi değiştirir. Sabit bir seviye onu o seviyede tutar: düşük seviye GPU için daha az iş, yüksek seviye daha net görüntü demektir. Adında \"never above\" geçen seçenekler, oyunun yük altında seviyeyi düşürmesine izin verir ama o seviyenin üstüne çıkarmasına izin vermez. Bir sonraki başlatmadan itibaren geçerlidir; env.txt içindeki bir DM_RES_LEVEL satırı önceliklidir.</string>
+    <string name="settings_game_res_level_about">Oyun 3D görüntüsünün netliğini kendisi değiştirir. Sabit bir seviye onu o seviyede tutar: düşük seviye GPU için daha az iş, yüksek seviye daha net görüntü demektir. Seviyeye üst sınır koyan bir seçenek, oyunun yük altında seviyeyi düşürmesine izin verir ama o seviyenin üstüne çıkarmasına izin vermez. Bir sonraki başlatmadan itibaren geçerlidir; env.txt içindeki bir DM_RES_LEVEL satırı önceliklidir.</string>
     <string name="settings_game_res_level_title">3D çözünürlük · %1$s</string>
     <string name="settings_game_default_choice">Varsayılan (%1$s)</string>
     <string name="settings_game_resolution_title">Oyun çözünürlüğü · %1$s</string>

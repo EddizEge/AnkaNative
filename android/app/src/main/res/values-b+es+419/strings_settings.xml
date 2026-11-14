@@ -45,7 +45,7 @@
     <string name="settings_game_gpu_ts_about">Por segmento: las marcas de tiempo del juego ven el tiempo real de la GPU, así que su resolución dinámica puede adaptarse. Por envío: un solo tiempo para todo el envío (el comportamiento anterior). Una línea DM_NVN_GPU_TS en env.txt tiene prioridad.</string>
     <string name="settings_game_gpu_timing_title">Temporización de la GPU · %1$s</string>
     <string name="settings_game_res_level_gone">Dinámica (la propia del juego; el valor guardado %1$s ya no está disponible)</string>
-    <string name="settings_game_res_level_about">El juego cambia por sí mismo la nitidez de su imagen 3D. Un nivel fijo la mantiene ahí: un nivel más bajo le da menos trabajo a la GPU y uno más alto se ve más nítido. La opción \"Never above\" (nunca por encima) deja que el juego la baje cuando hay mucha carga, pero no que la suba más allá de ese nivel. A partir del próximo inicio; una línea DM_RES_LEVEL en env.txt tiene prioridad.</string>
+    <string name="settings_game_res_level_about">El juego cambia por sí mismo la nitidez de su imagen 3D. Un nivel fijo la mantiene ahí: un nivel más bajo le da menos trabajo a la GPU y uno más alto se ve más nítido. Una opción que limita el nivel deja que el juego lo baje cuando hay mucha carga, pero no que lo suba más allá de ese nivel. A partir del próximo inicio; una línea DM_RES_LEVEL en env.txt tiene prioridad.</string>
     <string name="settings_game_res_level_title">Resolución 3D · %1$s</string>
     <string name="settings_game_default_choice">Predeterminado (%1$s)</string>
     <string name="settings_game_resolution_title">Resolución del juego · %1$s</string>
