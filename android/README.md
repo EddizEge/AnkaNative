@@ -16,11 +16,12 @@ The Android port of the host: one launcher APK (`android/app`) that holds the ho
 Preparing a game on a computer works on Windows, Linux and the Mac. It needs:
 
 - **Python 3.14** with Capstone 5 and lz4 (`pyproject.toml`, dependency group `android-pack`).
-- A **C compiler** (`cc`, `clang` or `gcc` on the `PATH`, or `CC`) for system 22.0.0+ games such as Ocarina of Time, whose code is zstd-compressed (ZBIC):
-  the first time it is needed, `dm/tools/nso.py` builds the decoder, `libzbicdec` (`dm/third_party/zstd-zbic`), into
-  `dm/third_party/zstd-zbic/build/` and loads it from there afterwards; `DM_ZBIC_LIB=<library>` names a build made elsewhere instead. The Mac has one with
-  Xcode's command line tools, Linux with `gcc` or `clang`; on Windows put [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw/releases)'s `bin` folder on the
-  `PATH` (the Windows build of the decoder is not tested yet).
+- A **C compiler** for system 22.0.0+ games such as Ocarina of Time, whose code is zstd-compressed (ZBIC): `CC` when it is set, else the first of `cc`,
+  `clang` and `gcc` on the `PATH`. The first time it is needed, `dm/tools/nso.py` builds the decoder, `libzbicdec` (`dm/third_party/zstd-zbic`), into
+  `dm/third_party/zstd-zbic/build/<sources' digest>-<CPU>/` and loads it from there afterwards, with no compiler needed again until the decoder's sources
+  change; `DM_ZBIC_LIB=<library>` names a build made elsewhere instead. The Mac has one with Xcode's command line tools (`xcode-select --install`), Linux
+  with the distribution's `gcc` or `clang`; on Windows put [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw/releases)'s `bin` folder on the `PATH`, or
+  MSYS2's `gcc` (the build takes GCC's options, so not MSVC's `cl`; the Windows build of the decoder is not tested yet).
 - The **.NET 10 runtime**, which runs the committed shader translator (`dm/gfx/tools/dmsh_xlate_bin`). On the Mac it starts as `dmsh_xlate`; on Linux and
   Windows `pack_android.py` starts it through the launcher beside it, `dmsh_xlate-<linux|win>-<x64|arm64>`.
 - **spirv-val** (SPIRV-Tools) on the `PATH`.
@@ -28,21 +29,22 @@ Preparing a game on a computer works on Windows, Linux and the Mac. It needs:
 Keep the environment on the dump drive, not in the home folder.
 
 Windows (PowerShell; Python from python.org, .NET from https://dotnet.microsoft.com/download/dotnet/10.0, spirv-val from the Vulkan SDK at
-https://vulkan.lunarg.com, whose installer puts its `Bin` folder on the `PATH`):
+https://vulkan.lunarg.com, whose installer puts its `Bin` folder on the `PATH`, and the C compiler from LLVM-MinGW's releases: the `ucrt` zip for the
+PC's CPU, unpacked, its `bin` folder put on the `PATH`):
 
 ```powershell
 py -3.14 -m venv D:\Switch2\.venv-anka
 D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4
 ```
 
-Linux (the distribution's `dotnet-runtime-10.0` and `spirv-tools` packages; Python 3.14 from the distribution or micromamba):
+Linux (the distribution's `dotnet-runtime-10.0`, `spirv-tools` and `gcc` packages; Python 3.14 from the distribution or micromamba):
 
 ```sh
 python3.14 -m venv <dump folder>/.venv-anka
 <dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
 
-The Mac (`brew install --cask dotnet-sdk`, `brew install spirv-tools`):
+The Mac (`brew install --cask dotnet-sdk`, `brew install spirv-tools`, and `xcode-select --install` for the command line tools' C compiler):
 
 ```sh
 micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge
@@ -56,7 +58,7 @@ asks of git: a copy cloned on Windows before that rule, or downloaded as a zip a
 
 ## Pack a game
 
-Start the terminal interface with the environment's Python, from the repository's folder:
+The terminal interface is the way to do it: start it with the environment's Python, from the repository's folder:
 
 ```sh
 <dump folder>/.venv-anka/bin/python scripts/prepare.py [<game folder or .nup>]
@@ -66,8 +68,10 @@ On Windows (Windows Terminal, PowerShell or cmd.exe): `D:\Switch2\.venv-anka\Scr
 
 It needs nothing beyond that Python (the standard library; `dm/tools/prepare_tui`) and leads through five screens:
 
-1. **Check**: Python 3.14, Capstone 5, lz4, zbic, the .NET 10 runtime (and that the committed translator starts and is the one `dmsh_chain.lock` names),
-   `spirv-val` and this copy's line ends, each found or missing with the commands that fix it on this system (the ones above). A missing one stops here.
+1. **Check**: what [the environment](#the-environment) lists, each found or missing with the commands that fix it on this system (the ones above): Python
+   3.14, Capstone 5, lz4, the ZBIC decoder (built with the C compiler and loaded, through `nso.py`'s own `zbic_build` and `zbic_decoder`, which takes a few
+   seconds the first time and none once it is built), the .NET 10 runtime (and that the committed translator starts and is the one `dmsh_chain.lock` names),
+   `spirv-val` and this copy's line ends. A missing one stops here, before the pick, with exit code 1.
 2. **Pick the game**: a file browser of folders, `.nup` files and dump folders (arrows, PgUp / PgDn, Home / End, Enter opens a folder or picks a game,
    Backspace or Left goes up, typing filters the list, Ctrl+L or `/` types or pastes a full path with Tab completion, Tab moves to the places: the home
    folder, recently used folders, the drives on Windows, mounted volumes elsewhere; a file dragged onto the terminal works too, Esc asks before it leaves). The pick is checked with the packer's own code
