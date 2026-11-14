@@ -53,7 +53,9 @@ final class TouchControls extends View {
     // the D-pad, the face buttons, the right stick with R3, the left and the right shoulders with − / +) moved by (gdx, gdy) units and scaled by gsc around its centre,
     // and where the picture sits in the free space (placeX, placeY: 0 left / top, 0.5 centred, 1 right / bottom; nxhost_picture_place)
     private static final int GROUPS = 6;
-    private static final String[] GROUP_NAME = {"left stick", "D-pad", "A B X Y", "right stick", "ZL L −", "ZR R +"};
+    // The texts of this file name the resource class in full: R here is the R button's bit
+    private static final int[] GROUP_NAME = {dev.nxnative.android.R.string.game_controls_group_left_stick, dev.nxnative.android.R.string.game_controls_group_dpad, dev.nxnative.android.R.string.game_controls_group_face,
+            dev.nxnative.android.R.string.game_controls_group_right_stick, dev.nxnative.android.R.string.game_controls_group_left_shoulder, dev.nxnative.android.R.string.game_controls_group_right_shoulder};
     private String prof;
     private final float[] gdx = new float[GROUPS], gdy = new float[GROUPS], gsc = new float[GROUPS];
     private float placeX = 0.5f, placeY = 0.5f;
@@ -63,7 +65,7 @@ final class TouchControls extends View {
     private int dragG = -1, dragId = -1, pinchId = -1;   // dragG: a group, GROUPS for the picture
     private float lastX, lastY, pinchD0, pinchS0;
     private final RectF[] tool = new RectF[5];   // the editor's buttons: Top, Centre, Bottom, Reset, Done
-    private static final String[] TOOL = {"Top", "Centre", "Bottom", "Reset", "Done"};
+    private static final int[] TOOL = {dev.nxnative.android.R.string.game_controls_top, dev.nxnative.android.R.string.game_controls_centre, dev.nxnative.android.R.string.game_controls_bottom, dev.nxnative.android.R.string.game_controls_reset, dev.nxnative.android.R.string.game_controls_done};
 
     private final long[] pressed = new long[MAX], prev = new long[MAX];
     private final float[] sticks = new float[4];
@@ -299,21 +301,20 @@ final class TouchControls extends View {
     /** The rows for the layout, for the controls' settings: the picture's position and the editor (which runs onEditStart) */
     void layoutRows(Context ctx, LinearLayout box) {
         TextView t = new TextView(ctx);
-        t.setText("Picture position (this screen)");
+        t.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_picture_position));
         android.widget.RadioGroup rg = new android.widget.RadioGroup(ctx);
         rg.setOrientation(LinearLayout.HORIZONTAL);
-        String[] names = {"Top", "Centre", "Bottom"};
         float[] at = {0, 0.5f, 1};
         for (int i = 0; i < 3; i++) {
             android.widget.RadioButton b = new android.widget.RadioButton(ctx);
-            b.setText(names[i]); b.setId(View.generateViewId());
+            b.setText(ctx.getString(TOOL[i])); b.setId(View.generateViewId());   // the editor's Top, Centre, Bottom
             rg.addView(b);
             if (Math.abs(placeY - at[i]) < 0.01f) b.setChecked(true);
             float y = at[i];
             b.setOnCheckedChangeListener((v, on) -> { if (on) setPicturePosition(y); });
         }
         android.widget.Button ed = new android.widget.Button(ctx);
-        ed.setText("Edit the controls layout…");
+        ed.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_edit_layout));
         ed.setOnClickListener(v -> startEditLayout());
         box.addView(t); box.addView(rg); box.addView(ed);
     }
@@ -523,12 +524,13 @@ final class TouchControls extends View {
             line.setColor(Color.argb(220, 255, 255, 255));
             c.drawRoundRect(tool[k], 8 * u, 8 * u, line);
             text.setColor(k == 4 || cur ? Color.BLACK : Color.WHITE);
-            c.drawText(TOOL[k], tool[k].centerX(), tool[k].centerY() - (text.descent() + text.ascent()) / 2, text);
+            c.drawText(getContext().getString(TOOL[k]), tool[k].centerX(), tool[k].centerY() - (text.descent() + text.ascent()) / 2, text);
         }
         text.setTextSize(13 * u);
         text.setColor(Color.argb(230, 255, 255, 255));
-        String hint = dragG >= 0 && dragG < GROUPS ? GROUP_NAME[dragG] + ": drag to move, a second finger to resize (" + Math.round(gsc[dragG] * 100) + " %)"
-                : dragG == GROUPS ? "picture: drag into the black bars" : "Drag a control or the picture; pinch a control to resize it";
+        Context ctx = getContext();
+        String hint = dragG >= 0 && dragG < GROUPS ? ctx.getString(dev.nxnative.android.R.string.game_controls_hint_group, ctx.getString(GROUP_NAME[dragG]), Math.round(gsc[dragG] * 100))
+                : ctx.getString(dragG == GROUPS ? dev.nxnative.android.R.string.game_controls_hint_picture : dev.nxnative.android.R.string.game_controls_hint);
         c.drawText(hint, w / 2f, y + bh + 22 * u, text);
     }
 
@@ -578,9 +580,9 @@ final class TouchControls extends View {
         CheckBox hb = new CheckBox(ctx), lb = new CheckBox(ctx);
         os.setMax(90); os.setProgress(Math.round(opacity * 100) - 10);   // 10..100 %
         ss.setMax(90); ss.setProgress(Math.round(scale * 100) - 60);     // 60..150 %
-        hb.setText("Vibrate on press"); hb.setChecked(haptics);
-        lb.setText("Show the log over the game"); lb.setChecked(showLog(ctx));
-        Runnable labels = () -> { ol.setText("Opacity " + (os.getProgress() + 10) + " %"); sl.setText("Size " + (ss.getProgress() + 60) + " %"); };
+        hb.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_vibrate)); hb.setChecked(haptics);
+        lb.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_show_log)); lb.setChecked(showLog(ctx));
+        Runnable labels = () -> { ol.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_opacity, os.getProgress() + 10)); sl.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_size, ss.getProgress() + 60)); };
         labels.run();
         SeekBar.OnSeekBarChangeListener live = new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar b, int v, boolean user) {
@@ -599,7 +601,7 @@ final class TouchControls extends View {
         hb.setOnCheckedChangeListener((b, v) -> { haptics = v; save(); });
         lb.setOnCheckedChangeListener((b, v) -> prefs().edit().putBoolean("log", v).commit());
         android.widget.Button reset = new android.widget.Button(ctx);
-        reset.setText("Reset the controls");
+        reset.setText(ctx.getString(dev.nxnative.android.R.string.game_controls_reset_all));
         reset.setOnClickListener(v -> { os.setProgress(50); ss.setProgress(40); hb.setChecked(true); });   // 60 % opacity, 100 % size, the tick on
         box.addView(ol); box.addView(os); box.addView(sl); box.addView(ss); box.addView(hb); box.addView(lb); box.addView(reset);
         layoutRows(ctx, box);   // the picture position and the layout editor

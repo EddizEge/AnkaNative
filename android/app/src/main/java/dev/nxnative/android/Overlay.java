@@ -44,30 +44,27 @@ import java.util.concurrent.Executors;
  * the phone sets once warm, while the thermal status still reads 1: that reads red. The 2.50 GHz cap (69 %) the phone keeps even when cool reads yellow.
  */
 final class Overlay {
-    /** The items: the Prefs key and the switch's label */
-    static final String[][] ITEMS = {
-            {"fps", "Frame rate and frame time"},
-            {"throttle", "Throttle dot (green / yellow / red)"},
-            {"gpu", "GPU time a frame"},
-            {"cpu", "CPU clock caps"},
-            {"battery", "Battery temperature and level"},
-            {"memory", "Memory: the game's and the phone's"},
-    };
+    /** The items: column 0 is the Prefs key (MainActivity counts the rows and reads it); the switch's label is ITEM_KEYS at the same index */
+    static final String[][] ITEMS = {{"fps"}, {"throttle"}, {"gpu"}, {"cpu"}, {"battery"}, {"memory"}};
+    /** The switches' labels, at ITEMS' index */
+    static final String[] ITEM_KEYS = {"game_overlay_item_fps", "game_overlay_item_throttle", "game_overlay_item_gpu", "game_overlay_item_cpu", "game_overlay_item_battery",
+            "game_overlay_item_memory"};
 
     /** The master switch and, below it, one switch per item (main screen dialog, in-game settings) */
     static void rows(Context c, LinearLayout box, String masterNote) {
         CheckBox master = new CheckBox(c);
-        master.setText("Show the overlay over the game" + (masterNote != null ? masterNote : ""));
+        master.setText(c.getString(R.string.game_overlay_master) + (masterNote != null ? masterNote : ""));
         master.setChecked(Prefs.overlay(c));
         box.addView(master);
         List<CheckBox> items = new ArrayList<>();
         int indent = Math.round(24 * c.getResources().getDisplayMetrics().density);
-        for (String[] it : ITEMS) {
+        for (int i = 0; i < ITEMS.length; i++) {
+            String key = ITEMS[i][0];
             CheckBox b = new CheckBox(c);
-            b.setText(it[1]);
-            b.setChecked(Prefs.overlayItem(c, it[0]));
+            b.setText(Tr.s(ITEM_KEYS[i]));
+            b.setChecked(Prefs.overlayItem(c, key));
             b.setEnabled(master.isChecked());
-            b.setOnCheckedChangeListener((v, on) -> Prefs.overlayItem(c, it[0], on));
+            b.setOnCheckedChangeListener((v, on) -> Prefs.overlayItem(c, key, on));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             lp.leftMargin = indent;
             box.addView(b, lp);
@@ -176,13 +173,15 @@ final class Overlay {
 
     /** "CPU 2.7/3.6" and a line per further cluster ("3.1/4.6 GHz"): cap / top clock in GHz, main cluster first */
     private void caps(SpannableStringBuilder s) {
-        int n = 0;
-        for (Cluster k : clusters) {
-            if (k.capKHz <= 0) continue;
-            line(s, (n++ == 0 ? "CPU " : "") + String.format(Locale.ROOT, "%.1f/%.1f", k.capKHz / 1e6, k.maxKHz / 1e6));
+        List<Cluster> read = new ArrayList<>();
+        for (Cluster k : clusters) if (k.capKHz > 0) read.add(k);
+        if (read.isEmpty()) { line(s, ctx.getString(R.string.game_overlay_cpu_unknown)); return; }
+        for (int i = 0; i < read.size(); i++) {
+            Cluster k = read.get(i);
+            boolean first = i == 0, last = i == read.size() - 1;
+            int id = first && last ? R.string.game_overlay_cpu_one : first ? R.string.game_overlay_cpu_first : last ? R.string.game_overlay_cpu_last : R.string.game_overlay_cpu_next;
+            line(s, ctx.getString(id, k.capKHz / 1e6, k.maxKHz / 1e6));
         }
-        if (n == 0) line(s, "CPU cap ?");
-        else s.append(" GHz");
     }
 
     private static final int[] DOT = {0xFF4CAF50, 0xFFFFC107, 0xFFF44336};
@@ -208,23 +207,25 @@ final class Overlay {
             if (fps) s.append(" ");
         }
         if (fps) {
-            if (!fresh) s.append("-- fps");
-            else if (rate[3] == 1 || rate[3] == 2) s.append(String.format(Locale.ROOT, "%.0f→%.0f fps", rate[0], rate[1]));
-            else s.append(String.format(Locale.ROOT, "%.0f fps", rate[0]));
+            if (!fresh) s.append(ctx.getString(R.string.game_overlay_fps_none));
+            else if (rate[3] == 1 || rate[3] == 2) s.append(ctx.getString(R.string.game_overlay_fps_lsfg, rate[0], rate[1]));
+            else s.append(ctx.getString(R.string.game_overlay_fps, rate[0]));
         }
-        if (fps && fresh) line(s, String.format(Locale.ROOT, "%.1f ms", rate[2]));
+        if (fps && fresh) line(s, ctx.getString(R.string.game_overlay_frame_ms, rate[2]));
         if (fps && (rate[3] == 1 || rate[3] == 2)) line(s, "LSFG");
-        if (fps && rate[3] < 0) line(s, "no LSFG");
-        if (gpu && fresh && rate[5] >= 0) line(s, String.format(Locale.ROOT, "GPU %.1f ms", rate[5]));
+        if (fps && rate[3] < 0) line(s, ctx.getString(R.string.game_overlay_no_lsfg));
+        if (gpu && fresh && rate[5] >= 0) line(s, ctx.getString(R.string.game_overlay_gpu_ms, rate[5]));
         if (cpu) caps(s);
         if (bat && batLevel >= 0)
-            line(s, (Float.isNaN(batTemp) ? "" : String.format(Locale.ROOT, "%.0f°C ", batTemp)) + batLevel + (charging ? "% ⚡\uFE0E" : "%"));
+            line(s, Float.isNaN(batTemp) ? ctx.getString(charging ? R.string.game_overlay_battery_level_charging : R.string.game_overlay_battery_level, batLevel)
+                    : ctx.getString(charging ? R.string.game_overlay_battery_charging : R.string.game_overlay_battery, batTemp, batLevel));
         if (mem && memTotal > 0) {   // two short lines, as the others: the game process's resident set, then the phone's RAM in use / total, "low" in red when Android says so
             line(s, MemText.app(rss));
             line(s, MemText.system(memTotal, memAvail));
             if (memLow) {
-                s.append(" low");
-                s.setSpan(new ForegroundColorSpan(DOT[2]), s.length() - 3, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                String low = ctx.getString(R.string.game_overlay_memory_low);
+                s.append(' ').append(low);
+                s.setSpan(new ForegroundColorSpan(DOT[2]), s.length() - low.length(), s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
         }
         return s;   // every line at the overlay's one size (GameActivity.OVERLAY_SP): at 8 sp a smaller second size would no longer read

@@ -1,4 +1,173 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- English (the source): the game area (GameActivity, SidePanel, TouchControls, Overlay, Fsr, Lsfg, SelftestActivity). docs/i18n.md: keys start with game_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- GameActivity: the game's screen -->
+    <string name="game_panel_open_description">Open the in-game panel</string>
+    <!-- Two spaces before the bracket: the second is \u0020 so that it is not collapsed -->
+    <string name="game_paused">Paused\n\nTap to continue \u0020(A or Start on a gamepad)</string>
+    <string name="game_stopped_in_background">The game was stopped while it was in the background (Android ended its process). Unsaved progress is lost; start it again from the launcher.</string>
+    <string name="game_intro_skip_on">Intro skip on: pressing A and ending movies until gameplay</string>
+    <string name="game_intro_skip_off">Intro skip off</string>
+    <string name="game_save_unfinished_restore">The save folder has an unfinished restore that cannot be finished: %1$s</string>
+    <string name="game_test_save_cannot_create">cannot create the test save folder %1$s</string>
+    <string name="game_cannot_create">cannot create %1$s</string>
+    <string name="game_save_copied">Your save was copied into the app\'s storage (%1$s). The old folder %2$s is kept as it was.</string>
+    <string name="game_save_not_copied">Your save could not be copied into the app\'s storage (%1$s). This start plays it where it is, %2$s.</string>
+    <string name="game_checking_gpu">%1$s: checking this phone\'s GPU…</string>
+    <!-- The start-up readiness notice and its Details. %1$s: the names of the missing items, joined by ", " -->
+    <string name="game_details_gpu">GPU: %1$s\nMemory: %2$s GiB as Android reports it.</string>
+    <string name="game_ready_missing">Missing: %1$s.\n\nThe game may stop or draw wrongly. A custom GPU driver (Settings › GPU driver) may help.</string>
+    <string name="game_ready_missing_black_system">Missing: %1$s.\n\nWith this GPU driver (System) nothing is drawn: the screen stays black while the game runs. Pick a custom driver that has placed memory maps in Settings › GPU driver, or in this game\'s Game settings.</string>
+    <!-- %2$s: the custom GPU driver's name and version -->
+    <string name="game_ready_missing_black_custom">Missing: %1$s.\n\nWith this GPU driver (%2$s) nothing is drawn: the screen stays black while the game runs. Pick System (the phone\'s own driver) in Settings › GPU driver, or in this game\'s Game settings.</string>
+    <string name="game_ready_not_ready_title">Not ready for this game</string>
+    <string name="game_ready_start_black">Start anyway (black screen)</string>
+    <string name="game_ready_try_anyway">Try anyway</string>
+    <string name="game_ready_limits_message">Runs with less: %1$s.</string>
+    <string name="game_ready_limits_title">Ready, with limits</string>
+    <string name="game_ready_continue">Continue</string>
+    <!-- A line of the Details: a check's title and its sentence -->
+    <string name="game_details_fail_item">✕ %1$s: %2$s</string>
+    <string name="game_details_warn_item">! %1$s: %2$s</string>
+    <string name="game_ready_details">Details</string>
+    <string name="game_ready_details_also">%1$s\n\nDetails are also in Settings › Readiness check.</string>
+    <string name="game_ready_dont_show">Don\'t show this again</string>
+    <string name="game_ready_back">Back</string>
+    <string name="game_ready_check_title">Readiness check</string>
+    <string name="game_ready_close">Close</string>
+    <string name="game_ready_copy_report">Copy report</string>
+    <!-- Why a game cannot start -->
+    <string name="game_nup_no_romfs">%1$s has no %2$s with a RomFS</string>
+    <string name="game_no_romfs">no RomFS in %1$s</string>
+    <!-- Where a refused environment line came from (the other places are file names) -->
+    <string name="game_env_from_game_settings">the game\'s settings</string>
+    <!-- A refused environment line: the key, then where it came from -->
+    <string name="game_env_refused_item">%1$s (%2$s)</string>
+    <string name="game_env_refused">Environment lines not taken: %1$s: the launcher sets the game\'s paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)</string>
+    <string name="game_env_refused_test">Environment lines not taken: %1$s: the launcher sets the game\'s paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME); DM_SAVE is taken from env-&lt;title ID&gt;.txt only</string>
+    <string name="game_host_not_started">the host did not start (%1$d)</string>
+    <string name="game_host_not_started_again">the host did not start (%1$d: a start was already tried in this process)</string>
+    <string name="game_starting">%1$s: starting. Log: %2$s</string>
+    <string name="game_cannot_start_title">Cannot start %1$s</string>
+    <string name="game_running_title">%1$s is running</string>
+    <!-- %2$s: the in-game panel's Stop button (game_panel_stop) -->
+    <string name="game_running_message">Stop it first (the in-game panel › %2$s), then start %1$s. One game runs at a time.</string>
+    <string name="game_save_in_use">The save %1$s is in use: a backup or restore of it is working. Try again when it is done.</string>
+
+    <!-- SidePanel: the in-game panel -->
+    <string name="game_panel_intro">The game runs on behind this panel; every change applies now and is kept.</string>
+    <string name="game_panel_cap_head">Frame rate cap</string>
+    <string name="game_panel_cap_own">The game\'s own</string>
+    <string name="game_panel_cap_fps">%1$d fps</string>
+    <string name="game_panel_overlay_head">Overlay</string>
+    <string name="game_panel_controls_head">On-screen controls</string>
+    <string name="game_panel_skip_head">Intro skip (debug)</string>
+    <string name="game_panel_skip_note">Presses A every few frames and ends movies early until gameplay, then stops by itself. In the game: hold − and + together for 1 s.</string>
+    <string name="game_panel_skip_stop">Stop the intro skip</string>
+    <string name="game_panel_skip_now">Skip the intro now</string>
+    <string name="game_panel_pause">Pause the game</string>
+    <string name="game_panel_pause_on_return">Pause when the game comes back from the background</string>
+    <string name="game_panel_stop">Stop the game</string>
+    <string name="game_panel_stop_title">Stop the game?</string>
+    <string name="game_panel_stop_message">The game ends; unsaved progress is lost. The log stays for Share log.</string>
+    <string name="game_panel_stop_confirm">Stop</string>
+    <string name="game_panel_keep_running">Keep running</string>
+    <string name="game_panel_back">Back to the game</string>
+    <string name="game_panel_no_cap">This build has no frame rate cap.</string>
+    <string name="game_panel_starting">Starting…</string>
+    <string name="game_panel_own_rate">This game picks its own frame rate.</string>
+    <string name="game_panel_now_capped">Now %1$d fps, capped at %2$d.</string>
+    <string name="game_panel_now_own">Now %1$d fps, the game\'s own.</string>
+    <!-- %1$s: the host's frame generation status, in English -->
+    <string name="game_panel_lsfg_now">Now: %1$s</string>
+
+    <!-- TouchControls: the on-screen controls and their layout editor -->
+    <string name="game_controls_group_left_stick">left stick</string>
+    <string name="game_controls_group_dpad">D-pad</string>
+    <string name="game_controls_group_face" translatable="false">A B X Y</string>
+    <string name="game_controls_group_right_stick">right stick</string>
+    <string name="game_controls_group_left_shoulder" translatable="false">ZL L −</string>
+    <string name="game_controls_group_right_shoulder" translatable="false">ZR R +</string>
+    <string name="game_controls_top">Top</string>
+    <string name="game_controls_centre">Centre</string>
+    <string name="game_controls_bottom">Bottom</string>
+    <string name="game_controls_reset">Reset</string>
+    <string name="game_controls_done">Done</string>
+    <string name="game_controls_picture_position">Picture position (this screen)</string>
+    <string name="game_controls_edit_layout">Edit the controls layout…</string>
+    <!-- %1$s: a group of controls (game_controls_group_*), %2$d: its size in percent -->
+    <string name="game_controls_hint_group">%1$s: drag to move, a second finger to resize (%2$d %%)</string>
+    <string name="game_controls_hint_picture">picture: drag into the black bars</string>
+    <string name="game_controls_hint">Drag a control or the picture; pinch a control to resize it</string>
+    <string name="game_controls_vibrate">Vibrate on press</string>
+    <string name="game_controls_show_log">Show the log over the game</string>
+    <string name="game_controls_opacity">Opacity %1$d %%</string>
+    <string name="game_controls_size">Size %1$d %%</string>
+    <string name="game_controls_reset_all">Reset the controls</string>
+
+    <!-- Overlay: the performance overlay's switches and its readings over the game -->
+    <string name="game_overlay_item_fps">Frame rate and frame time</string>
+    <string name="game_overlay_item_throttle">Throttle dot (green / yellow / red)</string>
+    <string name="game_overlay_item_gpu">GPU time a frame</string>
+    <string name="game_overlay_item_cpu">CPU clock caps</string>
+    <string name="game_overlay_item_battery">Battery temperature and level</string>
+    <string name="game_overlay_item_memory">Memory: the game\'s and the phone\'s</string>
+    <string name="game_overlay_master">Show the overlay over the game</string>
+    <!-- The CPU clock caps, cap / top clock in GHz, one line per cluster: the only line, the first, one in the middle, the last -->
+    <string name="game_overlay_cpu_one">CPU %1$.1f/%2$.1f GHz</string>
+    <string name="game_overlay_cpu_first">CPU %1$.1f/%2$.1f</string>
+    <string name="game_overlay_cpu_next">%1$.1f/%2$.1f</string>
+    <string name="game_overlay_cpu_last">%1$.1f/%2$.1f GHz</string>
+    <string name="game_overlay_cpu_unknown">CPU cap ?</string>
+    <string name="game_overlay_fps_none">-- fps</string>
+    <string name="game_overlay_fps">%1$.0f fps</string>
+    <!-- Frame generation on: the game's frame rate, then the rate shown -->
+    <string name="game_overlay_fps_lsfg">%1$.0f→%2$.0f fps</string>
+    <string name="game_overlay_frame_ms">%1$.1f ms</string>
+    <string name="game_overlay_no_lsfg">no LSFG</string>
+    <string name="game_overlay_gpu_ms">GPU %1$.1f ms</string>
+    <!-- The battery: its temperature, then its level in percent; with ⚡ while charging -->
+    <string name="game_overlay_battery">%1$.0f°C %2$d%%</string>
+    <string name="game_overlay_battery_charging">%1$.0f°C %2$d%% ⚡\uFE0E</string>
+    <string name="game_overlay_battery_level">%1$d%%</string>
+    <string name="game_overlay_battery_level_charging">%1$d%% ⚡\uFE0E</string>
+    <!-- After the phone's memory line, in red, when Android says memory is low -->
+    <string name="game_overlay_memory_low">low</string>
+
+    <!-- Fsr: upscaling in the in-game panel -->
+    <string name="game_fsr_head">Upscaling</string>
+    <string name="game_fsr_on">FSR 1 (sharper when the picture is scaled up to the screen)</string>
+    <string name="game_fsr_sharpness">Sharpness</string>
+    <string name="game_fsr_sharp_max">Max</string>
+    <string name="game_fsr_sharp_default">Default</string>
+    <string name="game_fsr_sharp_soft">Soft</string>
+    <string name="game_fsr_sharp_softer">Softer</string>
+
+    <!-- Lsfg: frame generation's rows and where Lossless.dll came from -->
+    <string name="game_lsfg_head">Frame generation (Lossless Scaling, your own Lossless.dll)</string>
+    <string name="game_lsfg_not_built">Not in this build (built with -PnxLsfg=false).</string>
+    <string name="game_lsfg_on">Frame generation (LSFG)</string>
+    <string name="game_lsfg_mult">Frames per game frame</string>
+    <string name="game_lsfg_target">Target frame rate (the multiplier follows it)</string>
+    <string name="game_lsfg_fixed">Fixed</string>
+    <!-- %1$s: the Auto choice (game_lsfg_auto) -->
+    <string name="game_lsfg_flow">Motion estimation resolution (lower is faster; %1$s = the game\'s own)</string>
+    <string name="game_lsfg_auto">Auto</string>
+    <string name="game_lsfg_mode">Mode: performance (the only shader set Eden\'s LSFG uses)</string>
+    <string name="game_lsfg_from">Lossless.dll from %1$s</string>
+    <string name="game_lsfg_not_copied">Lossless.dll at %1$s could not be copied: %2$s</string>
+    <string name="game_lsfg_earlier">Lossless.dll: the copy picked earlier</string>
+    <string name="game_lsfg_not_found">Lossless.dll not found (looked in Documents/Emulation/bios, Switch2, Download and the app\'s files)</string>
+    <string name="game_lsfg_by_hand">Lossless.dll: picked by hand</string>
+    <string name="game_lsfg_cannot_open">cannot open %1$s</string>
+    <string name="game_lsfg_not_dll">that file is not a Windows DLL</string>
+    <string name="game_cannot_replace">cannot replace %1$s</string>
+
+    <!-- SelftestActivity: the graphics self-test -->
+    <string name="game_selftest_no_log">FAIL: cannot open the log %1$s</string>
+    <string name="game_selftest_waiting">Graphics self-test: waiting for the surface</string>
+    <string name="game_selftest_no_host">FAIL: this host has no nxhost_vk_selftest</string>
+    <string name="game_selftest_running">Graphics self-test running (%1$d frames, about %2$d s)</string>
+    <string name="game_selftest_pass">PASS (return code %1$d)\nBack to return; Share log sends this run\'s log.</string>
+    <string name="game_selftest_fail">FAIL (return code %1$d)\nBack to return; Share log sends this run\'s log.</string>
 </resources>

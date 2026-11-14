@@ -134,14 +134,14 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) v.setAlpha(0.4f);
             return false;   // the click listener still opens the panel
         });
-        handle.setContentDescription("Open the in-game panel");
+        handle.setContentDescription(getString(R.string.game_panel_open_description));
         handle.setOnClickListener(v -> panel.open());
         root.addView(handle, root.indexOfChild(panel), new FrameLayout.LayoutParams(Math.round(22 * dp), Math.round(56 * dp), Gravity.END | Gravity.TOP));
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> handle.setTranslationY((b - t) * 0.25f - 28 * dp));
         // Paused (pause(): the in-game panel's Pause, or the screen coming back with pause-on-return on): the game is suspended until a tap, or A / Start on a gamepad.
         // Under the panel and its handle, so Stop stays reachable
         pausedView = new TextView(this);
-        pausedView.setText("Paused\n\nTap to continue  (A or Start on a gamepad)");
+        pausedView.setText(getString(R.string.game_paused));
         pausedView.setTextColor(Color.WHITE);
         pausedView.setTextSize(22);
         pausedView.setGravity(Gravity.CENTER);
@@ -156,7 +156,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         // has no game to show: the game was stopped, and the user starts it again
         if (hostRunning) attach();
         else if (saved == null) start();
-        else fail("The game was stopped while it was in the background (Android ended its process). Unsaved progress is lost; start it again from the launcher.");
+        else fail(getString(R.string.game_stopped_in_background));
     }
 
     /** The overlay's text (build tag, stats, log lines): all one small size, 8 sp (at 11-12 sp they covered the touch buttons games put in the corners), white with a
@@ -218,7 +218,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         if (s < 0 || s == skipShown) return;
         boolean was = skipShown > 0 && (skipShown & 1) != 0, now = (s & 1) != 0;
         skipShown = s;
-        if (was != now) Toast.makeText(this, now ? "Intro skip on: pressing A and ending movies until gameplay" : "Intro skip off", Toast.LENGTH_SHORT).show();
+        if (was != now) Toast.makeText(this, getString(now ? R.string.game_intro_skip_on : R.string.game_intro_skip_off), Toast.LENGTH_SHORT).show();
     }
 
     private String saveHow = "new", saveNote;
@@ -237,28 +237,28 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         // rules); one that cannot be finished stops the start: never a half save
         holdLock(dir);
         try {
-            if (SaveStore.recoverLocked(dir)) saveNote = "a save restore or swap that was stopped was finished first";
+            if (SaveStore.recoverLocked(dir)) saveNote = "a save restore or swap that was stopped was finished first";   // i18n-keep: the log's save line
         } catch (IOException e) {
-            throw new IOException("The save folder has an unfinished restore that cannot be finished: " + e.getMessage());
+            throw new LocalizedIOException("game_save_unfinished_restore", detail(e));
         }
         if (testSave != null) {   // a test run's own save folder (env.txt, test app only): used as it is
-            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot create the test save folder " + dir);
-            saveHow = "DM_SAVE from env-" + id + ".txt (test app)";
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new LocalizedIOException("game_test_save_cannot_create", dir);
+            saveHow = "DM_SAVE from env-" + id + ".txt (test app)";   // i18n-keep: the log's save line
             return dir;
         }
         try {
             File root = game.getAbsoluteFile().getParentFile();
             for (String x : new String[] {".old", ".pend1", ".pend2"})   // a commit was interrupted: the host finishes it at mount (plat_swap_recover), before anything is migrated or seeded
                 if (new File(dir.getPath() + x).exists()) { saveHow = "recovering"; return dir; }
-            if (!dir.isDirectory() && !dir.mkdirs() || !dir.canWrite()) throw new IOException("cannot create " + dir);
-            if (chosen != null) { saveHow = isEmpty(dir) ? "chosen, new" : "chosen"; return dir; }
+            if (!dir.isDirectory() && !dir.mkdirs() || !dir.canWrite()) throw new LocalizedIOException("game_cannot_create", dir);
+            if (chosen != null) { saveHow = isEmpty(dir) ? "chosen, new" : "chosen"; return dir; }   // i18n-keep: the log's save line
             if (!isEmpty(dir)) { saveHow = "existing"; return dir; }
             if (!isEmpty(priv)) { copyTree(priv, dir); saveHow = "migrated"; return dir; }
             File seed = new File(root, "save-seed/" + id);
             if (!isEmpty(seed)) { copyTree(seed, dir); saveHow = "seeded"; return dir; }
             return dir;
         } catch (IOException | RuntimeException e) {
-            saveNote = "save folder " + dir + " unusable (" + e.getMessage() + "), using the app's private folder";
+            saveNote = "save folder " + dir + " unusable (" + e.getMessage() + "), using the app's private folder";   // i18n-keep: the log's save line
             saveHow = isEmpty(priv) ? "new" : "existing";
             return mkdirs(priv);
         }
@@ -276,23 +276,28 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         switch (r.state) {
             case COPIED:
                 Prefs.migratedFrom(this, id, old.getPath());
-                saveNote = "copied once from " + old + " (" + r.copied.files + " files, " + SaveStore.size(r.copied.bytes) + ", checked); that folder is kept as it was";
-                Toast.makeText(this, "Your save was copied into the app's storage (" + app + "). The old folder " + old + " is kept as it was.", Toast.LENGTH_LONG).show();
+                saveNote = "copied once from " + old + " (" + r.copied.files + " files, " + SaveStore.size(r.copied.bytes) + ", checked); that folder is kept as it was";   // i18n-keep: the log's save line
+                Toast.makeText(this, getString(R.string.game_save_copied, app, old), Toast.LENGTH_LONG).show();
                 return app;
             case FAILED:
-                saveNote = "not copied into the app's storage (" + r.message + "): this start plays the save in " + old + "; the next start tries again";
-                Toast.makeText(this, "Your save could not be copied into the app's storage (" + r.message + "). This start plays it where it is, " + old + ".", Toast.LENGTH_LONG).show();
+                saveNote = "not copied into the app's storage (" + r.message + "): this start plays the save in " + old + "; the next start tries again";   // i18n-keep: the log's save line
+                Toast.makeText(this, getString(R.string.game_save_not_copied, r.message, old), Toast.LENGTH_LONG).show();
                 return old;
             default:   // the app has a save already, or there is none to copy
                 return app;
         }
     }
 
+    /** An exception's text as an argument of a Msg: its own Msg when it has one (each language renders it), else its English message */
+    private static Object detail(Exception e) {
+        return e instanceof LocalizedIOException && ((LocalizedIOException) e).msg != null ? ((LocalizedIOException) e).msg : e.getMessage();
+    }
+
     private static boolean isEmpty(File d) { String[] l = d.list(); return l == null || l.length == 0; }
 
     private static void copyTree(File from, File to) throws IOException {
         if (from.isDirectory()) {
-            if (!to.isDirectory() && !to.mkdirs()) throw new IOException("cannot create " + to);
+            if (!to.isDirectory() && !to.mkdirs()) throw new LocalizedIOException("game_cannot_create", to);
             File[] l = from.listFiles();
             if (l != null) for (File f : l) copyTree(f, new File(to, f.getName()));
         } else Files.copy(from.toPath(), to.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -315,7 +320,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         drv.addAll(envLines(Prefs.gameEnv(this, id)));
         drv.addAll(quietEnv(new File(files, "env-" + id + ".txt")));
         String[] denv = Readiness.driverEnv(drv);
-        overlay.setText(getIntent().getStringExtra("name") + ": checking this phone's GPU…");
+        overlay.setText(getString(R.string.game_checking_gpu, getIntent().getStringExtra("name")));
         final boolean[] answered = {false};
         Runnable decide = () -> {   // on the UI thread, once: with the facts, or without them after READINESS_WAIT_MS
             if (answered[0] || isFinishing()) return;
@@ -323,7 +328,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             readinessDecide(id, probeFacts);
         };
         new Thread(() -> { probeFacts = Native.readiness(denv); probeDone = true; ui.post(decide); }, "nxreadiness").start();
-        ui.postDelayed(() -> { if (!probeDone) probeFacts = "unchecked=the GPU check did not answer in " + READINESS_WAIT_MS / 1000 + " s"; decide.run(); }, READINESS_WAIT_MS);
+        ui.postDelayed(() -> { if (!probeDone) probeFacts = "unchecked=the GPU check did not answer in " + READINESS_WAIT_MS / 1000 + " s"; decide.run(); }, READINESS_WAIT_MS);   // i18n-keep: a fact of the report
         return true;
     }
     private volatile String probeFacts;
@@ -344,39 +349,38 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         rFacts = f;
         rChecks = l;
         readinessLine = Readiness.summary(id, f, l);
-        String report = Readiness.report(ReadinessActivity.header(this, (p != null ? p.name + " " : "") + id + " (start-up check)"), f, l);
+        String report = Readiness.report(ReadinessActivity.header(this, (p != null ? p.name + " " : "") + id + " (start-up check)"), f, l);   // i18n-keep: the report is English
         try { Files.write(new File(getExternalFilesDir(null), "readiness-" + id + ".txt").toPath(), report.getBytes(StandardCharsets.UTF_8)); } catch (IOException ignored) { /* the screen's report leaves it out */ }
         readinessDone = true;
         List<Readiness.Check> fails = Readiness.of(l, Readiness.Status.FAIL), warns = Readiness.of(l, Readiness.Status.WARNING);
-        String gpu = "GPU: " + Readiness.gpu(f) + "\nMemory: " + f.get("ram_gib") + " GiB as Android reports it.";
+        String gpu = getString(R.string.game_details_gpu, Readiness.gpu(f), f.get("ram_gib"));
         // The notice is short (what is missing, by name); Details has each item's sentence, the GPU and Copy report
         if (!fails.isEmpty()) {
-            StringBuilder m = new StringBuilder("Missing: ");
-            for (Readiness.Check c : fails) m.append(c.titleText()).append(", ");
-            m.setLength(m.length() - 2);
+            List<String> names = new ArrayList<>();
+            for (Readiness.Check c : fails) names.add(c.titleText());
+            String missing = String.join(", ", names);
             // Without placed memory maps the GPU sees none of the game's memory: draws are off (vka_draw.c), so the result is certain, not "may"
             boolean placed = false;
             for (Readiness.Check c : fails) placed |= "ext.VK_KHR_map_memory2".equals(c.fact) || "ext.VK_EXT_map_memory_placed".equals(c.fact) || "feature.memoryMapPlaced".equals(c.fact);
             GpuDriver.Info drv = GpuDriver.selected(this, id);
-            if (placed) m.append(".\n\nWith this GPU driver (").append(drv == null ? "System" : drv.label()).append(") nothing is drawn: the screen stays black while the game runs. ")
-                    .append(drv == null ? "Pick a custom driver that has placed memory maps" : "Pick System (the phone's own driver)")
-                    .append(" in Settings › GPU driver, or in this game's Game settings.");
-            else m.append(".\n\nThe game may stop or draw wrongly. A custom GPU driver (Settings › GPU driver) may help.");
-            readinessDialog("Not ready for this game", m.toString(), details(fails, warns, gpu), report, placed ? "Start anyway (black screen)" : "Try anyway", true);
+            String m = !placed ? getString(R.string.game_ready_missing, missing)
+                    : drv == null ? getString(R.string.game_ready_missing_black_system, missing)
+                    : getString(R.string.game_ready_missing_black_custom, missing, drv.label());
+            readinessDialog(getString(R.string.game_ready_not_ready_title), m, details(fails, warns, gpu), report,
+                    getString(placed ? R.string.game_ready_start_black : R.string.game_ready_try_anyway), true);
         } else if (!warns.isEmpty() && !Prefs.of(this).getString(Prefs.gameKey("readiness_seen", id), "").equals(warnKey(f, warns))) {
-            StringBuilder m = new StringBuilder("Runs with less: ");
-            for (Readiness.Check c : warns) m.append(c.titleText()).append(", ");
-            m.setLength(m.length() - 2);
-            m.append('.');
-            readinessDialog("Ready, with limits", m.toString(), details(fails, warns, gpu), report, "Continue", false);
+            List<String> names = new ArrayList<>();
+            for (Readiness.Check c : warns) names.add(c.titleText());
+            readinessDialog(getString(R.string.game_ready_limits_title), getString(R.string.game_ready_limits_message, String.join(", ", names)), details(fails, warns, gpu), report,
+                    getString(R.string.game_ready_continue), false);
         } else start();
     }
 
     /** The Details of the start-up notice: each failure and warning with its sentence, then the GPU and memory */
-    private static String details(List<Readiness.Check> fails, List<Readiness.Check> warns, String gpu) {
+    private String details(List<Readiness.Check> fails, List<Readiness.Check> warns, String gpu) {
         StringBuilder m = new StringBuilder();
-        for (Readiness.Check c : fails) m.append("✕ ").append(c.titleText()).append(": ").append(c.messageText()).append("\n\n");
-        for (Readiness.Check c : warns) m.append("! ").append(c.titleText()).append(": ").append(c.messageText()).append("\n\n");
+        for (Readiness.Check c : fails) m.append(getString(R.string.game_details_fail_item, c.titleText(), c.messageText())).append("\n\n");
+        for (Readiness.Check c : warns) m.append(getString(R.string.game_details_warn_item, c.titleText(), c.messageText())).append("\n\n");
         return m.append(gpu).toString();
     }
 
@@ -396,7 +400,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     private void readinessDialog(String title, String msg, String details, String report, String go, boolean required) {
         String id = titleId();
         android.widget.CheckBox again = required ? null : new android.widget.CheckBox(this);
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(title).setCancelable(false).setNeutralButton("Details", null);
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(title).setCancelable(false).setNeutralButton(getString(R.string.game_ready_details), null);
         if (again == null) b.setMessage(msg);
         else {
             int p = Math.round(20 * getResources().getDisplayMetrics().density);
@@ -404,10 +408,10 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             box.setOrientation(android.widget.LinearLayout.VERTICAL);
             box.setPadding(p, p / 2, p, 0);
             TextView t = new TextView(this);
-            t.setText(msg + "\n\nDetails are also in Settings › Readiness check.");
+            t.setText(getString(R.string.game_ready_details_also, msg));
             t.setTextSize(15);
             box.addView(t);
-            again.setText("Don't show this again");
+            again.setText(getString(R.string.game_ready_dont_show));
             box.addView(again);
             android.widget.ScrollView sv = new android.widget.ScrollView(this);   // a short screen with several warnings still reaches the box
             sv.addView(box);
@@ -419,11 +423,12 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             triedAnyway = required;
             start();
         });
-        b.setNegativeButton("Back", (d, w) -> end());
+        b.setNegativeButton(getString(R.string.game_ready_back), (d, w) -> end());
         AlertDialog d = b.create();
         // Details opens over the notice and keeps it open; Copy report there keeps Details open
         d.setOnShowListener(x -> d.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            AlertDialog dd = new AlertDialog.Builder(this).setTitle("Readiness check").setMessage(details).setPositiveButton("Close", null).setNeutralButton("Copy report", null).create();
+            AlertDialog dd = new AlertDialog.Builder(this).setTitle(getString(R.string.game_ready_check_title)).setMessage(details).setPositiveButton(getString(R.string.game_ready_close), null)
+                    .setNeutralButton(getString(R.string.game_ready_copy_report), null).create();
             dd.setOnShowListener(y -> dd.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(u -> ReadinessActivity.copy(this, report)));
             dd.show();
         }));
@@ -446,11 +451,11 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         try {
             Pack pack = Pack.read(packDir);
             String romfs = pack.romfsPath(game);   // a folder's RomFS folder, or <file>.nup:<selector>/romfs (NUP.md)
-            if (romfs == null) throw new IOException(Nup.isNup(game) ? game.getName() + " has no " + pack.romfsSelector() + " with a RomFS" : "no RomFS in " + game);
+            if (romfs == null) throw Nup.isNup(game) ? new LocalizedIOException("game_nup_no_romfs", game.getName(), pack.romfsSelector()) : new LocalizedIOException("game_no_romfs", game);
             if (readinessHold(id)) return;   // after the pack's own checks (a missing pack says so first), before the save is locked or anything is written
             // The user's lines, read first: the paths the launcher sets cannot be changed by them (guard), but the test app's env-<id>.txt may name a test save folder (one game's file only: a global DM_SAVE would point every game at one save)
             List<String> user = new ArrayList<>(guard(userEnv(new File(files, "env.txt")), "env.txt", false));   // diagnostic switches (every game: never DM_SAVE) (DM_SVC=1, DM_FS=1, ...), as the iPhone's Documents/env.txt
-            user.addAll(guard(envLines(Prefs.gameEnv(this, id)), "the game's settings", false));   // the game's own lines (its Game settings): after env.txt, so they win for this game
+            user.addAll(guard(envLines(Prefs.gameEnv(this, id)), new Msg("game_env_from_game_settings"), false));   // the game's own lines (its Game settings): after env.txt, so they win for this game
             user.addAll(guard(userEnv(new File(files, "env-" + id + ".txt")), "env-" + id + ".txt", testApp()));   // and env-<title ID>.txt (adb), the same for one game
             File save = saveDir(files, game, id), temp = mkdirs(new File(files, "temp/" + id)), root = mkdirs(new File(files, "root"));
             File aoc = aocLinks(mkdirs(new File(files, "aoc/" + id)), game, pack);
@@ -460,7 +465,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
                     "DM_ROMFS=" + romfs, "DM_SAVE=" + save, "DM_TEMP=" + temp, "DM_ROOT=" + root, "DM_AOC_DIR=" + aoc,
                     "HOME=" + files, "TMPDIR=" + getCacheDir(), "DM_BUILD_COMMIT=" + BuildConfig.NX_COMMIT,
                     "DM_CTL=" + new File(files, "ctl.txt")));   // live control lines (android/TESTING.md "Live control", android/tools/nxctl.sh); DM_CTL= in env.txt turns it off
-            env.add(0, "NX_BUILD_TAG=" + Prefs.buildTag(this) + " \u00b7 signer " + Prefs.signerId(this));   // nxlaunch.c writes it as the log's first line; the signer says which key signed the APK (Signer)
+            env.add(0, "NX_BUILD_TAG=" + Prefs.buildTag(this) + " \u00b7 signer " + Prefs.signerId(this));   // i18n-keep: nxlaunch.c writes it as the log's first line; the signer says which key signed the APK (Signer)
             // Game resolution: the game's own setting, else the main screen's: the window size the host gives the game (window_fn), or the graphics scale and operation
             // mode that give that size (graphics_scale rows), as its profile says (Profile.resolutionEnv); nothing for a game with neither
             Profile prof = Profile.of(id);
@@ -480,7 +485,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             for (String kv : env) if (kv.startsWith("DM_OVERLAY=")) overlayEnv = !kv.substring(11).trim().equals("0");
             String[] args = {"nxhost", packDir.getPath()};
             int r = Native.start(args, env.toArray(new String[0]), log.getPath(), files.getPath());
-            if (r != 0) throw new IOException("the host did not start (" + r + (r == -1 ? ": a start was already tried in this process" : "") + ")");
+            if (r != 0) throw r == -1 ? new LocalizedIOException("game_host_not_started_again", r) : new LocalizedIOException("game_host_not_started", r);
             // Whether this game picks its own frame rate (the host's cap status: no rate it can hold), remembered for its Game settings, which then offer no cap.
             // Read once the game has run a while (the host finds the game's limiter after it starts); the in-game panel updates it too
             ui.postDelayed(this::noteOwnRate, 30000);
@@ -493,10 +498,12 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
                     + "; game " + game + "; pack " + packDir);
             if (envProblem != null) Native.note("[RED] env.txt: " + envProblem);
             if (!refused.isEmpty()) {
-                String msg = "not taken: " + String.join(", ", refused) + ": the launcher sets the game's paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)"
-                        + (testApp() ? "; DM_SAVE is taken from env-<title ID>.txt only" : "");
+                List<String> english = new ArrayList<>(), shown = new ArrayList<>();
+                for (Msg k : refused) { english.add(k.english()); shown.add(k.text()); }
+                String msg = "not taken: " + String.join(", ", english) + ": the launcher sets the game's paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)"   // i18n-keep: log
+                        + (testApp() ? "; DM_SAVE is taken from env-<title ID>.txt only" : "");   // i18n-keep: log
                 Native.note("[RED] env: " + msg);
-                android.widget.Toast.makeText(this, "Environment lines " + msg, android.widget.Toast.LENGTH_LONG).show();
+                android.widget.Toast.makeText(this, getString(testApp() ? R.string.game_env_refused_test : R.string.game_env_refused, String.join(", ", shown)), android.widget.Toast.LENGTH_LONG).show();
             }
             if (testSave != null) Native.note("[nxlaunch] test app: DM_SAVE from env-" + id + ".txt: " + testSave);
             Native.note("frame generation: " + (Lsfg.on(this) ? "on" : "off") + "; " + Lsfg.note);
@@ -504,11 +511,11 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             input = Native.hasInput();
             started = true;
             hostSetup();
-            overlay.setText(name + ": starting. Log: " + log);
+            overlay.setText(getString(R.string.game_starting, name, log));
             ui.postDelayed(this::tail, 500);
             ui.postDelayed(this::fpsTick, 500);
         } catch (IOException | RuntimeException e) {
-            fail(String.valueOf(e.getMessage()));
+            fail(String.valueOf(e.getLocalizedMessage()));
         }
     }
 
@@ -543,8 +550,8 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
      * this game's host (the next Play of another game would land in it, Native.load) and the save's lock
      */
     private void fail(String why) {
-        new AlertDialog.Builder(this).setTitle("Cannot start " + getIntent().getStringExtra("name")).setMessage(why)
-                .setPositiveButton("OK", (d, w) -> end()).setCancelable(false).show();
+        new AlertDialog.Builder(this).setTitle(getString(R.string.game_cannot_start_title, getIntent().getStringExtra("name"))).setMessage(why)
+                .setPositiveButton(android.R.string.ok, (d, w) -> end()).setCancelable(false).show();
     }
 
     private void end() {
@@ -577,9 +584,9 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         super.onNewIntent(i);
         String want = i.getStringExtra("title_id"), have = getIntent().getStringExtra("title_id");
         if (want == null || want.equals(have)) return;
-        new AlertDialog.Builder(this).setTitle(getIntent().getStringExtra("name") + " is running")
-                .setMessage("Stop it first (the in-game panel › Stop the game), then start " + i.getStringExtra("name") + ". One game runs at a time.")
-                .setPositiveButton("OK", null).show();
+        new AlertDialog.Builder(this).setTitle(getString(R.string.game_running_title, getIntent().getStringExtra("name")))
+                .setMessage(getString(R.string.game_running_message, i.getStringExtra("name"), getString(R.string.game_panel_stop)))
+                .setPositiveButton(android.R.string.ok, null).show();
     }
 
     // ---- The save's lock (SaveStore.Lock on <save>.lock): taken before the save is recovered and kept while this process lives, so a backup or restore of this save
@@ -590,7 +597,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     private static synchronized void holdLock(File save) throws IOException {
         if (saveLock != null && SaveStore.same(saveLocked, save)) return;   // this process holds it already (the game's screen opened again)
         SaveStore.Lock l = SaveStore.tryLock(save);
-        if (l == null) throw new IOException("The save " + save + " is in use: a backup or restore of it is working. Try again when it is done.");
+        if (l == null) throw new LocalizedIOException("game_save_in_use", save);
         if (saveLock != null) saveLock.close();
         saveLock = l;
         saveLocked = save;
@@ -598,16 +605,16 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     /** Environment keys only the launcher sets: a line of env.txt, env-<id>.txt or the game's own lines that names one is refused (DM_SAVE: see allowSave) */
     static final java.util.Set<String> PROTECTED = new java.util.HashSet<>(java.util.Arrays.asList("DM_SAVE", "DM_ROMFS", "DM_TEMP", "DM_ROOT", "DM_AOC_DIR", "HOME"));
-    private final List<String> refused = new ArrayList<>();
+    private final List<Msg> refused = new ArrayList<>();   // each refused line: its key and where it came from
     private String testSave;   // DM_SAVE from env-<id>.txt in the test app: a test run's own save folder (a copied seed), never the user's
 
     /** lines without the protected keys; each one refused is noted (refused). allowSave: DM_SAVE may stay (the test app's files, which only adb writes) */
-    private List<String> guard(List<String> lines, String from, boolean allowSave) {
+    private List<String> guard(List<String> lines, Object from, boolean allowSave) {
         List<String> out = new ArrayList<>();
         for (String kv : lines) {
             String k = kv.substring(0, kv.indexOf('=')).trim();
             if (k.equals("DM_SAVE") && allowSave) { testSave = kv.substring(kv.indexOf('=') + 1).trim(); continue; }   // taken as the save folder (locked, recovered) below
-            if (PROTECTED.contains(k)) { refused.add(k + " (" + from + ")"); continue; }
+            if (PROTECTED.contains(k)) { refused.add(new Msg("game_env_refused_item", k, from)); continue; }
             out.add(kv);
         }
         return out;
@@ -616,7 +623,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     static boolean testApp() { return !BuildConfig.NX_PLAY; }
 
     private static File mkdirs(File d) throws IOException {
-        if (!d.isDirectory() && !d.mkdirs()) throw new IOException("cannot create " + d);
+        if (!d.isDirectory() && !d.mkdirs()) throw new LocalizedIOException("game_cannot_create", d);
         return d;
     }
 
@@ -638,7 +645,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         try {
             return envLines(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8));
         } catch (IOException | SecurityException e) {
-            envProblem = f + " exists but cannot be read (" + e + "): no switches from it this run; after writing it with adb, chmod 666 it";
+            envProblem = f + " exists but cannot be read (" + e + "): no switches from it this run; after writing it with adb, chmod 666 it";   // i18n-keep: log
             return new ArrayList<>();
         }
     }

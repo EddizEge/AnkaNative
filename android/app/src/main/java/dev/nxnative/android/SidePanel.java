@@ -112,20 +112,20 @@ final class SidePanel extends FrameLayout {
 
     private void build() {
         TextView title = new TextView(act);
-        title.setText("Anka Native");
+        title.setText("Anka Native");   // i18n-keep: the app's name
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextSize(20);
         box.addView(title);
-        note("The game runs on behind this panel; every change applies now and is kept.");
+        note(act.getString(R.string.game_panel_intro));
 
-        head("Frame rate cap");   // the game's own frame rate; frame generation (below, its own heading) adds frames on top
+        head(act.getString(R.string.game_panel_cap_head));   // the game's own frame rate; frame generation (below, its own heading) adds frames on top
         caps = new RadioGroup(act);
         int live = Integer.parseInt(Native.fpsCapStatus().split(" ")[0]), cur = live >= 0 ? live : Prefs.fpsCap(act, game());   // the cap in effect (env.txt or DM_CTL may have set another)
         for (int i = 0; i < Prefs.FPS_CAPS.length; i++) {
             int v = Prefs.FPS_CAPS[i];
             RadioButton b = new RadioButton(act);
             b.setId(2000 + i);
-            b.setText(v == 0 ? "The game's own" : v + " fps");
+            b.setText(v == 0 ? act.getString(R.string.game_panel_cap_own) : act.getString(R.string.game_panel_cap_fps, v));
             if (v == cur || v == 0 && cur < 0) b.setChecked(true);   // a cap the launcher does not offer (40, 45 from env.txt or DM_CTL): none checked, the line below says it
             caps.addView(b);
         }
@@ -142,43 +142,43 @@ final class SidePanel extends FrameLayout {
 
         Fsr.rows(act, box);
 
-        head("Overlay");
+        head(act.getString(R.string.game_panel_overlay_head));
         Overlay.rows(act, box, null);
 
-        head("On-screen controls");
+        head(act.getString(R.string.game_panel_controls_head));
         fill.accept(box);   // GameActivity: TouchControls.controlRows
 
         int sk = Native.skipStatus();   // the intro skip (DM_SKIP): offered where it is armed (Game settings › Intro skip) and in the test app
         if (sk >= 0 && ((sk & 2) != 0 || GameActivity.testApp())) {
-            head("Intro skip (debug)");
-            note("Presses A every few frames and ends movies early until gameplay, then stops by itself. In the game: hold − and + together for 1 s.");
+            head(act.getString(R.string.game_panel_skip_head));
+            note(act.getString(R.string.game_panel_skip_note));
             Button skip = new Button(act);
-            skip.setText((sk & 1) != 0 ? "Stop the intro skip" : "Skip the intro now");
+            skip.setText(act.getString((sk & 1) != 0 ? R.string.game_panel_skip_stop : R.string.game_panel_skip_now));
             skip.setOnClickListener(v -> { Native.skipSet((Native.skipStatus() & 1) != 0 ? 0 : 1); close(); });
             box.addView(skip, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         }
 
         Button pause = new Button(act);   // the game suspended (clock, graphics, threads, audio) until a tap on the screen, or A / Start: GameActivity.pause
-        pause.setText("Pause the game");
+        pause.setText(act.getString(R.string.game_panel_pause));
         pause.setOnClickListener(v -> { close(); if (act instanceof GameActivity) ((GameActivity) act).pause(); });
         LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         pl.topMargin = Math.round(24 * getResources().getDisplayMetrics().density);
         box.addView(pause, pl);
         android.widget.CheckBox ret = new android.widget.CheckBox(act);
-        ret.setText("Pause when the game comes back from the background");
+        ret.setText(act.getString(R.string.game_panel_pause_on_return));
         ret.setChecked(Prefs.pauseOnReturn(act, game()));
         ret.setOnCheckedChangeListener((b, on) -> Prefs.pauseOnReturn(act, game(), on));
         box.addView(ret);
         Button stop = new Button(act);
-        stop.setText("Stop the game");
-        stop.setOnClickListener(v -> new AlertDialog.Builder(act).setTitle("Stop the game?").setMessage("The game ends; unsaved progress is lost. The log stays for Share log.")
-                .setPositiveButton("Stop", (d, w) -> { Native.note("stopped by the user"); if (act instanceof GameActivity) ((GameActivity) act).backToFrontend(); android.os.Process.killProcess(android.os.Process.myPid()); })
-                .setNegativeButton("Keep running", null).show());
+        stop.setText(act.getString(R.string.game_panel_stop));
+        stop.setOnClickListener(v -> new AlertDialog.Builder(act).setTitle(act.getString(R.string.game_panel_stop_title)).setMessage(act.getString(R.string.game_panel_stop_message))
+                .setPositiveButton(act.getString(R.string.game_panel_stop_confirm), (d, w) -> { Native.note("stopped by the user"); if (act instanceof GameActivity) ((GameActivity) act).backToFrontend(); android.os.Process.killProcess(android.os.Process.myPid()); })
+                .setNegativeButton(act.getString(R.string.game_panel_keep_running), null).show());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = Math.round(24 * getResources().getDisplayMetrics().density);
         box.addView(stop, lp);
         Button done = new Button(act);
-        done.setText("Back to the game");
+        done.setText(act.getString(R.string.game_panel_back));
         done.setOnClickListener(v -> close());
         box.addView(done, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
@@ -197,12 +197,12 @@ final class SidePanel extends FrameLayout {
         boolean own = cap >= 0 && rates == 0 && now > 0, none = cap < 0 || own;
         caps.setVisibility(none ? GONE : VISIBLE);
         if (cap >= 0 && now > 0) Prefs.ownRate(act, game(), own);   // its Game settings hide the cap too
-        String s = cap < 0 ? "This build has no frame rate cap."
-                : now <= 0 ? "Starting…"
-                : own ? "This game picks its own frame rate."
-                : "Now " + now + " fps" + (cap > 0 ? ", capped at " + cap : ", the game's own") + ".";
+        String s = cap < 0 ? act.getString(R.string.game_panel_no_cap)
+                : now <= 0 ? act.getString(R.string.game_panel_starting)
+                : own ? act.getString(R.string.game_panel_own_rate)
+                : cap > 0 ? act.getString(R.string.game_panel_now_capped, now, cap) : act.getString(R.string.game_panel_now_own, now);
         fpsNow.setText(s);
-        if (lsfgNow != null) { String st = Native.frameGenStatus(); int sp = st.indexOf(' '); lsfgNow.setText("Now: " + (sp > 0 ? st.substring(sp + 1) : st)); }
+        if (lsfgNow != null) { String st = Native.frameGenStatus(); int sp = st.indexOf(' '); lsfgNow.setText(act.getString(R.string.game_panel_lsfg_now, sp > 0 ? st.substring(sp + 1) : st)); }
         removeCallbacks(tick);   // a change calls refresh too: one loop, not one more per change
         postDelayed(tick, 500);
     }

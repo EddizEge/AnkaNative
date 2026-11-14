@@ -1,9 +1,9 @@
 # The game area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
 # "python3 dm/tools/tests/test_android_i18n.py --ratchet game" writes the current counts. A file in no area may have none.
-GameActivity.java	77
-SidePanel.java	27
-TouchControls.java	23
-Overlay.java	18
-Fsr.java	9
-Lsfg.java	19
-SelftestActivity.java	8
+GameActivity.java	0
+SidePanel.java	0
+TouchControls.java	0
+Overlay.java	0
+Fsr.java	0
+Lsfg.java	0
+SelftestActivity.java	0

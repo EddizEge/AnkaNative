@@ -22,6 +22,8 @@ final class Fsr {
 
     /** RCAS sharpness in stops: 0 is the strongest, each stop halves it (AMD's default 0.25) */
     static final float[] SHARPS = {0f, 0.25f, 0.5f, 1f};
+    /** Their labels, at the same index */
+    private static final int[] SHARP_TEXTS = {R.string.game_fsr_sharp_max, R.string.game_fsr_sharp_default, R.string.game_fsr_sharp_soft, R.string.game_fsr_sharp_softer};
 
     static boolean on(Context c) { return Prefs.of(c).getBoolean("fsr", false); }
     static float sharp(Context c) { return Prefs.of(c).getFloat("fsr_sharp", 0.25f); }
@@ -36,28 +38,27 @@ final class Fsr {
         File ext = c.getExternalFilesDir(null);   // GameActivity's DM_CTL: <app files>/ctl.txt
         if (ext == null) return;
         try (FileWriter w = new FileWriter(new File(ext, "ctl.txt"), true)) {
-            w.write("env DM_VK_FSR=" + (on(c) ? 1 : 0) + "\nenv DM_VK_FSR_SHARP=" + sharp(c) + "\n");
+            w.write("env DM_VK_FSR=" + (on(c) ? 1 : 0) + "\nenv DM_VK_FSR_SHARP=" + sharp(c) + "\n");   // i18n-keep: control lines the host parses
         } catch (IOException e) { Native.note("[RED] FSR: the setting could not be sent to the game (" + e.getMessage() + "); it applies at the next start"); }
     }
 
     /** The in-game panel's rows: on / off and the sharpness, each applied at once */
     static void rows(Context c, LinearLayout box) {
         TextView head = new TextView(c);
-        head.setText("Upscaling");
+        head.setText(c.getString(R.string.game_fsr_head));
         head.setPadding(0, 24, 0, 0);
         box.addView(head);
         CheckBox on = new CheckBox(c);
-        on.setText("FSR 1 (sharper when the picture is scaled up to the screen)");
+        on.setText(c.getString(R.string.game_fsr_on));
         on.setChecked(on(c));
         on.setOnCheckedChangeListener((b, v) -> { Prefs.of(c).edit().putBoolean("fsr", v).commit(); push(c); });
         box.addView(on);
-        TextView l = new TextView(c); l.setText("Sharpness"); box.addView(l);
+        TextView l = new TextView(c); l.setText(c.getString(R.string.game_fsr_sharpness)); box.addView(l);
         RadioGroup g = new RadioGroup(c);
         g.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels = {"Max", "Default", "Soft", "Softer"};
         for (int i = 0; i < SHARPS.length; i++) {
             RadioButton b = new RadioButton(c);
-            b.setText(labels[i]);
+            b.setText(c.getString(SHARP_TEXTS[i]));
             b.setId(3000 + i);
             g.addView(b);
             if (SHARPS[i] == sharp(c)) b.setChecked(true);
