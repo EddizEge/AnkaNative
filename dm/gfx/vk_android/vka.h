@@ -104,6 +104,7 @@ typedef struct {
     int sparse_res;                                 // sparse residency images can be made (vka_sparse.c): binding on the queue, 2D residency, standard block shape, strict non-resident reads
     int sparse_buf;                                 // sparse residency buffers can be made (vka_mem.c span buffers): binding on the queue, buffer residency, strict non-resident reads
     uint64_t tl_queued;                             // the highest timeline value a vkQueueSubmit so far signals (under qmu): what a later submission on the queue may wait for
+    int comp_ctl;                                   // VK_EXT_image_compression_control enabled (only with DM_VK_BIGDEPTH_NOCOMP, vka_bigdepth.c): images may be made without UBWC one by one
 } vka_dev;
 extern vka_dev V;
 // Custom GPU drivers (vka_driver.c): DM_VK_DRIVER=<folder with meta.json, or a .so> loads that driver through libadrenotools (restart only); unset, empty or "system" = the
@@ -319,6 +320,7 @@ void vka_tex_own(vka_img *im, VkCommandBuffer cb);
 void vka_tex_whole(vka_img *im, VkCommandBuffer cb);   // a copy source that mip drop left without its finer levels (vka_tex.c "Mip drop"): whole again first
 void vka_tex_big_stats(char *b, size_t n);           // the largest images the GPU has not written, with what sampled them and what lies over their storage (DM_VK_BIGIMG_MB)
 int vka_rp_is_open(void);                            // a render pass is open in the replay's command buffer (vka_draw.c)
+int vka_rp_clears_pending(void);                     // clears wait for the next pass over their targets (vka_rp_clear; vka_draw.c)
 void vka_tex_writeback(VkCommandBuffer cb);   // mtl_sub_commit, after the last pass
 VkImageView vka_view(vka_img *im, VkFormat fmt, VkImageViewType type, VkImageAspectFlags aspect, uint32_t level, uint32_t nlevels, uint32_t layer, uint32_t nlayers, const VkComponentMapping *swz);
 void vka_tex_prepare(VkCommandBuffer cb);           // at submit begin: dirty CPU textures re-uploaded, registered descriptors written
@@ -459,6 +461,21 @@ void vka_rp_bar_stats(char *b, size_t n, double frames);
 void vka_rp_prep_clear(const p_set_rt *rt, int has_rt); // before a clear of these targets: a pass or pending clears of other targets end
 // A clear of a bound target: everything the clear outside a pass needs (vka_clear_outside, vka_exec.c), and the value for the attachment inside one
 typedef struct { int ci; vka_img *im; VkFormat fmt; VkImageAspectFlags asp; uint32_t lv, l0, nl; VkRect2D rc; int whole; VkClearValue out, in; } vka_pclear;
+// Big depth targets (vka_bigdepth.c, GitHub issue 5: the Adreno 840 loses the device at the first write to Ocarina of Time's 12288x12288 D16 target under Turnip). Test
+// switches, all off by default: DM_VK_BIGDEPTH_CLEAR (how a clear of such a target is recorded), DM_VK_BIGDEPTH_NOCOMP (made without UBWC), DM_VK_BIGDEPTH_SYNC (the GPU
+// waited for after its clear and its passes), DM_VK_BIGDEPTH_LOG (its create info, memory and Vulkan calls logged and synced to the log file)
+int vka_bigdepth_size(int kind, uint64_t storage);   // 1: a depth / stencil format (vka_fmt.kind >= 3) whose storage is DM_VK_BIGDEPTH_MB (256) or more
+int vka_bigdepth(const vka_img *im);
+int vka_bigdepth_log_on(void);
+void vka_bigdepth_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));   // one [vk] bigdepth line (DM_VK_BIGDEPTH_LOG's budget), then the log file synced
+void vka_bigdepth_made(const vka_img *im, const VkImageCreateInfo *ci, const VkMemoryRequirements *mr, int nocomp, const char *memory);   // img_create_: what was made
+int vka_bigdepth_clear(VkCommandBuffer cb, const vka_pclear *c, int mode);   // clear_ds: 1 = recorded here by DM_VK_BIGDEPTH_CLEAR's method (mode 1-4, outside any pass), 0 = the caller's path
+void vka_bigdepth_sync(const char *what, uint64_t serial);   // vka_exec.c: DM_VK_BIGDEPTH_SYNC's wait (the part so far submitted and the GPU waited for, at most DM_VK_HANG_S)
+int vka_bigdepth_sync_on(void);
+extern uint64_t vka_bigdepth_pass_serial;   // vka_draw.c: a pass with that big depth image as its attachment ended (DM_VK_BIGDEPTH_SYNC waits at the next draw that opens a pass
+                                            // with no clear pending, else at the end of the submission: vka_exec.c chunk_check, sub_commit); 0 none
+// A clear of a rectangle of one level in a pass of its own (vkCmdClearAttachments; vka_exec.c). area: the render area, NULL = the whole level. 1 recorded, 0 not an attachment, -1 no view
+int vka_clear_rect(VkCommandBuffer cb, vka_img *im, VkFormat fmt, VkImageAspectFlags asp, uint32_t lv, uint32_t l0, uint32_t nl, VkRect2D rc, const VkClearValue *val, const VkRect2D *area);
 void vka_clear_outside(const vka_pclear *c);         // the clear on the image, outside any pass, then a barrier
 // A clear of bound target c->ci (< 0: depth / stencil) into the render pass over those targets: an open one takes it as vkCmdClearAttachments; with none open it waits for
 // the next draw's pass (loadOp CLEAR), or is done outside when anything else comes first (vka_rp_end). 0 = not taken: the caller ends the pass and clears outside

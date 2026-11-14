@@ -158,6 +158,10 @@ static int init_once(void) {
     const char *fault_env = getenv("DM_VK_DEVICE_FAULT");
     int x_fault = has_ext(de, nde, VK_EXT_DEVICE_FAULT_EXTENSION_NAME) && !(fault_env && !strcmp(fault_env, "0"));
     if (x_fault) dext[ndext++] = VK_EXT_DEVICE_FAULT_EXTENSION_NAME;
+    // DM_VK_BIGDEPTH_NOCOMP=1 (restart, off; vka_bigdepth.c): image compression control, for big depth targets made without UBWC. Enabled only then (the device is otherwise as before)
+    const char *nocomp_env = getenv("DM_VK_BIGDEPTH_NOCOMP");
+    int want_icc = nocomp_env && atoi(nocomp_env) > 0, x_icc = want_icc && has_ext(de, nde, VK_EXT_IMAGE_COMPRESSION_CONTROL_EXTENSION_NAME);
+    if (x_icc) dext[ndext++] = VK_EXT_IMAGE_COMPRESSION_CONTROL_EXTENSION_NAME;
     free(de);
 
     // Every feature the device has, but robustness and capture-replay (they cost and nothing needs them); the shader side takes what it needs from the same device
@@ -169,10 +173,11 @@ static int init_once(void) {
     VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT fgpl = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT};
     VkPhysicalDeviceMeshShaderFeaturesEXT fmesh = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT};
     VkPhysicalDeviceFaultFeaturesEXT ffault = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT};
+    VkPhysicalDeviceImageCompressionControlFeaturesEXT ficc = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_COMPRESSION_CONTROL_FEATURES_EXT};
     void *chain = placed ? &fmp : NULL;
 #define LINK(on, st) if (on) { (st).pNext = chain; chain = &(st); }
     struct { VkStructureType sType; void *pNext; VkBool32 queuePerfHint; } fph = {(VkStructureType)1000302001};   // VkPhysicalDeviceQueuePerfHintFeaturesQCOM (not in the NDK's headers yet)
-    LINK(x_vin, fvin) LINK(x_rob, frob) LINK(x_i8, fi8) LINK(x_div, fdiv) LINK(x_ph, fph) LINK(x_gpl, fgpl) LINK(x_mesh, fmesh) LINK(x_fault, ffault)
+    LINK(x_vin, fvin) LINK(x_rob, frob) LINK(x_i8, fi8) LINK(x_div, fdiv) LINK(x_ph, fph) LINK(x_gpl, fgpl) LINK(x_mesh, fmesh) LINK(x_fault, ffault) LINK(x_icc, ficc)
 #undef LINK
     VkPhysicalDeviceVulkan13Features f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, .pNext = chain};
     VkPhysicalDeviceVulkan12Features f12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, .pNext = &f13};
@@ -191,6 +196,9 @@ static int init_once(void) {
     V.tess = f2.features.tessellationShader; V.depth_clamp = f2.features.depthClamp; V.fill_lines = f2.features.fillModeNonSolid; V.depth_bias_clamp = f2.features.depthBiasClamp;
     V.multi_vp = f2.features.multiViewport; V.pstats = f2.features.pipelineStatisticsQuery; V.a2c = 1; V.mesh = x_mesh && fmesh.meshShader; V.task = V.mesh && fmesh.taskShader;
     if (!f12.timelineSemaphore || !f13.dynamicRendering) { VRED("the device lacks timeline semaphores (%d) or dynamic rendering (%d)", f12.timelineSemaphore, f13.dynamicRendering); return 0; }
+    V.comp_ctl = x_icc && ficc.imageCompressionControl;
+    if (want_icc) VLOG("bigdepth: DM_VK_BIGDEPTH_NOCOMP: %s", V.comp_ctl ? "image compression control on: depth targets of DM_VK_BIGDEPTH_MB or more are made without compression"
+                                                                         : x_icc ? "the device has the extension without its feature: images as before" : "the device lacks VK_EXT_image_compression_control: images as before");
     V.bda = f12.bufferDeviceAddress; V.uab = f12.descriptorBindingSampledImageUpdateAfterBind && f12.descriptorBindingPartiallyBound && f12.runtimeDescriptorArray;
     V.placed = placed && fmp.memoryMapPlaced; V.placed_range = placed && fmp.memoryMapRangePlaced; V.unmap_reserve = placed && fmp.memoryUnmapReserve;
     float prio = 1.f;
@@ -225,6 +233,15 @@ static int init_once(void) {
     VLOG("driver: %s (%s), driver ID %d, conformance %u.%u.%u.%u, driver version %#x; %s", pdr.driverName, pdr.driverInfo, pdr.driverID, pdr.conformanceVersion.major,
          pdr.conformanceVersion.minor, pdr.conformanceVersion.subminor, pdr.conformanceVersion.patch, V.props.driverVersion, vka_driver_tag() ? "custom (DM_VK_DRIVER)" : "the system's");
     V.driver_id = (int)pdr.driverID;
+    {   // The driver's own variables in the process environment (TU_DEBUG and the like: Readiness.DRIVER_KEYS), one line when any is set. Turnip reads TU_DEBUG at the process's
+        // first vkCreateInstance, normally the launcher's readiness check, which sets these lines before it (nxlaunch.c). That this run's driver took them is not known here (a
+        // readiness check that timed out may still be running when the host starts): the image sizes in the log say it (a TU_DEBUG=noubwc run makes smaller depth images)
+        extern char **environ; char b[512]; size_t o = 0; b[0] = 0;
+        static const char *const pre[] = {"TU_", "FD_", "IR3_", "MESA_"};
+        for (char **e = environ; e && *e && o + 1 < sizeof b; e++)
+            for (size_t i = 0; i < sizeof pre / sizeof *pre; i++) if (!strncmp(*e, pre[i], strlen(pre[i]))) { o += (size_t)snprintf(b + o, sizeof b - o, " %s", *e); break; }
+        if (o) VLOG("driver variables in the environment:%s (set in the environment; the launcher sets them before its readiness check, normally the process's first Vulkan instance, where Turnip reads TU_DEBUG)", b);
+    }
     { const char *e = getenv("DM_VK_GPL"); int want = !(e && !strcmp(e, "0"));   // restart only: the libraries are made with the device's pipelines
       V.gpl = want && x_gpl && fgpl.graphicsPipelineLibrary && pgpl.graphicsPipelineLibraryFastLinking;
       VLOG("graphics pipeline libraries: %s", V.gpl ? "on (a pipeline the cache lacks is linked from stage libraries, the optimized one is made in the background; DM_VK_GPL=0 off)"

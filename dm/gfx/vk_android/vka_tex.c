@@ -565,6 +565,10 @@ static vka_img *img_create_(const tex_t *t, const vka_fmt *f, uint32_t base, int
     im->usage = u;
     VkImageCreateInfo ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = (alt || im->nx) && ubwc ? &fli : NULL, .flags = fl, .imageType = it, .format = f->vk, .extent = {im->w, im->h, im->depth}, .mipLevels = im->levels,
         .arrayLayers = im->layers, .samples = (VkSampleCountFlagBits)im->samples, .tiling = VK_IMAGE_TILING_OPTIMAL, .usage = u, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    // A big depth target with DM_VK_BIGDEPTH_NOCOMP (vka_bigdepth.c): made without compression (no UBWC, no flag buffer on Adreno), the only image that changes
+    VkImageCompressionControlEXT icc = {VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT, .flags = VK_IMAGE_COMPRESSION_DISABLED_EXT};
+    int nocomp = V.comp_ctl && !res && vka_bigdepth_size(f->kind, t->L.size);
+    if (nocomp) { icc.pNext = ci.pNext; ci.pNext = &icc; }
     VkResult r = vk.vkCreateImage(V.dev, &ci, NULL, &im->img);
     if (r && res) { VRED_ONCE("sparse residency image of serial %llu: vkCreateImage %d: dense images instead", (unsigned long long)t->serial, r); *why = 2; free(im); return NULL; }
     if (r) { VRED("texture serial %llu %ux%ux%u format %#x (VkFormat %d) levels %u layers %u samples %u: vkCreateImage %d", (unsigned long long)t->serial, im->w, im->h, im->depth, d->format, f->vk, im->levels, im->layers, im->samples, r); free(im); return NULL; }
@@ -584,18 +588,22 @@ static vka_img *img_create_(const tex_t *t, const vka_fmt *f, uint32_t base, int
     }
     int fresh = 0; uint64_t rafresh = 0;
     if (ra && mt != UINT32_MAX) {   // the key: the guest storage start (pool, its Initialize serial, address) and the create info without its extent, the memory type
-        struct { const void *pool; uint64_t pgen, mem; VkImageCreateFlags fl; VkFormat f; VkImageType it; uint32_t lv, ly, sm; VkImageUsageFlags u; uint32_t mt, nfl; VkFormat fls[6]; } k;
+        struct { const void *pool; uint64_t pgen, mem; VkImageCreateFlags fl; VkFormat f; VkImageType it; uint32_t lv, ly, sm; VkImageUsageFlags u; uint32_t mt, nfl; VkFormat fls[6]; uint32_t nocomp; } k;
         memset(&k, 0, sizeof k);
         k.pool = t->pool; k.pgen = im->pgen; k.mem = (uint64_t)(uintptr_t)t->mem; k.fl = fl; k.f = f->vk; k.it = it; k.lv = im->levels; k.ly = im->layers; k.sm = im->samples; k.u = u; k.mt = mt;
-        if (ci.pNext) { k.nfl = (uint32_t)nfl; memcpy(k.fls, fls, (size_t)nfl * sizeof *fls); }
+        if ((alt || im->nx) && ubwc) {   // (the format list in ci.pNext)
+            k.nfl = (uint32_t)nfl; memcpy(k.fls, fls, (size_t)nfl * sizeof *fls); }
+        k.nocomp = (uint32_t)nocomp;   // (an uncompressed image has another layout: it does not share with compressed ones)
         if ((r = vka_imem_bind_alias(im->img, mt, &mr, &k, (uint32_t)sizeof k, &im->m, &rafresh))) ra = 0;   // (refused: the image's own memory, as before)
         else if (!im->m.a) ra = 0;   // (the table had no room: the allocation is its own)
     } else ra = 0;
     if (zs && mt != UINT32_MAX) {   // the key: the whole create info (ALIAS_BIT in its flags), the format list, the memory type and requirements (images that may alias consistently)
-        struct { VkImageCreateFlags fl; VkFormat f; VkImageType it; uint32_t w, h, dp, lv, ly, sm; VkImageUsageFlags u; uint32_t mt, nfl; VkFormat fls[6]; VkDeviceSize size, al; } k;
+        struct { VkImageCreateFlags fl; VkFormat f; VkImageType it; uint32_t w, h, dp, lv, ly, sm; VkImageUsageFlags u; uint32_t mt, nfl; VkFormat fls[6]; VkDeviceSize size, al; uint32_t nocomp; } k;
         memset(&k, 0, sizeof k);
         k.fl = fl; k.f = f->vk; k.it = it; k.w = im->w; k.h = im->h; k.dp = im->depth; k.lv = im->levels; k.ly = im->layers; k.sm = im->samples; k.u = u; k.mt = mt; k.size = mr.size; k.al = mr.alignment;
-        if (ci.pNext) { k.nfl = (uint32_t)nfl; memcpy(k.fls, fls, (size_t)nfl * sizeof *fls); }
+        if ((alt || im->nx) && ubwc) {   // (the format list in ci.pNext)
+            k.nfl = (uint32_t)nfl; memcpy(k.fls, fls, (size_t)nfl * sizeof *fls); }
+        k.nocomp = (uint32_t)nocomp;
         if ((r = vka_imem_bind_zero(im->img, mt, &mr, &k, (uint32_t)sizeof k, &im->m, &fresh))) zs = 0;   // (refused: the image's own memory, as before)
         else if (!im->m.z) zs = 0;   // (the table had no room: the allocation is its own)
     } else zs = 0;
@@ -617,6 +625,9 @@ static vka_img *img_create_(const tex_t *t, const vka_fmt *f, uint32_t base, int
             VLOG("zero-shared image: texture serial %llu %ux%u layers %u levels %u format %#x flags %#x: %.1f MiB of zeroed memory %s (memory of its own at its first write)", (unsigned long long)t->serial,
                  im->w, im->h, im->layers, im->levels, d->format, d->flags, mr.size / 1048576.0, fresh ? "made for its create info" : "shared with images of the same create info");
     } else { im->bytes = mr.size; g_img_bytes += mr.size; g_img_made += mr.size; vka_mem_grew(mr.size); }
+    if (nocomp || (vka_bigdepth_log_on() && vka_bigdepth_size(f->kind, t->L.size)))   // (vka_bigdepth.c: DM_VK_BIGDEPTH_NOCOMP's line, DM_VK_BIGDEPTH_LOG's create info)
+        vka_bigdepth_made(im, &ci, &mr, nocomp, ra ? (rafresh ? "guest-aliased, a new allocation" : "guest-aliased, the storage's allocation") : zs ? (fresh ? "zero-shared, made for its create info" : "zero-shared, shared")
+                                                : "its own (a dedicated allocation or a run of a block)");
     if (mr.size >= (VkDeviceSize)(VKA_ENVF("DM_VK_BIGIMG_MB", 64.0) * 1048576.0)) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 32)   // large images, for memory walls
         VLOG("large image: texture serial %llu %ux%ux%u layers %u levels %u (base %u) samples %u format %#x target %d flags %#x: %.1f MiB of image memory (storage %.1f MiB at %p, pool flags %#x)",
              (unsigned long long)t->serial, im->w, im->h, im->depth, im->layers, im->levels, im->base, im->samples, t->d.format, t->d.target, t->d.flags, mr.size / 1048576.0,

@@ -333,11 +333,21 @@ final class Readiness {
         return new Check(title.english(), null, title, null, Status.INFO, status, null, null, null, "status");   // the message: the row's own word (machine data), as written
     }
 
-    /** Of a game's environment (KEY=VALUE, in start's order), the lines that pick its GPU driver: what the readiness facts must be read on */
+    /** Of a game's environment (KEY=VALUE, in start's order), the lines that pick its GPU driver (what the readiness facts must be read on) and the lines the driver itself
+     *  reads (DRIVER_KEYS: Mesa's TU_DEBUG and the like). The check runs in the game's process and creates the process's first Vulkan instance, and Turnip reads TU_DEBUG
+     *  once per process, at that first vkCreateInstance (tu_env_init): a driver line set only when the host starts came too late and did nothing (GitHub issue 5) */
     static String[] driverEnv(List<String> env) {
         List<String> out = new ArrayList<>();
-        for (String kv : env) if (kv.startsWith("DM_VK_DRIVER=") || kv.startsWith("DM_VK_HOOKDIR=")) out.add(kv);
+        for (String kv : env) if (kv.startsWith("DM_VK_DRIVER=") || kv.startsWith("DM_VK_HOOKDIR=") || driverKey(kv)) out.add(kv);
         return out.toArray(new String[0]);
+    }
+    /** Prefixes of the variables a Mesa driver reads from the process environment (Turnip TU_*, freedreno FD_*, its compiler IR3_*, Mesa's own MESA_*); nxlaunch.c's readiness entry sets the same */
+    static final String[] DRIVER_KEYS = {"TU_", "FD_", "IR3_", "MESA_"};
+    static boolean driverKey(String kv) {
+        int eq = kv.indexOf('=');
+        if (eq <= 0) return false;
+        for (String p : DRIVER_KEYS) if (kv.startsWith(p) && eq > p.length()) return true;
+        return false;
     }
 
     /** A requirement row's screen messages (Check.reqMsg): present; missing and required; missing and degraded; each with the row's why as its first argument

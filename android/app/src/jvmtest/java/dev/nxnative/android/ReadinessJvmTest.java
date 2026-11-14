@@ -40,6 +40,10 @@ public final class ReadinessJvmTest {
         check(Readiness.compare("49152", "49152") == 0 && Readiness.compare("32768", "49152") < 0 && Readiness.compare("0x10", "15") > 0, "numbers and hex");
         check(Readiness.compare("14.7", "14") > 0 && Readiness.compare("11.2", "14") < 0 && Readiness.compare("yes", "1") < 0, "decimals; text reads as 0");
 
+        // The lines the check runs with: the driver pick and the driver's own variables (read once per process, at the check's vkCreateInstance), nothing else
+        String[] dk = Readiness.driverEnv(List.of("DM_VK_DRIVER=/x/Anka", "TU_DEBUG=noubwc,nolrz", "DM_VK_TEXFB=0", "FD_RD_DUMP=1", "IR3_SHADER_DEBUG=nouboopt", "MESA_SHADER_CACHE_DISABLE=1", "TU_=1", "TUX=1", "DM_VK_HOOKDIR=/h"));
+        check(java.util.Arrays.equals(dk, new String[] {"DM_VK_DRIVER=/x/Anka", "TU_DEBUG=noubwc,nolrz", "FD_RD_DUMP=1", "IR3_SHADER_DEBUG=nouboopt", "MESA_SHADER_CACHE_DISABLE=1", "DM_VK_HOOKDIR=/h"}),
+              "driverEnv: the driver pick and its own variables " + java.util.Arrays.toString(dk));
         // Rows: malformed ones skipped, title and why split at ": "
         List<Readiness.Req> rows = Readiness.parseReqs("required|ram_gib|14|Memory: needs a lot;bogus|x|1|y;degraded|sparse.format.bc6h|1|Sparse BC6H;required||1|no fact");
         check(rows.size() == 2 && rows.get(0).required && rows.get(0).title.equals("Memory") && rows.get(0).why.equals("needs a lot") && !rows.get(1).required
