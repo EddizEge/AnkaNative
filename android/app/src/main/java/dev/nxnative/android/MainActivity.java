@@ -445,8 +445,8 @@ public final class MainActivity extends Activity {
         BuildCheck.Result b = BuildCheck.build(p, gd);
         if (!b.ok()) {
             android.util.Log.w("nxnative", g.titleId + " " + g.gameDir + " with pack " + g.packDir + ": " + b.label() + ": " + b.detail);
-            Problem s = new Problem(b.label(), dump && (b.kind == BuildCheck.Kind.OTHER_BUILD || b.kind == BuildCheck.Kind.MISSING));   // Prepare makes a pack of the dump's build; it cannot fix unreadable files, an unsupported build or another version's data
-            s.detail = b.detail;
+            Problem s = new Problem(b.labelMsg().text(), dump && (b.kind == BuildCheck.Kind.OTHER_BUILD || b.kind == BuildCheck.Kind.MISSING));   // Prepare makes a pack of the dump's build; it cannot fix unreadable files, an unsupported build or another version's data
+            s.detail = b.detailMsg == null ? "" : b.detailMsg.text();
             return s;
         }
         if (Pack.libraryProblem(pd, g.titleId) != null) {
@@ -486,7 +486,7 @@ public final class MainActivity extends Activity {
                     info.addView(d, dl);
                 }
                 if (problem != null && problem.legacy) {   // Play stays Play; a chip says why the shaders want one more update
-                    TextView n = Ui.warnChip(this, getString(R.string.home_legacy_chip), getString(R.string.home_legacy_chip), ShaderLibs.LEGACY_WARNING);
+                    TextView n = Ui.warnChip(this, getString(R.string.home_legacy_chip), getString(R.string.home_legacy_chip), ShaderLibs.legacyWarning());
                     LinearLayout.LayoutParams wl = Ui.wrap();
                     wl.topMargin = dp(6);
                     info.addView(n, wl);
@@ -708,7 +708,7 @@ public final class MainActivity extends Activity {
                 pendingId = k.id;
                 boolean nup = Nup.isNup(k.game);
                 // Why Prepare cannot start from it (another build than this app's, an incomplete dump), plainly; a pack made elsewhere can still be picked
-                String why = k.found != null && k.found.error != null ? k.found.error
+                String why = k.found != null && k.found.error != null ? k.found.errorMsg.text()
                         : !Ondevice.available() ? (nup ? getString(R.string.home_no_pack_nup_unavailable, Ondevice.unavailableText()) : getString(R.string.home_no_pack_folder_unavailable, Ondevice.unavailableText()))
                         : nup ? getString(R.string.home_no_pack_nup_no_dump) : getString(R.string.home_no_pack_folder_no_dump);
                 new AlertDialog.Builder(this).setTitle(k.found != null && k.found.version < 0 && k.found.titleId != null && Profile.of(k.found.titleId) != null && !DumpLayout.versions(k.game).isEmpty()
@@ -911,7 +911,7 @@ public final class MainActivity extends Activity {
         }
         if (lp != null && Pack.legacyLibrary(new File(g.packDir), g.titleId) != null) {   // made before versioned updates: never blocks Play, says so (the host warns in its log too)
             if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
-            Toast.makeText(this, ShaderLibs.LEGACY_WARNING, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, ShaderLibs.legacyWarning(), Toast.LENGTH_LONG).show();
             start(g);
             return;
         }
@@ -985,7 +985,7 @@ public final class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         File dll = Lsfg.find(this);
-        Lsfg.rows(this, box, dll != null ? Lsfg.note : getString(R.string.home_lsfg_no_dll, Lsfg.note), () -> {});
+        Lsfg.rows(this, box, dll != null ? Lsfg.noteText() : getString(R.string.home_lsfg_no_dll, Lsfg.noteText()), () -> {});
         Ui.add(box, Ui.small(this, getString(R.string.home_lsfg_credit)), 10);
         Ui.sheet(this, getString(R.string.home_frame_gen), box).setPositiveButton(R.string.home_done, null).setOnDismissListener(d -> refreshSettings())
                 .setNeutralButton(R.string.home_pick_dll, (d, w) -> {

@@ -37,7 +37,7 @@ final class Lsfg {
     static int target(Context c) { return prefs(c).getInt("lsfg_target", 0); }
     static int flow(Context c) { return prefs(c).getInt("lsfg_flow", 75); }
 
-    /** Where the DLL in use came from, in English (the log; the main screen until it shows noteText()) */
+    /** Where the DLL in use came from, in English (the log line); the main screen shows noteText() */
     static String note = "";
     /** The same as a Msg (null until find or install sets it), for the screen: noteText() */
     private static Msg noteMsg;

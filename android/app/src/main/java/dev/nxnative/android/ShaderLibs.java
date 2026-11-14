@@ -102,14 +102,7 @@ final class ShaderLibs {
         return best;
     }
 
-    /**
-     * The warning for a game played on such a library, English: MainActivity shows it today, until the integrator switches it to {@link #legacyWarning}, the same
-     * text in the user's language (packs_legacy_warning)
-     */
-    static final String LEGACY_WARNING = "This game's shaders were made before versioned shader updates, so this app version cannot update them in part. "   // i18n-keep: English twin of packs_legacy_warning
-            + "You can keep playing on them, but updating the shaders once more with Prepare shaders is suggested: after that, shader fixes arrive as small incremental updates.";   // i18n-keep
-
-    /** {@link #LEGACY_WARNING} in the user's language (screen only) */
+    /** The warning for a game played on such a library, in the user's language (screen only: MainActivity's chip and Toast) */
     static String legacyWarning() { return Tr.s("packs_legacy_warning", new Msg("packs_label_prepare_shaders")); }
 
     /** The versions of the libraries of titleId's game a pack folder has, other than current (what a delta update can start from) */

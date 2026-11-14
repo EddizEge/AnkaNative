@@ -23,7 +23,7 @@ final class DumpCheck {
     static final class Result {
         File dump, work;
         String titleId;
-        /** Why the dump cannot be prepared, in English (job.json's error, logs), null when it can; errorMsg: the same for the screen when DumpCheck made it */
+        /** Why the dump cannot be prepared, in English (job.json's error, logs), null when it can; errorMsg: the same for the screen */
         String error;
         Msg errorMsg;
         long version;               // the update's version (updates/<version>)
@@ -34,7 +34,7 @@ final class DumpCheck {
 
         boolean ok() { return error == null; }
 
-        /** error for the screen: in the user's language when it is DumpCheck's own; DumpLayout's refusals (the packs area) are still English Strings */
+        /** error for the screen, in the user's language (DumpCheck's own refusals and DumpLayout's) */
         String errorText() { return errorMsg != null ? errorMsg.text() : error; }
     }
 
@@ -60,6 +60,7 @@ final class DumpCheck {
         r.titleId = f.titleId;
         if (f.error != null) {
             r.error = f.error;
+            r.errorMsg = f.errorMsg;
             return r;
         }
         r.version = f.version;
