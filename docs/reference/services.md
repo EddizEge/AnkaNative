@@ -338,6 +338,7 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Cause:** the SDK's own call opens the hid service, which sm refuses (0xe15), and reads the null service object. Games ask only for handles `GetVibrationDeviceHandles` returned, which it returns none of with rumble off.
 - **Fix:** `hle_hid.c` answers it. On Horizon a device is mounted when the npad's connected controller has the handle's style and an actuator on that side; the host reports it mounted when the channel has an output, as `GetVibrationDeviceInfo` reports the device.
 - **Found on:** Super Mario Odyssey 1.4.1, entering a Sand Kingdom pipe (`main+0x5d3150` asks for each handle of a controller whether any is mounted; GitHub issue #715). No other local game imports it.
+- **SDK 22 (Switch 2):** `hid::IsOunceVibrationDeviceMounted` takes the same handle and is answered the same way. Banana Native found it on [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md): with rumble on, playing an ocarina note ended in sm's 0xe15 abort at `sdk+0x6c8e54` (ported from its b39bf8b5; not yet seen on our phones).
 
 ### Vibration handles before a controller is reported
 
