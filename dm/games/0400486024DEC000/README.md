@@ -95,7 +95,7 @@ How the game picks its 3D size (v131072 main, disassembled 2026-11-14; agl's con
 
 **3D resolution** (Game settings, `DM_RES_LEVEL`; profile key `drs_level`): the host writes, at load, a branch at `main+0x805f8c` (the instruction after `bl main+0x8065e0`) to six to eight words in the zero padding at `main+0x8065c4` (7 words) and `main+0x806874` (3 words): `fixed:<n>` answers level n, `cap:<n>` at least n, both at most the palette's last (`ctl+0x1a0` - 1), and a step down is then always immediate. `fixed:lowest` is the palette's last level. The choices: Max (level 0), High (1), Medium (4), Low (6), Lowest (9), and Dynamic never above High or Medium. A workaround on the game's own code; the cause (the controller tuned for the Switch 2's GPU, or the GPU time it reads) is open. Not yet tried on the phone. What it does not touch: the full-scale path when the controller's dynamic resolution is off (flag bit 0), and the frames while the game holds its level itself (`ctl+0xa1` bit 0, which skips the selector).
 
-Side effects: the levels are the game's own, inside the render targets it allocates for its sharpest level, so no render target, texture pool or upscaler input outside what the game itself uses; Max and High raise the GPU work per frame (level 0 has about 5 times the pixels of level 9).
+Side effects: the levels are the game's own, inside the render targets it allocates for its sharpest level, so no render target, texture pool or upscaler input outside what the game itself uses; Max and High raise the GPU work per frame (level 0 has about 5 times the pixels of level 9). Each level has its own upscaler network in `agl_ndsr_vr_light.pck` (levels 8-9 `d99fbeeb53d38847`, the others five more); until 2026-11-14 the NDSR stand-in replaced only `d99`, so every level from 0 to 7 ran its network at 30-64 ms of GPU a frame (61-75 ms in all where the floor takes 25); now `DM_VK_NDSR_STANDIN` replaces all six, and on the POCO F8 Pro (Deku Tree 2F) every level from 0 to 7 takes 27-32 ms of GPU a frame (the floor 25), 22-26 fps at the levels measured from 33.9 °C ([agl's NDSR upscaler replaced by a bilinear stand-in on the Vulkan replay](../../../docs/reference/shaders.md#agls-ndsr-upscaler-replaced-by-a-bilinear-stand-in-on-the-vulkan-replay), `<work>/session-2026-11-14/resolution-cost.md`).
 
 ## Test runs (Android)
 
@@ -103,7 +103,7 @@ The intro skip ([android/TESTING.md](../../../android/TESTING.md#intro-skip)) ta
 
 ## Open
 
-- 3D resolution (`DM_RES_LEVEL`): not yet tried on the phone; whether High stops the issue 10 bursts, and whether the bursts come from a level or from the full-scale state ([Dynamic resolution](#dynamic-resolution)).
+- 3D resolution (`DM_RES_LEVEL`): measured on the POCO F8 Pro at every level (2026-11-14, `<work>/session-2026-11-14/resolution-cost.md`); whether High stops the issue 10 bursts, and whether the bursts come from a level or from the full-scale state ([Dynamic resolution](#dynamic-resolution)); the 9 networks of `agl_ndsr_vr_light.pck` that no level dispatched at the 2048x1152 output (another output size, handheld?) still run as recorded.
 - The title screen's text with the full library of the current translator (its module alone checked on the phone), and the memory pressure (heat, audio dropouts) ([Boot](#boot-android-v131072), step 14).
 - The NDVE network itself on Turnip: replaced by a scale (step 13); its last pass's zeros on Mesa main not followed.
 - The `prepo` hook on the phone: past the first play report after the opening movie (step 7).
