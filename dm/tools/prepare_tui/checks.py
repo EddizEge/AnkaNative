@@ -23,13 +23,19 @@ class Check:
     def __repr__(self): return f'Check({self.name}, {self.ok}, {self.found!r})'
 
 
+def os_release():
+    """/etc/os-release's fields (ID, ID_LIKE, VERSION_ID, PRETTY_NAME, ...), or {} where there is none"""
+    try: rel = Path('/etc/os-release').read_text()
+    except OSError: return {}
+    return {k: v.strip().strip('"\'') for k, v in re.findall(r'^([A-Z_]+)=(.*)$', rel, re.M)}
+
+
 def system():
     """'windows', 'mac' or the Linux family from /etc/os-release ('debian', 'fedora', 'arch', 'suse', or 'linux' when it is none of them)"""
     if os.name == 'nt': return 'windows'
     if sys.platform == 'darwin': return 'mac'
-    try: rel = Path('/etc/os-release').read_text()
-    except OSError: return 'linux'
-    ids = ' '.join(re.findall(r'^(?:ID|ID_LIKE)="?([^"\n]*)"?', rel, re.M)).split()
+    rel = os_release()
+    ids = (rel.get('ID', '') + ' ' + rel.get('ID_LIKE', '')).split()
     for fam, names in (('debian', ('debian', 'ubuntu')), ('fedora', ('fedora', 'rhel', 'centos')), ('arch', ('arch',)), ('suse', ('suse', 'opensuse'))):
         if any(n in ids for n in names): return fam
     return 'linux'
@@ -56,6 +62,30 @@ PY_PKG = {'debian': 'apt install python3.14 python3.14-venv', 'fedora': 'dnf ins
 PKG_INSTALL = {'debian': 'apt install', 'fedora': 'dnf install', 'arch': 'pacman -S', 'suse': 'zypper install'}
 DOTNET_LINUX = 'https://learn.microsoft.com/dotnet/core/install/linux'
 DOTNET_NO_PKG = {'debian': 'Debian, Ubuntu before 24.04', 'suse': 'openSUSE Leap'}   # where dotnet-runtime-10.0 is not in the distribution's own source
+DOTNET_SCRIPTED = DOTNET_LINUX + '-scripted-manual'   # Microsoft's script, or the runtime unpacked by hand: for a system no package source carries it for
+
+
+def release():
+    """This Linux by its own name: (ID, VERSION_ID as numbers, PRETTY_NAME) from /etc/os-release; () for a version it does not give (Debian testing)"""
+    rel = os_release()
+    try: ver = tuple(int(x) for x in rel.get('VERSION_ID', '').split('.')) if rel.get('VERSION_ID') else ()
+    except ValueError: ver = ()
+    return rel.get('ID', ''), ver, rel.get('PRETTY_NAME') or rel.get('NAME') or rel.get('ID', '')
+
+
+def python_none(rid, ver):
+    """Whether this release's own package source has no Python 3.14 (packages.debian.org: forky and sid only; packages.ubuntu.com: 26.04 on; openSUSE
+    Leap 16.0 has python313 only)"""
+    return rid == 'debian' and (0,) < ver <= (13,) or rid == 'ubuntu' and (0,) < ver < (26, 4) or rid == 'opensuse-leap'
+
+
+def dotnet_page(rid, ver):
+    """Microsoft's page that gives the package source this release needs for dotnet-runtime-10.0, which it does not carry itself (Debian 12 and 13:
+    Microsoft's packages; Ubuntu before 24.04: ppa:dotnet/backports; openSUSE Leap and SLES: Microsoft's packages); None for one that carries it or that is
+    not known"""
+    if rid == 'debian' and (0,) < ver <= (13,): return DOTNET_LINUX + '-debian'
+    if rid == 'ubuntu' and (0,) < ver < (24, 4): return DOTNET_LINUX + '-ubuntu-install'
+    return {'opensuse-leap': DOTNET_LINUX + '-opensuse', 'sles': DOTNET_LINUX + '-sles'}.get(rid)
 
 
 def found(tool): return shutil.which(tool) is not None
@@ -96,8 +126,10 @@ def venv_fix(sysname):
     elif found('python3.14'): head = [venv]
     elif found('micromamba'): head = [MAMBA_CREATE]
     else:
-        pkg = PY_PKG.get(sysname)
-        head = ([T('fix.python_pkg'), root(pkg), T('fix.python_mamba')] if pkg else [T('fix.python_other')]) + mamba(sysname)
+        pkg, (rid, ver, name) = PY_PKG.get(sysname), release()
+        if pkg and python_none(rid, ver): head = [T('fix.python_none', name)]   # (no line that is sure to fail first)
+        else: head = [T('fix.python_pkg'), root(pkg), T('fix.python_mamba')] if pkg else [T('fix.python_other')]
+        head += mamba(sysname)
     return head + [f'{VENV}/bin/python {PIP}', f'{VENV}/bin/python scripts/prepare.py']
 
 
@@ -109,15 +141,22 @@ def pkg_fix(sysname):
 def install(sysname, what):
     """The lines that install what ('dotnet', 'spirv' or 'cc', a C compiler: android/README.md's gcc or clang on Linux, Xcode's command line tools on the
     Mac, LLVM-MinGW on Windows) on this system. Debian's is build-essential: its gcc only recommends libc6-dev, the C library's headers the decoder needs.
-    .NET 10 comes from the distribution's dotnet-runtime-10.0 (Arch's versioned package: its dotnet-runtime moves on to the next .NET), which Debian, Ubuntu
-    before 24.04 and openSUSE Leap do not carry (Microsoft's or Ubuntu's package source, DOTNET_LINUX); on the Mac from Microsoft's installer (Homebrew's
-    dotnet-sdk cask is .NET 11 now, whose runtime does not run the translator, built for 10)"""
+    .NET 10 comes from the distribution's dotnet-runtime-10.0 (on Arch too: the versioned package stays .NET 10 when the unversioned dotnet-runtime, 10 today,
+    takes the next .NET), which Debian, Ubuntu before 24.04, openSUSE Leap and SLES do not carry (the package source Microsoft's page for it names comes
+    first, by release: dotnet_page; a system of the family that is not known gets the same as a condition before the line), and openSUSE Tumbleweed has no
+    .NET package at all (Microsoft's script or a runtime unpacked by hand); on the Mac from Microsoft's installer (Homebrew's dotnet-sdk cask is .NET 11
+    now, whose runtime does not run the translator, built for 10)"""
     if sysname == 'windows': return [T({'dotnet': 'fix.dotnet_win', 'spirv': 'fix.spirv_win', 'cc': 'fix.cc_win'}[what])]
     if sysname == 'mac': return {'dotnet': [T('fix.dotnet_mac')], 'spirv': brew('install spirv-tools'), 'cc': ['xcode-select --install']}[what]
     if sysname in PKG_INSTALL:
         pkg = {'dotnet': 'dotnet-runtime-10.0', 'spirv': 'spirv-tools', 'cc': 'build-essential' if sysname == 'debian' else 'gcc'}[what]
         out = [root(f'{PKG_INSTALL[sysname]} {pkg}')]
-        return out + [T('fix.dotnet_source', DOTNET_NO_PKG[sysname], DOTNET_LINUX)] if what == 'dotnet' and sysname in DOTNET_NO_PKG else out
+        if what != 'dotnet': return out
+        rid, ver, name = release()
+        if rid == 'opensuse-tumbleweed': return [T('fix.dotnet_script', name, DOTNET_SCRIPTED)]
+        if page := dotnet_page(rid, ver): return [T('fix.dotnet_source_first', name, page)] + out
+        known = rid in ('debian', 'ubuntu') and ver or rid in ('opensuse-leap', 'sles')   # (a release dotnet_page knows whether to name a source for)
+        return [T('fix.dotnet_source_if', DOTNET_NO_PKG[sysname], DOTNET_LINUX)] + out if sysname in DOTNET_NO_PKG and not known else out
     return [T({'dotnet': 'fix.dotnet_other', 'spirv': 'fix.spirv_other', 'cc': 'fix.cc_other'}[what])]
 
 

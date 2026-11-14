@@ -54,13 +54,18 @@ TEXTS = {
     'fix.brew_path': 'Homebrew is installed ({}) but not on the PATH: put it there (add this line to ~/.zprofile too, as its installer said), then:',
     'fix.dotnet_mac': 'Install the .NET 10 Runtime (Arm64 on Apple silicon, x64 on an Intel Mac) from https://dotnet.microsoft.com/download/dotnet/10.0, '
                       'then open a new terminal',
-    'fix.dotnet_source': 'If it is not found ({}): first add the package source that {} names for this system',
+    'fix.dotnet_source_if': 'Where the distribution does not carry dotnet-runtime-10.0 itself ({}), first add the package source that {} names for it, then:',
+    'fix.dotnet_source_first': '{} does not carry dotnet-runtime-10.0 itself: first add the package source that {} gives for it, then:',
+    'fix.dotnet_script': '{} has no .NET package: install the .NET 10 Runtime with Microsoft\'s script or by hand as {} says (with the lines that put it on '
+                         'the PATH), then open a new terminal',
+    'fix.python_none': '{} has no Python 3.14 package: use micromamba:',
     'fix.curl': 'There is no curl here, which the next command needs: install it first:',
     'fix.curl_other': "There is no curl here, which the next command needs: install the distribution's curl package first.",
     'fix.not_venv': 'This Python is not in an environment of its own: make one (android/README.md), then start this with it:',
     'fix.dotnet_win': 'Install the .NET 10 Runtime (x64 or Arm64, as this computer) from https://dotnet.microsoft.com/download/dotnet/10.0, then open a new terminal',
     'fix.spirv_win': 'Install the Vulkan SDK from https://vulkan.lunarg.com (its installer puts its Bin folder, which has spirv-val, on the PATH), then open a new terminal',
-    'fix.dotnet_other': "Install the distribution's dotnet-runtime-10.0 package (or the runtime from https://dotnet.microsoft.com/download/dotnet/10.0)",
+    'fix.dotnet_other': "Install the distribution's dotnet-runtime-10.0 package, or where it has none the .NET 10 Runtime with Microsoft's script or by hand "
+                        'as https://learn.microsoft.com/dotnet/core/install/linux-scripted-manual says, then open a new terminal',
     'fix.spirv_other': "Install the distribution's spirv-tools package (it has spirv-val)",
     'fix.cc': 'Install a C compiler: the decoder of the compressed game code (libzbicdec) is built with it once, the first time it is needed:',
     'fix.cc_win': 'Download LLVM-MinGW from https://github.com/mstorsjo/llvm-mingw/releases (the ucrt zip for this PC: x86_64, or aarch64 on an Arm PC), unpack it, '

@@ -684,13 +684,17 @@ class Prereq(unittest.TestCase):
     empty programs; Homebrew's own folders faked too): the lines shown, and the rule that no command needs a tool that is neither found nor got by an earlier
     line of the same fix (its page and install line), over every system, every fix and every set of those tools"""
     def setUp(self):
+        from unittest import mock
         from prepare_tui import checks
         self.checks = checks
         self.d = Path(tempfile.mkdtemp(prefix='prereq_'))
         self.saved = (os.environ.get('PATH'), checks.BREW_PREFIXES, os.environ.get('VIRTUAL_ENV'))
+        self.rel = {}   # /etc/os-release as the fixes read it: none (a system of the family that is not known) unless a test sets it
+        self.osr = mock.patch.object(checks, 'os_release', lambda: dict(self.rel)); self.osr.start()
 
     def tearDown(self):
         import shutil
+        self.osr.stop()
         if self.saved[0] is None: os.environ.pop('PATH', None)
         else: os.environ['PATH'] = self.saved[0]
         self.checks.BREW_PREFIXES = self.saved[1]
@@ -743,11 +747,11 @@ class Prereq(unittest.TestCase):
         f = self.fixes('debian')
         self.assertEqual(f['venv'][1], "su -c 'apt install python3.14 python3.14-venv'")
         self.assertIn("su -c 'apt install curl'", f['venv']); self.assertIn(c.MAMBA_GET, f['venv']); self.assertIn(c.MAMBA_CREATE, f['venv'])
-        self.assertEqual(f['dotnet'][0], "su -c 'apt install dotnet-runtime-10.0'"); self.assertIn('Debian, Ubuntu before 24.04', f['dotnet'][1])
-        self.assertIn('https://learn.microsoft.com/dotnet/core/install/linux', f['dotnet'][1])
-        self.assertEqual(self.fixes('arch')['dotnet'], ["su -c 'pacman -S dotnet-runtime-10.0'"])   # the versioned package: dotnet-runtime moves to .NET 11
+        self.assertEqual(f['dotnet'][1], "su -c 'apt install dotnet-runtime-10.0'"); self.assertIn('Debian, Ubuntu before 24.04', f['dotnet'][0])   # the condition first
+        self.assertIn('https://learn.microsoft.com/dotnet/core/install/linux', f['dotnet'][0])
+        self.assertEqual(self.fixes('arch')['dotnet'], ["su -c 'pacman -S dotnet-runtime-10.0'"])   # the versioned package, which stays .NET 10
         self.assertEqual(self.fixes('suse')['venv'][1], "su -c 'zypper install python314'")
-        self.assertIn('openSUSE Leap', self.fixes('suse')['dotnet'][1]); self.assertEqual(len(self.fixes('fedora')['dotnet']), 1)
+        self.assertIn('openSUSE Leap', self.fixes('suse')['dotnet'][0]); self.assertEqual(len(self.fixes('fedora')['dotnet']), 1)
         self.assertIn('install the distribution', self.fixes('linux')['venv'][0]); self.assertIn('curl package', ' '.join(self.fixes('linux')['venv']))
         self.path('sudo', 'curl')
         f = self.fixes('debian')
@@ -755,6 +759,35 @@ class Prereq(unittest.TestCase):
         self.assertEqual(f['cc'], ['sudo apt install build-essential']); self.assertEqual(self.fixes('fedora')['spirv'], ['sudo dnf install spirv-tools'])
         self.path('micromamba'); self.assertEqual(self.fixes('fedora')['venv'][0], c.MAMBA_CREATE)
         self.path('python3.14', 'micromamba'); self.assertEqual(self.fixes('arch')['venv'][0], 'python3.14 -m venv <dump folder>/.venv-anka')
+
+    def test_linux_by_release(self):
+        """A release whose own source lacks a package gets no line that is sure to fail: the package source first for .NET, micromamba at once for Python"""
+        c = self.checks
+        self.path('sudo', 'curl')
+        def rel(rid, ver, name): self.rel = {'ID': rid, 'VERSION_ID': ver, 'PRETTY_NAME': name}
+        rel('debian', '13', 'Debian GNU/Linux 13 (trixie)')
+        f = self.fixes('debian')
+        self.assertEqual(f['venv'][0], 'Debian GNU/Linux 13 (trixie) has no Python 3.14 package: use micromamba:'); self.assertNotIn('apt', ' '.join(f['venv']))
+        self.assertIn(c.MAMBA_GET, f['venv'])
+        self.assertIn(f'{c.DOTNET_LINUX}-debian', f['dotnet'][0]); self.assertEqual(f['dotnet'][1:], ['sudo apt install dotnet-runtime-10.0'])
+        rel('ubuntu', '24.04', 'Ubuntu 24.04.3 LTS')
+        f = self.fixes('debian')
+        self.assertIn('Ubuntu 24.04.3 LTS has no Python 3.14', f['venv'][0]); self.assertEqual(f['dotnet'], ['sudo apt install dotnet-runtime-10.0'])   # built in from 24.04
+        rel('ubuntu', '22.04', 'Ubuntu 22.04.5 LTS'); self.assertIn(f'{c.DOTNET_LINUX}-ubuntu-install', self.fixes('debian')['dotnet'][0])
+        rel('ubuntu', '26.04', 'Ubuntu 26.04 LTS'); self.assertEqual(self.fixes('debian')['venv'][1], 'sudo apt install python3.14 python3.14-venv')
+        rel('debian', '', 'Debian GNU/Linux forky/sid')   # testing: no VERSION_ID, so the conditions stay
+        f = self.fixes('debian')
+        self.assertEqual(f['venv'][1], 'sudo apt install python3.14 python3.14-venv'); self.assertIn('Debian, Ubuntu before 24.04', f['dotnet'][0])
+        rel('opensuse-leap', '16.0', 'openSUSE Leap 16.0')
+        f = self.fixes('suse')
+        self.assertIn('openSUSE Leap 16.0 has no Python 3.14', f['venv'][0]); self.assertNotIn('zypper install python314', ' '.join(f['venv']))
+        self.assertIn(f'{c.DOTNET_LINUX}-opensuse', f['dotnet'][0]); self.assertEqual(f['dotnet'][1], 'sudo zypper install dotnet-runtime-10.0')
+        rel('opensuse-tumbleweed', '20261110', 'openSUSE Tumbleweed')   # no .NET package at all: Microsoft's script or by hand, no zypper line
+        f = self.fixes('suse')
+        self.assertEqual(len(f['dotnet']), 1); self.assertIn(c.DOTNET_SCRIPTED, f['dotnet'][0]); self.assertIn('openSUSE Tumbleweed', f['dotnet'][0])
+        self.assertEqual(f['venv'][1], 'sudo zypper install python314')
+        rel('fedora', '44', 'Fedora Linux 44'); self.assertEqual(self.fixes('fedora')['dotnet'], ['sudo dnf install dotnet-runtime-10.0'])
+        self.assertIn(c.DOTNET_SCRIPTED, self.fixes('linux')['dotnet'][0])
 
     def test_windows(self):
         self.path()
