@@ -1,6 +1,10 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the compute mesh emulation: pavelgajdo/Hokkaido #569)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden and yuzu lines are those of Lichii's vk_graphics_pipeline.cpp (the emulated draw's dispatches and draws), as zortos293/Lichii #569 left it
+// (Hokkaido is a fork of Lichii)
 //
 // Included by vka_draw.c (its bindings and descriptor writes): the compute work of NVN2 task and mesh draws drawn through compute (docs/reference/shaders.md#mesh-draws-through-compute-android;
 // vka_memu.c, vka_memu_spv.c). vka_exec.c's look-ahead (memu_scan) finds, when a render pass is about to open, every mesh draw from there to the next

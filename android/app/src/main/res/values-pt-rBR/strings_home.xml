@@ -53,14 +53,14 @@
     <string name="home_adb_confirm_body">Enquanto estiver ativado, o adb, e qualquer outro app deste celular, pode adicionar jogos, iniciar a preparação e instalar ou escolher um driver de GPU pelo launcher do Anka Native, sem perguntar a você. Um driver de GPU é código que roda dentro do jogo. Ative só enquanto estiver usando o adb e depois desative de novo.</string>
     <string name="home_adb_turn_on">Ativar</string>
     <string name="home_section_about">Sobre</string>
-    <!-- %1$s: the title IDs, %2$s: home_license or home_license_gpl, %3$s: the repository (owner/name) -->
+    <!-- %1$s: the title IDs, %2$s: home_license_gpl, %3$s: the repository (owner/name) -->
     <string name="home_about">Title IDs: %1$s\n%2$s Créditos e as licenças das partes: NOTICE.md no código-fonte, github.com/%3$s.</string>
-    <string name="home_license">Licença: GPL-3.0-or-later como um todo.</string>
-    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg or home_license_xlate -->
+    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg, home_license_xlate or home_license_memu (mesh draws through compute are in every build) -->
     <string name="home_license_gpl">Licença: GPL-3.0-or-later como um todo (este build inclui código GPL-3.0-or-later: %1$s).</string>
-    <string name="home_license_lsfg_xlate">geração de quadros LSFG e o tradutor de shaders</string>
-    <string name="home_license_lsfg">geração de quadros LSFG</string>
-    <string name="home_license_xlate">o tradutor de shaders</string>
+    <string name="home_license_lsfg_xlate">geração de quadros LSFG, desenho de malhas via compute e o tradutor de shaders</string>
+    <string name="home_license_lsfg">geração de quadros LSFG e desenho de malhas via compute</string>
+    <string name="home_license_xlate">desenho de malhas via compute e o tradutor de shaders</string>
+    <string name="home_license_memu">desenho de malhas via compute</string>
     <!-- %1$s: the app's version -->
     <string name="home_update_version_release_only">Anka Native %1$s · só no app oficial</string>
     <!-- %1$d of %2$d: the overlay items that are on, of all -->

@@ -8,7 +8,8 @@ which is MIT-licensed ([LICENSE](../LICENSE)).
 [`dm/gfx/vk_android/lsfg`](../dm/gfx/vk_android/lsfg/LICENSE.md), licensed GPL-3.0-or-later. An APK or `libnxhost.so` built with it is therefore distributed as a
 whole under the GNU General Public License, version 3 or later ([COPYING](../dm/gfx/vk_android/lsfg/COPYING)); whoever passes such an APK on must offer its
 complete source (this repository at the commit in the build tag). The MIT files keep their MIT license on their own; the rest of nxnative (the Mac and iPhone
-builds) stays MIT. `./gradlew apk -PnxLsfg=false` builds an APK without LSFG; it is still GPL-3.0-or-later as a whole when it carries the on-device packer, whose translator is GPL too (below).
+builds) stays MIT. `./gradlew apk -PnxLsfg=false` builds an APK without LSFG; it is still GPL-3.0-or-later as a whole, because every `libnxhost.so` carries mesh draws
+through compute and an APK with the on-device packer carries the GPL translator too (both below).
 
 **The shader translator is GPL-3.0-or-later as a whole.** It translates Switch 2 task and mesh programs with
 [`InstEmitAmpereMesh.cs`](../dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAmpereMesh.cs), ported from
@@ -21,11 +22,16 @@ build shader libraries is the same GPL combined work.
 
 **Mesh draws through compute are GPL-3.0-or-later.** On a device without `VK_EXT_mesh_shader` (Turnip) the host draws NVN2 task and mesh programs through compute with
 [`dm/gfx/vk_android/vka_memu.c`](../dm/gfx/vk_android/vka_memu.c), `vka_memu.h`, `vka_memu_spv.c`, `vka_memu_spv.h`, `vka_memu_draw.inc`, `vka_memu_abi.h`,
-`vka_memu_order.h`, `vka_memu_helpers_spv.h` and the passes in `memu/` (`memu_common.glsl`, `memu_setup.comp`, `memu_dist.comp`, `spv.py`), with their tests
-`dm/host/tests/t_android_memu.c`, `dm/host/tests/memu/` and `dm/tools/tests/test_vka_memu.py`, ported from [Banana Native](https://git.eden-emu.dev/moceure/BananaNative)
+`vka_memu_order.h`, `vka_memu_helpers_spv.h` (generated from the passes) and the passes in `memu/` (`memu_common.glsl`, `memu_setup.comp`, `memu_dist.comp`),
+ported from [Banana Native](https://git.eden-emu.dev/moceure/BananaNative)
 v0.3.12 / v0.3.13 (b39bf8b5, 624c267e) after [Hokkaido](https://github.com/pavelgajdo/Hokkaido)'s compute mesh emulation (GPL-3.0-or-later; its #569 and #642). Their
-SPDX headers are kept. Every `libnxhost.so` is therefore a GPL-3.0-or-later work as a whole. The rest of that port (the hooks in `vka_draw.c`, `vka_exec.c`, `vka_pso.c`,
-`vka_shader.c`, `vka_dev.c`, the specialization-constant fold `vka_spv_spec_freeze` and the shader split's BNSH slots 7 and 8) is Banana Native's MIT code.
+SPDX headers are kept, and each file that follows Lichii's code also carries the Eden and yuzu copyright lines of the Lichii files it follows. Hokkaido is pavelgajdo's fork of [Lichii](https://github.com/zortos293/Lichii), and #569 (by zortos293) and #642 (by RomainROCH) are Lichii pull
+requests; the Lichii files they changed carry "Copyright 2026 Eden Emulator Project" (most also a "yuzu Emulator Project" line) and GPL-3.0-or-later. That Function-scope booleans start false in the compute form is the finding of
+nebadasSwifty's Banana Native pull request #170. Every `libnxhost.so` is therefore a GPL-3.0-or-later work as a whole. The rest of that port (the hooks in `vka_draw.c`, `vka_exec.c`, `vka_pso.c`,
+`vka_shader.c`, `vka_dev.c`, the specialization-constant fold `vka_spv_spec_freeze` and the shader split's BNSH slots 7 and 8) is Banana Native's MIT code. Its
+build script and tests carry no GPL or Lichii code and are MIT, as in Banana Native, whose notice leaves them out of its GPL list: `memu/spv.py` (it
+compiles the passes), `dm/host/tests/t_android_memu.c`, `dm/host/tests/memu/` (hand-written SPIR-V fixtures, `gen.py` and the `memu_fixtures.h` it writes) and
+`dm/tools/tests/test_vka_memu.py`. A test program built from `t_android_memu.c` links the GPL files.
 
 Some fixes follow other projects' findings without copying their code: [kartnative](https://github.com/pahorema/kartnative) by pahorema (MIT) for
 GPU-written sparse textures (`dm/gfx/vk_android/vka_tex.c`) and the per-primitive header of mesh programs (`dm/gfx/tools/shader_split.py`), and

@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the compute mesh emulation: pavelgajdo/Hokkaido #569, #642)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden and yuzu lines are those of Lichii's emit_spirv.h (the MESH_EMULATION_ARGS_* words), as zortos293/Lichii #569 left it (Hokkaido is a fork of Lichii)
 //
 // NVN2 task and mesh draws through compute on a device without VK_EXT_mesh_shader (vka_memu_spv.c, vka_memu.c;
 // docs/reference/shaders.md#mesh-draws-through-compute-android): what the converted task / mesh modules, the generated vertex shaders, the helper passes (memu/memu_setup.comp, memu/memu_dist.comp) and the replay

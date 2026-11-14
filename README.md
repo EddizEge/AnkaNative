@@ -163,8 +163,9 @@ is responsible for the release. Many of the measurements were taken by automated
 
 ## License
 
-Most of the code is MIT ([LICENSE](LICENSE)); the frame generation port (`dm/gfx/vk_android/lsfg`), one shader translator file
-(`InstEmitAmpereMesh.cs`) and the Anka mark's script (`android/tools/anka_logo.py`) are GPL-3.0-or-later. **The Android app is GPL-3.0-or-later as a whole**, because it links GPL-3.0-or-later parts (frame
+Most of the code is MIT ([LICENSE](LICENSE)); the frame generation port (`dm/gfx/vk_android/lsfg`), mesh draws through compute
+(`dm/gfx/vk_android/vka_memu*` and the passes in `memu/`), one shader translator file (`InstEmitAmpereMesh.cs`) and the Anka mark's script (`android/tools/anka_logo.py`) are
+GPL-3.0-or-later. **The Android app is GPL-3.0-or-later as a whole**, because it links GPL-3.0-or-later parts (mesh draws through compute in every build, frame
 generation, and the shader translator in an APK that carries the on-phone packer); its source is this repository at the commit in the
 app's build tag. Credits, third-party code and their licenses: [NOTICE.md](NOTICE.md). The Anka mark and its icons are EddizEge's own
 design, GPL-3.0-or-later. The app's About section names the license and points to NOTICE.md.

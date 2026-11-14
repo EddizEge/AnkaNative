@@ -1,6 +1,8 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the distribution pass: pavelgajdo/Hokkaido #569 EmitMeshEmulationDistribution)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden line is that of Lichii's emit_spirv_mesh.cpp (EmitMeshEmulationDistribution), as zortos293/Lichii #569 left it (Hokkaido is a fork of Lichii)
 // The mesh emulation's helper passes (memu_setup.comp, memu_dist.comp): the batch's records, the arena's control words and the arena (vka_memu_abi.h). See vka_memu.c.
 #include "../vka_memu_abi.h"
 layout(std430, binding = 0) buffer Rec { uint r[]; };

@@ -56,14 +56,14 @@
     <string name="home_adb_confirm_body">While it is on, adb, and any other app on this phone, can add games, start Prepare and install or pick a GPU driver through Anka Native\'s launcher, without asking you. A GPU driver is code that runs inside the game. Turn it on only while you use adb, then off again.</string>
     <string name="home_adb_turn_on">Turn on</string>
     <string name="home_section_about">About</string>
-    <!-- %1$s: the title IDs, %2$s: home_license or home_license_gpl, %3$s: the repository (owner/name) -->
+    <!-- %1$s: the title IDs, %2$s: home_license_gpl, %3$s: the repository (owner/name) -->
     <string name="home_about">Title IDs: %1$s\n%2$s Credits and the licenses of its parts: NOTICE.md in the source, github.com/%3$s.</string>
-    <string name="home_license">License: GPL-3.0-or-later as a whole.</string>
-    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg or home_license_xlate -->
+    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg, home_license_xlate or home_license_memu (mesh draws through compute are in every build) -->
     <string name="home_license_gpl">License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: %1$s).</string>
-    <string name="home_license_lsfg_xlate">LSFG frame generation and the shader translator</string>
-    <string name="home_license_lsfg">LSFG frame generation</string>
-    <string name="home_license_xlate">the shader translator</string>
+    <string name="home_license_lsfg_xlate">LSFG frame generation, mesh draws through compute and the shader translator</string>
+    <string name="home_license_lsfg">LSFG frame generation and mesh draws through compute</string>
+    <string name="home_license_xlate">mesh draws through compute and the shader translator</string>
+    <string name="home_license_memu">mesh draws through compute</string>
     <!-- %1$s: the app's version -->
     <string name="home_update_version">Anka Native %1$s</string>
     <string name="home_update_version_release_only">Anka Native %1$s · release app only</string>

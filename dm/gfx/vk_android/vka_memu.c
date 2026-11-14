@@ -1,6 +1,10 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the compute mesh emulation: pavelgajdo/Hokkaido #569 per-submission arena, #642 descriptor budget)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden and yuzu lines are those of Lichii's vk_rasterizer.cpp (the per-submission arena) and vk_pipeline_cache.cpp (the pipelines, the descriptor budget),
+// as zortos293/Lichii #569 and #642 left them; #642's mesh_fallback_limits.h has only the licence identifier. Hokkaido is a fork of Lichii
 //
 // NVN2 task and mesh draws through compute (docs/reference/shaders.md#mesh-draws-through-compute-android), the Vulkan side that is not a draw: each task / mesh shader's
 // compute form and vertex shader (made from the library's own modules by vka_memu_spv.c, as derived shaders with keys of their own, so the pipeline cache and the
