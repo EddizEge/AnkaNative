@@ -54,11 +54,6 @@ public final class HomeTextsJvmTest {
         same(Tr.s("home_frontend_add_body_others", "Anka Native", path, Tr.s("home_add"), "• /a (pack /p)", Tr.s("home_add_game")), "Another app asked " + "Anka Native" + " to open\n\n" + path
                 + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add." + "\n\nYour list has another dump of this game:\n"
                 + "• /a (pack /p)" + "\n\nAdd game then asks whether this file replaces it or both are kept.", "frontend add body, other dumps");
-        same(Tr.s("home_frontend_start_body", name, Tr.s("home_play")),
-                "Another app asked to start " + name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything.", "frontend start body");
-        same(Tr.s("home_frontend_same_build_body", "Anka Native", path, name, "/g", Tr.s("home_play")), "Another app asked " + "Anka Native" + " to open\n\n" + path
-                + "\n\nwhich is the same game build as your card of " + name + " (" + "/g" + "). Play starts your card with its own files and pack; that file is not added and your card is not changed.",
-                "frontend same build");
         same(Tr.s("home_control_ignored", Tr.s("home_settings"), Tr.s("home_adb")), "A command from another app was ignored (Settings › ADB control is off)", "control ignored");
         same(Tr.s("home_adb_debug", Tr.s("home_adb")), "ADB control (debug)", "adb row");
         same(Tr.s("home_busy_save", name, Tr.s("home_play")), "A save backup or restore of " + name + " is still working: Play waits for it.", "busy save");

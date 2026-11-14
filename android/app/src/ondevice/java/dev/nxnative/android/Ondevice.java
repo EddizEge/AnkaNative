@@ -105,6 +105,14 @@ final class Ondevice {
         panel.picked(dump, true, packDir, false, true);
     }
 
+    /**
+     * autoUpdate for Play (Play.start), which also runs where Home is not the caller (a frontend's game, FrontendLaunch): through Home's panel while Home lives
+     * in this process. Without one (the frontend started the app's process), nothing starts now: Home's card starts it when Home next shows it (MainActivity.check)
+     */
+    static void autoUpdate(File dump, File packDir, String titleId) {
+        if (panel != null && !panel.a.isDestroyed()) autoUpdate(panel.a, dump, packDir, titleId);
+    }
+
     /** Whether a folder or .nup is a dump Prepare can start from: an update, or a base game with its code and RomFS (Pack.isDump; DumpCheck checks it fully);
      *  never without a packer (available()), so no card or dialog offers a Prepare that cannot make a pack */
     static boolean isDump(File dir) { return available() && Pack.isDump(dir); }

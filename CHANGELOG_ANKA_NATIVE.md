@@ -13,6 +13,14 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   the heat), and stays quiet when it has nothing to go on: during the dump check, the code rewrite and the start of the shader scan, while paused, and when
   progress stops. Replayed on three full Ocarina of Time Prepares measured on a POCO F8 Pro, it was about 7-16 % off on average, at times up to about 30 %
   (more in the last few minutes). Not yet seen on a phone.
+- **A game started from a frontend no longer asks "Start …?"** (found with iiSU 0.1.6.1). The play intent had its own copy of Play's checks, stricter
+  than Play: a pack whose shader library was this version's but made from older shader inputs, which Play starts while the automatic update runs, was
+  "not ready", so Home asked first and the game started only from Home's Play, without bringing the frontend back when it stopped. Play and the
+  frontend's request now take one decision (`PlayRule`): whatever Play starts at once, the frontend starts at once (with the automatic shader update of a
+  dump's pack, as Play, when Home is running; else when Home next shows the card), and a game that needs a pack, Prepare or shaders gets Play's own
+  dialog with no question in front; its buttons ignore taps through another app's overlay, and a game it starts ("Start anyway") also brings the
+  frontend back. Play itself now refuses a pack of another title with its pack dialog. A file that is not on Home still asks "Add this game?"
+  (android/FRONTENDS.md). Checked on the JVM and in a build, not yet on a phone.
 - **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
   cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
   faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped
