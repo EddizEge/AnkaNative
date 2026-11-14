@@ -3,4 +3,208 @@
 <resources>
     <string name="home_access_title">Permitir acceso a los archivos</string>
     <string name="home_access_body">Necesario para leer el volcado de tu juego.</string>
+
+    <!-- Prefs: the window sizes -->
+    <string name="home_window_1080p">Teléfono 1080p (1920x1080)</string>
+    <string name="home_window_original">Original (el tamaño propio del juego)</string>
+    <string name="home_window_720p">Teléfono 720p (1280x720)</string>
+
+    <!-- FrontendLaunch -->
+    <string name="home_frontend_no_access">Activa Acceso a todos los archivos para %1$s y luego vuelve a iniciar el juego.</string>
+    <string name="home_frontend_bad_link">El frontend envió un enlace que no indica un archivo del almacenamiento de este teléfono mediante una ruta que la app pueda leer. Configura el frontend para que envíe la ruta del archivo o su URI de almacenamiento (SAF) del propio almacenamiento del teléfono.</string>
+    <string name="home_frontend_not_shared">El frontend envió \"%1$s\", que no es un archivo del almacenamiento compartido de este teléfono.</string>
+    <string name="home_frontend_no_game">El frontend no envió ningún juego: envía el .nup (o la carpeta del juego) como datos del intent, o el extra \"game\" con su ruta.</string>
+    <string name="home_nup_wrong_case">%1$s: cámbiale el nombre para que termine en \".nup\" (en minúsculas); el juego y las herramientas solo leen ese nombre.</string>
+    <string name="home_file_missing">%1$s no existe.</string>
+    <string name="home_file_unreadable">No se puede leer %1$s. Verifica que Acceso a todos los archivos esté activado.</string>
+    <string name="home_frontend_no_card">No hay ningún juego con el title ID %1$s en la pantalla principal. Agrégalo primero en %2$s o envía el archivo del juego.</string>
+    <string name="home_frontend_fail_title">No se puede iniciar el juego</string>
+
+    <!-- Ui -->
+    <string name="home_tap_for_details">%1$s: toca para ver detalles</string>
+    <string name="home_back">Atrás</string>
+
+    <!-- MainActivity: Home's header, the Settings page -->
+    <string name="home_settings">Configuración</string>
+    <string name="home_section_updates">Actualizaciones</string>
+    <string name="home_check_updates">Buscar actualizaciones</string>
+    <string name="home_section_game_defaults">Predeterminados de los juegos</string>
+    <string name="home_overlay">Superposición</string>
+    <string name="home_resolution">Resolución</string>
+    <string name="home_fps_cap">Límite de FPS</string>
+    <string name="home_frame_gen">Generación de cuadros</string>
+    <string name="home_defaults_hint">La configuración propia de cada juego (⋯ en su tarjeta) tiene prioridad sobre estos valores.</string>
+    <string name="home_section_system">Sistema</string>
+    <string name="home_gpu_driver">Controlador de GPU</string>
+    <string name="home_folders">Carpetas</string>
+    <string name="home_folders_value">Carpetas de juegos, paquetes y partidas</string>
+    <string name="home_section_help">Ayuda</string>
+    <string name="home_readiness">Verificación de compatibilidad</string>
+    <string name="home_readiness_value">¿Este teléfono puede ejecutar tus juegos?</string>
+    <string name="home_selftest">Autoprueba gráfica</string>
+    <string name="home_selftest_value">No necesita ningún juego</string>
+    <string name="home_share_log">Compartir registro</string>
+    <string name="home_share_log_value">El registro más reciente</string>
+    <string name="home_adb">Control por ADB</string>
+    <string name="home_adb_debug">%1$s (depuración)</string>
+    <string name="home_adb_value">Permite que comandos adb agreguen juegos, inicien la preparación de un juego e instalen controladores de GPU. Desactivado: solo tú, desde la app</string>
+    <string name="home_adb_confirm_title">¿Activar el control por ADB?</string>
+    <string name="home_adb_confirm_body">Mientras esté activado, adb y cualquier otra app de este teléfono pueden agregar juegos, iniciar la preparación de un juego e instalar o elegir un controlador de GPU a través del launcher de Anka Native, sin preguntarte. Un controlador de GPU es código que se ejecuta dentro del juego. Actívalo solo mientras uses adb y luego vuelve a desactivarlo.</string>
+    <string name="home_adb_turn_on">Activar</string>
+    <string name="home_section_about">Acerca de</string>
+    <string name="home_about">Title IDs: %1$s\n%2$s Créditos y licencias de sus componentes: NOTICE.md en el código fuente, github.com/%3$s.</string>
+    <string name="home_license">Licencia: GPL-3.0-or-later en su conjunto.</string>
+    <string name="home_license_gpl">Licencia: GPL-3.0-or-later en su conjunto (esta compilación incluye código GPL-3.0-or-later: %1$s).</string>
+    <string name="home_license_lsfg_xlate">generación de cuadros LSFG y el traductor de shaders</string>
+    <string name="home_license_lsfg">generación de cuadros LSFG</string>
+    <string name="home_license_xlate">el traductor de shaders</string>
+    <string name="home_update_version_release_only">Anka Native %1$s · solo en la versión publicada</string>
+    <string name="home_overlay_on">Activado · %1$d de %2$d elementos</string>
+    <string name="home_off">Desactivado</string>
+    <string name="home_lsfg_not_built">No incluido en esta compilación</string>
+    <string name="home_lsfg_on">Activado · %1$dx</string>
+    <string name="home_lsfg_on_no_dll">Activado · %1$dx · falta Lossless.dll</string>
+    <string name="home_gpu_system">Sistema</string>
+    <string name="home_control_ignored">Se ignoró un comando de otra app (%1$s › %2$s está desactivado)</string>
+    <string name="home_no_pack_next_to">No se encontró un paquete para %1$s junto a %2$s.</string>
+
+    <!-- MainActivity: a game a frontend sent -->
+    <string name="home_frontend_start_title">¿Iniciar %1$s?</string>
+    <string name="home_frontend_add_title">¿Agregar este juego?</string>
+    <string name="home_frontend_start_body">Otra app pidió iniciar %1$s. No puede iniciarse de inmediato: al tocar %2$s, la app revisa lo que necesita y pregunta antes de cambiar algo.</string>
+    <string name="home_frontend_add_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %4$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.</string>
+    <string name="home_play">Jugar</string>
+    <string name="home_add">Agregar</string>
+    <string name="home_frontend_not_one_game">Otra app pidió a %1$s abrir %2$s, que no es un solo juego: envía un único .nup o una sola carpeta de juego. No se agregó nada.</string>
+    <string name="home_frontend_same_build_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque es la misma versión del juego (build) que tu tarjeta de %3$s (%4$s). Al tocar %5$s, se inicia el juego de tu tarjeta con sus propios archivos y su paquete; ese archivo no se agrega y tu tarjeta no cambia.</string>
+    <string name="home_frontend_add_body_others">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %5$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.\n\nTu lista ya tiene otro volcado de este juego:\n%4$s\n\nAl agregarlo con %5$s, se te preguntará si este archivo lo reemplaza o si conservas los dos.</string>
+    <string name="home_frontend_other_dump_item">• %1$s (paquete %2$s)</string>
+
+    <!-- MainActivity: Home's games, the empty card, a game's card -->
+    <string name="home_your_games">Tus juegos</string>
+    <string name="home_add_game">Agregar juego</string>
+    <string name="home_empty_title">Agrega tu juego</string>
+    <string name="home_empty_body">Elige la carpeta de tu volcado, la que tiene base/ (y updates/), o el archivo .nup de tu juego.</string>
+    <string name="home_empty_body_pc">Prepara el juego una vez en una computadora (los pasos de instalación del README), copia el paquete junto al volcado y luego elige la carpeta de tu volcado o el archivo .nup.</string>
+    <string name="home_step_pick_dump">Elegir volcado</string>
+    <string name="home_step_prepare">Preparar</string>
+    <string name="home_step_play">Jugar</string>
+    <string name="home_step_prepare_pc">Preparar en PC</string>
+    <string name="home_state_unsupported">No compatible</string>
+    <string name="home_state_checking">Revisando…</string>
+    <string name="home_state_needs_prepare">Necesita preparación</string>
+    <string name="home_state_no_pack">Sin paquete</string>
+    <string name="home_state_pack_unfinished">Paquete incompleto</string>
+    <string name="home_state_preparing">Preparando…</string>
+    <string name="home_state_shaders_needed">Faltan shaders</string>
+    <string name="home_state_ready">Listo</string>
+    <string name="home_state_ready_updating">Listo · actualizando shaders</string>
+    <string name="home_state_ready_legacy">Listo · los shaders necesitan una actualización</string>
+    <string name="home_manage_game">Administrar %1$s</string>
+    <string name="home_legacy_chip">Los shaders necesitan una actualización</string>
+    <string name="home_prepare_shaders">Preparar shaders</string>
+    <string name="home_prepare">Preparar</string>
+    <string name="home_foreign_pack">Paquete de otras herramientas</string>
+    <string name="home_foreign_pack_body">El paquete de este juego se creó con herramientas distintas de las de esta app. Normalmente funciona igual. Si el juego da problemas, ⋯ › %1$s lo vuelve a crear a partir de tu volcado.</string>
+
+    <!-- MainActivity: a game's Manage sheet -->
+    <string name="home_game_settings">Configuración del juego</string>
+    <string name="home_backup_saves">Respaldar partidas</string>
+    <string name="home_backup_to">En %1$s</string>
+    <string name="home_restore_saves">Restaurar partidas</string>
+    <string name="home_import_save">Importar partida</string>
+    <string name="home_prepare_again">Volver a preparar</string>
+    <string name="home_prepare_again_value">Rehace lo que no coincide</string>
+    <string name="home_export_pack">Exportar paquete…</string>
+    <string name="home_export_pack_value">Un .zip, en la carpeta que elijas</string>
+    <string name="home_import_pack">Importar paquete…</string>
+    <string name="home_import_pack_value">Un .zip o una carpeta de paquete</string>
+    <string name="home_manage_facts">Title ID: %1$s\nJuego: %2$s\nPaquete: %3$s\nShaders: %4$s\nPartidas: %5$s</string>
+    <string name="home_manage_shaders_present">presentes (%1$s)</string>
+    <string name="home_manage_saves_not_set">sin configurar</string>
+    <string name="home_remove">Quitar de la lista</string>
+    <string name="home_done">Listo</string>
+
+    <!-- MainActivity: file access, Add game, the pickers -->
+    <string name="home_access_needed">La app necesita Acceso a todos los archivos para leer el volcado de tu juego. Permítelo y luego vuelve.</string>
+    <string name="home_open_settings">Abrir configuración</string>
+    <string name="home_add_game_kind">Agregar juego: tu volcado es…</string>
+    <string name="home_add_game_folder">Una carpeta (con base/ y, si hay, updates/)</string>
+    <string name="home_add_game_nup">Un archivo .nup</string>
+    <string name="home_pick_dump_folder">Elige la carpeta de tu volcado (con base/ y, si hay, updates/)</string>
+    <string name="home_pick_nup">Elige el archivo .nup de tu juego</string>
+    <string name="home_nup_not_on_storage">Ese archivo no está en el almacenamiento del teléfono en una ruta que la app pueda leer (%1$s). Elígelo desde el almacenamiento del teléfono (☰ › el nombre del teléfono), no desde Recientes ni Descargas.</string>
+    <string name="home_dll_installed">Lossless.dll instalado</string>
+    <string name="home_dll_not_installed">Lossless.dll no instalado: %1$s</string>
+    <string name="home_folder_not_on_storage">Esa carpeta no está en el almacenamiento del teléfono (%1$s).</string>
+    <string name="home_no_game_in_folder">%1$s no contiene main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ o exefs/), ningún archivo .nup ni ninguna carpeta de juego. Elige la carpeta del juego, su archivo .nup o la carpeta que contiene tus juegos.</string>
+    <string name="home_checking_game">Revisando %1$s…</string>
+    <plurals name="home_checking_games">
+        <item quantity="one">Revisando %1$d juego…</item>
+        <item quantity="other">Revisando %1$d juegos…</item>
+    </plurals>
+    <string name="home_nup_wrong_case_short">%1$s: cámbiale el nombre para que termine en \".nup\" (en minúsculas).</string>
+    <string name="home_this_game">Este juego</string>
+    <string name="home_no_pack_nup_unavailable">No se encontró un paquete para este .nup. %1$s</string>
+    <string name="home_no_pack_folder_unavailable">No se encontró un paquete para esta carpeta. %1$s</string>
+    <string name="home_no_pack_nup_no_dump">No se encontró un paquete para este .nup, y no es un volcado a partir del cual se pueda preparar el juego.</string>
+    <string name="home_no_pack_folder_no_dump">No se encontró un paquete para esta carpeta, y no es un volcado a partir del cual se pueda preparar el juego.</string>
+    <string name="home_other_version_title">Otra versión de %1$s</string>
+    <string name="home_no_pack_nup_title">No hay paquete para este .nup</string>
+    <string name="home_no_pack_folder_title">No hay paquete para esta carpeta</string>
+    <string name="home_no_pack_nup_body">%1$s\n\nSi tienes una carpeta de paquete hecha exactamente para este .nup (con pack.tsv), puedes elegirla.</string>
+    <string name="home_no_pack_folder_body">%1$s\n\nSi tienes una carpeta de paquete hecha exactamente para esta carpeta (con pack.tsv), puedes elegirla.</string>
+    <string name="home_pick_a_pack_folder">Elegir carpeta de paquete</string>
+    <string name="home_pick_android_pack">Elige la carpeta del paquete (android-pack, con pack.tsv)</string>
+    <string name="home_added_ok">Agregados: %1$s.</string>
+    <string name="home_added_prepare">Falta preparar: %1$s. No se encontró un paquete que coincida: el botón %2$s de cada tarjeta crea uno en este teléfono (un juego a la vez).</string>
+    <string name="home_added_unsupported">Sin compatibilidad con esta app: %1$s. Esta app ejecuta: %2$s.</string>
+    <string name="home_added_no_pack">No se encontró paquete: %1$s. Agrega cada uno por separado para elegir su carpeta de paquete.</string>
+    <string name="home_added_failed">Sin agregar: %1$s</string>
+    <string name="home_added_twice">Ya había otro volcado del mismo juego en la lista, así que se conservan ambas tarjetas: %1$s. ⋯ › %2$s quita una (no se elimina nada).</string>
+    <string name="home_added_none_title">No se agregó ningún juego</string>
+    <string name="home_added_title">Juegos agregados</string>
+    <string name="home_replace_title">¿Reemplazar %1$s?</string>
+    <string name="home_replace_body">Hay otro volcado de %1$s en tu lista:%2$s\n\n¿Usar %3$s en su lugar? Solo cambia la entrada de la lista: no se elimina ningún volcado, paquete ni partida guardada.</string>
+    <string name="home_replace">Reemplazar</string>
+    <string name="home_keep_both">Conservar ambos</string>
+    <string name="home_pick_pack_folder">Elige la carpeta del paquete (la que tiene pack.tsv y shaders/)</string>
+    <string name="home_added_game">Se agregó %1$s.</string>
+    <string name="home_added_game_note">Se agregó %1$s. %2$s</string>
+    <string name="home_pack_other_title_nup">El paquete es para %1$s, pero el .nup contiene %2$s.</string>
+    <string name="home_pack_other_title_folder">El paquete es para %1$s, pero la carpeta del juego contiene %2$s.</string>
+    <string name="home_game_unusable">No se puede usar %1$s: %2$s</string>
+    <string name="home_nup_no_romfs">%1$s no contiene RomFS para %2$s (el paquete es para la versión %3$s).</string>
+    <string name="home_folder_no_romfs">No hay RomFS en %1$s (se buscó en %2$s, romfs/ y updates/&lt;version&gt;/romfs).</string>
+
+    <!-- MainActivity: removing a game, Play -->
+    <string name="home_remove_title">¿Quitar %1$s?</string>
+    <string name="home_remove_body_save">Solo se quita la entrada de la lista. Tu volcado, su paquete y tus partidas guardadas (%1$s) se quedan en el teléfono; con %2$s puedes volver a agregarlo.</string>
+    <string name="home_remove_body">Solo se quita la entrada de la lista. Tu volcado, su paquete y tus partidas guardadas se quedan en el teléfono; con %1$s puedes volver a agregarlo.</string>
+    <string name="home_remove_yes">Quitar</string>
+    <string name="home_busy_save">Todavía se está respaldando o restaurando una partida de %1$s: el botón %2$s espera a que termine.</string>
+    <string name="home_busy_pack">Todavía se está exportando o importando el paquete de %1$s: el botón %2$s espera a que termine.</string>
+    <string name="home_pack_unusable">No se puede usar el paquete: %1$s</string>
+    <string name="home_pack_placeholder">Este paquete es un marcador de posición, no un paquete para jugar.</string>
+    <string name="home_no_pack_for">No hay paquete para %1$s</string>
+    <string name="home_no_pack_for_body">%1$s\n\nPaquete: %2$s</string>
+    <string name="home_pick_pack_folder_button">Elegir carpeta de paquete</string>
+    <string name="home_shaders_missing">Faltan shaders</string>
+    <string name="home_shaders_missing_body">Sin ellos, el juego no muestra ninguna imagen.\n\n%1$s</string>
+    <string name="home_start_anyway">Iniciar de todos modos</string>
+    <string name="home_pack_cannot_start">El paquete no puede iniciar este juego</string>
+    <string name="home_pack_problem_dump">Con %1$s se corrige a partir de tu volcado, en este teléfono.\n\n%2$s\n\nPaquete: %3$s</string>
+    <string name="home_pack_problem">%1$s\n\nPaquete: %2$s</string>
+
+    <!-- MainActivity: the Settings page's dialogs, the logs -->
+    <string name="home_game_resolution">Resolución del juego</string>
+    <string name="home_cap_default">Predeterminado</string>
+    <string name="home_cap_own">Propio del juego</string>
+    <string name="home_lsfg_no_dll">%1$s. Ponlo en Documents/Emulation/bios o Switch2, o elígelo.</string>
+    <string name="home_lsfg_credit">Portado de Eden (GPL-3.0-or-later). Lossless.dll es tuyo; nunca forma parte de la app.</string>
+    <string name="home_pick_dll">Elegir Lossless.dll</string>
+    <string name="home_no_log">Todavía no hay ningún registro.</string>
+    <string name="home_no_game_log">Todavía no hay ningún registro de este juego.</string>
+    <string name="home_log_subject">Registro de Anka Native %1$s</string>
+    <string name="home_share_file">Compartir %1$s</string>
 </resources>

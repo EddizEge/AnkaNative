@@ -1,4 +1,138 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Español (Latinoamérica): the game area (GameActivity, SidePanel, TouchControls, Overlay, Fsr, Lsfg, SelftestActivity). docs/i18n.md: keys start with game_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- GameActivity: the game's screen -->
+    <string name="game_panel_open_description">Abrir el panel del juego</string>
+    <string name="game_paused">En pausa\n\nToca para continuar \u0020(A o Start en un control)</string>
+    <string name="game_stopped_in_background">El juego se detuvo mientras estaba en segundo plano (Android finalizó su proceso). Se perdió el progreso no guardado; vuelve a iniciarlo desde el launcher.</string>
+    <string name="game_intro_skip_on">Omitir introducción activado: la app presiona A y salta los videos hasta llegar al juego</string>
+    <string name="game_intro_skip_off">Omitir introducción desactivado</string>
+    <string name="game_save_unfinished_restore">La carpeta de partidas tiene una restauración sin terminar que no se puede completar: %1$s</string>
+    <string name="game_test_save_cannot_create">no se puede crear la carpeta de partidas de prueba %1$s</string>
+    <string name="game_cannot_create">no se puede crear %1$s</string>
+    <string name="game_save_copied">Tu partida guardada se copió al almacenamiento de la app (%1$s). La carpeta anterior, %2$s, se conserva tal como estaba.</string>
+    <string name="game_save_not_copied">No se pudo copiar tu partida guardada al almacenamiento de la app (%1$s). Esta vez se usa donde está, en %2$s.</string>
+    <string name="game_checking_gpu">%1$s: revisando la GPU de este teléfono…</string>
+    <string name="game_details_gpu">GPU: %1$s\nMemoria: %2$.1f GiB según Android.</string>
+    <string name="game_ready_missing">Falta: %1$s.\n\nEl juego puede detenerse o mostrar gráficos incorrectos. Un controlador de GPU personalizado (%2$s › %3$s) podría ayudar.</string>
+    <string name="game_ready_missing_black_system">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se muestra ninguna imagen: la pantalla queda en negro mientras el juego se ejecuta. Elige un controlador personalizado que tenga mapeos de memoria ubicados en %3$s › %4$s, o en %5$s (solo para este juego).</string>
+    <string name="game_ready_missing_black_custom">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se muestra ninguna imagen: la pantalla queda en negro mientras el juego se ejecuta. Elige %3$s en %4$s › %5$s, o en %6$s (solo para este juego).</string>
+    <string name="game_ready_not_ready_title">No está listo para este juego</string>
+    <string name="game_ready_start_black">Iniciar de todos modos (pantalla negra)</string>
+    <string name="game_ready_try_anyway">Intentar de todos modos</string>
+    <string name="game_ready_limits_message">Funciona con limitaciones: %1$s.</string>
+    <string name="game_ready_limits_title">Listo, con limitaciones</string>
+    <string name="game_ready_continue">Continuar</string>
+    <string name="game_ready_details">Detalles</string>
+    <string name="game_ready_details_also">%1$s\n\nTambién encontrarás los detalles en %2$s › %3$s.</string>
+    <string name="game_ready_dont_show">No volver a mostrar</string>
+    <string name="game_ready_back">Atrás</string>
+    <string name="game_ready_check_title">Verificación de compatibilidad</string>
+    <string name="game_ready_close">Cerrar</string>
+    <string name="game_ready_copy_report">Copiar reporte</string>
+    <string name="game_nup_no_romfs">%1$s no contiene RomFS para %2$s</string>
+    <string name="game_no_romfs">no hay RomFS en %1$s</string>
+    <string name="game_env_from_game_settings">la configuración del juego</string>
+    <string name="game_env_refused">Líneas de entorno no aceptadas: %1$s: el launcher establece las rutas del juego (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)</string>
+    <string name="game_env_refused_test">Líneas de entorno no aceptadas: %1$s: el launcher establece las rutas del juego (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME); DM_SAVE solo se toma de env-&lt;title ID&gt;.txt</string>
+    <string name="game_host_not_started">el host no se inició (%1$d)</string>
+    <string name="game_host_not_started_again">el host no se inició (%1$d: ya se intentó un inicio en este proceso)</string>
+    <string name="game_starting">%1$s: iniciando. Registro: %2$s</string>
+    <string name="game_cannot_start_title">No se puede iniciar %1$s</string>
+    <string name="game_running_title">%1$s se está ejecutando</string>
+    <string name="game_running_message">Primero detenlo (panel del juego › %2$s) y luego inicia %1$s. Solo se ejecuta un juego a la vez.</string>
+    <string name="game_save_in_use">La partida guardada en %1$s está en uso: se está respaldando o restaurando. Vuelve a intentarlo cuando termine.</string>
+
+    <!-- SidePanel: the in-game panel -->
+    <string name="game_panel_intro">El juego sigue ejecutándose detrás de este panel; cada cambio se aplica al instante y se conserva.</string>
+    <string name="game_panel_cap_head">Límite de FPS</string>
+    <string name="game_panel_cap_own">Propio del juego</string>
+    <string name="game_panel_overlay_head">Superposición</string>
+    <string name="game_panel_controls_head">Controles en pantalla</string>
+    <string name="game_panel_skip_head">Omitir introducción (depuración)</string>
+    <string name="game_panel_skip_note">Presiona A cada pocos cuadros y termina antes los videos hasta llegar al juego; después se detiene solo. En el juego: mantén presionados − y + juntos durante 1 s.</string>
+    <string name="game_panel_skip_stop">Dejar de omitir la introducción</string>
+    <string name="game_panel_skip_now">Omitir la introducción ahora</string>
+    <string name="game_panel_pause">Pausar el juego</string>
+    <string name="game_panel_pause_on_return">Pausar cuando el juego vuelva del segundo plano</string>
+    <string name="game_panel_stop">Detener el juego</string>
+    <string name="game_panel_stop_title">¿Detener el juego?</string>
+    <string name="game_panel_stop_message">El juego termina; se pierde el progreso no guardado. El registro queda disponible en %1$s.</string>
+    <string name="game_panel_stop_confirm">Detener</string>
+    <string name="game_panel_keep_running">Seguir jugando</string>
+    <string name="game_panel_back">Volver al juego</string>
+    <string name="game_panel_no_cap">Esta compilación no tiene límite de FPS.</string>
+    <string name="game_panel_starting">Iniciando…</string>
+    <string name="game_panel_own_rate">Este juego elige su propia velocidad de cuadros.</string>
+    <string name="game_panel_now_capped">Ahora %1$d fps, con límite de %2$d.</string>
+    <string name="game_panel_now_own">Ahora %1$d fps, la propia del juego.</string>
+    <string name="game_panel_lsfg_now">Ahora: %1$s</string>
+
+    <!-- TouchControls -->
+    <string name="game_controls_group_left_stick">stick izquierdo</string>
+    <string name="game_controls_group_dpad">cruceta</string>
+    <string name="game_controls_group_right_stick">stick derecho</string>
+    <string name="game_controls_top">Arriba</string>
+    <string name="game_controls_centre">Centro</string>
+    <string name="game_controls_bottom">Abajo</string>
+    <string name="game_controls_reset">Restablecer</string>
+    <string name="game_controls_done">Listo</string>
+    <string name="game_controls_picture_position">Posición de la imagen (esta pantalla)</string>
+    <string name="game_controls_edit_layout">Editar la disposición de los controles…</string>
+    <string name="game_controls_hint_group">%1$s: arrastra para mover, usa un segundo dedo para cambiar el tamaño (%2$d %%)</string>
+    <string name="game_controls_hint_picture">imagen: arrástrala hacia las barras negras</string>
+    <string name="game_controls_hint">Arrastra un control o la imagen; pellizca un control para cambiar su tamaño</string>
+    <string name="game_controls_vibrate">Vibrar al presionar</string>
+    <string name="game_controls_show_log">Mostrar el registro sobre el juego</string>
+    <string name="game_controls_opacity">Opacidad %1$d %%</string>
+    <string name="game_controls_size">Tamaño %1$d %%</string>
+    <string name="game_controls_reset_all">Restablecer los controles</string>
+
+    <!-- Overlay -->
+    <string name="game_overlay_item_fps">Velocidad de cuadros y tiempo por cuadro</string>
+    <string name="game_overlay_item_throttle">Indicador de limitación de rendimiento (verde / amarillo / rojo)</string>
+    <string name="game_overlay_item_gpu">Tiempo de GPU por cuadro</string>
+    <string name="game_overlay_item_cpu">Límites de frecuencia de la CPU</string>
+    <string name="game_overlay_item_battery">Temperatura y nivel de la batería</string>
+    <string name="game_overlay_item_memory">Memoria: la del juego y la del teléfono</string>
+    <string name="game_overlay_master">Mostrar la superposición sobre el juego</string>
+    <string name="game_overlay_cpu_unknown">Límite CPU ?</string>
+    <string name="game_overlay_no_lsfg">sin LSFG</string>
+    <string name="game_overlay_memory_low">baja</string>
+
+    <!-- Fsr -->
+    <string name="game_fsr_head">Escalado</string>
+    <string name="game_fsr_on">FSR 1 (más nítido cuando la imagen se escala a la pantalla)</string>
+    <string name="game_fsr_sharpness">Nitidez</string>
+    <string name="game_fsr_sharp_max">Máxima</string>
+    <string name="game_fsr_sharp_default">Predeterminada</string>
+    <string name="game_fsr_sharp_soft">Suave</string>
+    <string name="game_fsr_sharp_softer">Más suave</string>
+
+    <!-- Lsfg -->
+    <string name="game_lsfg_head">Generación de cuadros (Lossless Scaling, tu propio Lossless.dll)</string>
+    <string name="game_lsfg_not_built">No incluida en esta compilación (compilada con -PnxLsfg=false).</string>
+    <string name="game_lsfg_on">Generación de cuadros (LSFG)</string>
+    <string name="game_lsfg_mult">Cuadros por cada cuadro del juego</string>
+    <string name="game_lsfg_target">Velocidad de cuadros objetivo (el multiplicador se ajusta a ella)</string>
+    <string name="game_lsfg_fixed">Fijo</string>
+    <string name="game_lsfg_flow">Resolución de la estimación de movimiento (más baja es más rápida; %1$s = la propia del juego)</string>
+    <string name="game_lsfg_auto">Automática</string>
+    <string name="game_lsfg_mode">Modo: rendimiento (el único conjunto de shaders que usa el LSFG de Eden)</string>
+    <string name="game_lsfg_from">Lossless.dll de %1$s</string>
+    <string name="game_lsfg_not_copied">No se pudo copiar Lossless.dll desde %1$s: %2$s</string>
+    <string name="game_lsfg_earlier">Lossless.dll: la copia elegida antes</string>
+    <string name="game_lsfg_not_found">No se encontró Lossless.dll (se buscó en Documents/Emulation/bios, Switch2, Download y los archivos de la app)</string>
+    <string name="game_lsfg_by_hand">Lossless.dll: elegido manualmente</string>
+    <string name="game_lsfg_cannot_open">no se puede abrir %1$s</string>
+    <string name="game_lsfg_not_dll">ese archivo no es una DLL de Windows</string>
+    <string name="game_cannot_replace">no se puede reemplazar %1$s</string>
+
+    <!-- SelftestActivity -->
+    <string name="game_selftest_no_log">FALLO: no se puede abrir el registro %1$s</string>
+    <string name="game_selftest_waiting">Autoprueba gráfica: esperando la superficie</string>
+    <string name="game_selftest_no_host">FALLO: este host no tiene nxhost_vk_selftest</string>
+    <string name="game_selftest_running">Autoprueba gráfica en curso (%1$d cuadros, unos %2$d s)</string>
+    <string name="game_selftest_pass">ÉXITO (código de retorno %1$d)\nUsa Atrás para volver; %2$s envía el registro de esta prueba.</string>
+    <string name="game_selftest_fail">FALLO (código de retorno %1$d)\nUsa Atrás para volver; %2$s envía el registro de esta prueba.</string>
 </resources>

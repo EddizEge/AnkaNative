@@ -5,4 +5,144 @@
         <item quantity="one">%1$d juego funciona con limitaciones aquí.</item>
         <item quantity="other">%1$d juegos funcionan con limitaciones aquí.</item>
     </plurals>
+    <!-- Readiness.REQ_KEYS: "title: why" (Readiness.Req splits on the first ": "); the why is a lower-case clause -->
+    <string name="readiness_req_feature_timeline_semaphore">Semáforos de línea de tiempo: las barreras (fences) del juego se basan en ellos</string>
+    <string name="readiness_req_android_sdk">Android 12 o posterior: la app está hecha para esa versión</string>
+    <string name="readiness_req_vk_instance">Cargador de Vulkan 1.1 o posterior: el cargador de Android 12 reporta 1.1 y el de Android 13, 1.3; el Vulkan 1.3 de la reproducción gráfica lo aporta el controlador de GPU (la fila siguiente)</string>
+    <string name="readiness_req_vk_api">Controlador de GPU con Vulkan 1.3: la reproducción gráfica está escrita para Vulkan 1.3</string>
+    <string name="readiness_req_queue_graphics_compute">Una cola de gráficos y cómputo: todo se envía a una sola cola de ese tipo</string>
+    <string name="readiness_req_feature_dynamic_rendering">Renderizado dinámico: cada pase de renderizado se graba con él</string>
+    <string name="readiness_req_ext_vk_khr_swapchain">Cadena de intercambio (swapchain): sin ella, ninguna imagen llega a la pantalla</string>
+    <string name="readiness_req_ext_vk_khr_map_memory2">Mapeo de memoria 2: los mapeos de memoria ubicados lo necesitan</string>
+    <string name="readiness_req_ext_vk_ext_map_memory_placed">Mapeos de memoria ubicados: la memoria de GPU del juego se mapea en las direcciones propias del juego; sin ellos no se muestra ninguna imagen</string>
+    <string name="readiness_req_feature_descriptor_binding_sampled_image_update_after_bind">Tablas de texturas (actualización tras el enlace): los grupos de texturas del juego están en ellas</string>
+    <string name="readiness_req_feature_descriptor_binding_partially_bound">Tablas de texturas (enlace parcial): los grupos de texturas del juego están en ellas</string>
+    <string name="readiness_req_feature_runtime_descriptor_array">Tablas de texturas (arreglos en tiempo de ejecución): los grupos de texturas del juego están en ellas</string>
+    <!-- Readiness.REQ_MSG_KEYS: a requirement row's message on the screen -->
+    <string name="readiness_row_met">Presente (%1$s %2$s, necesita %3$s).</string>
+    <string name="readiness_row_lacks">Este dispositivo no lo tiene, y este juego lo necesita: %1$s. (%2$s %3$s, necesita %4$s)</string>
+    <string name="readiness_row_lacks_bare">Este dispositivo no lo tiene, y este juego lo necesita. (%1$s %2$s, necesita %3$s)</string>
+    <string name="readiness_row_degraded">Falta; este juego funciona sin esto, con limitaciones: %1$s. (%2$s %3$s, necesita %4$s)</string>
+    <string name="readiness_row_degraded_bare">Falta: este juego funciona sin esto, con limitaciones. (%1$s %2$s, necesita %3$s)</string>
+    <string name="readiness_row_fact_memory">memoria en GiB:</string>
+    <string name="readiness_row_not_reported">no reportado</string>
+    <string name="readiness_row_reports">reporta %1$s</string>
+    <string name="readiness_unchecked_no_host">el host de esta compilación no puede reportar las funciones de la GPU</string>
+    <string name="readiness_unchecked_timeout">la verificación de la GPU no respondió en %1$d s</string>
+    <string name="readiness_check_gpu_features">Funciones de la GPU</string>
+    <string name="readiness_gpu_error">No se pudo usar el controlador de GPU (%1$s): el juego necesita Vulkan 1.3.</string>
+    <string name="readiness_gpu_unchecked">Sin verificar (%1$s): no se sabe si esta GPU tiene lo que el juego necesita.</string>
+    <string name="readiness_check_status">Estado en Android</string>
+    <string name="readiness_status_bring_up">Este juego todavía se está adaptando a Android: puede detenerse o mostrar gráficos incorrectos en cualquier teléfono, incluido este.</string>
+    <string name="readiness_gpu_not_reported">GPU no reportada</string>
+    <string name="readiness_gpu_not_reported_why">GPU no reportada (%1$s)</string>
+    <string name="readiness_gpu_system">%1$s, Vulkan %2$s; controlador %3$s, ID del controlador %4$s, versión %5$s, controlador del sistema</string>
+    <string name="readiness_gpu_system_info">%1$s, Vulkan %2$s; controlador %3$s (%4$s), ID del controlador %5$s, versión %6$s, controlador del sistema</string>
+    <string name="readiness_gpu_custom">%1$s, Vulkan %2$s; controlador %3$s, ID del controlador %4$s, versión %5$s, controlador personalizado %6$s</string>
+    <string name="readiness_gpu_custom_info">%1$s, Vulkan %2$s; controlador %3$s (%4$s), ID del controlador %5$s, versión %6$s, controlador personalizado %7$s</string>
+    <!-- ReadinessActivity: the screen -->
+    <string name="readiness_title">Verificación de compatibilidad</string>
+    <string name="readiness_checking">Revisando…</string>
+    <string name="readiness_share">Compartir</string>
+    <string name="readiness_run_again">Volver a verificar</string>
+    <string name="readiness_copy_report">Copiar reporte</string>
+    <string name="readiness_share_title">Compartir el reporte de compatibilidad</string>
+    <string name="readiness_report_copied">Reporte de compatibilidad copiado</string>
+    <string name="readiness_fix_driver">Elegir un controlador de GPU</string>
+    <string name="readiness_fix_access">Permitir acceso a los archivos</string>
+    <string name="readiness_fix_app">Abrir la configuración de la app</string>
+    <string name="readiness_section_phone">Este teléfono</string>
+    <string name="readiness_verdict_ready">Listo</string>
+    <string name="readiness_verdict_limited">Listo, con limitaciones</string>
+    <string name="readiness_verdict_not_ready">No está listo</string>
+    <plurals name="readiness_summary_games_lack">
+        <item quantity="one">%1$d juego no tiene lo que necesita.</item>
+        <item quantity="other">%1$d juegos no tienen lo que necesitan.</item>
+    </plurals>
+    <plurals name="readiness_summary_phone_problems">
+        <item quantity="one">%1$d problema del teléfono.</item>
+        <item quantity="other">%1$d problemas del teléfono.</item>
+    </plurals>
+    <plurals name="readiness_summary_games_lack_part">
+        <item quantity="one">%1$d juego no tiene lo que necesita</item>
+        <item quantity="other">%1$d juegos no tienen lo que necesitan</item>
+    </plurals>
+    <plurals name="readiness_summary_phone_problems_part">
+        <item quantity="one">%1$d problema del teléfono</item>
+        <item quantity="other">%1$d problemas del teléfono</item>
+    </plurals>
+    <string name="readiness_summary_met_warnings">Todos los juegos tienen lo que necesitan; revisa las advertencias de abajo.</string>
+    <string name="readiness_summary_met">Todos los juegos tienen lo que necesitan.</string>
+    <!-- ReadinessActivity's checks -->
+    <string name="readiness_check_gpu">GPU y controlador</string>
+    <string name="readiness_gpu_stale">%1$s. El controlador de GPU cambió mientras esta pantalla estaba abierta: sal y vuelve a abrirla para verificar el nuevo.</string>
+    <string name="readiness_check_driver_picked">Controlador de GPU elegido</string>
+    <string name="readiness_check_own_driver">Controlador de GPU propio</string>
+    <string name="readiness_own_driver_same">%1$s, el que verificó esta pantalla.</string>
+    <string name="readiness_own_driver_other">Este juego usa su propio controlador de GPU, %1$s; esta pantalla verificó %2$s. La verificación previa al inicio del juego usa el controlador del juego, y su resultado puede ser distinto de este.</string>
+    <string name="readiness_check_files">Archivos del juego</string>
+    <string name="readiness_files_nup">%1$s: un .nup que se lee y se verifica sin problemas (%2$s).</string>
+    <string name="readiness_files_unusable">No se puede usar %1$s: %2$s</string>
+    <string name="readiness_files_unreadable">%1$s no es una carpeta que esta app pueda leer.</string>
+    <string name="readiness_files_no_npdm">%1$s no contiene main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ o exefs/).</string>
+    <string name="readiness_files_folder">%1$s: una carpeta que se puede leer.</string>
+    <string name="readiness_check_phone">Teléfono</string>
+    <string name="readiness_phone_arm64">%1$s %2$s, Android %3$s, ARM de 64 bits</string>
+    <string name="readiness_phone_not_arm64">%1$s %2$s, Android %3$s: no es un teléfono ARM de 64 bits, que es lo que la app necesita</string>
+    <string name="readiness_check_memory">Memoria</string>
+    <string name="readiness_memory">%1$.1f GiB según Android (menos de lo que indica la etiqueta), %2$.1f GiB libres ahora.</string>
+    <string name="readiness_memory_low">%1$.1f GiB según Android (menos de lo que indica la etiqueta), %2$.1f GiB libres ahora, lo que Android considera poco.</string>
+    <string name="readiness_check_access">Acceso a todos los archivos</string>
+    <string name="readiness_access_granted">Concedido.</string>
+    <string name="readiness_access_denied">No concedido: la app no puede leer tu volcado.</string>
+    <string name="readiness_check_storage">Almacenamiento libre</string>
+    <string name="readiness_storage_ok">%1$.1f GB libres.</string>
+    <string name="readiness_storage_low">%1$.1f GB libres: el paquete de un juego ocupa varios GB.</string>
+    <string name="readiness_check_battery">Batería</string>
+    <string name="readiness_battery_restricted">El uso de batería está configurado como Restringido: Android puede detener la app en segundo plano.</string>
+    <string name="readiness_battery_standby">La app está en el grupo de espera restringido de Android: puede detenerse en segundo plano.</string>
+    <string name="readiness_battery_ok">Sin restricciones.</string>
+    <string name="readiness_check_last_exit">Último cierre de un juego</string>
+    <string name="readiness_last_exit_none">Todavía no se ejecutó ningún juego.</string>
+    <string name="readiness_last_exit_normal">El último juego %1$s, %2$s.</string>
+    <string name="readiness_last_exit">El último juego %1$s, %2$s. %3$s › %4$s envía su registro.</string>
+    <string name="readiness_last_exit_desc">El último juego %1$s, %2$s (%3$s). %4$s › %5$s envía su registro.</string>
+    <string name="readiness_exit_memory">fue detenido por Android por falta de memoria</string>
+    <string name="readiness_exit_crashed">se cerró inesperadamente</string>
+    <string name="readiness_exit_anr">dejó de responder</string>
+    <string name="readiness_exit_normal">terminó con normalidad</string>
+    <string name="readiness_exit_other">terminó (%1$s)</string>
+    <string name="readiness_exit_reason_signal">una señal</string>
+    <string name="readiness_exit_reason_resources">demasiados recursos</string>
+    <string name="readiness_exit_reason_freezer">congelado en segundo plano</string>
+    <string name="readiness_exit_reason_permission">un cambio de permisos</string>
+    <string name="readiness_exit_reason_dependency">terminó una dependencia</string>
+    <string name="readiness_exit_reason_init">falló el inicio</string>
+    <string name="readiness_exit_reason_code">motivo %1$d</string>
+    <string name="readiness_check_kills">Cierres por falta de memoria</string>
+    <plurals name="readiness_kills">
+        <item quantity="one">Android detuvo %1$d juego por falta de memoria en los últimos 7 días (%2$s). Cierra otras apps antes de jugar.</item>
+        <item quantity="other">Android detuvo %1$d juegos por falta de memoria en los últimos 7 días (el último, %2$s). Cierra otras apps antes de jugar.</item>
+    </plurals>
+    <string name="readiness_kills_none">Ninguno en los últimos 7 días.</string>
+    <string name="readiness_ago_now">justo ahora</string>
+    <plurals name="readiness_ago_minutes">
+        <item quantity="one">hace %1$d minuto</item>
+        <item quantity="other">hace %1$d minutos</item>
+    </plurals>
+    <plurals name="readiness_ago_hours">
+        <item quantity="one">hace %1$d hora</item>
+        <item quantity="other">hace %1$d horas</item>
+    </plurals>
+    <plurals name="readiness_ago_days">
+        <item quantity="one">hace %1$d día</item>
+        <item quantity="other">hace %1$d días</item>
+    </plurals>
+    <string name="readiness_ago_date">el %1$s</string>
+    <string name="readiness_check_switches">Interruptores de diagnóstico</string>
+    <string name="readiness_switches_none">Ninguno en env.txt.</string>
+    <string name="readiness_switches_on">Activados en env.txt: %1$s.</string>
+    <string name="readiness_switches_unreadable">Activados en env.txt: (no se puede leer env.txt).</string>
+    <string name="readiness_clip_label">Reporte de compatibilidad</string>
+    <string name="readiness_req_android_sdk_33">Android 13 o posterior: Android 12 y 12L no están probados; ahí el juego puede no iniciarse o mostrar gráficos incorrectos</string>
 </resources>

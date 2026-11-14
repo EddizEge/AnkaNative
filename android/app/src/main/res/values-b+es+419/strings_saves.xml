@@ -1,4 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Español (Latinoamérica): the saves area (SaveUi, SaveStore, SaveMigrate). docs/i18n.md: keys start with saves_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- SaveStore and SaveMigrate: lower-case reasons that other sentences embed -->
+    <string name="saves_cannot_create">no se puede crear %1$s</string>
+    <string name="saves_in_use">la partida guardada en %1$s está en uso: su juego se está ejecutando (detenlo primero) o se está respaldando o restaurando</string>
+    <string name="saves_diff_missing">falta %1$s</string>
+    <string name="saves_diff_differs">%1$s no coincide</string>
+    <string name="saves_diff_extra">%1$s sobra</string>
+    <string name="saves_not_a_folder">%1$s no es una carpeta</string>
+    <string name="saves_cannot_list">no se puede ver el contenido de %1$s</string>
+    <string name="saves_link_in_save">%1$s es un enlace: una carpeta de partidas solo contiene archivos y carpetas</string>
+    <string name="saves_not_file_or_folder">%1$s no es un archivo ni una carpeta</string>
+    <string name="saves_cannot_write">no se puede escribir %1$s</string>
+    <string name="saves_not_a_manifest">%1$s no es un manifiesto de respaldo de partidas</string>
+    <string name="saves_no_save_folder">no hay ninguna carpeta de partidas en %1$s</string>
+    <string name="saves_backups_overlap">la carpeta de respaldos %1$s y la carpeta de partidas %2$s se superponen</string>
+    <string name="saves_copy_mismatch">la copia no coincide con la partida guardada (%1$s)</string>
+    <string name="saves_changed_running">la partida guardada cambió mientras se copiaba (%1$s): ¿el juego se está ejecutando?</string>
+    <string name="saves_cannot_name_backup">no se puede dar el nombre %1$s al respaldo</string>
+    <string name="saves_backup_damaged">el respaldo %1$s no coincide con su manifiesto (%2$s): está dañado, así que no se restaura</string>
+    <string name="saves_source_overlap">la carpeta desde la que se restaura (%1$s) y la carpeta de partidas (%2$s) se superponen</string>
+    <string name="saves_source_working_folder">%1$s es una carpeta de trabajo de la partida guardada (%2$s), no una partida para restaurar</string>
+    <string name="saves_no_device_save">%1$s no tiene partida del dispositivo, pero %2$s sí tiene una: restaurar solo la partida principal la emparejaría con otra partida del dispositivo, así que no se restaura. Un respaldo hecho con esta app contiene ambas</string>
+    <string name="saves_cannot_clear">no se puede eliminar %1$s</string>
+    <string name="saves_restore_copy_mismatch">la copia junto a la partida guardada no coincide con el respaldo (%1$s): la partida guardada no se modificó</string>
+    <string name="saves_cannot_remove">no se puede eliminar %1$s</string>
+    <string name="saves_restore_mismatch_after">la partida guardada no coincide con el respaldo después de la restauración (%1$s)</string>
+    <string name="saves_set_foreign">%1$s indica %2$s, que no forma parte de esta partida guardada: la partida se deja como está; mueve ese archivo a otro lugar para poder usarla</string>
+    <string name="saves_cannot_move_back">no se puede devolver %1$s a %2$s</string>
+    <string name="saves_marker_foreign">%1$s indica %2$s, no %3$s.new / .re / .restore: la partida se deja como está; mueve ese marcador a otro lugar para poder usarla</string>
+    <string name="saves_marker_gone">%1$s indica %2$s, que ya no existe: la partida se deja como está; mueve ese marcador a otro lugar para poder usarla</string>
+    <string name="saves_cannot_move">no se puede mover %1$s a %2$s</string>
+    <string name="saves_is_link">%1$s es un enlace</string>
+    <string name="saves_when_before_restore">%1$s (automático, antes de una restauración)</string>
+    <!-- SaveMigrate -->
+    <string name="saves_migrate_old_pending">la partida guardada en %1$s tiene un guardado o una restauración sin terminar: se completa en este inicio y se copia en el siguiente</string>
+    <string name="saves_migrate_old_has_no_device">la partida anterior no tiene ninguna</string>
+    <string name="saves_migrate_device_foreign">%1$s contiene una partida del dispositivo, pero %2$s no tiene partida guardada, y no es una copia de %3$s (%4$s)</string>
+    <string name="saves_changed">la partida guardada cambió mientras se copiaba (%1$s)</string>
+    <string name="saves_migrate_cannot_clear_empty">no se puede eliminar la carpeta vacía %1$s</string>
+    <string name="saves_migrate_mismatch_after_move">la copia de la app no coincide con la partida guardada después de moverla (%1$s)</string>
+    <!-- SaveUi -->
+    <string name="saves_busy">Todavía se está respaldando o restaurando una partida de %1$s.</string>
+    <string name="saves_running_backup">%1$s se está ejecutando (tiene abierta su partida guardada): detenlo primero (en su panel del juego › %2$s) y luego crea el respaldo. Puede que el juego esté escribiendo su partida.</string>
+    <string name="saves_running_restore">%1$s se está ejecutando (tiene abierta su partida guardada): detenlo primero (en su panel del juego › %2$s) y luego restáurala. Puede que el juego esté escribiendo su partida.</string>
+    <string name="saves_running_import">%1$s se está ejecutando (tiene abierta su partida guardada): detenlo primero (en su panel del juego › %2$s) y luego impórtala. Puede que el juego esté escribiendo su partida.</string>
+    <string name="saves_backup_nothing">%1$s todavía no tiene una partida guardada en %2$s: no hay nada que respaldar.</string>
+    <string name="saves_backup_wait">Respaldando la partida guardada de %1$s…</string>
+    <string name="saves_backup_failed">No se hizo ningún respaldo: %1$s\n\nLa partida guardada en %2$s solo se leyó; nunca se modificó.</string>
+    <string name="saves_backup_done_title">Partidas respaldadas</string>
+    <plurals name="saves_backup_done_body">
+        <item quantity="one">%1$d archivo, %2$s, verificado archivo por archivo (SHA-256) con la partida guardada.\n\n%3$s\n\nLa partida guardada no se modificó. La app nunca elimina los respaldos.</item>
+        <item quantity="other">%1$d archivos, %2$s, verificados archivo por archivo (SHA-256) con la partida guardada.\n\n%3$s\n\nLa partida guardada no se modificó. La app nunca elimina los respaldos.</item>
+    </plurals>
+    <plurals name="saves_backup_done_body_device">
+        <item quantity="one">%1$d archivo, %2$s, con la partida del dispositivo, verificado archivo por archivo (SHA-256) con la partida guardada.\n\n%3$s\n\nLa partida guardada no se modificó. La app nunca elimina los respaldos.</item>
+        <item quantity="other">%1$d archivos, %2$s, con la partida del dispositivo, verificados archivo por archivo (SHA-256) con la partida guardada.\n\n%3$s\n\nLa partida guardada no se modificó. La app nunca elimina los respaldos.</item>
+    </plurals>
+    <string name="saves_restore_none">Todavía no hay respaldos de %1$s en %2$s. Puedes crear uno con %3$s.</string>
+    <plurals name="saves_restore_item">
+        <item quantity="one">%1$s\n%2$d archivo, %3$s</item>
+        <item quantity="other">%1$s\n%2$d archivos, %3$s</item>
+    </plurals>
+    <plurals name="saves_restore_item_device">
+        <item quantity="one">%1$s\n%2$d archivo, %3$s (con la partida del dispositivo)</item>
+        <item quantity="other">%1$s\n%2$d archivos, %3$s (con la partida del dispositivo)</item>
+    </plurals>
+    <string name="saves_restore_item_from">%1$s\ndesde %2$s</string>
+    <string name="saves_restore_list_title">Restaurar la partida guardada de %1$s desde</string>
+    <string name="saves_import_pick">Elige la carpeta de partidas que quieres importar (la que contiene los archivos de la partida, como saves/%1$s)</string>
+    <string name="saves_import_source">la carpeta %1$s</string>
+    <string name="saves_not_restored_refused">No se restauró: %1$s.</string>
+    <string name="saves_restore_confirm_title">¿Restaurar la partida guardada de %1$s?</string>
+    <string name="saves_restore_confirm_body">Se reemplaza: la partida guardada en %1$s, con %2$s.\n\nPrimero, la partida actual se respalda en %3$s (verificada), así que puedes deshacerlo con %4$s…. No se elimina nada de los respaldos.</string>
+    <string name="saves_restore_button">Restaurar</string>
+    <string name="saves_restore_wait">Restaurando la partida guardada de %1$s…</string>
+    <string name="saves_restore_failed">No se restauró: %1$s\n\nLa partida guardada en %2$s quedó como estaba.</string>
+    <string name="saves_restore_failed_pending">No se restauró: %1$s\n\nLa partida guardada en %2$s quedó como estaba, salvo un intercambio sin terminar que se completará en el próximo respaldo, la próxima restauración o el próximo inicio del juego.</string>
+    <plurals name="saves_restored">
+        <item quantity="one">Se restauró %1$d archivo (%2$s)</item>
+        <item quantity="other">Se restauraron %1$d archivos (%2$s)</item>
+    </plurals>
+    <plurals name="saves_restored_device">
+        <item quantity="one">Se restauró %1$d archivo (%2$s, con la partida del dispositivo)</item>
+        <item quantity="other">Se restauraron %1$d archivos (%2$s, con la partida del dispositivo)</item>
+    </plurals>
+    <plurals name="saves_restored_before">
+        <item quantity="one">Se restauró %1$d archivo (%2$s); la partida anterior está en %3$s</item>
+        <item quantity="other">Se restauraron %1$d archivos (%2$s); la partida anterior está en %3$s</item>
+    </plurals>
+    <plurals name="saves_restored_device_before">
+        <item quantity="one">Se restauró %1$d archivo (%2$s, con la partida del dispositivo); la partida anterior está en %3$s</item>
+        <item quantity="other">Se restauraron %1$d archivos (%2$s, con la partida del dispositivo); la partida anterior está en %3$s</item>
+    </plurals>
 </resources>
