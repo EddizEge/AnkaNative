@@ -5,8 +5,8 @@
 // met, in walk order, one entry per meeting; the replay then meets them in the same order. One look-ahead can meet the same record more than once: the game calls one
 // command list twice in a render pass with another program bound in between (Ocarina of Time draws a model's list for its depth prepass, then again for its colour
 // pass). Each meeting has its own shaders and its own mesh output, so a draw takes the next entry of its record from the replay's cursor, which then moves past it; the
-// first entry of the record (the old lookup) gave the colour draw the prepass's mesh output and vertex shader (docs/reference/rendering.md "Mesh draws through compute
-// matched to the wrong meeting of a record"). Plain C, no Vulkan: unit-tested on the Mac (dm/host/tests t_android_memu).
+// first entry of the record (the old lookup) gave the colour draw the prepass's mesh output and vertex shader (docs/reference/shaders.md#mesh-draws-through-compute-android,
+// "Draws"). Plain C, no Vulkan: unit-tested on the Mac (dm/host/tests t_android_memu).
 #ifndef VKA_MEMU_ORDER_H
 #define VKA_MEMU_ORDER_H
 #include <stddef.h>

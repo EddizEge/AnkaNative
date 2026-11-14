@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// NVN2 task and mesh draws through compute (docs/reference/rendering.md "Mesh draws through compute"), the Vulkan side that is not a draw: each task / mesh shader's
+// NVN2 task and mesh draws through compute (docs/reference/shaders.md#mesh-draws-through-compute-android), the Vulkan side that is not a draw: each task / mesh shader's
 // compute form and vertex shader (made from the library's own modules by vka_memu_spv.c, as derived shaders with keys of their own, so the pipeline cache and the
 // prewarm list keep them), the arena the converted modules write into (device-local, one per submission in flight, grown when a submission asked for more), and the
 // helper passes (memu/memu_setup.comp, memu/memu_dist.comp). The batches of a pass's draws are vka_draw.c's (vka_memu_draw.inc); the look-ahead that finds them is

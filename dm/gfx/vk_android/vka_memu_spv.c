@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// NVN2 task and mesh programs drawn through compute (docs/reference/rendering.md "Mesh draws through compute"). Hokkaido (a yuzu / Eden derived Switch 2 emulator,
+// NVN2 task and mesh programs drawn through compute (docs/reference/shaders.md#mesh-draws-through-compute-android). Hokkaido (a yuzu / Eden derived Switch 2 emulator,
 // GPL-3.0-or-later) emits a mesh program as a compute shader from its IR when the device has no VK_EXT_mesh_shader: the program's output goes to a storage buffer, one
 // block per workgroup, and a generated vertex shader pulls it as a triangle list; a task program runs as compute and writes its payload, and each mesh workgroup finds its
 // task by a binary search of the tasks' first workgroups. This file ports that idea to this host, which has no IR at run time: it rewrites the library's own TaskEXT /
