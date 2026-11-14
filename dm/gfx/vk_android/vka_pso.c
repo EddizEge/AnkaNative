@@ -960,7 +960,7 @@ static void *pw_main(void *a) {
             // A mesh draw through compute's compute form: queued for the one background thread that makes them one at a time (vka_memu_pipeline), never compiled here.
             // Turnip's compiler took up to 776 MB for one of these: the prewarm threads beside that thread would make it three at a time. With DM_VK_MEMU_ASYNC=0 (no
             // such thread) they are left to their first draw, which makes them on the frame path, one at a time as well
-            int pending = 0; VkPipeline p = mj_up() ? vka_memu_pipeline(sh[5], &lay, &pending) : VK_NULL_HANDLE;
+            int pending = 0; VkPipeline p = mj_up() ? vka_memu_pipeline(sh[5], &lay, &pending, 0) : VK_NULL_HANDLE;
             if (pending) atomic_fetch_add(&g_pw_memu, 1); else if (p) atomic_fetch_add(&g_pw_had, 1);
             continue;
         }
@@ -1269,24 +1269,54 @@ VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay) { int made; re
 // Mesh draws through compute (vka_memu_draw.inc): their compute forms are made on one background thread, one at a time, and their draws skipped until then, as an
 // asynchronous graphics pipeline's are. Turnip's compiler took up to 9 s and hundreds of MB for one of Ocarina of Time's converted mesh programs (docs/reference/shaders.md
 // "Turnip runs out of memory compiling a mesh program through compute"): on the frame path that froze the game, and several in a row with the prewarm threads' own
-// compiles ran the phone out of memory. One at a time bounds the compiler's memory to one program's. DM_VK_MEMU_ASYNC=0 (restart) makes them on the frame path
+// compiles ran the phone out of memory. One at a time bounds the compiler's memory to one program's. DM_VK_MEMU_ASYNC=0 (restart) makes them on the frame path.
+// Two queues: the forms a draw waits for, in the order of their first draw, go before those the prewarm list queued (made while no draw waits), and a form the
+// prewarm list queued moves to the first queue when a draw asks for it: what is on screen is drawn first, as the DM_VK_PSO_ASYNC queue comes before the prewarm list
+// for graphics pipelines (DM_VK_PREWARM_HELP). Without that, on the first start after an update (every compile a cache miss, up to 9.9 s each on the PC) the
+// scene's mesh draws waited behind the whole prewarm list (about 50 forms for Ocarina of Time)
 typedef struct mj { struct mj *next; gval *g; vka_shader *cs; vka_layout lay; uint64_t t0; } mj;
-static mj *g_mj_head, **g_mj_tail = &g_mj_head; static pthread_mutex_t g_mj_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_mj_cv = PTHREAD_COND_INITIALIZER;
-static _Atomic uint64_t g_mj_queued, g_mj_made, g_mj_ns, g_mj_lat_max_ns; static _Atomic int g_mj_depth;
+static mj *g_mjd_head, **g_mjd_tail = &g_mjd_head, *g_mjp_head, **g_mjp_tail = &g_mjp_head;   // drawn first; then the prewarm list's
+static pthread_mutex_t g_mj_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_mj_cv = PTHREAD_COND_INITIALIZER;
+static _Atomic uint64_t g_mj_queued, g_mj_made, g_mj_ns, g_mj_lat_max_ns, g_mj_moved, g_mj_t_first; static _Atomic int g_mj_depth;
+static void mj_push(mj *j, int drawn) {   // (under g_mj_mu)
+    j->next = NULL;
+    if (drawn) { *g_mjd_tail = j; g_mjd_tail = &j->next; } else { *g_mjp_tail = j; g_mjp_tail = &j->next; }
+}
+static mj *mj_pop(void) {   // (under g_mj_mu) the first a draw waits for, else the prewarm list's first
+    mj *j = g_mjd_head;
+    if (j) { g_mjd_head = j->next; if (!g_mjd_head) g_mjd_tail = &g_mjd_head; return j; }
+    j = g_mjp_head;
+    if (j) { g_mjp_head = j->next; if (!g_mjp_head) g_mjp_tail = &g_mjp_head; }
+    return j;
+}
+static void mj_move_ahead(gval *g) {   // (under g_mj_mu) a form the prewarm list queued, now waited for by a draw: to the end of the drawn queue; not found = being made or drawn-queued
+    for (mj **pp = &g_mjp_head; *pp; pp = &(*pp)->next) if ((*pp)->g == g) {
+        mj *j = *pp; *pp = j->next;
+        if (g_mjp_tail == &j->next) g_mjp_tail = pp;
+        mj_push(j, 1); atomic_fetch_add(&g_mj_moved, 1);
+        return;
+    }
+}
 static void *mj_main(void *a) {
     (void)a; pthread_setname_np(pthread_self(), "vk-memupso");
     setpriority(PRIO_PROCESS, 0, 10);   // (under the game's threads, as the prewarm threads)
     for (;;) {
         pthread_mutex_lock(&g_mj_mu);
-        while (!g_mj_head) pthread_cond_wait(&g_mj_cv, &g_mj_mu);
-        mj *j = g_mj_head; g_mj_head = j->next; if (!g_mj_head) g_mj_tail = &g_mj_head;
+        mj *j;
+        while (!(j = mj_pop())) pthread_cond_wait(&g_mj_cv, &g_mj_mu);
         pthread_mutex_unlock(&g_mj_mu);
         pause_point();
         uint64_t t1 = now_ns();
         cs_build(j->g, j->cs, &j->lay, 0, 1);
         uint64_t t2 = now_ns(), lat = t2 - j->t0, cur = atomic_load(&g_mj_lat_max_ns);
         while (lat > cur && !atomic_compare_exchange_weak(&g_mj_lat_max_ns, &cur, lat)) {}
-        atomic_fetch_add(&g_mj_ns, t2 - t1); atomic_fetch_add(&g_mj_made, 1); atomic_fetch_sub(&g_mj_depth, 1);
+        atomic_fetch_add(&g_mj_ns, t2 - t1); atomic_fetch_add(&g_mj_made, 1);
+        if (atomic_fetch_sub(&g_mj_depth, 1) == 1) {   // the queue ran empty: every mesh draw met so far can be drawn (the launcher's note goes, GameActivity)
+            static _Atomic int n; uint64_t f0 = atomic_exchange(&g_mj_t_first, 0);
+            if (atomic_fetch_add(&n, 1) < 8) VLOG("mesh draws through compute: background queue empty, %llu compute pipelines made in all (%.1f s since the first of this batch was queued, "
+                                                 "%.0f ms compiling in all, %llu moved ahead of the prewarm list for a draw)", (unsigned long long)atomic_load(&g_mj_made),
+                                                 f0 ? (t2 - f0) / 1e9 : 0.0, atomic_load(&g_mj_ns) / 1e6, (unsigned long long)atomic_load(&g_mj_moved));
+        }
         free(j);
     }
     return NULL;
@@ -1297,26 +1327,39 @@ static void mj_start(void) {
     VLOG("mesh draws through compute: compute pipelines %s (DM_VK_MEMU_ASYNC)", g_mj_up ? "made on one background thread, one at a time; their draws skipped until made" : "made on the frame path");
 }
 static int mj_up(void) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthread_once(&once, mj_start); return g_mj_up; }
-VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending) {
+VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw) {
     *pending = 0;
     if (!mj_up()) return vka_cs_pipeline(cs, lay);
     ckey k; memset(&k, 0, sizeof k); k.cs = cs; k.layout = lay->layout;
     uint64_t h = fnv(&k, sizeof k, 1469598103934665603ull);
     pthread_mutex_lock(&g_mu);
     gval *g = km_get(&g_cs, &k, h);
-    if (g) { int busy = g->busy; VkPipeline p = g->p; pthread_mutex_unlock(&g_mu); *pending = busy; return busy ? VK_NULL_HANDLE : p; }
+    if (g) {
+        int busy = g->busy; VkPipeline p = g->p; pthread_mutex_unlock(&g_mu); *pending = busy;
+        if (busy && draw) { pthread_mutex_lock(&g_mj_mu); mj_move_ahead(g); pthread_mutex_unlock(&g_mj_mu); }   // queued by the prewarm list: this draw's first
+        return busy ? VK_NULL_HANDLE : p;
+    }
     // (a prewarm thread or the frame path that meets this entry while it is busy waits for it or passes it over, as for any other: cs_obtain)
     g = calloc(1, sizeof *g); g->busy = 1; km_put(&g_cs, &k, h, g);
     pthread_mutex_unlock(&g_mu);
-    mj *j = malloc(sizeof *j); j->next = NULL; j->g = g; j->cs = cs; j->lay = *lay; j->t0 = now_ns();
-    atomic_fetch_add(&g_mj_queued, 1); atomic_fetch_add(&g_mj_depth, 1);
-    pthread_mutex_lock(&g_mj_mu); *g_mj_tail = j; g_mj_tail = &j->next; pthread_cond_signal(&g_mj_cv); pthread_mutex_unlock(&g_mj_mu);
+    mj *j = malloc(sizeof *j); j->g = g; j->cs = cs; j->lay = *lay; j->t0 = now_ns();
+    atomic_fetch_add(&g_mj_queued, 1);
+    if (atomic_fetch_add(&g_mj_depth, 1) == 0) { uint64_t z = 0; atomic_compare_exchange_strong(&g_mj_t_first, &z, j->t0); }
+    pthread_mutex_lock(&g_mj_mu); mj_push(j, draw); pthread_cond_signal(&g_mj_cv); pthread_mutex_unlock(&g_mj_mu);
     *pending = 1;
     return VK_NULL_HANDLE;
 }
 void vka_memu_pso_line(char *out, size_t n) {
     if (!atomic_load(&g_mj_queued)) { if (n) out[0] = 0; return; }
-    snprintf(out, n, "; their compute pipelines in the background: %llu queued, %llu made (%.0f ms compiling, longest wait from the first draw %.0f ms), %d waiting",
-             (unsigned long long)atomic_load(&g_mj_queued), (unsigned long long)atomic_load(&g_mj_made), atomic_load(&g_mj_ns) / 1e6, atomic_load(&g_mj_lat_max_ns) / 1e6, atomic_load(&g_mj_depth));
+    snprintf(out, n, "; their compute pipelines in the background: %llu queued, %llu made (%.0f ms compiling, longest wait from the first draw %.0f ms), %d waiting, %llu moved ahead for a draw",
+             (unsigned long long)atomic_load(&g_mj_queued), (unsigned long long)atomic_load(&g_mj_made), atomic_load(&g_mj_ns) / 1e6, atomic_load(&g_mj_lat_max_ns) / 1e6, atomic_load(&g_mj_depth),
+             (unsigned long long)atomic_load(&g_mj_moved));
+}
+// The launcher's note while mesh draws wait for their compute pipelines (GameActivity, Native.meshStatus): out[0] queued so far, out[1] made, out[2] waiting now.
+// → 1 when this host draws mesh draws through compute on one background thread, 0 when not (then out is zeros)
+__attribute__((visibility("default"))) int nxhost_mesh_status(int *out, int n) {
+    int v[3] = {(int)atomic_load(&g_mj_queued), (int)atomic_load(&g_mj_made), atomic_load(&g_mj_depth)};
+    for (int i = 0; i < n && i < 3; i++) out[i] = g_mj_up ? v[i] : 0;
+    return g_mj_up;
 }
 #endif

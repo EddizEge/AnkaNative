@@ -90,8 +90,8 @@ void vka_memu_batch(int phase, const vka_dstate *d, const p_draw *dw, const uint
         // (their compute pipelines are made in the background, one at a time: until both are there the draw is skipped, E->wait; vka_pso.c vka_memu_pipeline)
         int pm = 0, pt = 0;
         c5[5] = E->mcs; if (!vka_layout_of(c5, 1, &E->ml)) return;
-        E->mp = vka_memu_pipeline(E->mcs, &E->ml, &pm);
-        if (ts) { c5[5] = E->tcs; if (!vka_layout_of(c5, 1, &E->tl)) return; E->tp = vka_memu_pipeline(E->tcs, &E->tl, &pt); }
+        E->mp = vka_memu_pipeline(E->mcs, &E->ml, &pm, 1);
+        if (ts) { c5[5] = E->tcs; if (!vka_layout_of(c5, 1, &E->tl)) return; E->tp = vka_memu_pipeline(E->tcs, &E->tl, &pt, 1); }
         if (pm || pt) { E->wait = 1; return; }
         if (!E->mp || (ts && !E->tp)) return;
         vka_memu_rec_mesh(&mi->L, r);

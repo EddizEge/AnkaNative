@@ -23,6 +23,9 @@ __attribute__((visibility("default"))) int nxhost_framegen_status(char *buf, int
 // Where the letterboxed picture sits in the window's free space, never scaled or cropped: x 0 = left, 1 = right; y 0 = top, 1 = bottom (as the user sees it); 0.5 = centred,
 // the default. Taken from the next present; values outside 0..1 are clamped
 __attribute__((visibility("default"))) void nxhost_picture_place(float x, float y);
+// Mesh draws through compute (vka_pso.c): their compute pipelines made on one background thread. out[0] queued so far, out[1] made, out[2] waiting now (until made, their
+// draws are skipped: on the first start after an update or a driver change that can be a minute). 1 = this host makes them so, 0 = not (yet): out is zeros
+__attribute__((visibility("default"))) int nxhost_mesh_status(int *out, int n);
 // The readiness check (vka_readiness.c): what the Vulkan device and driver report, as "key=value" lines in buf (n bytes, at least 64), on the driver the replay would load
 // (DM_VK_DRIVER, read at the first call in the process: set it before). Its own instance, no device; callable before nxhost_main. 0 = facts written, 1 = an "error=" line
 // says why the facts stop there, -1 = no buffer

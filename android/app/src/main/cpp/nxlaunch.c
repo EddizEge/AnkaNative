@@ -50,6 +50,7 @@ int nxhost_main(int argc, char **argv);
 #pragma weak nxhost_fps_cap_status
 #pragma weak nxhost_skip_set
 #pragma weak nxhost_skip_status
+#pragma weak nxhost_mesh_status
 
 // ---- Log: the host's stdout and stderr go straight into the log file (nothing is lost when the process dies), and a thread copies new lines to logcat ----
 // At the end of the file the thread sleeps until the file is written (inotify IN_MODIFY), not on a 20 ms timer: the timer woke it 50 times a second for the whole game,
@@ -235,6 +236,15 @@ JNIEXPORT jstring JNICALL Java_dev_nxnative_android_Native_fpsCapStatus(JNIEnv *
 // The intro skip (nxhost_skip_set / _status, DM_SKIP): on 1, 0 or -1 to toggle; the status's bit 0 = on, bit 1 = Minus+Plus armed, -1 when this host has no skip
 JNIEXPORT void JNICALL Java_dev_nxnative_android_Native_skipSet(JNIEnv *env, jclass cls, jint on) { (void)env; (void)cls; if (nxhost_skip_set) nxhost_skip_set(on); }
 JNIEXPORT jint JNICALL Java_dev_nxnative_android_Native_skipStatus(JNIEnv *env, jclass cls) { (void)env; (void)cls; return nxhost_skip_status ? nxhost_skip_status() : -1; }
+
+// Mesh draws through compute's background pipelines (nxhost_mesh_status): out = {queued, made, waiting}; false when this host does not make them so (yet)
+JNIEXPORT jboolean JNICALL Java_dev_nxnative_android_Native_meshStatus(JNIEnv *env, jclass cls, jintArray out) {
+    (void)cls; if (!nxhost_mesh_status || !out) return JNI_FALSE;
+    int v[3] = {0, 0, 0}; int n = (*env)->GetArrayLength(env, out); if (n > 3) n = 3;
+    int r = nxhost_mesh_status(v, n);
+    (*env)->SetIntArrayRegion(env, out, 0, n, v);
+    return r ? JNI_TRUE : JNI_FALSE;
+}
 
 // ---- The readiness check (Readiness.java): the Vulkan facts of the driver the game would run on (nxhost_vk_readiness), before the host starts. Of env (KEY=VALUE, the
 // game's environment as start would get it) only the driver's keys are set here, the last of each winning as in start; null when this host has no such entry point ----

@@ -428,7 +428,7 @@ typedef struct { VkPipelineLayout layout; VkDescriptorSetLayout set0; int push; 
 int vka_layout_of(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout *out);   // the set-0 layout of these stages' records with the pools' set 1
 VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k);
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);
-VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending);   // a mesh draw through compute's compute form: made in the background (pending: not yet)
+VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw);   // a mesh draw through compute's compute form: made in the background (pending: not yet); draw: a draw waits for it (made before the prewarm list's)
 void vka_memu_pso_line(char *out, size_t n);
 void vka_pso_save(int force);         // the VkPipelineCache and the prewarm list to the app's files (DM_TEMP): due DM_VK_PCACHE_SAVE_S after the last save, on the saver thread; force = now, on the caller's
 void vka_pso_waits(uint64_t *save_ns, uint64_t *pw_wait_ns);   // cumulative: time saving the cache (saver thread), the frame path's waits for a prewarm thread making the same pipeline
