@@ -470,13 +470,18 @@ class Ratchet(unittest.TestCase):
 
     def test_rebaseline(self):
         """--ratchet refuses a count that grew; --rebaseline writes it, joins named files to the area and says so in the tsv (on a scratch copy)"""
-        global RATCHET
-        keep = RATCHET
+        global RATCHET, JAVA_DIRS
+        keep = RATCHET, JAVA_DIRS
         with tempfile.TemporaryDirectory() as d:
             try:
-                RATCHET = Path(d)
+                # Scratch sources: the real files' counts go to 0 as the areas move their texts, so the test brings its own counted literal
+                RATCHET, JAVA_DIRS = Path(d), [Path(d) / 'java']
+                JAVA_DIRS[0].mkdir()
+                (JAVA_DIRS[0] / 'Ui.java').write_text('class Ui { void f(android.content.Context c) { android.widget.Toast.makeText(c, "Some words shown", 0); } }\n',
+                                                      encoding='utf-8')
+                (JAVA_DIRS[0] / 'Streams.java').write_text('class Streams { }\n', encoding='utf-8')
                 n = len(texts(next(p for p in java_files() if p.name == 'Ui.java')))
-                self.assertGreater(n, 0, 'Ui.java has texts to count')
+                self.assertGreater(n, 0, 'the scratch Ui.java has texts to count')
                 (RATCHET / 'home.tsv').write_text(f'# head\nUi.java\t{n - 1}\n', encoding='utf-8')
                 with self.assertRaises(SystemExit):
                     write_ratchet('home')
@@ -489,7 +494,7 @@ class Ratchet(unittest.TestCase):
                 self.assertRegex(rows[1], rf'^# Re-baselined \d{{4}}-\d\d-\d\d: merge of x \(Ui.java {n - 1} -> {n}\)$')
                 self.assertEqual(rows[2:], [f'Ui.java\t{n}', 'Streams.java\t0'])
             finally:
-                RATCHET = keep
+                RATCHET, JAVA_DIRS = keep
 
     def test_ratchet_lists_files_that_exist(self):
         names = {p.name for p in java_files()}
