@@ -102,13 +102,13 @@
     <string name="game_controls_picture_position">Picture position (this screen)</string>
     <string name="game_controls_edit_layout">Edit the controls layout…</string>
     <!-- %1$s: a group of controls (game_controls_group_*), %2$d: its size in percent -->
-    <string name="game_controls_hint_group">%1$s: drag to move, a second finger to resize (%2$d %%)</string>
+    <string name="game_controls_hint_group">%1$s: drag to move, a second finger to resize (%2$d%%)</string>
     <string name="game_controls_hint_picture">picture: drag into the black bars</string>
     <string name="game_controls_hint">Drag a control or the picture; pinch a control to resize it</string>
     <string name="game_controls_vibrate">Vibrate on press</string>
     <string name="game_controls_show_log">Show the log over the game</string>
-    <string name="game_controls_opacity">Opacity %1$d %%</string>
-    <string name="game_controls_size">Size %1$d %%</string>
+    <string name="game_controls_opacity">Opacity %1$d%%</string>
+    <string name="game_controls_size">Size %1$d%%</string>
     <string name="game_controls_reset_all">Reset the controls</string>
 
     <!-- Overlay: the performance overlay's switches and its readings over the game -->

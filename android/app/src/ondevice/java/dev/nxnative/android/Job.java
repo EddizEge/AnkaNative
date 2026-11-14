@@ -313,15 +313,26 @@ final class Job {
         }
     }
 
+    /** Step s starts over from nothing (its outputs and kept results deleted): pending, and its count cleared, so the next run's count is not taken for kept work */
+    synchronized void restartStep(String s) {
+        try {
+            step0(s).put("state", "pending").put("done", 0).put("total", 0).put("stage", "");
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** The step ended in this process (done, failed, paused): its unfinished starts are forgotten. All steps' when the user starts the job again (Retry, Resume) */
     synchronized void ended(String s) { try { step0(s).put("starts", 0); } catch (JSONException e) { throw new IllegalStateException(e); } }
 
     synchronized void endedAll() { for (String s : STEPS) ended(s); }
 
-    /** A step's count from the tool's progress lines */
+    /** A step's count from the tool's progress lines; a stage line of the tool's start keeps a count kept from a run before (JobProgress.keepCount) */
     synchronized void stepProgress(String s, long done, long total, String stage) {
         try {
-            step0(s).put("done", done).put("total", total).put("stage", stage == null ? "" : stage);
+            JSONObject j = step0(s);
+            if (JobProgress.keepCount(j.optLong("total"), j.optString("stage"), done, total, stage)) return;
+            j.put("done", done).put("total", total).put("stage", stage == null ? "" : stage);
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
@@ -364,10 +375,11 @@ final class Job {
     synchronized long stepDone(int i) { return step(STEPS[i]).optLong("done"); }
     synchronized long stepTotal(int i) { return step(STEPS[i]).optLong("total"); }
 
-    /** The shaders translated so far and their total (the game's profile's shader map, Profile.shaderTotal, until the tool says its own) */
-    synchronized long shadersDone() { return "done".equals(stepState(STEPS[SHADERS])) ? shadersTotal() : stepDone(SHADERS); }
-    // the tool's total once it reported one: the shaders it translates (a delta update keeps the others, android/SHADERS.md#delta-updates), else the profile's count
-    synchronized long shadersTotal() { long t = stepTotal(SHADERS); Profile p = Profile.of(titleId()); return t > 1 || !step(STEPS[SHADERS]).optString("stage").isEmpty() ? t : p != null ? p.shaderTotal : 0; }
+    /** The shaders translated so far (shadersTotal once the step is done) */
+    synchronized long shadersDone() { return "done".equals(stepState(STEPS[SHADERS])) ? Math.max(0, shadersTotal()) : stepDone(SHADERS); }
+    /** The shaders the shaders step translates as its tool reported them (a delta update translates only some, android/SHADERS.md#delta-updates), -1 until it has
+     *  (JobProgress.shadersTotal): no count is shown before, where the game's count stood in and an update's card said "shader 0 / 42,854" */
+    synchronized long shadersTotal() { return JobProgress.shadersTotal(stepTotal(SHADERS), step(STEPS[SHADERS]).optString("stage")); }
 
     /** Step i in words, as a heading ("Checking the dump") */
     static Msg stepName(int i) { return new Msg(STEP_KEYS[i]); }
@@ -382,7 +394,8 @@ final class Job {
             String stage = step(STEPS[i]).optString("stage");
             if (stage.equals("library") || stage.equals("done")) return new Msg("prepare_stage_library");
             if (stage.equals("check")) return new Msg("prepare_stage_check");
-            return new Msg("prepare_step_shaders_progress", shadersDone(), shadersTotal());
+            long t = shadersTotal();
+            return t < 0 ? stepName(i) : new Msg("prepare_step_shaders_progress", shadersDone(), t);
         }
         long d = stepDone(i), t = stepTotal(i);
         if (t > 1) return new Msg("prepare_step_progress", stepName(i), d, t);

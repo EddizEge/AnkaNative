@@ -29,7 +29,9 @@
     <string name="prepare_card_update">Update %1$s</string>
     <!-- a test build's simulated engine; %1$s: the line above. \u0020: the two spaces stay (aapt2 joins runs of spaces) -->
     <string name="prepare_card_simulated">%1$s\u0020\u0020(simulated engine)</string>
-    <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d of %3$,d</string>
+    <string name="prepare_card_progress">%1$d%%\u0020\u0020·\u0020\u0020shaders %2$,d of %3$,d</string>
+    <!-- Ondevice: the progress line before the shaders step has said how many shaders it translates (an update translates only some: no count until it says) -->
+    <string name="prepare_card_percent">%1$d%%</string>
     <!-- Ondevice: the progress line and under it the time the running job has left (Eta.text, prepare_eta_*) -->
     <string name="prepare_card_progress_eta">%1$s\n%2$s</string>
     <!-- Eta.text: the time a running job has left, rounded: whole minutes under 20, then to 5 minutes, hours and minutes from an hour. %1$d: the minutes, or the
@@ -186,10 +188,10 @@
     <string name="prepare_note_pausing">Pausing: %1$s</string>
     <string name="prepare_note_failed">Could not prepare %1$s</string>
     <string name="prepare_note_paused">Paused: %1$s</string>
-    <string name="prepare_note_step">Step %1$d of %2$d · %3$d %%</string>
+    <string name="prepare_note_step">Step %1$d of %2$d · %3$d%%</string>
     <!-- %1$s: the step (Job.stepMsg), %3$s: why it waits or stopped -->
-    <string name="prepare_note_progress">%1$s · %2$d %%</string>
-    <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
+    <string name="prepare_note_progress">%1$s · %2$d%%</string>
+    <string name="prepare_note_progress_why">%1$s · %2$d%%\n%3$s</string>
     <!-- the running notification with the time left (Eta): %1$s: the step (Job.stepMsg), %2$s: prepare_eta_*. The time left goes first: a collapsed
          notification shows one line of text, which the step and its count alone nearly fill. _big: the expanded notification -->
     <string name="prepare_note_running_eta">%2$s · %1$s</string>

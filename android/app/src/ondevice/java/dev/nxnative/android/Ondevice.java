@@ -360,7 +360,10 @@ final class Ondevice {
             boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping) == JobForm.Form.STOPPING;
             status.setText(job.statusMsg(alive, stopping).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
-            String progress = a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal());
+            // the shader count once the shaders step's tool has said how many it translates (an update's few hundred), only the percentage before
+            long shaders = job.shadersTotal();
+            String progress = shaders < 0 ? a.getString(R.string.prepare_card_percent, Math.round(job.overall() * 100))
+                    : a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), shaders);
             // the time left (Eta) under it, only while the service's worker runs the job and has an estimate: none while paused, waiting or stopped
             boolean left = jobAlive && service != null && "running".equals(st) && etaMin >= 0;
             detail.setText(left ? a.getString(R.string.prepare_card_progress_eta, progress, Eta.text(etaMin).text()) : progress);

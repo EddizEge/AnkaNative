@@ -25,6 +25,7 @@
     <string name="prepare_card_update">Actualización %1$s</string>
     <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
     <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
+    <string name="prepare_card_percent">%1$d %%</string>
     <string name="prepare_eta_less">Queda menos de un minuto</string>
     <plurals name="prepare_eta_minutes">
         <item quantity="one">Queda alrededor de %1$d minuto</item>
@@ -149,6 +150,8 @@
     <string name="prepare_note_pausing">Pausando: %1$s</string>
     <string name="prepare_note_failed">No se pudo preparar %1$s</string>
     <string name="prepare_note_paused">En pausa: %1$s</string>
+    <string name="prepare_note_progress">%1$s · %2$d %%</string>
+    <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
     <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>
 
     <!-- PackService: why a step failed (PrepareErrors) -->

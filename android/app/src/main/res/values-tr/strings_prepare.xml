@@ -27,6 +27,7 @@
     <string name="prepare_card_update">Güncelleme %1$s</string>
     <string name="prepare_card_simulated">%1$s  (benzetim motoru)</string>
     <string name="prepare_card_progress">%%%1$d  ·  shader %2$,d / %3$,d</string>
+    <string name="prepare_card_percent">%%%1$d</string>
     <string name="prepare_eta_less">Bir dakikadan az kaldı</string>
     <plurals name="prepare_eta_minutes">
         <item quantity="one">Yaklaşık %1$d dakika kaldı</item>

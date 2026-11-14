@@ -29,6 +29,7 @@
     <!-- a test build's simulated engine; %1$s: the line above -->
     <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
     <string name="prepare_card_progress">%1$d%%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
+    <string name="prepare_card_percent">%1$d%%</string>
     <string name="prepare_eta_less">Falta menos de um minuto</string>
     <plurals name="prepare_eta_minutes">
         <item quantity="one">Falta cerca de %1$d minuto</item>

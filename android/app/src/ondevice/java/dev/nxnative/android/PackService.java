@@ -645,7 +645,7 @@ public final class PackService extends Service {
             case "shaders": {
                 // the split went (a finished job deletes it; an APK update then translates again), or it is not complete (no marker; also an older build's split/): split first
                 if (!Outputs.complete(split)) {
-                    j.stepState("split", "pending");
+                    j.restartStep("split");   // its scan results went with the job's end (or were never kept): its count starts over too
                     return "interrupted";
                 }
                 String bad = splitMatchesProfile(j, split);
@@ -750,7 +750,7 @@ public final class PackService extends Service {
             }
             Job.deleteTree(splitScan);
             j.splitFull(FULL_SPLIT_NOTICE);
-            j.stepState("split", "pending");
+            j.restartStep("split");
             return "interrupted";
         }
         if (code != 0) {   // the packer's code of the [RED] line when it printed one (JobErrors), else Prepare's own: the tool stopped, with its last [RED] line if any
@@ -830,7 +830,7 @@ public final class PackService extends Service {
             Log.w(TAG, "split: " + e.getMessage());   // its step is pending: the next run's Outputs.begin tries again
         }
         Job.deleteTree(j.splitScan(this));
-        j.stepState("split", "pending");
+        j.restartStep("split");
         // English, with the version's English (Profile.versionName), in job.json's error; the code and its arguments beside it
         return failed("shader_map", j.name(), j.version(), have.getName());
     }
