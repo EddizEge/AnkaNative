@@ -18,7 +18,7 @@
     <string name="home_nup_wrong_case">%1$s: adını \".nup\" (küçük harf) ile bitecek şekilde değiştir; oyun ve araçlar yalnızca bu adı okur.</string>
     <string name="home_file_missing">Bulunamadı: %1$s</string>
     <string name="home_file_unreadable">Okunamıyor: %1$s. Tüm dosyalara erişimin açık olduğunu kontrol et.</string>
-    <string name="home_frontend_no_card">Ana ekranda bu title ID ile bir oyun yok: %1$s. Önce %2$s ile ekle ya da bunun yerine oyunun dosyasını gönder.</string>
+    <string name="home_frontend_no_card">%2$s listesinde bu title ID ile bir oyun yok: %1$s. Önce oyunu %2$s uygulamasına ekle ya da bunun yerine oyunun dosyasını gönder.</string>
     <string name="home_frontend_fail_title">Oyun başlatılamıyor</string>
 
     <!-- Ui -->
@@ -30,7 +30,7 @@
     <string name="home_section_updates">Güncellemeler</string>
     <string name="home_check_updates">Güncellemeleri kontrol et</string>
     <string name="home_section_game_defaults">Oyun varsayılanları</string>
-    <string name="home_overlay">Ekran bilgisi</string>
+    <string name="home_overlay">Performans göstergesi</string>
     <string name="home_resolution">Çözünürlük</string>
     <string name="home_fps_cap">Kare hızı sınırı</string>
     <string name="home_frame_gen">Kare üretimi</string>
@@ -93,7 +93,7 @@
     <string name="home_step_prepare_pc">PC\'de hazırla</string>
     <string name="home_state_unsupported">Desteklenmiyor</string>
     <string name="home_state_checking">Kontrol ediliyor…</string>
-    <string name="home_state_needs_prepare">Hazırlanması gerekiyor</string>
+    <string name="home_state_needs_prepare">Hazırlanmalı</string>
     <string name="home_state_no_pack">Paket yok</string>
     <string name="home_state_pack_unfinished">Paket tamamlanmamış</string>
     <string name="home_state_preparing">Hazırlanıyor…</string>
@@ -115,7 +115,7 @@
     <string name="home_restore_saves">Kayıtları geri yükle</string>
     <string name="home_import_save">Kayıt içe aktar</string>
     <string name="home_prepare_again">Yeniden hazırla</string>
-    <string name="home_prepare_again_value">Uymayanı yeniden yapar</string>
+    <string name="home_prepare_again_value">Uygun olmayanı yeniden yapar</string>
     <string name="home_export_pack">Paketi dışa aktar…</string>
     <string name="home_export_pack_value">Seçtiğin klasöre tek bir .zip</string>
     <string name="home_import_pack">Paketi içe aktar…</string>
@@ -158,7 +158,7 @@
     <string name="home_pick_a_pack_folder">Paket klasörü seç</string>
     <string name="home_pick_android_pack">Paket klasörünü seç (android-pack, pack.tsv içeren)</string>
     <string name="home_added_ok">Eklendi: %1$s.</string>
-    <string name="home_added_prepare">Hazırlanması gerekiyor: %1$s. Uyan bir paket bulunamadı: kartındaki %2$s düğmesi bu telefonda bir paket yapar (aynı anda bir oyun).</string>
+    <string name="home_added_prepare">Hazırlanması gerekiyor: %1$s. Uygun bir paket bulunamadı: kartındaki %2$s düğmesi bu telefonda bir paket yapar (aynı anda bir oyun).</string>
     <string name="home_added_unsupported">Bu uygulamada desteklenmiyor: %1$s. Bu uygulama şunları çalıştırır: %2$s.</string>
     <string name="home_added_no_pack">Paket bulunamadı: %1$s. Paket klasörünü seçmek için onu tek başına ekle.</string>
     <string name="home_added_failed">Eklenmedi: %1$s</string>
@@ -180,8 +180,8 @@
 
     <!-- MainActivity: removing a game, Play -->
     <string name="home_remove_title">%1$s kaldırılsın mı?</string>
-    <string name="home_remove_body_save">Yalnızca liste kaydı gider. Döküm, paketi ve kayıtların (%1$s) telefonda kalır; %2$s ile geri getirebilirsin.</string>
-    <string name="home_remove_body">Yalnızca liste kaydı gider. Döküm, paketi ve kayıtların telefonda kalır; %1$s ile geri getirebilirsin.</string>
+    <string name="home_remove_body_save">Yalnızca liste kaydı gider. Dökümün, paketi ve kayıtların (%1$s) telefonda kalır; %2$s ile geri getirebilirsin.</string>
+    <string name="home_remove_body">Yalnızca liste kaydı gider. Dökümün, paketi ve kayıtların telefonda kalır; %1$s ile geri getirebilirsin.</string>
     <string name="home_remove_yes">Kaldır</string>
     <string name="home_busy_save">%1$s için bir kayıt yedekleme ya da geri yükleme hâlâ sürüyor: %2$s düğmesi bunun bitmesini bekler.</string>
     <string name="home_busy_pack">%1$s paketinin dışa ya da içe aktarımı hâlâ sürüyor: %2$s düğmesi bunun bitmesini bekler.</string>
