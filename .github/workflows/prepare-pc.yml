@@ -63,8 +63,8 @@ jobs:
           echo "DMSH_CHAIN $got (committed $want)"; [ "$got" = "$want" ]
           want=$(sed -n 's/^#define DMSH_VK_CHAIN "\(.*\)"/\1/p' dm/gfx/nvn/dmsh_chain_vk.h); got=$(DM_GAME=0400486024DEC000 python dm/gfx/tools/vk_android_build.py --version)
           echo "DMSH_VK_CHAIN $got (committed $want)"; [ "$got" = "$want" ]
-          echo "Ocarina of Time shader inputs: $(DM_GAME=0400486024DEC000 python dm/gfx/tools/dmsh_chain.py --inputs) (Linux: 4610dec2c950)"
-          [ "$(DM_GAME=0400486024DEC000 python dm/gfx/tools/dmsh_chain.py --inputs)" = 4610dec2c950 ]
+          echo "Ocarina of Time shader inputs: $(DM_GAME=0400486024DEC000 python dm/gfx/tools/dmsh_chain.py --inputs) (Linux: a6b20a286c27)"
+          [ "$(DM_GAME=0400486024DEC000 python dm/gfx/tools/dmsh_chain.py --inputs)" = a6b20a286c27 ]
       - name: The translator launcher starts the committed translator
         run: |
           x=$(python -c "import sys; sys.path.insert(0, 'scripts'); import pack_android; print(pack_android.xlate_program())")

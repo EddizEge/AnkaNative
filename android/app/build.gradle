@@ -79,9 +79,9 @@ def reqText = { String s -> s.replaceAll(/[\t\n\\"]/, ' ').replaceAll(/[;|]/, ',
 def reqsOf = { String game -> readinessRows(game).findAll { it.size() >= 4 && it[0] in ['required', 'degraded'] }.collect { c -> (c.take(3) + [c.drop(3).join(' ')]).collect { reqText(it) }.join('|') }.join(';') }
 def statusOf = { String game -> readinessRows(game).find { it.size() >= 2 && it[0] == 'status' }?.getAt(1)?.trim() ?: '' }
 // and last the shader delta rows (the profile's vk_delta.tsv "from" rows when its version is this tree's: "version=shaders to translate", ',' between them; Prepare's
-// estimate for an update, ShaderLibs.toTranslate)
+// estimate for an update, ShaderLibs.toTranslate; "version@inputs=count" for this version's library made from older profile inputs, ShaderLibs.older)
 def deltaOf = { String game -> def f = new File(repo, "dm/games/$game/vk_delta.tsv"); if (!f.isFile()) return ''; def ls = f.readLines()
-    ls.contains("version\t${defineOf('dm/gfx/nvn/dmsh_chain_vk.h', 'DMSH_VK_CHAIN')}".toString()) ? ls.findAll { it ==~ /from\t[0-9a-f]{12}\t\d+/ }.collect { def c = it.split('\t'); "${c[1]}=${c[2]}" }.join(',') : '' }
+    ls.contains("version\t${defineOf('dm/gfx/nvn/dmsh_chain_vk.h', 'DMSH_VK_CHAIN')}".toString()) ? ls.findAll { it ==~ /from\t[0-9a-f]{12}(@[0-9a-f]{12})?\t\d+/ }.collect { def c = it.split('\t'); "${c[1]}=${c[2]}" }.join(',') : '' }
 // and its "stamp" rows (an older library that becomes this version's by its header alone, ShaderLibs.restamp): "version:old SHA-256:new SHA-256", ';' between them
 def stampOf = { String game -> def f = new File(repo, "dm/games/$game/vk_delta.tsv"); if (!f.isFile()) return ''; def ls = f.readLines()
     ls.contains("version\t${defineOf('dm/gfx/nvn/dmsh_chain_vk.h', 'DMSH_VK_CHAIN')}".toString()) ? ls.findAll { it ==~ /stamp\t[0-9a-f]{12}\t[0-9a-f]{64}\t[0-9a-f]{64}/ }.collect { it.split('\t').drop(1).join(':') }.join(';') : '' }
@@ -96,7 +96,10 @@ def gpuTsOf = { String game -> tsvRows(game, 'gpu_timestamps').with { rs -> rs.i
 def windowOf = { String game -> tsvRows(game, 'android_window').with { rs -> rs.isEmpty() || rs[0].size() < 2 ? '' : rs[0][1].trim() } }
 // game.tsv res_choice rows (Game settings › 3D resolution, DM_RES_LEVEL; dm/games/game.py checks them): "<value>=<label>", ';' between them, "" without rows
 def resChoicesOf = { String game -> tsvRows(game, 'res_choice').findAll { it.size() >= 3 }.collect { c -> c[1].trim() + '=' + c[2].trim().replaceAll(/[=;\\"]/, ' ') }.join(';') }
-def nxProfiles = nxGames.collect { g -> [g, nameOf(g).replaceAll(/[\t\n\\"]/, ' '), shaderTotalOf(g), shaderInputsOf(g), buildsOf(g), reqsOf(g), statusOf(g), deltaOf(g), stampOf(g), resolutionOf(g), romfsChecksOf(g), gpuTsOf(g), windowOf(g), resChoicesOf(g)].join('\\t') }.join('\\n')
+// The phone's shader split of the game in minutes (game.tsv android_split_minutes <lo> <hi> [<update lo> <update hi>]: "lo-hi", or "lo-hi,ulo-uhi" with the split of a
+// shader update, which reads only the files of the shaders it translates; empty without the row: ShaderLibs.minutes' 4-8)
+def splitOf = { String game -> tsvRows(game, 'android_split_minutes').with { rs -> rs.isEmpty() || rs[0].size() < 3 ? '' : ("${rs[0][1].trim()}-${rs[0][2].trim()}" + (rs[0].size() >= 5 ? ",${rs[0][3].trim()}-${rs[0][4].trim()}" : '')).toString() } }
+def nxProfiles = nxGames.collect { g -> [g, nameOf(g).replaceAll(/[\t\n\\"]/, ' '), shaderTotalOf(g), shaderInputsOf(g), buildsOf(g), reqsOf(g), statusOf(g), deltaOf(g), stampOf(g), resolutionOf(g), romfsChecksOf(g), gpuTsOf(g), windowOf(g), resChoicesOf(g), splitOf(g)].join('\\t') }.join('\\n')
 def lockOf = { String key -> def f = new File(repo, 'dm/gfx/tools/dmsh_chain.lock'); f.isFile() ? (f.readLines().find { it.startsWith(key + '\t') }?.split('\t')?.getAt(1) ?: 'unknown') : 'unknown' }
 
 android {

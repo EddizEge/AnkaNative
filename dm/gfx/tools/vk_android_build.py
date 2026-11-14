@@ -29,6 +29,8 @@
 #   those the profile's manifest of this version (vk_delta.tsv, a full Mac build) has as "-": every shader the Mac's build holds
 # Resumable: each shader's result (its modules, compressed, and its reflection) is one file <results>/<key>.r, written to a temporary name and renamed, stamped with
 #   the tools digest, the profile inputs digest, the validator's version and the key; a rerun skips every key with a valid result (a killed build resumes; a later build of the same version is a cache hit)
+#   and, with the profile's manifest of this version, keeps a result of other tools or profile inputs whose library entry has the manifest's hash (stale_kept: a Prepare
+#   an app update stopped part way keeps what it translated, as the delta keeps an older library's entries)
 #   and the library is written from the result files. Pixel shaders go first; the vertex shaders' padding reads their inputs from the pixel shaders' results.
 #   Progress lines on stdout: "progress <done> <total> <stage>" (stage translate, library, done); the total is the shader count from the profile's shader_map.tsv, known
 #   before any translation
@@ -322,11 +324,17 @@ if argv[:1] == ['--publish-delta'] and len(argv) >= 2:
     except FileNotFoundError: _prev = None
     except ValueError as _e: sys.exit(f'[RED] {_prof}: {_e}')
     if _prev and _prev['game'] == _g.id and _prev['version'] != _m['version']: _froms[_prev['version']] = len(delta.to_translate(_prev['hashes'], _m['hashes']))
-    if _prev and _prev['version'] == _m['version']: _froms.update(_prev['from']); _stamps.update(_prev['stamp'])   # published again: keep what was measured
+    # The same version from other profile inputs (new shaders in the profile's tables, android/SHADERS.md#profile-input-updates): a phone's library of the previous
+    # manifest's inputs keeps every entry whose hash is unchanged, so its row "<version>@<those inputs>" counts the rest. What the previous manifest measured against
+    # its own hashes (its from and stamp rows) is not carried over: a stamp row names a file of those inputs
+    if _prev and _prev['game'] == _g.id and _prev['version'] == _m['version'] and _prev['inputs'] != _m['inputs']:
+        _froms[f'{_m["version"]}@{_prev["inputs"]}'] = len(delta.to_translate(_prev['hashes'], _m['hashes']))
+    elif _prev and _prev['version'] == _m['version']: _froms.update(_prev['from']); _stamps.update(_prev['stamp'])   # published again: keep what was measured
     for _o in _olds:
         _L, _hs = delta.library_hashes(_o if _o.endswith('.lib') else os.path.join(_o, VK['LIB_FILE']), zstd, int(os.environ.get('J', '8'))); _L.close()
         if _L.game != _g.id: sys.exit(f'[RED] {_o}: a library of game {_L.game}')
         if _L.version != _m['version']: _froms[_L.version] = len(delta.to_translate(_hs, _m['hashes']))
+        elif _L.inputs != _m['inputs']: _froms[f'{_L.version}@{_L.inputs}'] = len(delta.to_translate(_hs, _m['hashes']))   # this version, older profile inputs
         _of = _o if _o.endswith('.lib') else os.path.join(_o, VK['LIB_FILE'])
         if _L.version != _m['version'] and os.path.isfile(_new) and delta.stamp_only(_of, _new):   # byte-identity is the rule (a shader that builds nowhere counts in from)
             _stamps[_L.version] = (delta.sha256_file(_of), delta.sha256_file(_new))
@@ -965,7 +973,8 @@ def load_manifest():
 
 def older_libraries():
     """The libraries a delta may take entries from: DMSH_VK_DELTA_FROM (paths separated by os.pathsep, each a dmsh_vk.lib, a v-<V> folder or a folder of them; the app passes
-    the pack's shaders/), else the other v-<V> folders of the output's cache folder; only libraries of this game in a format this tool reads, newest first"""
+    the pack's shaders/), else the v-<V> folders of the output's cache folder; only libraries of this game in a format this tool reads, newest first. The output's own
+    library is one only when it was made from other profile inputs (android/SHADERS.md#profile-input-updates): of these inputs, its entries are results already"""
     roots = [p for p in os.environ.get('DMSH_VK_DELTA_FROM', '').split(os.pathsep) if p] or [cache_root]
     files = []
     for r in roots:
@@ -976,10 +985,10 @@ def older_libraries():
         files += [os.path.join(r, n, VK['LIB_FILE']) for n in subs if n.startswith(VK['DIR_PREFIX']) and os.path.isfile(os.path.join(r, n, VK['LIB_FILE']))]
     libs = []
     for f in sorted(set(os.path.realpath(f) for f in files)):
-        if os.path.dirname(f) == os.path.realpath(out): continue   # this version's own library (an earlier run's): its entries are results already
+        own = os.path.dirname(f) == os.path.realpath(out)   # this version's own library (an earlier run's)
         try: L = delta.Library(f)
         except (OSError, ValueError, struct.error) as e: print(f'delta: {f} skipped: {e}', flush=True); continue
-        if L.game != GAME.id: L.close(); continue
+        if L.game != GAME.id or own and L.inputs == INPUTS: L.close(); continue
         libs.append(L)
     return sorted(libs, key=lambda L: -os.stat(L.path).st_mtime)
 
@@ -1176,8 +1185,40 @@ for _n in os.listdir(RES):   # what a killed build left: unfinished result files
 heads = {k: {'reused': h.get('reused')} for k in keys if (h := result_head(result_path(k)))}   # (what is read of them below: the whole heads of a library's results are ~1 GB as Python objects)
 MANIFEST, _why = (None, 'a key list') if want else (None, 'DMSH_VK_RAW') if RAW else load_manifest()
 REUSED = {k for k, h in heads.items() if h.get('reused')}
+def stale_kept(k):
+    """A result file another build left (other tools or profile inputs: a Prepare that an app update stopped part way, its results stamped with the tools that made
+    them), kept when its library entry has the manifest's hash: the entry this build makes, byte for byte, as an older library's entry with that hash is (the same
+    test as the delta's). Rewritten as such a kept entry (the reflection's 'reused' names the results it came from), so the library and the checks treat it as one.
+    → its origin, or None (not a result, not built there, another hash: translated)"""
+    try:
+        with open(result_path(k), 'rb') as f: d = f.read()
+        if d[:8] != RESULT_MAGIC: return None
+        n = struct.unpack_from('<I', d, 8)[0]; h = json.loads(d[12:12 + n]); o = 12 + n
+        if h.get('key') != k or h.get('st') != 'ok' or not h.get('refl') or h.get('raw') != RAW or h.get('stage') != STAGE_OF[k]: return None
+        mods = []
+        for variant, size, ln, codec in h['modules']:
+            mods.append((variant, size, d[o:o + ln], codec)); o += ln
+            if len(mods[-1][2]) != ln: return None   # cut short
+        entry, binds, c1 = entry_parts(k, h['refl'], len(mods))
+        sp = [(v, delta.spirv(st, codec, zstd)) for v, size, st, codec in mods]
+        if any(len(x) != m[1] for (_, x), m in zip(sp, mods)) or delta.entry_hash(entry, binds, c1, sp) != MANIFEST['hashes'][k]: return None
+    except Exception: return None   # unreadable, or a reflection these tools do not read: translated
+    origin = h['refl'].get('reused') or f'results {h.get("vk")}@{h.get("inputs")}'
+    refl = {'stage': STAGE_OF[k], 'reused': origin, 'lib': {'entry': delta.zeroed(entry).hex(), 'binds': binds.hex(), 'c1': c1.hex()}}
+    write_result(k, 'ok', '', (refl, [(v, size, st, codec, None) for v, size, st, codec in mods]), None)
+    return origin
+
+
 if MANIFEST:
     _cand = [k for k in keys if k not in heads and MANIFEST['hashes'].get(k, '-') != '-']
+    _from = collections.Counter()
+    _st = [k for k in _cand if os.path.exists(result_path(k))]
+    with cf.ThreadPoolExecutor(NJ) as ex:   # results of other tools or inputs first: the files are here, no library is opened for them
+        for k, v in zip(_st, ex.map(stale_kept, _st)):
+            if v:
+                _from[v] += 1; REUSED.add(k)
+                heads[k] = {'reused': v, 'ps_inputs': None}
+    _cand = [k for k in _cand if k not in heads]
     _libs = older_libraries() if _cand else []
     _have = collections.defaultdict(list)   # key → [(library, entry number)], newest library first
     for L in _libs:
@@ -1193,7 +1234,6 @@ if MANIFEST:
             write_result(k, 'ok', '', (refl, [(v, size, bytes(st), codec, None) for v, size, st, codec in mods]), None)
             return k, L.version, None
         return k, None, '; '.join(errs) or None
-    _from = collections.Counter()
     with cf.ThreadPoolExecutor(NJ) as ex:
         for k, v, err in ex.map(_reuse, [k for k in _cand if k in _have]):
             if err: print(f'[RED] delta: {k}: the older library\'s entry cannot be read ({err}): translated', flush=True)
@@ -1202,7 +1242,7 @@ if MANIFEST:
                 heads[k] = {'reused': v, 'ps_inputs': None}
     for L in _libs: L.close()
     if not _libs and not REUSED: print('delta: no older library of this game: a full build', flush=True)
-    else: print(f'delta: {len(REUSED)} of {len(keys)} shaders kept (' + (', '.join(f'from v-{v}: {n}' for v, n in _from.most_common()) or 'by an earlier run of this build')
+    else: print(f'delta: {len(REUSED)} of {len(keys)} shaders kept (' + (', '.join(f'from {v if v.startswith("results ") else "v-" + v}: {n}' for v, n in _from.most_common()) or 'by an earlier run of this build')
                 + f'); {len(keys) - len(REUSED)} to translate, {sum(1 for k in keys if k not in heads)} of them left', flush=True)
 else: print(f'delta: none ({_why}): a full build', flush=True)
 todo = [k for k in ORDER if k not in heads]

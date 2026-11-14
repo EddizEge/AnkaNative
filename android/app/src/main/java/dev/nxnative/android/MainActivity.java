@@ -500,7 +500,7 @@ public final class MainActivity extends Activity {
         if (Pack.libraryProblem(pd, g.titleId) != null) {
             Problem s = new Problem(getString(R.string.home_state_shaders_needed), dump);
             s.shadersOnly = true;
-            s.playable = Pack.playableLibrary(pd, g.titleId) != null;
+            s.playable = Pack.playableLibrary(pd, g.titleId, dump) != null;
             s.legacy = !s.playable && Pack.legacyLibrary(pd, g.titleId) != null;
             return s;
         }
@@ -952,7 +952,7 @@ public final class MainActivity extends Activity {
         // The host loads <pack>/shaders/v-<its DMSH_VK_CHAIN>/dmsh_vk.lib: without it the game runs but draws nothing. Say so, and offer to prepare the shaders
         // (a dump) or another pack folder
         String lp = text(Pack.libraryProblemMsg(new File(g.packDir), g.titleId));
-        if (lp != null && Pack.playableLibrary(new File(g.packDir), g.titleId) != null) {   // the older library plays while the update makes this version's (vka_shader.c lib_load)
+        if (lp != null && Pack.playableLibrary(new File(g.packDir), g.titleId, dump) != null) {   // the older library plays while the update makes this version's (vka_shader.c lib_load)
             if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
             start(g);
             return;
@@ -964,9 +964,12 @@ public final class MainActivity extends Activity {
             return;
         }
         if (lp != null) {
-            AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(R.string.home_shaders_missing)
+            // This version's library of older shader tables, with no dump to update it from (a pack made on a computer): the game plays, without the shaders the app's
+            // tables added (Ocarina of Time's mesh draws), until the pack is made again with this version's tools
+            boolean older = !dump && Pack.ownInputsDelta(new File(g.packDir), g.titleId) >= 0;
+            AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(older ? R.string.home_shaders_out_of_date : R.string.home_shaders_missing)
                     .setMessage(dump ? getString(R.string.home_shaders_missing_prepare, Ondevice.prepareShadersMsg(new File(g.packDir), g.titleId).text(), lp)
-                            : getString(R.string.home_shaders_missing_body, lp))
+                            : older ? getString(R.string.home_shaders_out_of_date_body, lp) : getString(R.string.home_shaders_missing_body, lp))
                     .setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).setNegativeButton(android.R.string.cancel, null);
             if (dump) b.setPositiveButton(R.string.home_prepare, (d, w) -> Ondevice.prepare(this, gd, false));
             else b.setPositiveButton(R.string.home_start_anyway, (d, w) -> start(g));

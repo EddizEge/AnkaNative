@@ -246,6 +246,9 @@
     <string name="home_shaders_missing_prepare" translatable="false">%1$s\n\n%2$s</string>
     <string name="home_shaders_missing_body">Without them the game draws nothing.\n\n%1$s</string>
     <string name="home_start_anyway">Start anyway</string>
+    <!-- MainActivity: a pack made on a computer whose library is of older shader tables (no dump to update it from); %1$s: why (Pack.libraryProblemMsg) -->
+    <string name="home_shaders_out_of_date">Shaders out of date</string>
+    <string name="home_shaders_out_of_date_body">The game starts with the shaders the pack has. Those this app version added are missing until the pack is made again with this version\'s tools (scripts/pack_android.py on a computer), or the game is added from its dump so the app updates them.\n\n%1$s</string>
     <string name="home_pack_cannot_start">The pack cannot start this game</string>
     <!-- %1$s: home_prepare_again, %2$s: why (PackCheck), %3$s: the pack folder -->
     <string name="home_pack_problem_dump">%1$s fixes it from your dump, on this phone.\n\n%2$s\n\nPack: %3$s</string>

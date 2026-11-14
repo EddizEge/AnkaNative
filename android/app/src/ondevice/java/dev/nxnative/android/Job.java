@@ -21,6 +21,9 @@ import java.nio.file.StandardCopyOption;
  * <pre>
  * { "format": 1, "title_id", "name", "version", "dump", "work", "pack": the pack folder the job writes,
  *   "apk": { "engine", "dmsh_chain", "dmsh_vk_chain", "xlate_source", "version_code" }: what the outputs depend on (a change restarts the translation),
+ *   "shader_inputs": the profile inputs its split and library are made for (JobInputs; another APK's start the split or the shaders over),
+ *   "split_full": the split reads every file (a delta split's package missed a shader the build wanted), "notice": why a step runs again, a code the status line adds
+ *   in words (Job.noticeMsg: "inputs_changed", "split_full"),
  *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, timeout) or "", "error": why failed (English),
  *   "error_code": the code of that failure, Prepare's own (PrepareErrors) or the packer's (JobErrors), or "", "error_args": its arguments (strings),
  *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
@@ -55,7 +58,7 @@ final class Job {
     static Job create(DumpCheck.Result r, File appPack) throws JSONException {
         JSONObject o = new JSONObject().put("format", FORMAT).put("title_id", r.titleId).put("name", Profile.of(r.titleId) != null ? Profile.of(r.titleId).name : r.titleId).put("version", r.version)
                 .put("dump", r.dump.getPath()).put("work", r.work.getPath()).put("apk", apk()).put("state", "pending").put("reason", "").put("error", "")
-                .put("step", STEPS[0]).put("created", System.currentTimeMillis());
+                .put("step", STEPS[0]).put("created", System.currentTimeMillis()).put("shader_inputs", inputs(r.titleId));
         // the fake engine never writes over a real pack: its pack is a placeholder in ondevice/
         File pack = "fake".equals(BuildConfig.NX_PACK_ENGINE) ? new File(r.work, "ondevice/fake-pack") : appPack;
         o.put("pack", pack.getPath());
@@ -124,12 +127,62 @@ final class Job {
         return false;
     }
 
+    /** This APK's profile inputs of a game (Profile.shaderInputs), "" when it has no profile */
+    static String inputs(String titleId) { Profile p = Profile.of(titleId); return p == null ? "" : p.shaderInputs; }
+
+    /**
+     * Starts the split or the shaders over when the job's outputs were made from other profile inputs than this APK's (JobInputs.redoFrom: profileMap is the
+     * profile's shader_map.tsv the APK carries), records this APK's inputs, and says so in the job's status (notice). → the first step started over, -1 when none.
+     * The caller deletes the outputs of the steps started over (the split, its kept scan results and the library; the translation results stay: the build keeps
+     * those whose library entry is the manifest's)
+     */
+    synchronized int inputsChanged(File profileMap) throws JSONException {
+        String cur = inputs(titleId());
+        int from = JobInputs.redoFrom(o.optString("shader_inputs", ""), cur, new File(dir(), "split"), profileMap,
+                new File(shaderCache(), "v-" + BuildConfig.NX_DMSH_VK_CHAIN), "done".equals(stepState(STEPS[SHADERS])));
+        if (cur.matches("[0-9a-f]{12}")) o.put("shader_inputs", cur);
+        if (from < 0) return -1;
+        for (int i = from; i < STEPS.length; i++) o.getJSONObject("steps").put(STEPS[i], new JSONObject().put("state", "pending").put("done", 0).put("total", 0).put("stage", ""));
+        o.remove("shader_cache");
+        o.put("split_full", false);
+        o.put("notice", JobInputs.NOTICE);
+        return from;
+    }
+
+    /** Whether the split reads every file of the dump (split_full): a delta split's package missed a shader the build wanted (PackService) */
+    synchronized boolean splitFull() { return o.optBoolean("split_full", false); }
+
+    /** The next split reads every file; the status says why */
+    synchronized void splitFull(String why) {
+        try {
+            o.put("split_full", true).put("notice", why);
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    synchronized void clearNotice() { o.remove("notice"); }
+
+    /** The code of what the status adds while the job is not done: why a step runs again ("" when none; JobInputs.NOTICE, PackService.FULL_SPLIT_NOTICE) */
+    synchronized String notice() { return "done".equals(state()) ? "" : o.optString("notice", ""); }
+
+    /** The notice in words (prepare_notice_*), null when there is none; a code this build does not know (another build's job.json) is shown as it is */
+    synchronized Msg noticeMsg() {
+        String n = notice();
+        if (n.isEmpty()) return null;
+        if (n.equals(JobInputs.NOTICE)) return new Msg("prepare_notice_inputs_changed");
+        if (n.equals(PackService.FULL_SPLIT_NOTICE)) return new Msg("prepare_notice_split_full");
+        return new Msg("prepare_status_raw", n);
+    }
+
     /** Starts the chain's steps over with this APK's versions; the caller deletes their outputs */
     synchronized void resetChainSteps() throws JSONException {
         // the split is the dump's and stays valid, but a finished job deleted it: then it is made again too
         int from = Outputs.complete(new File(dir(), "split")) ? FIRST_CHAIN_STEP : FIRST_CHAIN_STEP - 1;
         for (int i = from; i < STEPS.length; i++) o.getJSONObject("steps").put(STEPS[i], new JSONObject().put("state", "pending").put("done", 0).put("total", 0).put("stage", ""));
         o.remove("shader_cache");
+        o.remove("split_full");
+        o.remove("notice");
         o.put("apk", apk());
         if ("done".equals(state())) o.put("state", "paused").put("reason", "apk");
     }
@@ -337,11 +390,20 @@ final class Job {
     }
 
     /**
-     * One line for the screen and the notification: what the job is doing or why it stopped. A failure shows the text of its code when it has one this app
+     * One line for the screen and the notification: what the job is doing or why it stopped, with the job's notice after it while it is not done (why a step runs
+     * again, noticeMsg)
+     */
+    synchronized Msg statusMsg(boolean serviceAlive) {
+        Msg s = statusMsg0(serviceAlive), n = noticeMsg();
+        return n == null ? s : new Msg("prepare_status_notice", s, n);
+    }
+
+    /**
+     * The status line without the notice. A failure shows the text of its code when it has one this app
      * knows: Prepare's own (PrepareErrors, docs/i18n.md "Errors of Prepare") inside "Stopped at …: …", the packer's (JobErrors, "Errors of the packer") as a
      * sentence of its own; else its English error (job.json) as an argument
      */
-    synchronized Msg statusMsg(boolean serviceAlive) {
+    private Msg statusMsg0(boolean serviceAlive) {
         String s = state();
         switch (s) {
             case "done": return new Msg("prepare_status_done");

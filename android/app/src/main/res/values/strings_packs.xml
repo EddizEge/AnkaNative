@@ -9,6 +9,9 @@
     <string name="packs_no_module">the pack has no %1$s.patched.bin</string>
     <string name="packs_tsv_no_row">pack.tsv has no %1$s</string>
     <string name="packs_library_unreadable">The pack\'s shader library (%1$s) cannot be read: %2$s</string>
+    <!-- Pack.libraryProblemMsg: this version's library made from older shader tables that the delta manifest knows; %1$s, %2$s: the inputs digests (the library's,
+         this app's), %3$,d: the shaders new or changed in this app version, %4$,d: the game's shaders -->
+    <string name="packs_library_older_inputs">The pack\'s shader library was made from older shader tables (inputs %1$s) than this app\'s (%2$s): %3$,d of the game\'s %4$,d shaders are new or changed in this app version. Until they are made the game plays without them, so some of it is not drawn; an update from the dump makes only those and keeps the others.</string>
     <string name="packs_library_other_inputs">The pack\'s shader library was built from other shader tables (inputs %1$s) than this app\'s (%2$s): its shaders need making again.</string>
     <string name="packs_library_none">The pack folder %1$s has no shader library: this app needs shaders/v-%2$s/dmsh_vk.lib in it.</string>
     <string name="packs_library_other_version">The pack folder %1$s has the shader library version %2$s, but this app needs version %3$s (shaders/v-%3$s/dmsh_vk.lib).</string>

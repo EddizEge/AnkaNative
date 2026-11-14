@@ -72,6 +72,7 @@ run: $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_touch $(B)/t_gesture 
 	$(B)/t_android_place
 	$(B)/t_drs_level
 	$(B)/t_android_aspick
+	$(B)/t_android_memu
 run: $(B)/t_nro
 run: $(B)/t_symbols
 $(B)/t_symbols: t_symbols.c ../hle.c ../loader.c ../hle.h ../dm.h $(GAME_H) | $(B)
@@ -350,7 +351,7 @@ coverage:
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
 # The Android host's pure parts (dm/host/android): resampler, channel map, SPS size, MediaCodec picture layouts; gamepad / touch / sensor mapping
-run: $(B)/t_android_av $(B)/t_android_input $(B)/t_android_shlib $(B)/t_android_spvpatch $(B)/t_android_imgmem $(B)/t_android_zshare $(B)/t_android_rtalias $(B)/t_android_memfoot $(B)/t_android_place $(B)/t_android_aspick
+run: $(B)/t_android_av $(B)/t_android_input $(B)/t_android_shlib $(B)/t_android_spvpatch $(B)/t_android_imgmem $(B)/t_android_zshare $(B)/t_android_rtalias $(B)/t_android_memfoot $(B)/t_android_place $(B)/t_android_aspick $(B)/t_android_memu
 $(B)/t_android_av: t_android_av.c ../android/av_android.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_av.c
 $(B)/t_android_input: t_android_input.c ../android/input_map.c ../android/input_map.h ../motion_fusion.h ../dm_input.h | $(B)
@@ -398,3 +399,7 @@ $(B)/t_android_fileback: t_android_fileback.c $(VKA)/vka_fileback.h | $(B)
 # The replay's SPIR-V rewrite of integer-fed vertex inputs (vka_spvpatch.c): the selftest's vertex shader, validated by spirv-val when it is on the PATH; DM_VK_SPV_DIR=<.spv folder> adds those modules
 $(B)/t_android_spvpatch: t_android_spvpatch.c $(VKA)/vka_spvpatch.c $(VKA)/vka_spvpatch.h $(VKA)/vka_selftest_spv.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_spvpatch.c $(VKA)/vka_spvpatch.c
+# NVN2 task and mesh draws through compute (vka_memu_spv.c, from Banana Native, GPL-3.0-or-later): the fixtures in memu/ converted and validated by spirv-val when it is on the PATH;
+# DM_VK_MEMU_LIB=<dmsh_vk.lib> adds every task and mesh module of a real library
+$(B)/t_android_memu: t_android_memu.c $(VKA)/vka_memu_spv.c $(VKA)/vka_memu_spv.h $(VKA)/vka_memu_abi.h $(VKA)/vka_memu_order.h $(VKA)/vka_spvpatch.c $(VKA)/vka_shlib.c $(VKA)/vka_bind.c memu/memu_fixtures.h $(B)/zstddeclib.o | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_memu.c $(VKA)/vka_memu_spv.c $(VKA)/vka_spvpatch.c $(VKA)/vka_shlib.c $(VKA)/vka_bind.c $(B)/zstddeclib.o

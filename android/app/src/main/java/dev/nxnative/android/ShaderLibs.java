@@ -106,14 +106,65 @@ final class ShaderLibs {
     static String legacyWarning() { return Tr.s("packs_legacy_warning", HomeLabels.prepareShaders()); }
 
     /** The versions of the libraries of titleId's game a pack folder has, other than current (what a delta update can start from) */
-    static List<String> older(File packDir, String titleId, String current) {
+    static List<String> older(File packDir, String titleId, String current) { return older(packDir, titleId, current, null); }
+
+    /**
+     * As {@link #older}, and the current version's own library when it was made from other profile inputs than this APK's (inputs: Profile.shaderInputs; null or
+     * "unknown": not asked), as "&lt;current&gt;@&lt;its inputs&gt;": a profile change (new shaders in the game's tables) leaves the version as it is, and the delta
+     * manifest's "from" row of that form counts the shaders such a library lacks or has otherwise (android/SHADERS.md#profile-input-updates)
+     */
+    static List<String> older(File packDir, String titleId, String current, String inputs) {
         List<String> out = new java.util.ArrayList<>();
         for (File d : libraries(packDir)) {
             String v = d.getName().substring(2);
             Header h = header(new File(d, "dmsh_vk.lib"));
-            if (!v.equals(current) && h != null && titleId.equals(h.game)) out.add(v);
+            if (h == null || !titleId.equals(h.game)) continue;
+            if (!v.equals(current)) out.add(v);
+            else if (inputs != null && inputs.matches("[0-9a-f]{12}")) {
+                String li = inputsOf(d);
+                if (li.matches("[0-9a-f]{12}") && !li.equals(inputs)) out.add(v + "@" + li);
+            }
         }
         return out;
+    }
+
+    /** The profile inputs a library folder (v-&lt;V&gt;/) was made from: its inputs.tsv's inputs row, else the library header's (as Pack.libraryProblem reads them); "" when neither */
+    static String inputsOf(File libDir) {
+        try {
+            for (String l : Files.readAllLines(new File(libDir, "inputs.tsv").toPath(), StandardCharsets.UTF_8))
+                if (l.startsWith("inputs\t")) return l.substring(7).trim();
+        } catch (IOException e) {
+            // no inputs.tsv (a library copied by hand): the header carries them
+        }
+        Header h = header(new File(libDir, "dmsh_vk.lib"));
+        return h == null ? "" : h.inputs;
+    }
+
+    /**
+     * This version's own library when the replay loads it although it was made from other profile inputs (vka_shader.c lib_load takes v-&lt;current&gt;/ first and does
+     * not ask its inputs): its header names titleId, version current and this APK's abi; null otherwise. It lacks the shaders the profile added since (those draws
+     * are skipped) and draws the rest as before, so the launcher keeps Play on while the update brings it current
+     */
+    static File ownOtherInputs(File packDir, String titleId, String current, String abi) {
+        if (abi == null || !abi.matches("[0-9a-f]{12}") || current == null) return null;
+        File lib = new File(new File(packDir, "shaders"), "v-" + current + "/dmsh_vk.lib");
+        Header h = lib.isFile() ? header(lib) : null;
+        return h != null && titleId.equals(h.game) && current.equals(h.vkChain) && abi.equals(h.abi) ? lib : null;
+    }
+
+    /**
+     * How many shaders the update of this version's own library translates when that library was made from other profile inputs than this APK's (inputs:
+     * Profile.shaderInputs): the delta manifest's "&lt;current&gt;@&lt;its inputs&gt;" row alone (delta: Profile.delta), not any row the pack's other libraries match;
+     * -1 when the pack has no such library of titleId's game or the manifest has no row for its inputs
+     */
+    static int ownInputsDelta(File packDir, String titleId, String current, String inputs, String delta) {
+        if (current == null || inputs == null || !inputs.matches("[0-9a-f]{12}")) return -1;
+        File d = new File(new File(packDir, "shaders"), "v-" + current);
+        Header h = header(new File(d, "dmsh_vk.lib"));
+        if (h == null || !titleId.equals(h.game)) return -1;
+        String li = inputsOf(d);
+        if (!li.matches("[0-9a-f]{12}") || li.equals(inputs)) return -1;
+        return toTranslate(delta, List.of(current + "@" + li));
     }
 
     /**
@@ -140,8 +191,16 @@ final class ShaderLibs {
      * The phone's time for a shaders step that translates n shaders, as "a-b" minutes: the split of the dump (4-8 min, android/ONDEVICE.md "Time and power"), each shader
      * translated (45-80 ms: the step's 20-35 min for DKB's 22,852 less the split), and the library written and checked (about 1 min)
      */
-    static int[] minutes(int n) {
-        int lo = 4 + 1 + (int) Math.round(n * 0.045 / 60), hi = 8 + 1 + (int) Math.ceil(n * 0.080 / 60);
+    static int[] minutes(int n) { return minutes(n, null); }
+
+    /**
+     * As {@link #minutes}, with the game's own split time (split: {lo, hi} minutes, game.tsv android_split_minutes, Profile.split; null: the 4-8 minutes above). A whole
+     * split is most of a small update's time (Ocarina of Time: about 35 minutes on the POCO F8 Pro); an update's own split (Profile.updateSplit) reads only the files
+     * that hold the shaders it translates (Ocarina of Time's 1-3 minutes, an estimate from the PC)
+     */
+    static int[] minutes(int n, int[] split) {
+        int sl = split != null ? split[0] : 4, sh = split != null ? split[1] : 8;
+        int lo = sl + 1 + (int) Math.round(n * 0.045 / 60), hi = sh + 1 + (int) Math.ceil(n * 0.080 / 60);
         return new int[] {lo, Math.max(hi, lo + 1)};
     }
 
@@ -230,8 +289,13 @@ final class ShaderLibs {
     /** {@link #minutes} in words, English ("about 5-10 minutes"); {@link #minutesMsg} is the same as a Msg */
     static String minutesText(int n) { return minutesMsg(n).english(); }
 
-    static Msg minutesMsg(int n) {
-        int[] m = minutes(n);
+    static String minutesText(int n, int[] split) { return minutesMsg(n, split).english(); }
+
+    static Msg minutesMsg(int n) { return minutesMsg(n, null); }
+
+    /** As {@link #minutesMsg(int)}, with the game's own split time (split: {lo, hi} minutes, Profile.split or Profile.updateSplit; null: {@link #minutes}' 4-8) */
+    static Msg minutesMsg(int n, int[] split) {
+        int[] m = minutes(n, split);
         return new Msg("packs_minutes", m[0], m[1]);
     }
 
@@ -241,9 +305,14 @@ final class ShaderLibs {
      */
     static String jobMinutesText(int n) { return jobMinutesMsg(n).english(); }
 
+    static String jobMinutesText(int n, int[] split) { return jobMinutesMsg(n, split).english(); }
+
     /** {@link #jobMinutesText} as a Msg */
-    static Msg jobMinutesMsg(int n) {
-        int[] m = minutes(n);
+    static Msg jobMinutesMsg(int n) { return jobMinutesMsg(n, null); }
+
+    /** As {@link #jobMinutesMsg(int)}, with the game's own split time (Profile.split; null: {@link #minutes}' 4-8) */
+    static Msg jobMinutesMsg(int n, int[] split) {
+        int[] m = minutes(n, split);
         return new Msg("packs_minutes", m[0] + 2, m[1] + 5);
     }
 }

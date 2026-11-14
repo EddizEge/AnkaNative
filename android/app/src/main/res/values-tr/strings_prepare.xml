@@ -6,11 +6,9 @@
     <!-- Ondevice: a build without the packer -->
     <string name="prepare_unavailable">Bu Anka Native sürümü bir oyunu telefonda hazırlayamaz. Oyunu bir kez bilgisayarda (Linux ya da Mac) README dosyasındaki \"Install\" adımlarında anlatıldığı gibi hazırla (github.com/EddizEge/AnkaNative), paketi dökümün yanına &lt;title ID&gt;-work/android-pack olarak kopyala, sonra oyunu yeniden ekle ya da o paket klasörünü seç.</string>
     <!-- Ondevice.shadersText -->
-    <string name="prepare_shaders_update">Shader\'ları dökümden günceller: %2$,d shader içinden bu uygulama sürümünde değişen %1$,d tanesi (%3$s, arka planda).</string>
     <string name="prepare_shaders_make">Shader\'ları dökümden yapar (%1$s, arka planda).</string>
     <string name="prepare_shaders_make_default">Shader\'ları dökümden yapar (yaklaşık 20-35 dakika, arka planda).</string>
     <!-- Ondevice.prepareShadersMsg -->
-    <string name="prepare_shaders_update_step">Hazırlama, shader\'ları dökümden günceller: %2$,d shader içinden bu uygulama sürümünde değişen %1$,d tanesi (%3$s, arka planda).</string>
     <string name="prepare_shaders_make_step">Hazırlama, shader\'ları dökümden yapar (%1$s, arka planda).</string>
     <string name="prepare_shaders_make_step_default">Hazırlama, shader\'ları dökümden yapar (yaklaşık 20-35 dakika, arka planda).</string>
     <string name="prepare_not_on_storage">Bu klasör telefonun depolamasında değil (%1$s).</string>

@@ -56,6 +56,11 @@
 #   A RomFS or main may be in a NUP file (android/NUP.md): `game.nup:update/458752/romfs` and `game.nup:update/458752/exefs/main`, read in place through romfs.py; a RomFS given
 #   as `game.nup` or `game.nup:<selector>` is that package's romfs (the highest update's, else the base's, for a bare file)
 #   Environment DM_SPLIT_RESUME=<dir>: the scan resumes by file (ScanCache): a split stopped part way (the phone's thermal or battery pauses, a kill, a reboot) scans again only the files it had not finished
+#   Environment DM_SPLIT_DELTA=1 (the phone's split, PackService): when an older library of DMSH_VK_DELTA_FROM lets vk_android_build.py's delta translate only some shaders, only
+#   the RomFS files that hold those (the profile's shader_map.tsv column 5) are scanned, with main, and the result is kept only when each of those shaders was found first where the
+#   map has it (split_delta.py); then the package holds their records as a full split's, the tables are of the scanned files, and split_delta.tsv beside the map lists the shaders.
+#   Otherwise every file is scanned, with a 'delta split: not taken, <why>' line. With DM_SPLIT_RESUME the two scans keep their results apart (<dir>/delta, <dir>/full), and a delta
+#   scan that did not find every shader is not tried again on the same inputs (<dir>/delta.failed). After Banana Native's targeted split (f86575b0, 7f09ca1f), MIT
 # Pair table: (vertex key, pixel key) of every BNSH variation (every Unity program); dmsh_build uses it to give vertex shaders the outputs their pixel shaders read but they do not write (see dmsh_build.py vs_pad)
 import base64, collections, concurrent.futures as cf, hashlib, json, os, pickle, re, select, struct, subprocess, sys, time, zlib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../tools'))
@@ -63,7 +68,7 @@ from romfs import os, open, is_image
 import nup
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../games')); import game as _game
 from profile_guess import glsl_sources
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import uepak
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import uepak, split_delta
 GAME = _game.load()   # the current game profile (DM_GAME, required): source group rules and the table header note
 GROUPS, NOTE = GAME.pairs('shader_groups'), GAME.get('shader_note')
 KEY_SKIP = tuple(int(x, 0) for x in GAME.get('shader_key_skip', '0+0').split('+'))   # control bytes the keys hash as zeros (key_ctl); dm/games/game.py checks the form
@@ -73,6 +78,10 @@ KEY_SKIP = tuple(int(x, 0) for x in GAME.get('shader_key_skip', '0+0').split('+'
 
 CTL_MAGIC, GFX_MAGIC, CS_MAGIC = bytes.fromhex('34127698'), bytes.fromhex('78563412'), bytes.fromhex('79563412')
 STAGES = ['vs', 'hs', 'ds', 'gs', 'ps', 'cs']
+# An NVN2 BNSH program has stage slots past those six: 7 holds the task shader and 8 the mesh shader (The Legend of Zelda: Ocarina of Time's Model and Foliage .bfsha,
+# 1,699 task and 1,739 mesh shaders; read from the six slots alone, every mesh-shaded draw was missing from the map and dropped). Slot 6 has not been seen used.
+# From Banana Native 1d2aec48 (v0.2.0, git.eden-emu.dev/moceure/BananaNative), MIT
+NVN2_SLOTS = [None, None, None]
 SPH_STAGE = {1: 'vs', 2: 'hs', 3: 'ds', 4: 'gs', 5: 'ps'}
 def sph_stage(code):
     """A graphics code area's stage from its SPH word 0: shader type in bits 10..13. Catherine: Full Body's GLSLC (SDK 8.2.1, GPU code version 1.15) writes 0 there in every vertex shader
@@ -155,10 +164,23 @@ def bnsh_shaders(d, base, label):
     for v in range(nvar):
         prog = field(d, '<Q', base + pvar + 0x40 * v + 0x10, f'{where} variation {v}')[0]
         if not prog: continue
-        for si, st in enumerate(STAGES):
-            sc = field(d, '<Q', base + prog + 8 + 8 * si, f'{where} variation {v} program')[0]
+        for si in range(len(STAGES) + len(NVN2_SLOTS)):
+            st = STAGES[si] if si < len(STAGES) else NVN2_SLOTS[si - len(STAGES)]
+            at = base + prog + 8 + 8 * si
+            if st is None and not 0 <= at <= len(d) - 8: continue   # (an NVN program's record need not reach the NVN2 slots: nothing there, not a damaged file)
+            sc = field(d, '<Q', at, f'{where} variation {v} program')[0]
             if not sc: continue
-            pctl, pcode, ncode, nctl = field(d, '<QQII', base + sc + 8, f'{where} variation {v} {st}')
+            if st is not None:
+                pctl, pcode, ncode, nctl = field(d, '<QQII', base + sc + 8, f'{where} variation {v} {st}')
+            else:   # past the six NVN stages: a slot only an NVN2 program has, taken when it holds an NVN2 control section (an NVN program's words there are not stage records)
+                if base + sc + 0x20 > len(d): continue
+                pctl, pcode, ncode, nctl = struct.unpack_from('<QQII', d, base + sc + 8)
+                if not (0x48 <= nctl < 0x10000 and base + pctl + nctl <= len(d) and base + pcode + ncode <= len(d)) or not nvn2_ctl(d[base + pctl:base + pctl + nctl]): continue
+                st = nvn2_stage(d[base + pctl:base + pctl + nctl], d[base + pcode:base + pcode + ncode])
+                # (slots past the six are taken only for task and mesh shaders; anything else there, never seen, is logged and left out rather than ending the split)
+                if st not in ('ts', 'ms'): print(f'[RED] {where} variation {v}: NVN2 stage slot {si} holds a {st} shader, not a task or mesh shader; left out', flush=True); continue
+                why = check(label, st, d[base + pctl:base + pctl + nctl], d[base + pcode:base + pcode + ncode])
+                if why: print(f'[RED] {where} variation {v} {st} (NVN2 stage slot {si}): {why}; left out', flush=True); continue
             ctl, code = span(d, base + pctl, nctl, f'{where} variation {v} {st} control section'), span(d, base + pcode, ncode, f'{where} variation {v} {st} code area')
             why = check(label, st, ctl, code)
             if why: red(f'{label} BNSH @{base:#x} variation {v} {st}: {why}')
@@ -3119,6 +3141,95 @@ def pooled(ex, jobs, total, start=0, chunk=1, cache=None):
     return [r for first, _ in batches for r in kept[first]]
 
 
+DELTA_MARKER = 'split_delta.tsv'   # beside the map: the split is a delta split's, its package proven for the update's shaders (PackService takes it instead of the whole map)
+
+class DeltaFallback(Exception): pass   # the delta split cannot give the full split's records (scan_merge): every file is scanned instead
+
+def list_files(roots, per_root=None):
+    """Every file of the RomFS roots [(folder, its prefix in the source column)] as [(path, relative path with the prefix)], each root's sorted by path, in the roots' order.
+    per_root: a dict that gets each folder's own list (the Unreal pak check takes its .pak files from it, so the RomFS is walked once)"""
+    files = []
+    for romfs, pre in roots:
+        got = sorted((os.path.join(dp, f), pre + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)   # '/' on Windows too: the source column and the keys
+        if per_root is not None: per_root[romfs] = got
+        files += got
+    return files
+
+def delta_plan(roots):
+    """DM_SPLIT_DELTA=1: (({RomFS files to read}, {keys the update translates}, the profile's {key: source}, those files as list_files gives them), '') when an older
+    library of DMSH_VK_DELTA_FROM lets the update translate only some shaders and the dump has the files that hold them (split_delta.py), else (None, why not).
+    The RomFS is not listed: each file the profile's map names is looked up, so neither the listing nor any probe reads the dump's other files"""
+    print('progress: 0/1 delta', flush=True)   # hashing the older library's entries takes a minute on a phone: a stage line first
+    dirs = [p for p in os.environ.get('DMSH_VK_DELTA_FROM', '').split(os.pathsep) if p]
+    need, why = split_delta.needed(GAME, dirs, int(os.environ.get('NX_PACK_JOBS') or os.cpu_count() or 1))
+    if need is None: return None, why
+    sources = split_delta.profile_sources(GAME)
+    if len(need) >= len(sources): return None, 'the update translates every shader'
+    where = {}
+    def path_of(rel):   # the file of a source's relative path in the first root that has it (a later version's and a DLC's carry their prefix)
+        if rel not in where:
+            where[rel] = next(((i, os.path.join(romfs, rel[len(pre):])) for i, (romfs, pre) in enumerate(roots) if rel.startswith(pre) and os.path.isfile(os.path.join(romfs, rel[len(pre):]))), None)
+        return where[rel]
+    want, why = split_delta.files_for(need, sources, lambda r: path_of(r) is not None)
+    if want is None: return None, why
+    wfiles = [(p, r) for _, p, r in sorted((path_of(r)[0], path_of(r)[1], r) for r in want)]   # list_files' order: by root, then by path
+    return (want, need, sources, wfiles), ''
+
+def scan_jobs(files):
+    """The scan's jobs of the files: (archive ranges, the other files). Each archive kind takes its files (and their indexes) from the files given"""
+    big = [j for p, r in files for j in (linkdata_jobs(p, r) or [])]   # Three Houses' 6.9 GB DATA1.bin: one job per range of entries, not one read of the whole file
+    pak_jobs, paks = kpka_jobs(files)   # Monster Hunter Rise's PAKs: the newest copy of each path, in ranges of entries
+    tr_jobs, trp = trpfs_jobs(files)   # Pokémon Legends: Z-A's Trinity packs (data.trpfs and its index data.trpfd), decoded by the game's own Oodle in the Mac host
+    ue_jobs, uep = ue_legacy_jobs(files)   # Unreal paks with inline shaders: DRAGON QUEST XI S's legacy ones (the game's own LZ5 in the Mac host), OCTOPATH TRAVELER II's (Zlib)
+    bd_jobs, bdts = bdt_jobs(files)   # Dark Souls Remastered's dvdbnd archives: the entries of each .bdt by its .bhd5 index, in ranges
+    arc_jobs, arcs = smash_arc_jobs(files)   # Super Smash Bros. Ultimate's data.arc: its current files, in ranges
+    pz_jobs, pkzs = pkz_jobs(files)   # Bayonetta 3's PKZ archives, Oodle Kraken decoded by the game's own decoder in the Mac host
+    ck_jobs, cpks = cpk_jobs(files)   # Bayonetta 2's CRI CPK archives (CRILAYLA entries)
+    zp_jobs, zips = zip_jobs(files)   # Portal's game.zip (Deflate members)
+    ah_jobs, arhs = arh_jobs(files)   # Monolith's ARH1/ARD archives and embedded XBC1/HCPS programs
+    fb_jobs, fbs = frostbite_jobs(files)   # EA SPORTS FC 27's Frostbite bundles, Oodle Leviathan decoded by the game's own decoder in the Mac host
+    big += pak_jobs + tr_jobs + ue_jobs + bd_jobs + arc_jobs + pz_jobs + ck_jobs + zp_jobs + ah_jobs + fb_jobs
+    return big, [(p, r) for p, r in files if not linkdata_jobs(p, r) and p not in paks and p not in trp and p not in uep and p not in bdts and p not in arcs and p not in pkzs and p not in cpks and p not in zips and p not in arhs and p not in fbs]
+
+def scan_merge(results, big, files, all_files, J, common, zdicts, dumps, cache, delta=False):
+    """Scans the jobs (results: main's, which come first) and merges what they found → (keys {key: (where, stage, control, code)}, shaders per source group, pairs, the
+    files that could not be read). all_files: every RomFS file (a Unity serialized file's second pass looks it up). delta: DeltaFallback when a Unity serialized file wants a
+    type tree, which a bundle the scan left out may lend"""
+    keys = {}
+    # First pass: every file; Unity bundles carry type trees, and the Shader trees are collected on the way. Second pass: Unity serialized files without type trees are scanned again with the borrowed trees
+    with pool(J, common, {}, zdicts) as ex:
+        n = len(big) + len(files)
+        results += pooled(ex, big, n, cache=cache) + pooled(ex, files, n, len(big), chunk=16, cache=cache)
+    trees, defer = {}, []
+    for rel, uniq, pr, extra in results:
+        if extra == 'defer': defer.append(rel)
+        elif isinstance(extra, dict): trees.update(extra)
+    if defer and delta: raise DeltaFallback(f'found Unity serialized files without type trees ({defer[0]}), whose trees may come from files it left out')
+    if defer:
+        # a hash no bundle supplied takes the layout unityfs.py has for it (KNOWN_TREES); only here, so files a bundle lends a tree to keep their place in the tables (Ace Attorney's built-ins)
+        import unityfs
+        for k in unityfs.KNOWN_TREES: trees.setdefault(k, unityfs.known_tree(*k))
+        byrel = {r: p for p, r in all_files}
+        with pool(J, common, trees, zdicts) as ex: again = list(ex.map(scan_file, [(byrel[r], r) for r in defer]))
+        for rel, uniq, pr, extra in again:
+            if extra == 'defer': red(f'{rel}: Unity serialized file without type trees, and no bundle has a Shader type tree of the same hash to borrow')
+        results = [r for r in results if r[3] != 'defer'] + again
+    if dumps:
+        have = {k for _, uniq, _, _ in results for k in uniq}
+        dumps = [d for d in dumps if skey(d[2], d[3]) not in have]
+        results.append(('nvn_shdump', {skey(c, k): (w, st, c, k) for w, st, c, k in dumps}, var_pairs(dumps), {}))
+    bad = [extra[1] for *_, extra in results if isinstance(extra, tuple)]
+    per_src = collections.Counter(); pairs = set()
+    for rel, uniq, pr, _ in results:
+        pairs |= pr
+        for key, v in uniq.items():
+            if key in keys:
+                if not same_shader(keys[key][2:4], v[2:4]): red(f'key {key} is the same but the control section or code area differs ({v[0]} / {keys[key][0]})')
+                continue
+            keys[key] = v; per_src[group(v[0])] += 1
+    return keys, per_src, pairs, bad
+
+
 def main():
     romfs_l, main_l, pkg, mapout, factsout = sys.argv[1:6]
     pairsout = sys.argv[6] if len(sys.argv) > 6 else None
@@ -3129,13 +3240,12 @@ def main():
     romfs_v, main_v = [nup.default_romfs(r) for r in romfs_l.split(',')], main_l.split(',')
     dlc_v = [nup.default_romfs(r) for r in dlc_v]
     if len(romfs_v) != len(main_v): red(f'{len(romfs_v)} RomFS and {len(main_v)} main: they must pair one to one')
-    files, results, common, dumps = [], [], None, []
+    results, common, dumps, roots, ue_check = [], None, [], [], []
     for i, (romfs, mainnso) in enumerate(zip(romfs_v, main_v)):
         # before the file count is known (the RomFS listing, main's decompression and scan take minutes on a phone): a stage line so the step does not look stuck
         print(f'progress: {i}/{len(romfs_v)} main', flush=True)
         tag = os.path.basename(os.path.dirname(os.path.abspath(romfs))) if i else ''
-        vfiles = sorted((os.path.join(dp, f), (tag + '/' if tag else '') + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)   # '/' on Windows too: the source column and the keys
-        files += vfiles
+        roots.append((romfs, tag + '/' if tag else ''))   # listed below (list_files), or only the files a delta split reads
         img = nso_image(mainnso)
         if not i:
             import unityfs
@@ -3156,66 +3266,61 @@ def main():
         # Shaders the host saved because the map did not have them (DM_NVN_SHDUMP, nvn_dumps): <version dir>/nvn_shdump, or DM_NVN_SHDUMP_DIR. Taken last, after every
         # file (below): a saved copy has only the control bytes the host keeps, so a shader a file also holds takes the file's copy
         dumps += nvn_dumps(os.environ.get('DM_NVN_SHDUMP_DIR') or os.path.join(os.path.dirname(os.path.abspath(romfs)), 'nvn_shdump'))
-        # Unreal Engine shader code archives decoded on the Mac (uepak.py): <version dir>/ue_shaders, or DM_UE_SHADERS; needed when the RomFS has Unreal paks
+        # Unreal Engine shader code archives decoded on the Mac (uepak.py): <version dir>/ue_shaders, or DM_UE_SHADERS; needed when the RomFS has Unreal paks (checked before
+        # the full scan below: it reads every file, which a delta split does not)
         ued = os.environ.get('DM_UE_SHADERS') or os.path.join(os.path.dirname(os.path.abspath(romfs)), 'ue_shaders')
         names = sorted(f for f in os.listdir(ued) if f.endswith('.ushaderbytecode')) if os.path.isdir(ued) else []
-        if not names and uepak.unreal_paks(romfs, inline=False, pak_paths=[p for p, _ in vfiles if p.endswith('.pak')]): red(f'the RomFS has Unreal paks, but there are no decoded shader code archives in {ued} (the NSP script writes them)')
+        if not names: ue_check.append((romfs, ued))
         for nm in names: found += ue_shaders(open(os.path.join(ued, nm), 'rb').read(), f'/ue_shaders/{nm}')
         results.append(('main', {skey(c, k): (w, s, c, k) for w, s, c, k in found}, var_pairs(found), {}))
     for romfs in dlc_v:
         name = os.path.basename(os.path.normpath(romfs))
-        tag = 'aoc/' + (name.removesuffix('.img') if is_image(romfs) else name)
-        files += sorted((os.path.join(dp, f), tag + '/' + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)
+        roots.append((romfs, 'aoc/' + (name.removesuffix('.img') if is_image(romfs) else name) + '/'))
     zdicts = {k: v for r in romfs_v + dlc_v for k, v in zs_dicts(r).items()}   # Tears of the Kingdom's zstd dictionaries (zs_dicts)
-    keys = {}
-    # First pass: every file; Unity bundles carry type trees, and the Shader trees are collected on the way. Second pass: Unity serialized files without type trees are scanned again with the borrowed trees
     J = int(os.environ.get('J', '8'))
-    big = [j for p, r in files for j in (linkdata_jobs(p, r) or [])]   # Three Houses' 6.9 GB DATA1.bin: one job per range of entries, not one read of the whole file
-    pak_jobs, paks = kpka_jobs(files)   # Monster Hunter Rise's PAKs: the newest copy of each path, in ranges of entries
-    tr_jobs, trp = trpfs_jobs(files)   # Pokémon Legends: Z-A's Trinity packs (data.trpfs and its index data.trpfd), decoded by the game's own Oodle in the Mac host
-    ue_jobs, uep = ue_legacy_jobs(files)   # Unreal paks with inline shaders: DRAGON QUEST XI S's legacy ones (the game's own LZ5 in the Mac host), OCTOPATH TRAVELER II's (Zlib)
-    bd_jobs, bdts = bdt_jobs(files)   # Dark Souls Remastered's dvdbnd archives: the entries of each .bdt by its .bhd5 index, in ranges
-    arc_jobs, arcs = smash_arc_jobs(files)   # Super Smash Bros. Ultimate's data.arc: its current files, in ranges
-    pz_jobs, pkzs = pkz_jobs(files)   # Bayonetta 3's PKZ archives, Oodle Kraken decoded by the game's own decoder in the Mac host
-    ck_jobs, cpks = cpk_jobs(files)   # Bayonetta 2's CRI CPK archives (CRILAYLA entries)
-    zp_jobs, zips = zip_jobs(files)   # Portal's game.zip (Deflate members)
-    ah_jobs, arhs = arh_jobs(files)   # Monolith's ARH1/ARD archives and embedded XBC1/HCPS programs
-    fb_jobs, fbs = frostbite_jobs(files)   # EA SPORTS FC 27's Frostbite bundles, Oodle Leviathan decoded by the game's own decoder in the Mac host
-    big += pak_jobs + tr_jobs + ue_jobs + bd_jobs + arc_jobs + pz_jobs + ck_jobs + zp_jobs + ah_jobs + fb_jobs
-    files = [(p, r) for p, r in files if not linkdata_jobs(p, r) and p not in paks and p not in trp and p not in uep and p not in bdts and p not in arcs and p not in pkzs and p not in cpks and p not in zips and p not in arhs and p not in fbs]
     rd = os.environ.get('DM_SPLIT_RESUME')   # the phone's split (PackService): kept results from a stopped run
     # the inputs only (RomFS, main and DLC; not the output paths), and main's size and time with the jobs: main gives Unity's common strings to every scan
-    cache = ScanCache(rd, scan_digest(sys.argv[1:3] + sys.argv[8:], big + files + [(m, 'main') for m in main_v])) if rd else None
-    with pool(J, common, {}, zdicts) as ex:
-        n = len(big) + len(files)
-        results += pooled(ex, big, n, cache=cache) + pooled(ex, files, n, len(big), chunk=16, cache=cache)
-    trees, defer = {}, []
-    for rel, uniq, pr, extra in results:
-        if extra == 'defer': defer.append(rel)
-        elif isinstance(extra, dict): trees.update(extra)
-    if defer:
-        # a hash no bundle supplied takes the layout unityfs.py has for it (KNOWN_TREES); only here, so files a bundle lends a tree to keep their place in the tables (Ace Attorney's built-ins)
-        import unityfs
-        for k in unityfs.KNOWN_TREES: trees.setdefault(k, unityfs.known_tree(*k))
-        byrel = {r: p for p, r in files}
-        with pool(J, common, trees, zdicts) as ex: again = list(ex.map(scan_file, [(byrel[r], r) for r in defer]))
-        for rel, uniq, pr, extra in again:
-            if extra == 'defer': red(f'{rel}: Unity serialized file without type trees, and no bundle has a Shader type tree of the same hash to borrow')
-        results = [r for r in results if r[3] != 'defer'] + again
-    if dumps:
-        have = {k for _, uniq, _, _ in results for k in uniq}
-        dumps = [d for d in dumps if skey(d[2], d[3]) not in have]
-        results.append(('nvn_shdump', {skey(c, k): (w, st, c, k) for w, st, c, k in dumps}, var_pairs(dumps), {}))
-    bad = [extra[1] for *_, extra in results if isinstance(extra, tuple)]
+    inputs, mains = sys.argv[1:3] + sys.argv[8:], [(m, 'main') for m in main_v]
+    marker = os.path.join(os.path.dirname(os.path.abspath(mapout)), DELTA_MARKER)
+    if os.path.exists(marker): os.unlink(marker)   # an earlier split's: only a delta split that proved its package writes one
+    merged, plan, delta_on = None, None, os.environ.get('DM_SPLIT_DELTA') == '1'
+    if delta_on:
+        plan, why = delta_plan(roots)
+        if rd:   # the delta's and the full scan's kept results apart, so a full scan the delta one fell back to resumes as the full scan
+            os.makedirs(rd, exist_ok=True)
+            for f in os.listdir(rd):
+                if f not in ('delta', 'full', 'delta.failed'): _remove(os.path.join(rd, f))   # an older split's results, kept in the folder itself
+        if plan:
+            want, need, sources, wfiles = plan
+            dbig, dfiles = scan_jobs(wfiles)
+            dg = scan_digest(inputs, dbig + dfiles + mains)
+            failed = os.path.join(rd, 'delta.failed') if rd else None
+            if failed and os.path.isfile(failed) and open(failed).read().strip() == dg: why = 'an earlier run on these inputs did not find every shader the update needs in those files'
+            else:
+                print(f'delta split: {len(need):,} of the profile\'s {len(sources):,} shaders are new or changed for the older library; {len(want):,} RomFS files hold them, '
+                      'and only these are read (with main)', flush=True)
+                try:
+                    merged = scan_merge(list(results), dbig, dfiles, wfiles, J, common, zdicts, dumps, ScanCache(os.path.join(rd, 'delta'), dg) if rd else None, delta=True)
+                    bad = split_delta.unproven(need, sources, {k: v[0] for k, v in merged[0].items()})
+                    why = f'{len(bad)} of the {len(need):,} shaders not as a full split has them (first: {bad[0]})' if bad else ''
+                except DeltaFallback as e: why = str(e)
+                if why:
+                    merged = None
+                    if failed:
+                        with open(failed, 'w') as f: f.write(dg + '\n')
+                else: print(f'delta split: every one of the {len(need):,} shaders found where a full split finds it first', flush=True)
+        if merged is None: print(f'delta split: not taken, {why}: every file is scanned', flush=True)
+    if merged is None:
+        listed = {}
+        files = list_files(roots, listed)
+        for romfs, ued in ue_check:   # (the .pak files from the listing: the RomFS is walked once)
+            if uepak.unreal_paks(romfs, inline=False, pak_paths=[p for p, _ in listed[romfs] if p.endswith('.pak')]): red(f'the RomFS has Unreal paks, but there are no decoded shader code archives in {ued} (the NSP script writes them)')
+        big, jfiles = scan_jobs(files)
+        cd = (os.path.join(rd, 'full') if delta_on else rd) if rd else None
+        merged = scan_merge(results, big, jfiles, files, J, common, zdicts, dumps, ScanCache(cd, scan_digest(inputs, big + jfiles + mains)) if cd else None)
+        plan = None
+    keys, per_src, pairs, bad = merged
     if bad: print(f'[RED] {len(bad)} file(s) could not be read, their shaders are left out (first: {bad[0]})', flush=True)   # build_ipa_from_nsp.py reads this line
-    per_src = collections.Counter(); pairs = set()
-    for rel, uniq, pr, _ in results:
-        pairs |= pr
-        for key, v in uniq.items():
-            if key in keys:
-                if not same_shader(keys[key][2:4], v[2:4]): red(f'key {key} is the same but the control section or code area differs ({v[0]} / {keys[key][0]})')
-                continue
-            keys[key] = v; per_src[group(v[0])] += 1
     mesh_pairs = {x for x in pairs if x[2:] in (('mesh',), ('task',))}; pairs -= mesh_pairs
     prog = {(a, b) for a, b, *t in pairs if t} - pairs; pairs = {x for x in pairs if len(x) == 2}
     sp, cover = separable_pairs(keys); pairs |= sp
@@ -3269,6 +3374,12 @@ def main():
             f.write('# kind: evidence  supplemental vertex / pixel shader pairs (BAHS program variations and legacy Unity pass-input covers) for vertex output padding and the pipeline prebuild (generated by dm/gfx/tools/shader_split.py, do not edit): vertex key <TAB> pixel key\n')
             for a, b in sorted(prog - pairs): f.write(f'{a}\t{b}\n')
     print(f'shaders: {len(rows)} (' + ', '.join(f'{STAGE_NAME[s]} {n}' for s, n in sorted(stat.items())) + '); sources ' + ', '.join(f'{g} {n}' for g, n in per_src.most_common()) + f'; compute shader answers {len(facts)} rows' + (f'; variation pairs {len(pairs)}' if pairsout else ''))
+    if plan:   # written last: the phone's shaders step takes the package for the update's shaders only with it (PackService.splitMatchesProfile)
+        want, need, sources, _ = plan
+        with open(marker + '.tmp', 'w', encoding='utf-8', newline='\n') as f:
+            f.write('# shader_split.py DM_SPLIT_DELTA=1: a delta split. Its package holds the full split\'s record of each key below (the shaders the update translates);\n'
+                    '# its tables are of the files it scanned only, not the profile\'s\n' + f'files\t{len(want)}\nshaders\t{len(need)}\n' + ''.join(k + '\n' for k in sorted(need)))
+        os.replace(marker + '.tmp', marker)
 
 if __name__ == '__main__':
     import nso

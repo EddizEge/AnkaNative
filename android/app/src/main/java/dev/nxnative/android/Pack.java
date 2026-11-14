@@ -70,10 +70,26 @@ final class Pack {
     /** Shaders a delta update of this pack translates (the profile's manifest rows for the pack's older libraries, ShaderLibs.toTranslate), -1 when the manifest has none of them */
     static int deltaShaders(File dir, String titleId) {
         Profile p = Profile.of(titleId);
-        return p == null ? -1 : ShaderLibs.toTranslate(p.delta, ShaderLibs.older(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN));
+        return p == null ? -1 : ShaderLibs.toTranslate(p.delta, ShaderLibs.older(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, p.shaderInputs));
     }
 
-    static File playableLibrary(File dir, String titleId) { return ShaderLibs.playable(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, BuildConfig.NX_DMSH_VK_ABI); }
+    /** Shaders the update of this version's own library made from older profile inputs translates (its manifest row alone, ShaderLibs.ownInputsDelta), -1 when none */
+    static int ownInputsDelta(File dir, String titleId) {
+        Profile p = Profile.of(titleId);
+        return p == null ? -1 : ShaderLibs.ownInputsDelta(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, p.shaderInputs, p.delta);
+    }
+
+    /**
+     * The library the host plays while the shader update makes this APK's: this version's own one made from older profile inputs, when the delta manifest knows those
+     * inputs and an update can run (update: the game is a dump this APK prepares, Ondevice.isDump; the replay loads that library first, ShaderLibs.ownOtherInputs, and the
+     * update is the automatic one), else one of another version (ShaderLibs.playable); null when none. Without an update (a pack made on a computer, a game folder that
+     * is no dump) such a library is never brought current, so it is not taken as "playing while it updates": Play asks first (MainActivity.launch, Start anyway)
+     */
+    static File playableLibrary(File dir, String titleId, boolean update) {
+        File own = ShaderLibs.ownOtherInputs(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, BuildConfig.NX_DMSH_VK_ABI);
+        if (own != null && update && ownInputsDelta(dir, titleId) >= 0) return own;
+        return ShaderLibs.playable(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, BuildConfig.NX_DMSH_VK_ABI);
+    }
 
     /** A library of another version made before versioned shader updates (no ABI): played with a warning when no playable one is there (ShaderLibs.legacy), null when none */
     static File legacyLibrary(File dir, String titleId) { return ShaderLibs.legacy(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN); }
@@ -127,6 +143,9 @@ final class Pack {
                 }
             }
             if (inputs.equals(st.get("inputs"))) return null;
+            int n = ownInputsDelta(dir, titleId);
+            if (n >= 0)   // the delta manifest knows those inputs: an update of the shaders this app version added or changed (android/SHADERS.md#profile-input-updates)
+                return new Msg("packs_library_older_inputs", st.get("inputs"), inputs, n, prof.shaderTotal);
             return new Msg("packs_library_other_inputs", st.get("inputs"), inputs);
         }
         List<String> have = libraryVersions(dir);

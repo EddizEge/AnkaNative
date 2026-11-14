@@ -34,11 +34,15 @@ public final class PrepareTextsJvmTest {
                 + "\"Install\" steps say (github.com/EddizEge/AnkaNative), copy the pack next to the dump as <title ID>-work/android-pack, then add the game again or pick "
                 + "that pack folder.", "prepare_unavailable");
         check("prepare_unavailable (Tr.english)", Tr.english("prepare_unavailable"), new Msg("prepare_unavailable").english());
-        for (int n : new int[] {0, 1, 812, 12345}) {
-            eq(String.format(Locale.ROOT, "Updates the shaders from your dump: %,d of the %,d changed in this app version (%s, in the background).", n, 22852, minutes),
-                    "prepare_shaders_update", n, 22852, minutes);
-            eq("Prepare " + String.format(Locale.ROOT, "Updates the shaders from your dump: %,d of the %,d changed in this app version (%s, in the background).", n, 22852, minutes)
-                    .replaceFirst("^Updates", "updates"), "prepare_shaders_update_step", n, 22852, minutes);
+        for (int n : new int[] {0, 1, 812, 12345}) {   // work/mesh-compute's English (String.format, the "Prepare " form as MainActivity made it)
+            String quick = String.format(Locale.ROOT, "Updates the shaders from your dump: %,d of the %,d are new or changed in this app version; the others are kept as they are. "
+                    + "Only the parts of your dump that hold the new ones are read: %s in all, in the background.", n, 22852, minutes);
+            String full = String.format(Locale.ROOT, "Updates the shaders from your dump: %,d of the %,d are new or changed in this app version; the others are kept as they are. "
+                    + "The dump's shaders are read again first, which is most of the time: %s in all, in the background.", n, 22852, minutes);
+            eq(quick, "prepare_shaders_update_quick", n, 22852, minutes);
+            eq(full, "prepare_shaders_update_full", n, 22852, minutes);
+            eq("Prepare " + quick.replaceFirst("^Updates", "updates"), "prepare_shaders_update_quick_step", n, 22852, minutes);
+            eq("Prepare " + full.replaceFirst("^Updates", "updates"), "prepare_shaders_update_full_step", n, 22852, minutes);
         }
         eq("Makes the shaders from your dump (" + minutes + ", in the background).", "prepare_shaders_make", minutes);
         eq("Makes the shaders from your dump (" + "about 20-35 minutes" + ", in the background).", "prepare_shaders_make_default");
@@ -69,7 +73,7 @@ public final class PrepareTextsJvmTest {
         eq("An unfinished job for this dump writes to " + pack + ": " + status + "\n\nResume it from the card, or delete its working files "
                 + "(⋯ › Delete working files) before preparing into another folder.", "prepare_other_folder_job", pack, status, new Msg("prepare_label_delete_work"));
         eq(name + " is being prepared now (" + status + "). Pause it first, then try again.", "prepare_busy", name, status);
-        String shaders = new Msg("prepare_shaders_update", 812, 22852, minutes).english();
+        String shaders = new Msg("prepare_shaders_update_quick", 812, 22852, minutes).english();
         eq("Rewrites the game code (a few minutes). " + shaders, "prepare_redo_code_update", shaders);
         eq("Makes the game code and the shaders again from your dump (" + "about 22-40 minutes" + ", in the background).", "prepare_redo_both", "about 22-40 minutes");
         eq("Rewrites the game code from your dump (a few minutes, in the background). The shaders are kept.", "prepare_redo_code");

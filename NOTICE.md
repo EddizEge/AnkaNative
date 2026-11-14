@@ -38,6 +38,9 @@ Anka Native is built on other people's work. This file is where they are credite
 - **Mesa's Turnip** Vulkan driver (MIT): the open Adreno driver the phone runs the games on. It is not in this repository or in the APK; the user installs a
   driver build, such as the Anka Turnip build or the community builds the launcher's Download... lists (each keeps its own license; Qualcomm's own driver
   binaries are proprietary).
+- **[Banana Native](https://git.eden-emu.dev/moceure/BananaNative)** (MIT): the targeted shader split of an update (f86575b0, 7f09ca1f: read only the
+  dump's files that the profile's shader map names for the shaders an update needs), followed in `dm/gfx/tools/split_delta.py` with its own proof and a full
+  split as the fallback.
 - **Lichii** (Android emulator): Ocarina of Time findings. The game's 4-byte cut at `main+0x805bd0` uses the same offset and bytes as Lichii's built-in
   patch, and the frame-rate division the frame step replaces was found there first (as nxnative credits). Ideas only: no Lichii code is in this repository.
 - **[Atmosphere](https://github.com/Atmosphere-NX/Atmosphere)** (the reference for Horizon's synchronization), **[LibHac](https://github.com/Thealexbarney/LibHac)**,

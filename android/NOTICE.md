@@ -19,9 +19,19 @@ games' own shaders translated, not part of this code. The other translator files
 therefore a GPL-3.0-or-later work whatever `nxLsfg` says, and the Mac and iPhone builds stay MIT only as apps: the committed translator `dm/gfx/tools/dmsh_xlate_bin` they run to
 build shader libraries is the same GPL combined work.
 
+**Mesh draws through compute are GPL-3.0-or-later.** On a device without `VK_EXT_mesh_shader` (Turnip) the host draws NVN2 task and mesh programs through compute with
+[`dm/gfx/vk_android/vka_memu.c`](../dm/gfx/vk_android/vka_memu.c), `vka_memu.h`, `vka_memu_spv.c`, `vka_memu_spv.h`, `vka_memu_draw.inc`, `vka_memu_abi.h`,
+`vka_memu_order.h`, `vka_memu_helpers_spv.h` and the passes in `memu/` (`memu_common.glsl`, `memu_setup.comp`, `memu_dist.comp`, `spv.py`), with their tests
+`dm/host/tests/t_android_memu.c`, `dm/host/tests/memu/` and `dm/tools/tests/test_vka_memu.py`, ported from [Banana Native](https://git.eden-emu.dev/moceure/BananaNative)
+v0.3.12 / v0.3.13 (b39bf8b5, 624c267e) after [Hokkaido](https://github.com/pavelgajdo/Hokkaido)'s compute mesh emulation (GPL-3.0-or-later; its #569 and #642). Their
+SPDX headers are kept. Every `libnxhost.so` is therefore a GPL-3.0-or-later work as a whole. The rest of that port (the hooks in `vka_draw.c`, `vka_exec.c`, `vka_pso.c`,
+`vka_shader.c`, `vka_dev.c`, the specialization-constant fold `vka_spv_spec_freeze` and the shader split's BNSH slots 7 and 8) is Banana Native's MIT code.
+
 Some fixes follow other projects' findings without copying their code: [kartnative](https://github.com/pahorema/kartnative) by pahorema (MIT) for
 GPU-written sparse textures (`dm/gfx/vk_android/vka_tex.c`) and the per-primitive header of mesh programs (`dm/gfx/tools/shader_split.py`), and
 [switch2mac](https://github.com/azmasm/switch2mac) by azmasm (MIT outside `nx2_lower`) for the SPIR-V mesh entry points marked in the translator. Thanks to them.
+The split of a shader update that reads only the dump's files holding the shaders it needs (`dm/gfx/tools/split_delta.py`, `shader_split.py` `DM_SPLIT_DELTA`)
+follows Banana Native's targeted split (f86575b0, 7f09ca1f; MIT).
 
 `Lossless.dll` belongs to Lossless Scaling (proprietary, sold separately). It is never in this repository or in an APK: the user supplies their own copy, which the
 launcher finds on the phone or lets the user pick, and copies into the app's private files.

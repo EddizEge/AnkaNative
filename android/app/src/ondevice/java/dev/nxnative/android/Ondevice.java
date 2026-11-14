@@ -77,16 +77,19 @@ final class Ondevice {
     static String shadersText(File packDir, String titleId) {
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
-        if (n >= 0 && p != null) return Tr.s("prepare_shaders_update", n, p.shaderTotal, ShaderLibs.minutesMsg(n).text());
-        return p != null ? Tr.s("prepare_shaders_make", ShaderLibs.minutesMsg(p.shaderTotal).text()) : Tr.s("prepare_shaders_make_default");
+        // the update's split reads only the dump's files that hold those shaders (shader_split.py DM_SPLIT_DELTA), when the profile has its time; else the whole split's
+        if (n >= 0 && p != null && p.updateSplit() != null) return Tr.s("prepare_shaders_update_quick", n, p.shaderTotal, ShaderLibs.minutesMsg(n, p.updateSplit()).text());
+        if (n >= 0 && p != null) return Tr.s("prepare_shaders_update_full", n, p.shaderTotal, ShaderLibs.minutesMsg(n, p.split()).text());
+        return p != null ? Tr.s("prepare_shaders_make", ShaderLibs.minutesMsg(p.shaderTotal, p.split()).text()) : Tr.s("prepare_shaders_make_default");
     }
 
     /** "Prepare updates the shaders …" / "Prepare makes the shaders …": shadersText as one sentence after the word Prepare (the home screen's shader dialog) */
     static Msg prepareShadersMsg(File packDir, String titleId) {
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
-        if (n >= 0 && p != null) return new Msg("prepare_shaders_update_step", n, p.shaderTotal, ShaderLibs.minutesMsg(n));
-        return p != null ? new Msg("prepare_shaders_make_step", ShaderLibs.minutesMsg(p.shaderTotal)) : new Msg("prepare_shaders_make_step_default");
+        if (n >= 0 && p != null && p.updateSplit() != null) return new Msg("prepare_shaders_update_quick_step", n, p.shaderTotal, ShaderLibs.minutesMsg(n, p.updateSplit()));
+        if (n >= 0 && p != null) return new Msg("prepare_shaders_update_full_step", n, p.shaderTotal, ShaderLibs.minutesMsg(n, p.split()));
+        return p != null ? new Msg("prepare_shaders_make_step", ShaderLibs.minutesMsg(p.shaderTotal, p.split())) : new Msg("prepare_shaders_make_step_default");
     }
 
     private static final java.util.Set<String> autoTried = new java.util.HashSet<>();
@@ -429,7 +432,7 @@ final class Ondevice {
                 if (start) { redo.run(); return; }
                 int delta = shaders ? deltaShaders(pd, r.titleId) : -1;
                 String what = code && shaders ? (delta >= 0 ? a.getString(R.string.prepare_redo_code_update, shadersText(pd, r.titleId))
-                                : a.getString(R.string.prepare_redo_both, ShaderLibs.jobMinutesMsg(Profile.of(r.titleId).shaderTotal).text()))
+                                : a.getString(R.string.prepare_redo_both, ShaderLibs.jobMinutesMsg(Profile.of(r.titleId).shaderTotal, Profile.of(r.titleId).split()).text()))
                         : code ? a.getString(R.string.prepare_redo_code)
                         : shadersText(pd, r.titleId);
                 // the dialog's paragraphs: what is redone, why, the pack folder
@@ -450,7 +453,7 @@ final class Ondevice {
             String version = String.valueOf(r.version);
             String which = r.version == 0 ? (other ? a.getString(R.string.prepare_what_base_code, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_base))
                     : other ? a.getString(R.string.prepare_what_update_code, version, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_update, version);
-            String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesMsg(prof.shaderTotal).text(), r.free / 1073741824.0, r.work,
+            String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesMsg(prof.shaderTotal, prof.split()).text(), r.free / 1073741824.0, r.work,
                     AppStorage.pack(a, r.titleId));
             Runnable go = () -> {
                 try {

@@ -6,11 +6,9 @@
     <!-- Ondevice: a build without the packer (also shown by the home screen) -->
     <string name="prepare_unavailable">Esta versão do Anka Native não consegue preparar um jogo no celular. Prepare-o uma vez em um computador (Linux ou Mac), como dizem os passos de \"Install\" do README (github.com/EddizEge/AnkaNative), copie o pacote para junto do dump como &lt;title ID&gt;-work/android-pack e depois adicione o jogo de novo ou escolha essa pasta de pacote.</string>
     <!-- Ondevice.shadersText: what making a pack's shaders does; %3$s / %1$s: the time it takes ("about 20-35 minutes") -->
-    <string name="prepare_shaders_update">Atualiza os shaders a partir do seu dump: %1$,d dos %2$,d mudaram nesta versão do app (%3$s, em segundo plano).</string>
     <string name="prepare_shaders_make">Cria os shaders a partir do seu dump (%1$s, em segundo plano).</string>
     <string name="prepare_shaders_make_default">Cria os shaders a partir do seu dump (cerca de 20-35 minutos, em segundo plano).</string>
     <!-- Ondevice.prepareShadersMsg: the same as one sentence after the word Prepare (the home screen's shader dialog) -->
-    <string name="prepare_shaders_update_step">A preparação atualiza os shaders a partir do seu dump: %1$,d dos %2$,d mudaram nesta versão do app (%3$s, em segundo plano).</string>
     <string name="prepare_shaders_make_step">A preparação cria os shaders a partir do seu dump (%1$s, em segundo plano).</string>
     <string name="prepare_shaders_make_step_default">A preparação cria os shaders a partir do seu dump (cerca de 20-35 minutos, em segundo plano).</string>
     <string name="prepare_not_on_storage">Essa pasta não está no armazenamento deste celular (%1$s).</string>

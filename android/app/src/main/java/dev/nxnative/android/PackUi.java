@@ -160,7 +160,7 @@ final class PackUi {
             Folders.setPack(a, g.titleId, target);
             Msg lp = Pack.libraryProblemMsg(target, g.titleId);
             String shaders = lp == null ? a.getString(R.string.packs_ui_library_current, BuildConfig.NX_DMSH_VK_CHAIN)
-                    : Pack.playableLibrary(target, g.titleId) != null || Pack.legacyLibrary(target, g.titleId) != null
+                    : Pack.playableLibrary(target, g.titleId, Ondevice.isDump(new File(g.gameDir))) != null || Pack.legacyLibrary(target, g.titleId) != null
                     ? a.getString(R.string.packs_ui_library_older) : a.getString(R.string.packs_ui_library_problem, lp.text());
             new AlertDialog.Builder(a).setTitle(R.string.packs_ui_imported_title)
                     .setMessage(old != null ? a.getString(R.string.packs_ui_imported_old, target, shaders, old) : a.getString(R.string.packs_ui_imported, target, shaders))

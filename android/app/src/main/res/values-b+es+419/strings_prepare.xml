@@ -5,10 +5,8 @@
 
     <!-- Ondevice: a build without the packer -->
     <string name="prepare_unavailable">Esta versión de Anka Native no puede preparar un juego en el teléfono. Prepáralo una vez en una computadora (Linux o Mac), como indican los pasos de \"Install\" del README (github.com/EddizEge/AnkaNative), copia el paquete junto al volcado como &lt;title ID&gt;-work/android-pack y luego vuelve a agregar el juego o elige esa carpeta de paquete.</string>
-    <string name="prepare_shaders_update">Actualiza los shaders a partir de tu volcado: %1$,d de los %2$,d cambiaron en esta versión de la app (%3$s, en segundo plano).</string>
     <string name="prepare_shaders_make">Crea los shaders a partir de tu volcado (%1$s, en segundo plano).</string>
     <string name="prepare_shaders_make_default">Crea los shaders a partir de tu volcado (unos 20-35 minutos, en segundo plano).</string>
-    <string name="prepare_shaders_update_step">Al preparar el juego, se actualizan los shaders a partir de tu volcado: %1$,d de los %2$,d cambiaron en esta versión de la app (%3$s, en segundo plano).</string>
     <string name="prepare_shaders_make_step">Al preparar el juego, se crean los shaders a partir de tu volcado (%1$s, en segundo plano).</string>
     <string name="prepare_shaders_make_step_default">Al preparar el juego, se crean los shaders a partir de tu volcado (unos 20-35 minutos, en segundo plano).</string>
     <string name="prepare_not_on_storage">Esa carpeta no está en el almacenamiento del teléfono (%1$s).</string>

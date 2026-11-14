@@ -5,12 +5,15 @@
 
     <!-- Ondevice: a build without the packer (also shown by the home screen) -->
     <string name="prepare_unavailable">This version of Anka Native cannot prepare a game on the phone. Prepare it once on a computer (Linux or Mac), as the README\'s \"Install\" steps say (github.com/EddizEge/AnkaNative), copy the pack next to the dump as &lt;title ID&gt;-work/android-pack, then add the game again or pick that pack folder.</string>
-    <!-- Ondevice.shadersText: what making a pack's shaders does; %3$s / %1$s: the time it takes ("about 20-35 minutes") -->
-    <string name="prepare_shaders_update">Updates the shaders from your dump: %1$,d of the %2$,d changed in this app version (%3$s, in the background).</string>
+    <!-- Ondevice.shadersText: what making a pack's shaders does; %3$s / %1$s: the time it takes ("about 20-35 minutes"). An update (%1$,d of the game's %2$,d shaders):
+         _quick when only the dump's files that hold them are read (shader_split.py DM_SPLIT_DELTA, the profile has that time), _full when the dump's shaders are all read again -->
+    <string name="prepare_shaders_update_quick">Updates the shaders from your dump: %1$,d of the %2$,d are new or changed in this app version; the others are kept as they are. Only the parts of your dump that hold the new ones are read: %3$s in all, in the background.</string>
+    <string name="prepare_shaders_update_full">Updates the shaders from your dump: %1$,d of the %2$,d are new or changed in this app version; the others are kept as they are. The dump\'s shaders are read again first, which is most of the time: %3$s in all, in the background.</string>
     <string name="prepare_shaders_make">Makes the shaders from your dump (%1$s, in the background).</string>
     <string name="prepare_shaders_make_default">Makes the shaders from your dump (about 20-35 minutes, in the background).</string>
     <!-- Ondevice.prepareShadersMsg: the same as one sentence after the word Prepare (the home screen's shader dialog) -->
-    <string name="prepare_shaders_update_step">Prepare updates the shaders from your dump: %1$,d of the %2$,d changed in this app version (%3$s, in the background).</string>
+    <string name="prepare_shaders_update_quick_step">Prepare updates the shaders from your dump: %1$,d of the %2$,d are new or changed in this app version; the others are kept as they are. Only the parts of your dump that hold the new ones are read: %3$s in all, in the background.</string>
+    <string name="prepare_shaders_update_full_step">Prepare updates the shaders from your dump: %1$,d of the %2$,d are new or changed in this app version; the others are kept as they are. The dump\'s shaders are read again first, which is most of the time: %3$s in all, in the background.</string>
     <string name="prepare_shaders_make_step">Prepare makes the shaders from your dump (%1$s, in the background).</string>
     <string name="prepare_shaders_make_step_default">Prepare makes the shaders from your dump (about 20-35 minutes, in the background).</string>
     <string name="prepare_not_on_storage">That folder is not on this phone\'s storage (%1$s).</string>
@@ -45,7 +48,7 @@
     <string name="prepare_label_manage">Manage</string>
     <string name="prepare_other_folder_job">An unfinished job for this dump writes to %1$s: %2$s\n\nResume it from the card, or delete its working files (⋯ › %3$s) before preparing into another folder.</string>
     <string name="prepare_busy">%1$s is being prepared now (%2$s). Pause it first, then try again.</string>
-    <!-- %1$s: prepare_shaders_update -->
+    <!-- %1$s: prepare_shaders_update_quick or _full -->
     <string name="prepare_redo_code_update">Rewrites the game code (a few minutes). %1$s</string>
     <string name="prepare_redo_both">Makes the game code and the shaders again from your dump (%1$s, in the background).</string>
     <string name="prepare_redo_code">Rewrites the game code from your dump (a few minutes, in the background). The shaders are kept.</string>
@@ -132,6 +135,12 @@
     <string name="prepare_status_interrupted">Interrupted (%1$s). Tap %2$s to go on.</string>
     <!-- a state or reason this app version does not know, as job.json has it -->
     <string name="prepare_status_raw">%1$s</string>
+    <!-- Job.statusMsg: the status line (%1$s, one of the prepare_status_* sentences) with the job's notice after it (%2$s, prepare_notice_*: why a step runs again) -->
+    <string name="prepare_status_notice">%1$s %2$s</string>
+    <!-- Job.noticeMsg: the split runs again because this app version's tables of the game's shaders changed (JobInputs) -->
+    <string name="prepare_notice_inputs_changed">This app version knows more of the game\'s shaders, so they are found in your dump again first.</string>
+    <!-- Job.noticeMsg: a quick (delta) split missed a shader the update needs, so the whole split runs (PackService) -->
+    <string name="prepare_notice_split_full">The quick read of your dump missed a shader this update needs, so all of the dump\'s shaders are read now.</string>
     <!-- Job.reasonMsg: why a job is paused; tap %1$s: the button's label -->
     <string name="prepare_reason_user">by you</string>
     <string name="prepare_reason_battery">battery below 20 %: plug in the charger to go on</string>

@@ -1,0 +1,177 @@
+; The plane store helper of mesh_plane.spvasm (written by hand, no game code) with one value read through a run-time index under its guards: plane 1 stores
+; tab[vx], a Private array of 32 words that the guard "vx < 32" keeps in bounds. The conversion must leave that load under its guards: robustness is off, so
+; hoisted out of them it would read past the array for vx >= 32 (vka_memu_spv.c load_hoistable)
+               OpCapability Shader
+               OpCapability MeshShadingEXT
+               OpExtension "SPV_EXT_mesh_shader"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint MeshEXT %main "main" %lid %pos %out0 %idx %zw %tab
+               OpExecutionMode %main LocalSize 32 1 1
+               OpExecutionMode %main OutputVertices 32
+               OpExecutionMode %main OutputPrimitivesEXT 32
+               OpExecutionMode %main OutputTrianglesEXT
+               OpName %main "main"
+               OpName %plane_store "mesh_plane_store"
+               OpName %zw "mesh_position_zw"
+               OpName %tab "tab"
+               OpDecorate %lid BuiltIn LocalInvocationIndex
+               OpDecorate %pv Block
+               OpMemberDecorate %pv 0 BuiltIn Position
+               OpDecorate %out0 Location 0
+               OpDecorate %idx BuiltIn PrimitiveTriangleIndicesEXT
+       %void = OpTypeVoid
+         %fn = OpTypeFunction %void
+       %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
+       %bool = OpTypeBool
+     %v3uint = OpTypeVector %uint 3
+    %v4float = OpTypeVector %float 4
+     %fn_set = OpTypeFunction %void %uint %uint
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+     %uint_2 = OpConstant %uint 2
+     %uint_3 = OpConstant %uint 3
+     %uint_4 = OpConstant %uint 4
+     %uint_5 = OpConstant %uint 5
+     %uint_6 = OpConstant %uint 6
+     %uint_7 = OpConstant %uint 7
+     %uint_8 = OpConstant %uint 8
+    %uint_32 = OpConstant %uint 32
+    %uint_64 = OpConstant %uint 64
+   %uint_256 = OpConstant %uint 256
+         %pv = OpTypeStruct %v4float
+     %pv_arr = OpTypeArray %pv %uint_32
+     %v4_arr = OpTypeArray %v4float %uint_32
+    %idx_arr = OpTypeArray %v3uint %uint_32
+     %zw_arr = OpTypeArray %uint %uint_64
+   %p_in_u32 = OpTypePointer Input %uint
+   %p_out_pv = OpTypePointer Output %pv_arr
+  %p_out_v4a = OpTypePointer Output %v4_arr
+  %p_out_idx = OpTypePointer Output %idx_arr
+    %p_out_f = OpTypePointer Output %float
+  %p_out_v3u = OpTypePointer Output %v3uint
+     %p_wg_a = OpTypePointer Workgroup %zw_arr
+     %p_wg_u = OpTypePointer Workgroup %uint
+    %tab_arr = OpTypeArray %uint %uint_32
+   %p_pr_ta = OpTypePointer Private %tab_arr
+    %p_pr_u = OpTypePointer Private %uint
+        %lid = OpVariable %p_in_u32 Input
+        %pos = OpVariable %p_out_pv Output
+       %out0 = OpVariable %p_out_v4a Output
+        %idx = OpVariable %p_out_idx Output
+         %zw = OpVariable %p_wg_a Workgroup
+        %tab = OpVariable %p_pr_ta Private
+       %main = OpFunction %void None %fn
+      %entry = OpLabel
+               OpSetMeshOutputsEXT %uint_32 %uint_32
+          %l = OpLoad %uint %lid
+        %l8 = OpIMul %uint %l %uint_8
+         %c0 = OpFunctionCall %void %plane_store %l8 %l
+         %i1 = OpIAdd %uint %l8 %uint_1
+         %c1 = OpFunctionCall %void %plane_store %i1 %l
+         %i2 = OpIAdd %uint %l8 %uint_2
+         %c2 = OpFunctionCall %void %plane_store %i2 %l
+         %i3 = OpIAdd %uint %l8 %uint_3
+         %c3 = OpFunctionCall %void %plane_store %i3 %l
+         %i5 = OpIAdd %uint %l8 %uint_5
+         %c5 = OpFunctionCall %void %plane_store %i5 %l
+         %pi = OpAccessChain %p_out_v3u %idx %l
+         %tz = OpCompositeConstruct %v3uint %l %l %l
+               OpStore %pi %tz
+               OpReturn
+               OpFunctionEnd
+%plane_store = OpFunction %void None %fn_set
+          %a = OpFunctionParameter %uint
+          %v = OpFunctionParameter %uint
+         %b0 = OpLabel
+         %fv = OpBitcast %float %v
+       %inr = OpULessThan %bool %a %uint_256
+               OpSelectionMerge %m_out None
+               OpBranchConditional %inr %b1 %m_out
+         %b1 = OpLabel
+         %pl = OpUMod %uint %a %uint_8
+         %vx = OpUDiv %uint %a %uint_8
+        %inv = OpULessThan %bool %vx %uint_32
+               OpSelectionMerge %m_v None
+               OpBranchConditional %inv %h0 %m_v
+         %h0 = OpLabel
+         %e0 = OpIEqual %bool %pl %uint_0
+               OpSelectionMerge %m0 None
+               OpBranchConditional %e0 %t0 %m0
+         %t0 = OpLabel
+         %q0 = OpAccessChain %p_out_f %pos %vx %uint_0 %uint_0
+               OpStore %q0 %fv
+               OpBranch %m0
+         %m0 = OpLabel
+         %e1 = OpIEqual %bool %pl %uint_1
+               OpSelectionMerge %m1 None
+               OpBranchConditional %e1 %t1 %m1
+         %t1 = OpLabel
+         %q1 = OpAccessChain %p_out_f %pos %vx %uint_0 %uint_1
+         %tp = OpAccessChain %p_pr_u %tab %vx
+         %tv = OpLoad %uint %tp
+         %tf = OpBitcast %float %tv
+               OpStore %q1 %tf
+               OpBranch %m1
+         %m1 = OpLabel
+         %e2 = OpIEqual %bool %pl %uint_2
+               OpSelectionMerge %m2 None
+               OpBranchConditional %e2 %t2 %m2
+         %t2 = OpLabel
+         %q2 = OpAccessChain %p_out_f %pos %vx %uint_0 %uint_2
+               OpStore %q2 %fv
+        %z2a = OpIMul %uint %vx %uint_2
+         %z2 = OpAccessChain %p_wg_u %zw %z2a
+               OpStore %z2 %v
+               OpBranch %m2
+         %m2 = OpLabel
+         %e3 = OpIEqual %bool %pl %uint_3
+               OpSelectionMerge %m3 None
+               OpBranchConditional %e3 %t3 %m3
+         %t3 = OpLabel
+         %q3 = OpAccessChain %p_out_f %pos %vx %uint_0 %uint_3
+               OpStore %q3 %fv
+        %z3a = OpIMul %uint %vx %uint_2
+        %z3b = OpIAdd %uint %z3a %uint_1
+         %z3 = OpAccessChain %p_wg_u %zw %z3b
+               OpStore %z3 %v
+               OpBranch %m3
+         %m3 = OpLabel
+         %e4 = OpIEqual %bool %pl %uint_4
+               OpSelectionMerge %m4 None
+               OpBranchConditional %e4 %t4 %m4
+         %t4 = OpLabel
+         %q4 = OpAccessChain %p_out_f %out0 %vx %uint_0
+               OpStore %q4 %fv
+               OpBranch %m4
+         %m4 = OpLabel
+         %e5 = OpIEqual %bool %pl %uint_5
+               OpSelectionMerge %m5 None
+               OpBranchConditional %e5 %t5 %m5
+         %t5 = OpLabel
+         %q5 = OpAccessChain %p_out_f %out0 %vx %uint_1
+               OpStore %q5 %fv
+               OpBranch %m5
+         %m5 = OpLabel
+         %e6 = OpIEqual %bool %pl %uint_6
+               OpSelectionMerge %m6 None
+               OpBranchConditional %e6 %t6 %m6
+         %t6 = OpLabel
+         %q6 = OpAccessChain %p_out_f %out0 %vx %uint_2
+               OpStore %q6 %fv
+               OpBranch %m6
+         %m6 = OpLabel
+         %e7 = OpIEqual %bool %pl %uint_7
+               OpSelectionMerge %m7 None
+               OpBranchConditional %e7 %t7 %m7
+         %t7 = OpLabel
+         %q7 = OpAccessChain %p_out_f %out0 %vx %uint_3
+               OpStore %q7 %fv
+               OpBranch %m7
+         %m7 = OpLabel
+               OpBranch %m_v
+        %m_v = OpLabel
+               OpBranch %m_out
+      %m_out = OpLabel
+               OpReturn
+               OpFunctionEnd

@@ -1307,8 +1307,10 @@ static void rec_draw_idx(NVNcommandBuffer *c, p_draw_idx d) {
 #if defined(__ANDROID__)
 // NVN2 mesh draw: count task workgroups (or mesh workgroups when the program has no task shader) from first, with the bound program's task and mesh shaders. A draw like the
 // others (it opens and joins render passes the same way); the Vulkan replay draws it with vkCmdDrawMeshTasksEXT (vka_draw.c). The signature is the game's calls' (switch2mac
-// hle_nvn.c, MIT: x1 = 0, x2 = workgroups in Mario Kart World). The indirect, 3D and multi-draw variants keep the unimplemented stub (a red line when one is called)
+// hle_nvn.c, MIT: x1 = 0, x2 = workgroups in Mario Kart World). Indirect draw: its {count, first} record read by the GPU from ind (vka_exec.c mdx_*, vka_draw.c). The 3D and
+// multi-draw variants keep the unimplemented stub (a red line when one is called). The indirect form is Banana Native's (1d2aec48 / d1180632, MIT)
 NVN_NOPROTO(nvnCommandBufferDrawMeshTasks, void, NVNcommandBuffer *c, int first, int count) { rec_draw(c, (p_draw){NVN_PRIM_MESH, first, count, 1, 0, 0}); }
+NVN_NOPROTO(nvnCommandBufferDrawMeshTasksIndirect, void, NVNcommandBuffer *c, NVNbufferAddress ind) { rec_draw(c, (p_draw){NVN_PRIM_MESH, 0, 0, 1, 0, ind}); }
 #endif
 static void copy_view(view_t *dst, uint8_t *has, const NVNtextureView *v) { *has = v != NULL; if (v) *dst = *(const view_t *)v; }
 // Records with textures snapshot the texture objects (0x80 bytes each, after the record struct) and replay reads the snapshots: an NVN command no longer depends on the API object once recorded, and the game may finalize, free or reuse it before submitting.

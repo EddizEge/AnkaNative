@@ -69,7 +69,8 @@ void mtl_set_frame(uint64_t f) {
           vka_enc_stats(pb, sizeof pb, n); if (pb[0]) VLOG("%s", pb);
           vka_floor_stats(pb, sizeof pb); if (pb[0]) VLOG("%s", pb);
           vka_rp_bar_stats(pb, sizeof pb, n); if (pb[0]) VLOG("%s", pb);
-          { void vka_drv_memo_stats(char *b, size_t n); vka_drv_memo_stats(pb, sizeof pb); if (pb[0]) VLOG("%s", pb); } }
+          { void vka_drv_memo_stats(char *b, size_t n); vka_drv_memo_stats(pb, sizeof pb); if (pb[0]) VLOG("%s", pb); }
+          { char mb[600]; vka_memu_stats(mb, sizeof mb); if (mb[0]) VLOG("%s", mb); } }
         f0 = f; d0 = g_stat_draws; rp0 = vka_n_rp; b0 = vka_n_bar; ub0 = g_n_ub; s0 = g_n_sub; r0 = g_rec_ns; o0 = g_stat_ops; pc0 = g_n_pclear; ch0 = g_n_chunks;
     }
 }
@@ -472,6 +473,7 @@ static uint64_t sub_commit(uint64_t reserved) {
     g_slot[(g_slot_i - 1) % NSLOT].fence = fence;
     if (vka_nan_on()) vka_nan_commit(fence);
     vka_scratch_retire(fence); vka_gmem_retire(fence);
+    vka_memu_retire(fence);   // (mesh draws through compute: the submission's arena)
     if (r) {
         static _Atomic int nred; if (atomic_fetch_add(&nred, 1) < 8) VRED("submission %llu: %d (its effects run without the GPU)", (unsigned long long)fence, r);
         VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, .semaphore = V.tl, .value = fence};
@@ -857,12 +859,137 @@ static int rc_known(uint64_t a, uint64_t *v) {   // a counter at a: 0 for a time
     memcpy(v, (const void *)(uintptr_t)a, 8); return 1;
 }
 
+// Indirect mesh draws. NVN2's nvnCommandBufferDrawMeshTasksIndirect record is {count, first} (as its direct form's arguments: task workgroups, or mesh workgroups without a task
+// shader), while vkCmdDrawMeshTasksIndirectEXT reads {x, y, z}: drawn from the record itself, x would be the count, y the first workgroup (0 in practice, so nothing would be
+// drawn) and z the word after the record. The record is usually written on the GPU earlier in the submission (a culling compute: Ocarina of Time's foliage), so it is turned
+// into {count, 1, 1} in scratch memory on the GPU, outside a render pass: when a pass is about to open and no scan was made since the last write that could change a record
+// (a dispatch, buffer copy or fill, texture-to-buffer copy, inline update), mdx_scan looks ahead in replay order (this list, the lists that called it) up to that next write,
+// copies every indirect mesh record it meets, and the draws find their copies (vka_mdx_args). A draw whose record was not copied that way (met inside an open pass after a
+// scan) ends the pass and has its own copy made: a split, counted. The first workgroup is not applied (the translated task / mesh shaders read their workgroup's number as
+// WorkgroupId.x; [RED] once when a record as the CPU sees it has one). DM_VK_MESH_IND=0 draws from the record itself (nothing). From Banana Native 1d2aec48 / d1180632 (MIT)
+enum { MDX_MAX = 1024 };
+static struct { uint64_t ind; VkBuffer buf; VkDeviceSize off; } g_mdx[MDX_MAX];
+static int g_mdx_n; static uint64_t g_mdx_ep = 1, g_mdx_scan_ep, g_mdx_sub = ~0ull, g_mdx_copies, g_mdx_splits, g_mdx_scans;
+static const uint8_t *g_xret[17]; static int g_nxret;   // exec's return points (the records after each OP_CALL being run), for the look-ahead
+static void mdx_write(void) { if (g_mdx_n || g_mdx_scan_ep == g_mdx_ep) { g_mdx_ep++; g_mdx_n = 0; } }
+static void mdx_sub(void) { if (g_mdx_sub != g_n_sub) { g_mdx_sub = g_n_sub; g_mdx_ep++; g_mdx_n = 0; } }
+static int mdx_find(uint64_t ind) { for (int i = 0; i < g_mdx_n; i++) if (g_mdx[i].ind == ind) return i; return -1; }
+static int mdx_on(void) { return vka_mesh_on() && VKA_ENV("DM_VK_MESH_IND", 1); }
+static void mdx_copy(const uint64_t *inds, int n) {
+    vka_span s;
+    if (!n || g_mdx_n + n > MDX_MAX) { if (n) VRED_ONCE("indirect mesh draws: more than %d records between two writes: the rest drawn from their records", MDX_MAX); return; }
+    if (!vka_scratch(16 * (VkDeviceSize)n, 16, &s)) { VRED_ONCE("indirect mesh draws: no scratch memory for the {count, 1, 1} copies"); return; }
+    vka_barrier(g_cb);   // after what wrote the records
+    for (int k = 0; k < n; k++) {
+        VkBuffer b; VkDeviceSize o; VkDeviceSize d = s.off + 16 * (VkDeviceSize)k;
+        if (!vka_addr(inds[k], 8, &b, &o, NULL) || (o & 3)) continue;   // (the draw skips it, logged there)
+        VkBufferCopy c = {o, d, 4}; vk.vkCmdCopyBuffer(g_cb, b, s.buf, 1, &c);
+        vk.vkCmdFillBuffer(g_cb, s.buf, d + 4, 8, 1);
+        g_mdx[g_mdx_n].ind = inds[k]; g_mdx[g_mdx_n].buf = s.buf; g_mdx[g_mdx_n++].off = d; g_mdx_copies++;
+        uint32_t w[2] = {0};
+        if (vka_cpu_read(inds[k], w, sizeof w) && w[1]) VRED_ONCE("indirect mesh draw record at %#llx has first workgroup %u (as the CPU sees it): not applied", (unsigned long long)inds[k], w[1]);
+    }
+    vka_barrier(g_cb);   // before the indirect reads
+    if (g_mdx_scans + g_mdx_splits == 1 || (g_mdx_scans + g_mdx_splits) % 20000 == 0)
+        VLOG("indirect mesh draws: {count, first} records copied as {count, 1, 1}: %llu copies, %llu look-aheads, %llu render passes split for one", (unsigned long long)g_mdx_copies,
+             (unsigned long long)g_mdx_scans, (unsigned long long)g_mdx_splits);
+}
+// The indirect mesh draws from record p on (this list, then the lists that called it) up to the next write that could change a record; the copies made
+static void mdx_scan(const uint8_t *p) {
+    enum { QMAX = 256 }; uint64_t q[QMAX]; int nq = 0;
+    const uint8_t *ret[17]; int nret = g_nxret; memcpy(ret, g_xret, sizeof(ret[0]) * (size_t)nret);
+    for (int guard = 0; guard < 200000 && nq < QMAX; guard++) {
+        op_hdr h; memcpy(&h, p, sizeof h); const void *a = p + 8;
+        if (h.op == OP_END) { if (!nret) break; p = ret[--nret]; continue; }
+        if (h.op == OP_JUMP) { memcpy(&p, a, 8); continue; }
+        if (h.op == OP_CALL) { if (nret == 17) break; ret[nret++] = p + h.size; memcpy(&p, a, 8); continue; }
+        if (h.op == OP_DISPATCH || h.op == OP_COPY_B2B || h.op == OP_CLEAR_BUF || h.op == OP_COPY_T2B || h.op == OP_UPDATE_UB) break;
+        if (h.op == OP_DRAW) { p_draw t; const p_draw *d = draw_rec(a, h.size, &t);
+            if (d->prim == NVN_PRIM_MESH && d->ind && mdx_find(d->ind) < 0) { int dup = 0; for (int k = 0; k < nq && !dup; k++) dup = q[k] == d->ind; if (!dup) q[nq++] = d->ind; } }
+        if (h.size < 8) break;
+        p += h.size;
+    }
+    g_mdx_scan_ep = g_mdx_ep;
+    if (nq) { g_mdx_scans++; mdx_copy(q, nq); }
+}
+// Before a draw record: the look-ahead when a pass is about to open, a pass split for an indirect mesh draw it did not cover
+static void mdx_before_draw(const uint8_t *p, const p_draw *d) {
+    if (!mdx_on()) return;
+    mdx_sub();
+    int ind_mesh = d && d->prim == NVN_PRIM_MESH && d->ind;
+    if (!vka_rp_open()) { if (g_mdx_scan_ep != g_mdx_ep || (ind_mesh && mdx_find(d->ind) < 0)) mdx_scan(p); return; }
+    if (ind_mesh && mdx_find(d->ind) < 0) { vka_rp_end(); g_mdx_splits++; mdx_scan(p); }
+}
+int vka_mdx_args(uint64_t ind, VkBuffer *b, VkDeviceSize *o) {
+    if (!mdx_on()) return vka_addr(ind, 12, b, o, NULL) && !(*o & 3);
+    int i = mdx_find(ind); if (i < 0) return 0;
+    *b = g_mdx[i].buf; *o = g_mdx[i].off; return 1;
+}
+
+// Mesh draws through compute (vka_memu_draw.inc; Banana Native b39bf8b5 / 624c267e, GPL-3.0-or-later): when a render pass is about to open, memu_scan looks ahead in replay
+// order (this list, the lists that called it) for the mesh draws up to the next record that could change what their task / mesh shaders read or end the pass (anything
+// memu_allowed does not take: a dispatch, copy, fill, inline update, barrier, render target change, wait, render condition), and has vka_draw.c record all their compute
+// work there, before the pass: three walks of those records with the state as it will be at each draw (vka_state_op on a copy of the replay's). A mesh draw met in an
+// open pass that no look-ahead reached ends the pass first (a split, counted). g_memu_cover: a look-ahead reached past the record being replayed (cleared by any record
+// it stops at, and by a new submission)
+enum { MEMU_BEGIN, MEMU_ADD, MEMU_SETUP, MEMU_TASK, MEMU_DIST, MEMU_MESH, MEMU_END };
+void vka_memu_batch(int phase, const vka_dstate *d, const p_draw *dw, const uint8_t *p, int idx);
+int vka_memu_on(void); int vka_memu_has(const uint8_t *p); void vka_memu_cur(const uint8_t *p);
+static int g_memu_cover; static uint64_t g_memu_sub = ~0ull; static vka_dstate g_memu_st;
+static int memu_allowed(uint32_t op) {
+    switch (op) {
+    case OP_END: case OP_JUMP: case OP_BEGIN: case OP_CALL: case OP_DRAW: case OP_DRAW_IDX: case OP_SCISSOR: case OP_COPY_STRIDE: case OP_CLEAR_COLOR: case OP_CLEAR_DS:
+    case OP_REPORT_COUNTER: case OP_RESET_COUNTER: case OP_FENCE_SYNC: case OP_VIEWPORTS: case OP_DEPTH_RANGE: case OP_BIND_PROGRAM: case OP_BIND_STATE: case OP_BIND_VATTR:
+    case OP_BIND_VSTREAM: case OP_BIND_VBUF: case OP_BIND_VBUF1: case OP_BIND_UBO: case OP_BIND_UBO_SMALL: case OP_BIND_SSBO: case OP_BIND_TEX: case OP_BIND_TEX1: case OP_BIND_SAMP:
+    case OP_BIND_IMG: case OP_STENCIL: case OP_POLY_OFFSET: case OP_SET_TEX_POOL: case OP_SET_SAMP_POOL: case OP_BLEND_COLOR: case OP_DEPTH_CLAMP: case OP_TF_BIND: case OP_TF_STATE:
+    case OP_RAST_DISCARD: case OP_VP_SWIZZLE: case OP_PRIM_RESTART: case OP_ALPHA_REF: case OP_PUSH_CONST: return 1;
+    default: return 0;
+    }
+}
+// One walk from record p; phase MEMU_ADD counts the mesh draws it hands over (the later walks meet the same ones in the same order); phase -1 only says whether there is one, without the state
+static int memu_walk(const uint8_t *p, int phase) {
+    const uint8_t *ret[17]; int nret = g_nxret, n = 0; memcpy(ret, g_xret, sizeof(ret[0]) * (size_t)nret);
+    if (phase >= 0) memcpy(&g_memu_st, &S.d, sizeof g_memu_st);
+    for (int guard = 0; guard < 200000; guard++) {
+        op_hdr h; memcpy(&h, p, sizeof h); const void *a = p + 8;
+        if (h.op == OP_END) { if (!nret) break; p = ret[--nret]; continue; }
+        if (h.op == OP_JUMP) { memcpy(&p, a, 8); continue; }
+        if (h.op == OP_CALL) { if (nret == 17) break; ret[nret++] = p + h.size; memcpy(&p, a, 8); continue; }
+        if (!memu_allowed(h.op) || h.size < 8) break;
+        if (h.op == OP_DRAW) { p_draw t; const p_draw *d = draw_rec(a, h.size, &t);
+            if (d->prim == NVN_PRIM_MESH && !d->mdi_cnt) { if (n == 128) break; if (phase < 0) return 1; vka_memu_batch(phase, &g_memu_st, d, p, n); n++; } }
+        else if (h.op != OP_DRAW_IDX && phase >= 0) vka_state_op(&g_memu_st, h.op, a);
+        p += h.size;
+    }
+    return n;
+}
+static void memu_scan(const uint8_t *p) {
+    g_memu_cover = 1;
+    if (S.rc_skip || !memu_walk(p, -1)) return;   // (most passes have no mesh draw: no state copied for them)
+    vka_memu_batch(MEMU_BEGIN, NULL, NULL, NULL, 0);
+    if (!memu_walk(p, MEMU_ADD)) return;
+    vka_memu_batch(MEMU_SETUP, NULL, NULL, NULL, 0);
+    memu_walk(p, MEMU_TASK);
+    vka_memu_batch(MEMU_DIST, NULL, NULL, NULL, 0);
+    memu_walk(p, MEMU_MESH);
+    vka_memu_batch(MEMU_END, NULL, NULL, NULL, 0);
+}
+static void memu_before_draw(const uint8_t *p, const p_draw *d) {
+    if (!vka_memu_on()) return;
+    if (g_memu_sub != g_n_sub) { g_memu_sub = g_n_sub; g_memu_cover = 0; }
+    int mesh = d && d->prim == NVN_PRIM_MESH;
+    if (!vka_rp_open()) { if (!g_memu_cover || (mesh && !vka_memu_has(p))) memu_scan(p); }
+    else if (mesh && !vka_memu_has(p)) { vka_rp_end(); vka_memu_n_splits++; memu_scan(p); }
+    vka_memu_cur(p);   // (after the look-ahead: the next entry of this record in the batch, which moves past it; a record met twice in one look-ahead has an entry per meeting)
+}
+
 static void seg_write(const void *a) { struct { VkCommandBuffer cb; VkPipelineStageFlagBits st; uint32_t q; } w; memcpy(&w, a, sizeof w); qf.write(w.cb, w.st, g_sqp, w.q); }
 static void exec(const uint8_t *p, int depth) {
     for (;;) {
         op_hdr h; memcpy(&h, p, sizeof h);
         const void *a = p + 8;
         int bar_kept = 0;   // a game barrier taken inside the open pass (vka_rp_game_barrier): no pass end, no full barrier
+        if (g_memu_cover && !memu_allowed(h.op)) g_memu_cover = 0;   // (mesh draws through compute: the look-ahead stopped here)
         uint64_t ra_ = RP_T();   // (DM_VK_RPROF: part ends, then the pass end / state step, then the command itself)
         if (h.op == OP_DRAW || h.op == OP_DRAW_IDX) { chunk_check(); if (vka_rprof_on) { uint64_t t_ = vka_rprof_t(); g_rp.k[RK_PARTS] += t_ - ra_; ra_ = t_; } }   // before a draw that opens a new pass
         switch (h.op) {   // a render pass a draw opened stays open across draws and state; anything else closes it first
@@ -878,7 +1005,7 @@ static void exec(const uint8_t *p, int depth) {
         case OP_END: return;
         case OP_BEGIN: break;
         case OP_JUMP: memcpy(&p, a, 8); continue;
-        case OP_CALL: { uint64_t t; memcpy(&t, a, 8); if (depth < 16) exec((const uint8_t *)(uintptr_t)t, depth + 1); else VRED_ONCE("command lists nested deeper than 16"); break; }
+        case OP_CALL: { uint64_t t; memcpy(&t, a, 8); if (depth < 16) { g_xret[g_nxret++] = p + h.size; exec((const uint8_t *)(uintptr_t)t, depth + 1); g_nxret--; } else VRED_ONCE("command lists nested deeper than 16"); break; }
         case OP_SIGNAL_EVENT: { uint64_t val; uint32_t m, v; memcpy(&val, a, 8); memcpy(&m, (const uint8_t *)a + 8, 4); memcpy(&v, (const uint8_t *)a + 12, 4); post((pop){1, m, v, 0, val}); break; }
         case OP_REPORT_COUNTER: { uint64_t t, ad; memcpy(&t, a, 8); memcpy(&ad, (const uint8_t *)a + 8, 8);
             uint32_t q = 0;
@@ -898,9 +1025,9 @@ static void exec(const uint8_t *p, int depth) {
             else { uint64_t x, y; int known = rc_known(rc->addr, &x) && rc_known(rc->addr + 16, &y); S.rc_skip = known && (rc->mode ? x == y : x != y); }
             break; }
         case OP_RESET_COUNTER: break;
-        case OP_CLEAR_BUF: if (g_cb) { const p_clear_buf *cb = a; buf_fill(cb->addr, cb->size, cb->value); vka_barrier(g_cb); } break;
-        case OP_COPY_B2B: if (g_cb) { uint64_t s_, d, n; memcpy(&s_, a, 8); memcpy(&d, (const uint8_t *)a + 8, 8); memcpy(&n, (const uint8_t *)a + 16, 8); buf_copy(s_, d, n); vka_barrier(g_cb); } break;
-        case OP_UPDATE_UB: g_n_ub++; if (g_cb) { uint64_t d, n; memcpy(&d, a, 8); memcpy(&n, (const uint8_t *)a + 8, 8); buf_update((const uint8_t *)a + 16, d, n); vka_barrier(g_cb); } break;
+        case OP_CLEAR_BUF: mdx_write(); if (g_cb) { const p_clear_buf *cb = a; buf_fill(cb->addr, cb->size, cb->value); vka_barrier(g_cb); } break;
+        case OP_COPY_B2B: mdx_write(); if (g_cb) { uint64_t s_, d, n; memcpy(&s_, a, 8); memcpy(&d, (const uint8_t *)a + 8, 8); memcpy(&n, (const uint8_t *)a + 16, 8); buf_copy(s_, d, n); vka_barrier(g_cb); } break;
+        case OP_UPDATE_UB: mdx_write(); g_n_ub++; if (g_cb) { uint64_t d, n; memcpy(&d, a, 8); memcpy(&n, (const uint8_t *)a + 8, 8); buf_update((const uint8_t *)a + 16, d, n); vka_barrier(g_cb); } break;
         case OP_SET_RT: S.rt = *(const p_set_rt *)a; S.has_rt = 1; break;
         case OP_SCISSOR: S.sc = *(const p_scissor *)a; S.has_sc = 1; break;
         case OP_COPY_STRIDE: { const p_copy_stride *cs = a; if (cs->image) S.copy_img_stride = cs->stride; else S.copy_stride = cs->stride; break; }
@@ -908,12 +1035,12 @@ static void exec(const uint8_t *p, int depth) {
         case OP_CLEAR_DS: if (g_cb) clear_ds(a); break;
         case OP_CLEAR_TEX: if (g_cb) clear_tex(a); break;
         case OP_COPY_B2T: if (g_cb) copy_bt(a, 1); break;
-        case OP_COPY_T2B: if (g_cb) copy_bt(a, 0); break;
+        case OP_COPY_T2B: mdx_write(); if (g_cb) copy_bt(a, 0); break;
         case OP_COPY_T2T: if (g_cb) copy_t2t(a); break;
         case OP_BARRIER: if (g_cb && !bar_kept) vka_barrier(g_cb); break;
-        case OP_DRAW: if (!S.rc_skip && g_cb) { p_draw t; g_stat_draws++; vka_draw(&S.d, &S.rt, S.has_rt, &S.sc, S.has_sc, draw_rec(a, h.size, &t), NULL); } break;
-        case OP_DRAW_IDX: if (!S.rc_skip && g_cb) { p_draw_idx t; g_stat_draws++; vka_draw(&S.d, &S.rt, S.has_rt, &S.sc, S.has_sc, NULL, draw_idx_rec(a, h.size, &t)); } break;
-        case OP_DISPATCH: if (g_cb) vka_dispatch(&S.d, a); break;
+        case OP_DRAW: if (!S.rc_skip && g_cb) { p_draw t; const p_draw *d = draw_rec(a, h.size, &t); g_stat_draws++; mdx_before_draw(p, d); memu_before_draw(p, d); vka_draw(&S.d, &S.rt, S.has_rt, &S.sc, S.has_sc, d, NULL); } break;
+        case OP_DRAW_IDX: if (!S.rc_skip && g_cb) { p_draw_idx t; g_stat_draws++; mdx_before_draw(p, NULL); memu_before_draw(p, NULL); vka_draw(&S.d, &S.rt, S.has_rt, &S.sc, S.has_sc, NULL, draw_idx_rec(a, h.size, &t)); } break;
+        case OP_DISPATCH: mdx_write(); if (g_cb) vka_dispatch(&S.d, a); break;
         case OP_DRAW_TEX: not_yet(h.op); break;
         default: break;   // state: taken by vka_state_op above
         }
@@ -922,5 +1049,5 @@ static void exec(const uint8_t *p, int depth) {
         p += h.size;
     }
 }
-void vka_rp_exec(const uint8_t *handle, uint64_t fence) { if (fence) g_cur_fence = fence; if (handle) exec(handle, 0); }
+void vka_rp_exec(const uint8_t *handle, uint64_t fence) { if (fence) g_cur_fence = fence; if (handle) { g_nxret = 0; exec(handle, 0); } }
 #endif

@@ -134,7 +134,9 @@ _HEAD_TEXT = ('# The Android shader library delta manifest (dm/gfx/tools/vk_andr
               '# the version below, from a full Mac build; "-" for a shader that did not build. Hashes only. "from" rows: shaders a phone with that older library translates\n')
 _ROW = {'version': re.compile(r'[0-9a-f]{12}'), 'game': re.compile(r'[0-9A-F]{16}'), 'inputs': re.compile(r'[0-9a-f]{12}')}
 _KEY_ROW = re.compile(r'([0-9a-f]{16})\t([0-9a-f]{%d}|-)' % HASH_LEN)
-_FROM_ROW = re.compile(r'from\t([0-9a-f]{12})\t(\d+)')
+# "from" rows: how many shaders a phone translates when its pack has that older library: one of an older version (its version), or one of this version made from older
+# profile inputs (shader tables), "<this version>@<those inputs>": a profile change such as new shaders in shader_map.tsv leaves the version as it is
+_FROM_ROW = re.compile(r'from\t([0-9a-f]{12}(?:@[0-9a-f]{12})?)\t(\d+)')
 # "stamp" rows: an older library that is this version's byte for byte but for the header's version and abi fields (STAMP_FIELDS), by the SHA-256 of the whole older file
 # and of the whole file this version's build wrote. A phone with that older library writes this version's by rewriting those fields (ShaderLibs.restamp: no shader
 # translated, no split) and takes it only when the result's SHA-256 is the second one. A later version whose shaders change has no such row: phones update as before
@@ -205,7 +207,7 @@ def manifest_problems(text):
 
 
 def parse_manifest(text):
-    """→ {'version', 'game', 'inputs', 'from': {version: count}, 'stamp': {version: (old SHA-256, new SHA-256)}, 'hashes': {key: hash or '-'}}; ValueError when
+    """→ {'version', 'game', 'inputs', 'from': {version or version@inputs: count}, 'stamp': {version: (old SHA-256, new SHA-256)}, 'hashes': {key: hash or '-'}}; ValueError when
     manifest_problems finds any"""
     bad = manifest_problems(text)
     if bad: raise ValueError('; '.join(bad[:3]))

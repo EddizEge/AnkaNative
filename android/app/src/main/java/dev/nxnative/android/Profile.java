@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * A game this APK runs: its profile (dm/games/&lt;title ID&gt;) was compiled into a host of its own, libnxhost_&lt;title ID&gt;.so (build.gradle nxGames,
  * src/main/cpp/CMakeLists.txt), and what the launcher needs of it comes from build.gradle as BuildConfig.NX_PROFILES: one line per game, tab-separated: title ID,
- * name, the shader count Prepare translates, the shader inputs digest, the builds (game.tsv build rows, "version module=build ID …", ';' between builds), and, when the APK has them, the readiness rows (the profile's readiness.tsv: "level|fact|min|what", ';' between rows: Readiness.parseReqs), its status row (playable or bring-up; dm/games/README.md "Readiness rows"), the shader delta rows (vk_delta.tsv's "from" rows: "version=count", ',' between them), its "stamp" rows ("version:old SHA-256:new SHA-256", ';' between them), what Game resolution sets (resolutionEnv), the RomFS checks (romfsChecks) and the GPU timestamp mode (gpuTs).
+ * name, the shader count Prepare translates, the shader inputs digest, the builds (game.tsv build rows, "version module=build ID …", ';' between builds), and, when the APK has them, the readiness rows (the profile's readiness.tsv: "level|fact|min|what", ';' between rows: Readiness.parseReqs), its status row (playable or bring-up; dm/games/README.md "Readiness rows"), the shader delta rows (vk_delta.tsv's "from" rows: "version=count" or, for this version's library of older profile inputs, "version@inputs=count", ',' between them), its "stamp" rows ("version:old SHA-256:new SHA-256", ';' between them), what Game resolution sets (resolutionEnv), the RomFS checks (romfsChecks), the GPU timestamp mode (gpuTs), the default Game resolution (window) and the phone's split times (split: a whole split, and a shader update's).
  * A game without a profile here cannot run in this APK (its host has no profile for it): the launcher says so instead of starting it.
  * No Android classes: the JVM test (android/app/src/jvmtest) runs it on the Mac.
  */
@@ -23,7 +23,31 @@ final class Profile {
     String gpuTs = "submission";   // game.tsv gpu_timestamps (build.gradle gpuTsOf): "segment" or "submission", what the host does without DM_NVN_GPU_TS (Game settings › GPU timing)
     String window = "";   // game.tsv android_window (build.gradle windowOf): the default Game resolution when the player chose none (Prefs.gameWindow), "" for the main screen's
     String resChoices = "";   // game.tsv res_choice rows (build.gradle resChoicesOf): "<DM_RES_LEVEL value>=<label>", ';' between them; "" = no 3D resolution setting
+    String split = "";   // game.tsv android_split_minutes (build.gradle splitOf): "lo-hi" or "lo-hi,ulo-uhi", the phone's shader split of this game and of a shader update in minutes, "" when not measured (split(), updateSplit())
     String romfsChecks = "";   // game.tsv romfs_check rows (build.gradle romfsChecksOf): "<path>|<line>|<expected or main>", ';' between them (RomfsCheck)
+
+    /** The phone's shader split of this game as {lo, hi} minutes (ShaderLibs.minutes), null when the profile has no android_split_minutes row */
+    int[] split() { return range(split.split(",")[0]); }
+
+    /**
+     * The phone's split of a shader update as {lo, hi} minutes: it reads only the dump's files that hold the shaders the update translates (shader_split.py
+     * DM_SPLIT_DELTA); null when the profile has no such value (the estimate then takes the whole split, split())
+     */
+    int[] updateSplit() {
+        String[] r = split.split(",");
+        return r.length > 1 ? range(r[1]) : null;
+    }
+
+    private static int[] range(String s) {
+        String[] c = s.split("-");
+        if (c.length != 2) return null;
+        try {
+            int lo = Integer.parseInt(c[0].trim()), hi = Integer.parseInt(c[1].trim());
+            return lo > 0 && hi >= lo ? new int[] {lo, hi} : null;
+        } catch (NumberFormatException e) {
+            return null;   // a malformed row is no measurement
+        }
+    }
 
     /** Whether Game resolution does something for this game (its profile has window_fn or graphics_scale rows) */
     boolean hasResolution() { return resolution.equals("window") || resolution.startsWith("scale:"); }
@@ -105,6 +129,7 @@ final class Profile {
             if (c.length > 11 && !c[11].isEmpty()) p.gpuTs = c[11];
             p.window = c.length > 12 ? c[12] : "";
             p.resChoices = c.length > 13 ? c[13] : "";
+            p.split = c.length > 14 ? c[14] : "";
             out.add(p);
         }
         return Collections.unmodifiableList(out);
