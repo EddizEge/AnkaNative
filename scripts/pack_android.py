@@ -204,7 +204,7 @@ def rewrite(py, srcs, out, jobs, g, in_process=False):
             rc = run_in_process(REPO / 'dm/tools/patch_nso.py', [str(rewriter_src(src, out, m)), staging(out, m), m, '--target', 'android'], {'DM_GAME': g.id, 'DM_REWRITE_J': '1'}, out / f'rewrite_{m}.log')
             if rc:
                 tail = (out / f'rewrite_{m}.log').read_text(errors='replace').splitlines()[-20:]
-                raise Error(f'patch_nso.py exit code {rc} on {m}:\n' + '\n'.join(tail), *pack_errors.flat(pack_errors.of_log('\n'.join(tail), 'patch_nso.py')))
+                raise Error(f'patch_nso.py exit code {rc} on {m} (the last lines of rewrite_{m}.log above)', *pack_errors.flat(pack_errors.of_log('\n'.join(tail), 'patch_nso.py')), detail=tail)
             swap_in(out, m, key)
             print(f'  {m}: done ({time.monotonic() - t0:.1f} s)', flush=True)
             print(f'progress {i + 1}/{n} {m}', flush=True)
@@ -225,7 +225,7 @@ def rewrite(py, srcs, out, jobs, g, in_process=False):
                 if p.returncode:
                     tail = (out / f'rewrite_{m}.log').read_text(errors='replace').splitlines()[-20:]
                     c = pack_errors.of_exit(p.returncode, 'patch_nso.py') or pack_errors.of_log('\n'.join(tail), 'patch_nso.py')
-                    raise Error(f'patch_nso.py exit code {p.returncode} on {m}:\n' + '\n'.join(tail), *pack_errors.flat(c))
+                    raise Error(f'patch_nso.py exit code {p.returncode} on {m} (the last lines of rewrite_{m}.log above)', *pack_errors.flat(c), detail=tail)
                 swap_in(out, m, todo[m][1])
                 print(f'  {m}: done', flush=True)
             if procs: time.sleep(0.2)

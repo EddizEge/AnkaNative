@@ -40,11 +40,14 @@ PREFIX = 'error: '
 
 
 class Coded(Exception):
-    """An error whose message is the English sentence of its [RED] line, with an optional code and its arguments for the error: line before it"""
-    def __init__(self, msg, code=None, *args):
+    """An error whose message is the English sentence of its [RED] line, with an optional code and its arguments for the error: line before it. detail: lines
+    (a failed tool's log tail) that fail() prints before the error: line, never after the [RED] line: the phone's launcher pairs the error: line with the step
+    log's last [RED] line (JobErrors.Watch), and a tail with a [RED] line of its own after the sentence would unpair them"""
+    def __init__(self, msg, code=None, *args, detail=()):
         super().__init__(msg)
         if code is not None: check(code, args)
         self.code, self.code_args = code, tuple(str(a) for a in args)
+        self.detail = tuple(detail)
 
 
 def check(code, args):
@@ -78,7 +81,11 @@ def emit(code, *args):
 
 
 def fail(e):
-    """Exits with e's [RED] line, its error: line first when e carries a code"""
+    """Exits with e's [RED] line, its error: line first when e carries a code, and before both the detail lines e carries (Coded.detail)"""
+    detail = getattr(e, 'detail', ())
+    if detail:
+        sys.stdout.flush()
+        print('\n'.join(detail), file=sys.stderr, flush=True)
     if getattr(e, 'code', None): emit(e.code, *e.code_args)
     sys.exit(f'[RED] {e}')
 

@@ -186,6 +186,30 @@ class Lines(unittest.TestCase):
         self.assertEqual(pack_errors.flat(('no_space', ('/p',))), ('no_space', '/p'))
 
 
+class Detail(unittest.TestCase):
+    """A coded failure with a tool's log tail (Coded.detail, pack_android.py's failed patch_nso.py): the tail comes first, so the error: line stays right before
+    the last [RED] line even when the tail has [RED] lines of its own (JobErrors.Watch pairs the code with the step log's last [RED] line)"""
+    def test_tail_before_the_code(self):
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); import pack_errors\n"
+                "pack_errors.fail(pack_errors.Coded('patch_nso.py exit code 1 on main (the last lines of rewrite_main.log above)', 'out_of_memory', 'patch_nso.py',"
+                " detail=['  rewriting', '[RED] a red line of the tool', 'MemoryError']))\n")
+        r = subprocess.run([sys.executable, '-c', code, str(REPO / 'dm/tools')], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        lines = r.stderr.splitlines()
+        self.assertEqual(lines, ['  rewriting', '[RED] a red line of the tool', 'MemoryError', 'error: out_of_memory\tpatch_nso.py',
+                                 '[RED] patch_nso.py exit code 1 on main (the last lines of rewrite_main.log above)'])
+
+    def test_scripts_pass_the_tail_as_detail(self):
+        """pack_android.py's patch_nso.py failures put their tail in detail=, never into the message after the sentence"""
+        tree = ast.parse((REPO / 'scripts/pack_android.py').read_text(encoding='utf-8'))
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'Error'
+                 and isinstance(n.args[0], ast.JoinedStr) and 'patch_nso.py exit code' in ast.unparse(n.args[0])]
+        self.assertEqual(len(calls), 2)
+        for n in calls:
+            self.assertIn('detail', [k.arg for k in n.keywords], ast.unparse(n))
+            self.assertNotIn('\\n', ast.unparse(n.args[0]), ast.unparse(n))
+
+
 class Source(unittest.TestCase):
     """Every Error(message, 'code', args...) in the two scripts names a code of CODES with its number of arguments (a call whose code is not a literal passes
     through pack_errors.flat, which only gives what pack_errors itself made)"""
