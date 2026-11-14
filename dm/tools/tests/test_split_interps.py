@@ -1,7 +1,7 @@
 """shader_split DM_SPLIT_INTERPS (InterpPool): with J=1 (the phone's packer, whose process may not fork) the scan's batches run in subinterpreters, each with its own GIL;
 the outputs are those of the scan in this process (InProcess) byte for byte, red lines of a worker's scan included, and the scan cache (DM_SPLIT_RESUME) a worker run
-writes resumes a run in this process. A batch whose files need a module that cannot load in a subinterpreter (python-lz4 and zbic: single-phase extension
-modules, bundled in the phone's Python) is scanned again in the main interpreter, with the same outputs: tested with the real lz4 (LZ4 GFPAK entries, a
+writes resumes a run in this process. A batch whose files need a module that cannot load in a subinterpreter (python-lz4: a single-phase extension
+module, bundled in the phone's Python) is scanned again in the main interpreter, with the same outputs: tested with the real lz4 (LZ4 GFPAK entries, a
 size-prefixed LZ4 frame) and with a stand-in lz4 package that imports _testsinglephase, which does not need lz4 to fail in subinterpreters. No game files needed;
 skipped on a Python without concurrent.interpreters (before 3.14). The fuzz builders need lz4 (the tools' venv)."""
 import importlib.util
@@ -148,7 +148,7 @@ class Interps(unittest.TestCase):
         except ImportError: self.skipTest('no lz4')
         if can_load_in_subinterpreter('lz4.block'): self.skipTest('this lz4 loads in subinterpreters: nothing goes to the main interpreter')
         rom = self.lz4_rom('rom_lz4', lambda d: lz4.block.compress(d, store_size=False), lambda d: lz4.frame.compress(d))
-        self.check_main_scans(rom, 'lz4', need=('lz4.block', 'lz4.frame') + (('zbic',) if importlib.util.find_spec('zbic') else ()))
+        self.check_main_scans(rom, 'lz4', need=('lz4.block', 'lz4.frame'))
 
     def test_single_phase_stand_in(self):
         """The same with a stand-in lz4 package that cannot load in a subinterpreter (no lz4 needed)"""
@@ -157,11 +157,7 @@ class Interps(unittest.TestCase):
         (shim / '__init__.py').write_text(SHIM_INIT); (shim / 'block.py').write_text(SHIM_BLOCK)
         rom = self.lz4_rom('rom_shim', lz4_literals)
         env = {'PYTHONPATH': os.pathsep.join([str(shim.parent)] + [p for p in os.environ.get('PYTHONPATH', '').split(os.pathsep) if p])}
-        self.check_main_scans(rom, 'shim', env, need=('lz4.block',) + (('zbic',) if self.zbic_here(env) else ()))   # (the stand-in has no lz4.frame)
-
-    def zbic_here(self, env):   # whether zbic imports in the split's Python and fails in its subinterpreters (then the first line names it too)
-        code = 'import importlib.util, sys; from concurrent import interpreters as I\nif not importlib.util.find_spec("zbic"): sys.exit(1)\nit = I.create()\ntry: it.exec("import zbic")\nexcept I.ExecutionFailed: r = 0\nelse: r = 1\nit.close(); sys.exit(r)'
-        return subprocess.run([sys.executable, '-c', code], env=dict(os.environ, **env)).returncode == 0
+        self.check_main_scans(rom, 'shim', env)   # (the stand-in has no lz4.frame)
 
     def test_no_subinterpreters(self):
         """No worker can be made or set up (no concurrent.interpreters; a set-up that fails, as an import of the tool would): one line says so, and pool() gives

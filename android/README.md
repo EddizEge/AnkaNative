@@ -15,8 +15,12 @@ The Android port of the host: one launcher APK (`android/app`) that holds the ho
 
 Preparing a game on a computer works on Windows, Linux and the Mac. It needs:
 
-- **Python 3.14** with Capstone 5, lz4 and zbic (`pyproject.toml`, dependency group `android-pack`; zbic reads the zstd-compressed code of system 22.0.0+
-  games such as Ocarina of Time).
+- **Python 3.14** with Capstone 5 and lz4 (`pyproject.toml`, dependency group `android-pack`).
+- A **C compiler** (`cc`, `clang` or `gcc` on the `PATH`, or `CC`) for system 22.0.0+ games such as Ocarina of Time, whose code is zstd-compressed (ZBIC):
+  the first time it is needed, `dm/tools/nso.py` builds the decoder, `libzbicdec` (`dm/third_party/zstd-zbic`), into
+  `dm/third_party/zstd-zbic/build/` and loads it from there afterwards; `DM_ZBIC_LIB=<library>` names a build made elsewhere instead. The Mac has one with
+  Xcode's command line tools, Linux with `gcc` or `clang`; on Windows put [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw/releases)'s `bin` folder on the
+  `PATH` (the Windows build of the decoder is not tested yet).
 - The **.NET 10 runtime**, which runs the committed shader translator (`dm/gfx/tools/dmsh_xlate_bin`). On the Mac it starts as `dmsh_xlate`; on Linux and
   Windows `pack_android.py` starts it through the launcher beside it, `dmsh_xlate-<linux|win>-<x64|arm64>`.
 - **spirv-val** (SPIRV-Tools) on the `PATH`.
@@ -28,21 +32,21 @@ https://vulkan.lunarg.com, whose installer puts its `Bin` folder on the `PATH`):
 
 ```powershell
 py -3.14 -m venv D:\Switch2\.venv-anka
-D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4 zbic
+D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4
 ```
 
 Linux (the distribution's `dotnet-runtime-10.0` and `spirv-tools` packages; Python 3.14 from the distribution or micromamba):
 
 ```sh
 python3.14 -m venv <dump folder>/.venv-anka
-<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4 zbic
+<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
 
 The Mac (`brew install --cask dotnet-sdk`, `brew install spirv-tools`):
 
 ```sh
 micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge
-<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4 zbic
+<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
 
 Capstone comes from pip: conda-forge's Capstone 5 finds its library only through `CONDA_PREFIX`, so it fails when the environment's Python is run without activating it.
@@ -167,7 +171,7 @@ Each game's own rows are in its profile, `dm/games/<title ID>/readiness.tsv` ([t
 
 ## Android versions
 
-The APK's minSdk is 31: it installs on Android 12 and 12L (API 31 and 32) as well as 13 and later. **Android 12 and 12L are untested on a phone**, and the readiness check says so there with a warning (**Android 13 or newer**, degraded). What was checked without a phone: the Java code and the host and launcher libraries are built for API 31 (no call newer than 31 is linked); Android lint gives no NewApi or InlinedApi finding; and the on-device packer's libraries, which the current stage built for other levels (`libnxpack.so`, `libSPIRV-Tools-shared.so`, Capstone, lz4 and zbic for API 33, CPython 3.14 for 24, `libdmsh_xlate.so` for 21), have every system symbol they need in the NDK's API 31 libraries. Bionic does not refuse a library for its build level, only for a missing symbol; the build scripts now target 31, so a rebuilt stage carries 31. Left out of that: four CPython modules the packer does not import (`_ssl`, `_hashlib`, `_sqlite3`, `_zstd`'s trace hooks) need `libssl_python.so`, `libcrypto_python.so` or `libsqlite3_python.so`, which the stage does not ship on any Android version. What differs before Android 13:
+The APK's minSdk is 31: it installs on Android 12 and 12L (API 31 and 32) as well as 13 and later. **Android 12 and 12L are untested on a phone**, and the readiness check says so there with a warning (**Android 13 or newer**, degraded). What was checked without a phone: the Java code and the host and launcher libraries are built for API 31 (no call newer than 31 is linked); Android lint gives no NewApi or InlinedApi finding; and the on-device packer's libraries, which the current stage built for other levels (`libnxpack.so`, `libSPIRV-Tools-shared.so`, Capstone and lz4 for API 33, CPython 3.14 for 24, `libdmsh_xlate.so` for 21; `libzbicdec.so`, which replaced the zbic package, is built for 31), have every system symbol they need in the NDK's API 31 libraries. Bionic does not refuse a library for its build level, only for a missing symbol; the build scripts now target 31, so a rebuilt stage carries 31. Left out of that: four CPython modules the packer does not import (`_ssl`, `_hashlib`, `_sqlite3`, `_zstd`'s trace hooks) need `libssl_python.so`, `libcrypto_python.so` or `libsqlite3_python.so`, which the stage does not ship on any Android version. What differs before Android 13:
 
 - **Vulkan.** Android 12 and 12L's Vulkan loader reports instance version 1.1 (13's reports 1.3). The replay needs no 1.3 instance-level command, so the host (`vka_dev.c`) and the readiness check ask for a 1.1 loader and a 1.3 device: the loader passes the instance's `apiVersion` 1.3 to the driver and hands device commands it does not wrap to the driver's `vkGetDeviceProcAddr`. The phone's own Android 12 driver usually reports Vulkan 1.1 and has no `VK_EXT_map_memory_placed`, so on Android 12 a game needs a custom driver such as Anka Turnip ([Custom GPU drivers](#custom-gpu-drivers); libadrenotools' linker namespaces work from API 28).
 - **CPU scheduling.** The NDK's performance hint session (`APerformanceHint_*`) is in libandroid from Android 13; on 12 the replay's threads run on the default governor and the log has `[RED] vk: no ADPF performance hint manager` (`vka_perf.c`).

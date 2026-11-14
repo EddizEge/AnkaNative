@@ -47,8 +47,8 @@ Anka Native is built on other people's work. This file is where they are credite
   **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)**, **[glslang](https://github.com/KhronosGroup/glslang)**,
   **[MacNativeGames](https://github.com/ly05010419/MacNativeGames)** (MIT) and deko3d (zlib): used by the Mac and iPhone builds and the shared tools, as
   listed in [docs/mac-and-iphone.md](docs/mac-and-iphone.md#acknowledgements).
-- Third-party code shipped in `dm/third_party` (AMD FidelityFX FSR 1, NVIDIA FLIP, libadrenotools, libvpx, stb_vorbis, Ryujinx, Vulkan-Headers, zstd and
-  MacNativeGames' adapted parts): each keeps its license file in its own directory, listed in [dm/third_party/README.md](dm/third_party/README.md).
+- Third-party code shipped in `dm/third_party` (AMD FidelityFX FSR 1, NVIDIA FLIP, libadrenotools, libvpx, stb_vorbis, Ryujinx, Vulkan-Headers, zstd,
+  zstd-zbic and MacNativeGames' adapted parts): each keeps its license file in its own directory, listed in [dm/third_party/README.md](dm/third_party/README.md).
 - Prebuilt tools committed for the Mac shader chain: `dm/gfx/tools/spirv_cross_bin/spirv-cross` (SPIRV-Cross, Apache-2.0, license texts beside it) and
   the translator `dm/gfx/tools/dmsh_xlate_bin` (a GPL-3.0-or-later combined work, see above). The translator folder also carries the .NET packages it
   was built with, unmodified from NuGet: Gommon 2.8.1.2 (MIT), Humanizer 3.0.10 with its language resources (MIT), MsgPack.Cli 1.0.1 (Apache-2.0),
@@ -58,9 +58,10 @@ Anka Native is built on other people's work. This file is where they are credite
 - The **on-phone packer** in the APK (`android/ondevice/build.sh` builds it, unmodified from each project's release): **[CPython](https://www.python.org)**
   3.14.6 for Android (PSF License), **[Capstone](https://github.com/capstone-engine/capstone)** 5.0.7 (BSD-3-Clause),
   **[python-lz4](https://github.com/python-lz4/python-lz4)** 4.4.5 with LZ4 (BSD-3-Clause, BSD-2-Clause),
-  **[zbic](https://github.com/kinnay/zbic)** 1.0.1.post1 by Yannik Marchand (GPLv2; it carries Zstandard, BSD-3-Clause or GPLv2) for the
-  zstd-compressed code of newer games, **[SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools)** (Apache-2.0) and the
-  **[.NET](https://github.com/dotnet/runtime)** runtime the translator is compiled with (NativeAOT, MIT).
+  **[SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools)** (Apache-2.0) and the **[.NET](https://github.com/dotnet/runtime)** runtime the
+  translator is compiled with (NativeAOT, MIT). Beside them, built from this repository, `libzbicdec.so` reads the zstd-compressed (ZBIC) code of newer
+  games: **Banana Native's ZBIC decoder** (`dm/third_party/zstd-zbic`, from Banana Native f86575b0, v0.2.2), Zstandard 1.5.7's decoder (BSD-3-Clause,
+  unmodified) with Banana Native's MIT reader of ZBIC's tables.
 
 ## Licenses
 

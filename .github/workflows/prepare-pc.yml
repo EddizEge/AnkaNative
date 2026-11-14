@@ -42,7 +42,7 @@ jobs:
         with:
           python-version: '3.14'
       - name: Install the packer's Python packages
-        run: python -m pip install "capstone>=5,<6" lz4 zbic
+        run: python -m pip install "capstone>=5,<6" lz4
       - name: Install the .NET 10 runtime when the image has none
         run: |
           if dotnet --list-runtimes 2>/dev/null | grep -q '^Microsoft.NETCore.App 10\.'; then dotnet --list-runtimes; exit 0; fi
