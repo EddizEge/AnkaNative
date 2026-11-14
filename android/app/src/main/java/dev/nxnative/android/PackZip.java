@@ -219,8 +219,8 @@ final class PackZip {
     static Pack stage(File source, File packs, String want) throws IOException {
         String id = titleOf(source);
         if (!id.matches("[0-9A-F]{16}")) throw new LocalizedIOException("packs_zip_bad_title", id);
-        String why = Profile.missing(id, Tr.english("packs_missing_what"));   // English, as Profile.missing takes it; the integrator switches to missingMsg
-        if (why != null) throw new IOException(why);
+        Msg why = Profile.missingMsg(id, new Msg("packs_missing_what"));
+        if (why != null) throw new LocalizedIOException(why, null);
         if (want != null && !want.equals(id)) throw new LocalizedIOException("packs_zip_other_game", id, want);
         File target = new File(packs, id), part = new File(packs, id + PARTIAL);
         if (SaveStore.inside(source, packs) || SaveStore.inside(packs, source)) throw new LocalizedIOException("packs_zip_own_folder", source);

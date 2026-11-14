@@ -516,9 +516,9 @@ public final class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         File save = Folders.save(this, g);
         String lp = Pack.libraryProblem(new File(g.packDir), g.titleId);
-        String noProfile = Profile.missing(g.titleId, g.name);
+        Msg noProfile = Profile.missingMsg(g.titleId, g.name);
         AlertDialog[] d = new AlertDialog[1];
-        if (noProfile != null) Ui.add(box, Ui.small(this, noProfile), 0);
+        if (noProfile != null) Ui.add(box, Ui.small(this, noProfile.text()), 0);
         // Saves: backups in <Switch2>/save-backups/<id>/, verified; a restore backs up the current save first (SaveUi, SaveStore)
         if (noProfile == null) Ui.add(box, new Ui.Setting(this, "⚙️", getString(R.string.home_game_settings), v -> { d[0].dismiss(); GameSettings.dialog(this, g); }).chevron(this).view, 0);
         Ui.add(box, new Ui.Setting(this, "📁", getString(R.string.home_folders), v -> { d[0].dismiss(); Folders.dialog(this, g); }).chevron(this).view, 0);
@@ -670,7 +670,7 @@ public final class MainActivity extends Activity {
                 out.add(k);
                 if (Nup.wrongCase(g)) { k.error = new Msg("home_nup_wrong_case_short", g.getName()); continue; }
                 try { k.id = Pack.titleIdOf(g); } catch (IOException e) { k.error = why(e); continue; }
-                String why = Profile.missing(k.id, single ? Tr.english("home_this_game") : g.getName());   // English, as Profile.missing is (the integrator switches to missingMsg)
+                Msg why = Profile.missingMsg(k.id, single ? new Msg("home_this_game") : g.getName());
                 if (why != null) { k.unsupported = true; k.error = why; continue; }
                 k.name = Profile.of(k.id).name;
                 k.dump = Ondevice.isDump(g);   // false when this APK has no packer: then it is added like any folder without a pack
@@ -836,7 +836,7 @@ public final class MainActivity extends Activity {
         Pack pack;
         try { pack = Pack.read(packDir); } catch (IOException e) { return why(e); }
         if (!pack.titleId.equals(id)) return Nup.isNup(game) ? new Msg("home_pack_other_title_nup", pack.titleId, id) : new Msg("home_pack_other_title_folder", pack.titleId, id);
-        String why = Profile.missing(id, pack.name.isEmpty() ? null : pack.name);
+        Msg why = Profile.missingMsg(id, pack.name.isEmpty() ? null : pack.name);
         if (why != null) return why;
         if (Nup.isNup(game)) {
             String romfs;
@@ -873,8 +873,8 @@ public final class MainActivity extends Activity {
 
     void launch(Game g) {
         if (needAccess()) return;
-        String why = Profile.missing(g.titleId, g.name);
-        if (why != null) { error(why); return; }
+        Msg why = Profile.missingMsg(g.titleId, g.name);
+        if (why != null) { error(why.text()); return; }
         if (SaveUi.busy(g.titleId)) { error(getString(R.string.home_busy_save, g.name)); return; }
         if (PackUi.busy(g.titleId)) { error(getString(R.string.home_busy_pack, g.name)); return; }
         File gd = new File(g.gameDir);

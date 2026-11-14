@@ -191,7 +191,7 @@ final class DumpLayout {
             return Pack.why(e);
         }
         Profile prof = Profile.of(f.titleId);
-        if (prof == null) return new Msg("packs_as_is", Profile.missing(f.titleId, Tr.english("packs_missing_what_dump")));   // English, as Profile.missing takes it; the integrator switches to missingMsg
+        if (prof == null) return Profile.missingMsg(f.titleId, new Msg("packs_missing_what_dump"));
         Map<Long, Map<String, String>> builds = prof.buildMap();
         for (int i = have.size() - 1; i >= 0 && f.version < 0; i--) {
             long v = have.get(i);
