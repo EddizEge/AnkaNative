@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- English (the source): the errors area (JobErrors: the packer's error codes). docs/i18n.md: keys start with errors_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- JobErrors: one text per packer error code (dm/tools/pack_errors.py), key errors_<code>; the arguments are the error: line's, in its order -->
+    <string name="errors_dump_incomplete">The dump is incomplete: %1$s lacks the game code (exefs with main and main.npdm) or the RomFS. Dump the game again.</string>
+    <string name="errors_module_missing">The dump is incomplete: %1$s has no %2$s. Dump the game again.</string>
+    <string name="errors_version_missing">The dump has no update %1$s. Choose a version the dump holds, or dump that update.</string>
+    <string name="errors_wrong_title">%1$s is not part of this game: its program ID is %2$s, the base game is %3$s.</string>
+    <string name="errors_not_base_title">%1$s: %2$s is not the title ID of a base game. Choose the dump of the base game or of its update.</string>
+    <string name="errors_no_profile">This app has no profile for the game %1$s, so it cannot prepare it.</string>
+    <string name="errors_shaders_other_build">The dump lacks %1$s of the %2$s shaders this app knows for the game: it is of another game version, or incomplete. Dump the game again.</string>
+    <string name="errors_unreadable_file">Cannot read %1$s: the file is damaged or not what its name says. Dump the game again.</string>
+    <string name="errors_no_space">Not enough free space (%1$s). Free some space, then try again.</string>
+    <string name="errors_out_of_memory">Not enough memory: %1$s was stopped. Close other apps, then try again.</string>
+    <string name="errors_translator_crashed">The shader translator crashed. Try again; if it crashes again, report it with the log.</string>
 </resources>
