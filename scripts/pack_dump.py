@@ -20,16 +20,17 @@ import argparse, filecmp, shutil, struct, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'dm/tools'))
 import nup, romfs, romfs_image
+import pack_errors   # the error: lines before a [RED] line (dm/tools/pack_errors.py)
 
 
-class Error(Exception): pass
+class Error(pack_errors.Coded): pass   # Error(message[, code, args...])
 
 
 def program_id(npdm):   # the ACI0 program ID of main.npdm
     d = npdm.read_bytes()
-    if d[:4] != b'META': raise Error(f'{npdm}: not an NPDM')
+    if d[:4] != b'META': raise Error(f'{npdm}: not an NPDM', 'unreadable_file', npdm)
     off, size = struct.unpack_from('<II', d, 0x70)
-    if d[off:off + 4] != b'ACI0' or size < 0x18: raise Error(f'{npdm}: no ACI0 section')
+    if d[off:off + 4] != b'ACI0' or size < 0x18: raise Error(f'{npdm}: no ACI0 section', 'unreadable_file', npdm)
     return struct.unpack_from('<Q', d, off + 0x10)[0]
 
 
@@ -82,16 +83,16 @@ def main_npdm(folder):   # the dump's main.npdm the title ID is read from: the b
 def nup_scan(path):
     """scan() of a NUP file: its packages as romfs.Path folders named as android/NUP.md names them (`<file>.nup:update/<version>`, `<file>.nup:addon/<tid>/romfs`)"""
     try: n = nup.open_nup(path)
-    except nup.Error as e: raise Error(str(e)) from None
+    except nup.Error as e: raise Error(str(e), 'unreadable_file', path) from None
     pkg = lambda p, sub='': romfs.Path(f'{n.path}:{p.selector}{sub}')
     base = [p for p in n.packages if p.kind == nup.BASE]
     # the title ID: the base's main.npdm, else the newest update's (a NUP file with only an update package that carries the whole game)
     code = [p for p in base + sorted((p for p in n.packages if p.kind == nup.UPDATE), key=lambda p: -p.version) if p.exefs != nup.NONE and (pkg(p) / 'exefs/main.npdm').is_file()]
-    if not code: raise Error(f'{path}: no package with exefs/main.npdm (neither the base nor an update)')
+    if not code: raise Error(f'{path}: no package with exefs/main.npdm (neither the base nor an update)', 'dump_incomplete', path)
     app = program_id(pkg(code[0]) / 'exefs/main.npdm')
-    if app & 0xFFF: raise Error(f'{path}: base program ID {app:016X} is not a base title ID')
+    if app & 0xFFF: raise Error(f'{path}: base program ID {app:016X} is not a base title ID', 'not_base_title', path, f'{app:016X}')
     vers = {p.version: pkg(p) for p in n.packages if p.kind == nup.UPDATE}
-    if not any(p.romfs != nup.NONE for p in n.packages if p.kind in (nup.BASE, nup.UPDATE)): raise Error(f'{path}: no RomFS in the base or an update')
+    if not any(p.romfs != nup.NONE for p in n.packages if p.kind in (nup.BASE, nup.UPDATE)): raise Error(f'{path}: no RomFS in the base or an update', 'dump_incomplete', path)
     dlc = {}
     for p in n.packages:
         if p.kind != nup.ADDON: continue
@@ -119,9 +120,9 @@ def version_part(dump, vers, ver, part):   # a version's exefs or romfs: its own
 def scan(dump):
     """What a dump folder (or a NUP file) holds: (title ID, {update version: its folder}, {DLC title ID: its RomFS folder})"""
     if nup.is_nup(dump): return nup_scan(dump)
-    if not is_dump(dump): raise Error(f'{dump}: no base/exefs/main.npdm (or an update\'s exefs/main.npdm) and base/romfs (or an update\'s romfs)')
+    if not is_dump(dump): raise Error(f'{dump}: no base/exefs/main.npdm (or an update\'s exefs/main.npdm) and base/romfs (or an update\'s romfs)', 'dump_incomplete', dump)
     app = program_id(main_npdm(dump))
-    if app & 0xFFF: raise Error(f'{dump}: base program ID {app:016X} is not a base title ID')
+    if app & 0xFFF: raise Error(f'{dump}: base program ID {app:016X} is not a base title ID', 'not_base_title', dump, f'{app:016X}')
     vers = updates(dump)
     dlc = {}
     for d in sorted(p for p in (dump / 'dlc').iterdir() if p.is_dir()) if (dump / 'dlc').is_dir() else []:
@@ -135,8 +136,8 @@ def scan(dump):
 
 
 def pack_version(src, app, out, say=print):   # one version's folder (base/ or updates/<version>/) → out/ExeFS and out/RomFS.img
-    if not (src / 'exefs/main').is_file() or not (src / 'exefs/main.npdm').is_file() or not (src / 'romfs').is_dir(): raise Error(f'{src}: no exefs/main, exefs/main.npdm and romfs')
-    if (pid := program_id(src / 'exefs/main.npdm')) != app: raise Error(f'{src}: program ID {pid:016X}, the base is {app:016X}')
+    if not (src / 'exefs/main').is_file() or not (src / 'exefs/main.npdm').is_file() or not (src / 'romfs').is_dir(): raise Error(f'{src}: no exefs/main, exefs/main.npdm and romfs', 'dump_incomplete', src)
+    if (pid := program_id(src / 'exefs/main.npdm')) != app: raise Error(f'{src}: program ID {pid:016X}, the base is {app:016X}', 'wrong_title', src, f'{pid:016X}', f'{app:016X}')
     exefs(src / 'exefs', out / 'ExeFS')
     pack(src / 'romfs', out / 'RomFS.img', say)
 
@@ -159,7 +160,7 @@ def main():
     try:
         app, vers, dlc = scan(dump)
         ver = a.version if a.version is not None else max(vers, default=0)
-        if ver and ver not in vers: raise Error(f'no updates/{ver} (have: {", ".join(map(str, sorted(vers))) or "none"})')
+        if ver and ver not in vers: raise Error(f'no updates/{ver} (have: {", ".join(map(str, sorted(vers))) or "none"})', 'version_missing', ver)
         src = version_dir(dump, vers, ver)
         work = (a.work_dir or (dump.parent if nup.is_nup(dump) else dump) / f'{app:016X}_build').resolve()
         out = work / 'extract' / f'v{ver}'
@@ -167,7 +168,9 @@ def main():
         say = lambda s: print(s, flush=True)
         pack_version(src, app, out, say)
         pack_dlc(app, dlc, work / 'aoc', say)
-    except Error as e: sys.exit(f'[RED] {e}')
+    except Error as e: pack_errors.fail(e)
+    except MemoryError: pack_errors.fail_memory('pack_dump.py')
+    except OSError as e: pack_errors.fail_os(e); raise
     print(f'done: {out}' + (f', {len(dlc)} DLC in {work / "aoc"}' if dlc else ''))
 
 
