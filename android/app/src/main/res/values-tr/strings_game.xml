@@ -1,4 +1,144 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Türkçe: the game area (GameActivity, SidePanel, TouchControls, Overlay, Fsr, Lsfg, SelftestActivity). docs/i18n.md: keys start with game_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- GameActivity -->
+    <string name="game_panel_open_description">Oyun içi paneli aç</string>
+    <string name="game_paused">Duraklatıldı\n\nDevam etmek için dokun  (oyun kumandasında A ya da Start)</string>
+    <string name="game_stopped_in_background">Oyun arka plandayken durduruldu (Android işlemini sonlandırdı). Kaydedilmemiş ilerleme kayboldu; oyunu başlatıcıdan yeniden başlat.</string>
+    <string name="game_intro_skip_on">Girişi atla açık: oynanışa kadar A tuşuna basılıyor ve videolar bitiriliyor</string>
+    <string name="game_intro_skip_off">Girişi atla kapalı</string>
+    <string name="game_save_unfinished_restore">Kayıt klasöründe tamamlanamayan yarım bir geri yükleme var: %1$s</string>
+    <string name="game_test_save_cannot_create">test kayıt klasörü oluşturulamıyor: %1$s</string>
+    <string name="game_cannot_create">%1$s oluşturulamıyor</string>
+    <string name="game_save_copied">Kaydın uygulamanın depolamasına kopyalandı (%1$s). Eski klasör olduğu gibi tutuluyor: %2$s.</string>
+    <string name="game_save_not_copied">Kaydın uygulamanın depolamasına kopyalanamadı (%1$s). Bu başlatmada kayıt bulunduğu yerden oynanıyor: %2$s.</string>
+    <string name="game_checking_gpu">%1$s: bu telefonun GPU\'su kontrol ediliyor…</string>
+    <!-- The start-up readiness notice and its Details -->
+    <string name="game_details_gpu">GPU: %1$s\nBellek: Android\'in bildirdiğine göre %2$.1f GiB.</string>
+    <string name="game_ready_missing">Eksik: %1$s.\n\nOyun durabilir ya da yanlış çizebilir. Özel bir GPU sürücüsü (%2$s › %3$s) işe yarayabilir.</string>
+    <string name="game_ready_missing_black_system">Eksik: %1$s.\n\nBu GPU sürücüsüyle (%2$s) hiçbir şey çizilmez: oyun çalışırken ekran siyah kalır. Yerleştirilmiş bellek eşlemelerini destekleyen özel bir sürücüyü %3$s › %4$s bölümünden ya da bu oyunun %5$s bölümünden seç.</string>
+    <string name="game_ready_missing_black_custom">Eksik: %1$s.\n\nBu GPU sürücüsüyle (%2$s) hiçbir şey çizilmez: oyun çalışırken ekran siyah kalır. %4$s › %5$s bölümünden ya da bu oyunun %6$s bölümünden şunu seç: %3$s.</string>
+    <string name="game_ready_not_ready_title">Bu oyun için hazır değil</string>
+    <string name="game_ready_start_black">Yine de başlat (siyah ekran)</string>
+    <string name="game_ready_try_anyway">Yine de dene</string>
+    <string name="game_ready_limits_message">Kısıtlı çalışır: %1$s.</string>
+    <string name="game_ready_limits_title">Hazır, sınırlı</string>
+    <string name="game_ready_continue">Devam</string>
+    <string name="game_ready_details">Ayrıntılar</string>
+    <string name="game_ready_details_also">%1$s\n\nAyrıntılar ayrıca şurada: %2$s › %3$s.</string>
+    <string name="game_ready_dont_show">Bunu bir daha gösterme</string>
+    <string name="game_ready_back">Geri</string>
+    <string name="game_ready_check_title">Uyumluluk denetimi</string>
+    <string name="game_ready_close">Kapat</string>
+    <string name="game_ready_copy_report">Raporu kopyala</string>
+    <!-- Why a game cannot start -->
+    <string name="game_nup_no_romfs">%1$s içinde RomFS içeren %2$s yok</string>
+    <string name="game_no_romfs">%1$s içinde RomFS yok</string>
+    <string name="game_env_from_game_settings">oyunun ayarları</string>
+    <string name="game_env_refused">Alınmayan ortam satırları: %1$s: oyunun yollarını başlatıcı ayarlar (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)</string>
+    <string name="game_env_refused_test">Alınmayan ortam satırları: %1$s: oyunun yollarını başlatıcı ayarlar (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME); DM_SAVE yalnızca env-&lt;title ID&gt;.txt dosyasından alınır</string>
+    <string name="game_host_not_started">host başlamadı (%1$d)</string>
+    <string name="game_host_not_started_again">host başlamadı (%1$d: bu işlemde zaten bir başlatma denendi)</string>
+    <string name="game_starting">%1$s: başlatılıyor. Günlük: %2$s</string>
+    <string name="game_cannot_start_title">Başlatılamıyor: %1$s</string>
+    <string name="game_running_title">%1$s çalışıyor</string>
+    <string name="game_running_message">Önce onu durdur (oyun içi panel › %2$s), sonra %1$s oyununu başlat. Aynı anda tek oyun çalışır.</string>
+    <string name="game_save_in_use">Kayıt kullanımda (%1$s): yedeklemesi ya da geri yüklemesi sürüyor. Bitince yeniden dene.</string>
+
+    <!-- SidePanel -->
+    <string name="game_panel_intro">Oyun bu panelin arkasında çalışmaya devam eder; her değişiklik hemen uygulanır ve saklanır.</string>
+    <string name="game_panel_cap_head">Kare hızı sınırı</string>
+    <string name="game_panel_cap_own">Oyunun kendi hızı</string>
+    <string name="game_panel_overlay_head">Ekran bilgisi</string>
+    <string name="game_panel_controls_head">Ekran kontrolleri</string>
+    <string name="game_panel_skip_head">Girişi atla (hata ayıklama)</string>
+    <string name="game_panel_skip_note">Oynanışa kadar birkaç karede bir A tuşuna basar ve videoları erken bitirir, sonra kendiliğinden durur. Oyunda: − ve + tuşlarını birlikte 1 sn basılı tut.</string>
+    <string name="game_panel_skip_stop">Giriş atlamayı durdur</string>
+    <string name="game_panel_skip_now">Girişi şimdi atla</string>
+    <string name="game_panel_pause">Oyunu duraklat</string>
+    <string name="game_panel_pause_on_return">Oyun arka plandan dönünce duraklat</string>
+    <string name="game_panel_stop">Oyunu durdur</string>
+    <string name="game_panel_stop_title">Oyun durdurulsun mu?</string>
+    <string name="game_panel_stop_message">Oyun kapanır; kaydedilmemiş ilerleme kaybolur. Günlük, %1$s için saklanır.</string>
+    <string name="game_panel_stop_confirm">Durdur</string>
+    <string name="game_panel_keep_running">Çalışmaya devam etsin</string>
+    <string name="game_panel_back">Oyuna dön</string>
+    <string name="game_panel_no_cap">Bu derlemede kare hızı sınırı yok.</string>
+    <string name="game_panel_starting">Başlatılıyor…</string>
+    <string name="game_panel_own_rate">Bu oyun kare hızını kendisi seçer.</string>
+    <string name="game_panel_now_capped">Şu an %1$d fps, sınır %2$d.</string>
+    <string name="game_panel_now_own">Şu an %1$d fps, oyunun kendi hızı.</string>
+    <string name="game_panel_lsfg_now">Şu an: %1$s</string>
+
+    <!-- TouchControls -->
+    <string name="game_controls_group_left_stick">sol çubuk</string>
+    <string name="game_controls_group_dpad">yön tuşları</string>
+    <string name="game_controls_group_right_stick">sağ çubuk</string>
+    <string name="game_controls_top">Üst</string>
+    <string name="game_controls_centre">Orta</string>
+    <string name="game_controls_bottom">Alt</string>
+    <string name="game_controls_reset">Sıfırla</string>
+    <string name="game_controls_done">Bitti</string>
+    <string name="game_controls_picture_position">Görüntü konumu (bu ekran)</string>
+    <string name="game_controls_edit_layout">Kontrol düzenini değiştir…</string>
+    <string name="game_controls_hint_group">%1$s: taşımak için sürükle, boyutlandırmak için ikinci parmağını kullan (%%%2$d)</string>
+    <string name="game_controls_hint_picture">görüntü: siyah şeritlere sürükle</string>
+    <string name="game_controls_hint">Bir kontrolü ya da görüntüyü sürükle; boyutlandırmak için kontrolü iki parmakla sıkıştır</string>
+    <string name="game_controls_vibrate">Basınca titreşim</string>
+    <string name="game_controls_show_log">Günlüğü oyunun üzerinde göster</string>
+    <string name="game_controls_opacity">Opaklık %%%1$d</string>
+    <string name="game_controls_size">Boyut %%%1$d</string>
+    <string name="game_controls_reset_all">Kontrolleri sıfırla</string>
+
+    <!-- Overlay -->
+    <string name="game_overlay_item_fps">Kare hızı ve kare süresi</string>
+    <string name="game_overlay_item_throttle">Kısılma noktası (yeşil / sarı / kırmızı)</string>
+    <string name="game_overlay_item_gpu">Kare başına GPU süresi</string>
+    <string name="game_overlay_item_cpu">CPU saat hızı sınırları</string>
+    <string name="game_overlay_item_battery">Pil sıcaklığı ve seviyesi</string>
+    <string name="game_overlay_item_memory">Bellek: oyunun ve telefonun</string>
+    <string name="game_overlay_master">Ekran bilgisini oyunun üzerinde göster</string>
+    <string name="game_overlay_cpu_unknown">CPU sınırı ?</string>
+    <string name="game_overlay_no_lsfg">LSFG yok</string>
+    <string name="game_overlay_battery">%1$.0f°C %%%2$d</string>
+    <string name="game_overlay_battery_charging">%1$.0f°C %%%2$d ⚡︎</string>
+    <string name="game_overlay_battery_level">%%%1$d</string>
+    <string name="game_overlay_battery_level_charging">%%%1$d ⚡︎</string>
+    <string name="game_overlay_memory_low">düşük</string>
+
+    <!-- Fsr -->
+    <string name="game_fsr_head">Ölçek büyütme</string>
+    <string name="game_fsr_on">FSR 1 (görüntü ekrana büyütüldüğünde daha keskin)</string>
+    <string name="game_fsr_sharpness">Keskinlik</string>
+    <string name="game_fsr_sharp_max">En yüksek</string>
+    <string name="game_fsr_sharp_default">Varsayılan</string>
+    <string name="game_fsr_sharp_soft">Yumuşak</string>
+    <string name="game_fsr_sharp_softer">Daha yumuşak</string>
+
+    <!-- Lsfg -->
+    <string name="game_lsfg_head">Kare üretimi (Lossless Scaling, kendi Lossless.dll dosyan)</string>
+    <string name="game_lsfg_not_built">Bu derlemede yok (-PnxLsfg=false ile derlendi).</string>
+    <string name="game_lsfg_on">Kare üretimi (LSFG)</string>
+    <string name="game_lsfg_mult">Oyun karesi başına kare</string>
+    <string name="game_lsfg_target">Hedef kare hızı (çarpan buna göre ayarlanır)</string>
+    <string name="game_lsfg_fixed">Sabit</string>
+    <string name="game_lsfg_flow">Hareket tahmini çözünürlüğü (düşük olan daha hızlı; %1$s = oyunun kendi değeri)</string>
+    <string name="game_lsfg_auto">Otomatik</string>
+    <string name="game_lsfg_mode">Mod: performans (Eden LSFG uygulamasının kullandığı tek shader seti)</string>
+    <string name="game_lsfg_from">Lossless.dll kaynağı: %1$s</string>
+    <string name="game_lsfg_not_copied">Lossless.dll kopyalanamadı (%1$s): %2$s</string>
+    <string name="game_lsfg_earlier">Lossless.dll: daha önce seçilen kopya</string>
+    <string name="game_lsfg_not_found">Lossless.dll bulunamadı (Documents/Emulation/bios, Switch2, Download ve uygulamanın dosyalarında arandı)</string>
+    <string name="game_lsfg_by_hand">Lossless.dll: elle seçildi</string>
+    <string name="game_lsfg_cannot_open">%1$s açılamıyor</string>
+    <string name="game_lsfg_not_dll">bu dosya bir Windows DLL dosyası değil</string>
+    <string name="game_cannot_replace">%1$s değiştirilemiyor</string>
+
+    <!-- SelftestActivity -->
+    <string name="game_selftest_no_log">BAŞARISIZ: günlük açılamıyor: %1$s</string>
+    <string name="game_selftest_waiting">Grafik öz testi: yüzey bekleniyor</string>
+    <string name="game_selftest_no_host">BAŞARISIZ: bu host nxhost_vk_selftest içermiyor</string>
+    <string name="game_selftest_running">Grafik öz testi çalışıyor (%1$d kare, yaklaşık %2$d sn)</string>
+    <string name="game_selftest_pass">BAŞARILI (dönüş kodu %1$d)\nÇıkmak için geri git; bu çalıştırmanın günlüğünü %2$s ile gönderebilirsin.</string>
+    <string name="game_selftest_fail">BAŞARISIZ (dönüş kodu %1$d)\nÇıkmak için geri git; bu çalıştırmanın günlüğünü %2$s ile gönderebilirsin.</string>
 </resources>
