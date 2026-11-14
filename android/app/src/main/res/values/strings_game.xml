@@ -117,6 +117,8 @@
     <string name="game_overlay_item_battery">Battery temperature and level</string>
     <string name="game_overlay_item_memory">Memory: the game\'s and the phone\'s</string>
     <string name="game_overlay_master">Show the overlay over the game</string>
+    <!-- The switch's label (game_overlay_master) with a note of the screen that shows it (Overlay.rows' masterNote; no screen passes one yet) -->
+    <string name="game_overlay_master_note">%1$s (%2$s)</string>
     <!-- The CPU clock caps, cap / top clock in GHz, one line per cluster: the only line, the first, one in the middle, the last -->
     <string name="game_overlay_cpu_one">CPU %1$.1f/%2$.1f GHz</string>
     <string name="game_overlay_cpu_first">CPU %1$.1f/%2$.1f</string>

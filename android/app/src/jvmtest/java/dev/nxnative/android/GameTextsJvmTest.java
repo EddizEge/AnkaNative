@@ -92,6 +92,7 @@ public final class GameTextsJvmTest {
         same("Pause when the game comes back from the background", "game_panel_pause_on_return");
         same("Stop the game", "game_panel_stop");
         same("Stop the game?", "game_panel_stop_title");
+        same("Show the overlay over the game (from the next start)", "game_overlay_master_note", new Msg("game_overlay_master"), "from the next start");   // Overlay.rows' masterNote
         same("The game ends; unsaved progress is lost. The log stays for Share log.", "game_panel_stop_message", HomeLabels.shareLog());
         same("Stop", "game_panel_stop_confirm");
         same("Keep running", "game_panel_keep_running");

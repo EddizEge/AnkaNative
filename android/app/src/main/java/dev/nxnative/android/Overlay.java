@@ -50,10 +50,12 @@ final class Overlay {
     static final String[] ITEM_KEYS = {"game_overlay_item_fps", "game_overlay_item_throttle", "game_overlay_item_gpu", "game_overlay_item_cpu", "game_overlay_item_battery",
             "game_overlay_item_memory"};
 
-    /** The master switch and, below it, one switch per item (main screen dialog, in-game settings) */
-    static void rows(Context c, LinearLayout box, String masterNote) {
+    /** The master switch and, below it, one switch per item (main screen dialog, in-game settings). masterNote: a note after the switch's label, the caller's own
+     *  text (null: none), put into the label's sentence (game_overlay_master_note), never glued to it */
+    static void rows(Context c, LinearLayout box, Msg masterNote) {
         CheckBox master = new CheckBox(c);
-        master.setText(c.getString(R.string.game_overlay_master) + (masterNote != null ? masterNote : ""));
+        master.setText(masterNote == null ? c.getString(R.string.game_overlay_master)
+                : c.getString(R.string.game_overlay_master_note, c.getString(R.string.game_overlay_master), masterNote.text()));
         master.setChecked(Prefs.overlay(c));
         box.addView(master);
         List<CheckBox> items = new ArrayList<>();
