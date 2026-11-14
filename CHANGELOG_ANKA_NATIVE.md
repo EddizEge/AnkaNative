@@ -14,6 +14,14 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   (on a computer 0.1-4 s, from 4-11 s in the translation and up to 7 s at the start of the split), every finished shader is kept for the resume, and
   the library is the same. While it stops, the card and the notification say "Pausing" with no time left; then the job is paused with Resume, also when
   the app had to end its process. Measured on a computer in the phone's form; not yet on a phone.
+- **A game no longer runs beside a Prepare or shader update, and they no longer run the phone out of memory.** Starting a game while a Prepare or the
+  automatic shader update ran (from a frontend, or Play during the update) ran a 12 GB phone out of memory: about 30 s after the game was in, Android
+  ended the Prepare and the phone's own background apps (WhatsApp, the camera, the home screen), and the Prepare stood still until it was resumed by hand.
+  Now the game pauses it first: its screen says so for a few seconds (at most 25), the game starts once the Prepare has stopped and given back its
+  memory, and the Prepare goes on by itself when the game ends, however it ends (Stop, Back, a crash). While the game runs, the card and the notification
+  say "a game is running: it goes on when the game ends". A Prepare you paused yourself stays paused, and the game can always be started. The game card
+  says "Ready · updating shaders" only while its update runs; otherwise it says that the update is paused, paused while a game runs, or that the shaders
+  are older. Checked on the JVM and in a build; not yet on a phone.
 - **Preparing a game on a computer has a terminal interface:** `python scripts/prepare.py` (with the Python of the environment in android/README.md, nothing
   else to install) checks what the packer needs and says how to fix what is missing on this system, and how to get Homebrew, micromamba or curl first
   when a fix needs one the computer lacks (it builds and loads the ZBIC decoder below, so a computer without a C compiler is told so before anything
