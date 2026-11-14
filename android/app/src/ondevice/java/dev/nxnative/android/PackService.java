@@ -274,6 +274,23 @@ public final class PackService extends Service {
                 Job.deleteTree(new File(j.dir(), "xlate"));
                 Job.deleteTree(new File(j.dir(), "lib"));
             }
+            // An app update that changed the game's shader tables but no chain version (Ocarina of Time's mesh shaders): a split or library of the old tables is made again
+            if (!engine.simulated()) {
+                int redo = j.inputsChanged(profileMap(j));
+                if (redo >= 0) {
+                    Log.i(TAG, "the job's " + (redo == JobInputs.SPLIT ? "split" : "shader library") + " was made from other shader tables than this app's (inputs "
+                            + Job.inputs(j.titleId()) + "): " + Job.STEPS[redo] + " again");
+                    if (redo == JobInputs.SPLIT) {
+                        try {
+                            Outputs.delete(new File(j.dir(), "split"));
+                        } catch (IOException e) {
+                            Log.w(TAG, "split: " + e.getMessage());   // its step is pending: its next run's Outputs.begin tries again
+                        }
+                        Job.deleteTree(j.splitScan(this));
+                    }
+                    Job.deleteTree(new File(j.dir(), "lib"));
+                }
+            }
             j.state("running", null, null);
             save(j, true);
             int i;
@@ -303,6 +320,7 @@ public final class PackService extends Service {
                     break;
                 }
                 j.stepState(s, "done");
+                if (s.equals("split")) j.clearNotice();   // why it ran again: said while it ran
                 save(j, true);
                 if (s.equals("split")) Job.deleteTree(j.splitScan(this));   // recorded done: the scan results are no longer needed
             }
@@ -430,6 +448,10 @@ public final class PackService extends Service {
         PackEngine.setenv("NX_PACK_JOBS", String.valueOf(workers));
         PackEngine.setenv("J", s.equals("split") ? "1" : String.valueOf(workers));   // the split's J is its process pool: 1 = in this process
         PackEngine.setenv("DM_SPLIT_RESUME", splitScan.getPath());   // the split's kept scan results (only shader_split.py reads it)
+        // A shader update reads only the dump's files that hold the shaders it translates (shader_split.py DM_SPLIT_DELTA, split_delta.py), unless a delta split's
+        // package already missed one (Job.splitFull): the split decides from the pack's older libraries (DMSH_VK_DELTA_FROM below) and reads every file when it cannot
+        // show it found each such shader where a full split finds it
+        PackEngine.setenv("DM_SPLIT_DELTA", s.equals("split") && !j.splitFull() ? "1" : "0");
         PackEngine.setenv("DM_PACKER_COMMIT", BuildConfig.NX_COMMIT);   // pack.tsv's packer: no repository on the phone to ask
         PackEngine.setenv("NX_PACK_WORK", od.getPath());
         PackEngine.setenv("NX_PACK_VERSION", v);
@@ -462,6 +484,20 @@ public final class PackService extends Service {
         }
         Log.i(TAG, s + ": exit " + code);
         if (code == PackEngine.INTERRUPTED) return "interrupted";
+        if (s.equals("shaders") && code != 0 && new File(split, JobInputs.DELTA_MARKER).isFile() && tail.lastRed != null && tail.lastRed.contains(NOT_IN_PACKAGE)) {
+            // The delta split's package lacks a shader the build translates (the pack's older library changed since the split, or one of its entries could not be read
+            // here): every file is split now, then the build goes on from its kept results
+            Log.i(TAG, "the delta split's package lacks shaders the build needs: splitting every file");
+            try {
+                Outputs.delete(split);
+            } catch (IOException e) {
+                Log.w(TAG, "split: " + e.getMessage());   // its step is pending: the next run's Outputs.begin tries again
+            }
+            Job.deleteTree(splitScan);
+            j.splitFull(FULL_SPLIT_NOTICE);
+            j.stepState("split", "pending");
+            return "interrupted";
+        }
         if (code != 0) return s + " stopped with code " + code + (tail.lastRed != null ? ": " + tail.lastRed : "") + " (log: " + log + ")";
         if (s.equals("split")) {
             Outputs.finish(split);   // every output synced, then the marker: a reboot after the step is recorded done cannot leave cut tables accepted in split/
@@ -472,15 +508,25 @@ public final class PackService extends Service {
         return null;
     }
 
+    /** vk_android_build.py's line when the package lacks a shader to build (locate): a delta split's package then gives way to a full split */
+    static final String NOT_IN_PACKAGE = "shaders to build are not in the package";
+    static final String FULL_SPLIT_NOTICE = "The quick read of your dump missed a shader this update needs, so all of the dump's shaders are read now.";
+
+    /** The profile's shader_map.tsv the APK carries (the tools' repository, PackNative.repo) */
+    private static File profileMap(Job j) throws IOException { return new File(PackNative.repo(), "dm/games/" + j.titleId() + "/shader_map.tsv"); }
+
     /**
      * null when the split found the shaders the app's profile lists (its shader_map.tsv byte for byte, as a Mac split of the same dump does), else what to do.
      * vk_android_build.py builds the keys of the profile's map from the split's package: another map means a dump with other shaders (modified, or incomplete).
      */
     private String splitMatchesProfile(Job j, File split) {
         if (engine.simulated()) return null;
+        // a delta split (shader_split.py DM_SPLIT_DELTA) wrote its marker only after it found each shader the update translates where a full split finds it first:
+        // its tables are of the files it read, and the build checks every record it takes by its key (locate)
+        if (new File(split, JobInputs.DELTA_MARKER).isFile()) return null;
         File have = new File(split, "shader_map.tsv");
         try {
-            File want = new File(PackNative.repo(), "dm/games/" + j.titleId() + "/shader_map.tsv");
+            File want = profileMap(j);
             if (java.util.Arrays.equals(Files.readAllBytes(want.toPath()), Files.readAllBytes(have.toPath()))) return null;
         } catch (IOException | RuntimeException | UnsatisfiedLinkError e) {
             return "cannot compare the dump's shaders with the app's list: " + e.getMessage();
