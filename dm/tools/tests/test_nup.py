@@ -14,6 +14,9 @@ import unittest
 from unittest import mock
 
 REPO = Path(__file__).resolve().parents[3]
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 sys.path[:0] = [str(REPO / 'dm/tools'), str(REPO / 'scripts')]
 import nup
 import romfs
@@ -287,10 +290,10 @@ public final class BuildConfig {
         t = Path(tempfile.mkdtemp(prefix='nupjvm_'))
         try:
             (t / 'BuildConfig.java').write_text(self.STUB)
-            subprocess.run(['javac', '-d', str(t / 'classes')] + [str(src / f'{c}.java') for c in ('Nup', 'Zstd', 'Pack', 'DumpLayout', 'BuildCheck', 'RomfsCheck', 'Profile', 'ShaderLibs')]
+            subprocess.run(['javac', '-d', str(t / 'classes')] + [str(src / f'{c}.java') for c in ('Nup', 'Zstd', 'Pack', 'DumpLayout', 'BuildCheck', 'RomfsCheck', 'Profile', 'ShaderLibs')] + [str(x) for x in TR]
                            + [str(REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/NupJvmTest.java'), str(t / 'BuildConfig.java')], check=True, capture_output=True, text=True)
             (t / 'run').mkdir()
-            r = subprocess.run(['java', '-cp', str(t / 'classes'), 'dev.nxnative.android.NupJvmTest', str(REPO), str(t / 'run')] + ([sys.executable] if have_zstd() else []),
+            r = subprocess.run(['java', TR_RES, '-cp', str(t / 'classes'), 'dev.nxnative.android.NupJvmTest', str(REPO), str(t / 'run')] + ([sys.executable] if have_zstd() else []),
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout[-2000:] + r.stderr[-2000:])
             self.assertRegex(r.stdout, r'^ok \d+')

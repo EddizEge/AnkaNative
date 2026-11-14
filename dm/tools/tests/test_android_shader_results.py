@@ -13,6 +13,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/ondevice/java/dev/nxnative/android/ShaderResults.java'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/ShaderResultsJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 TOOL = REPO / 'dm/gfx/tools/vk_android_build.py'
 
 
@@ -36,14 +39,14 @@ class Retry(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix='shres_'))
         cls.classes = cls.tmp / 'classes'
-        subprocess.run(['javac', '-d', str(cls.classes), str(SRC), str(TEST)], check=True)
+        subprocess.run(['javac', '-d', str(cls.classes), str(SRC), *map(str, TR), str(TEST)], check=True)
 
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def run_on(self, d):
-        r = subprocess.run(['java', '-cp', str(self.classes), 'dev.nxnative.android.ShaderResultsJvmTest', str(d)], capture_output=True, text=True)
+        r = subprocess.run(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.ShaderResultsJvmTest', str(d)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return [l.split(' ', 1)[1].split('\t') for l in r.stdout.splitlines()]
 

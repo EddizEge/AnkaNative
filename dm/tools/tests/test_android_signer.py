@@ -13,6 +13,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android/Signer.java'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/SignerJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 
 def official_in_source():
     """Signer.OFFICIAL as the source has it: None while it is NOT_SET, else the fingerprint"""
@@ -31,13 +34,13 @@ class Stamp(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix='signer_'))
-        subprocess.run(['javac', '-Xlint:all', '-Werror', '-encoding', 'UTF-8', '-d', str(cls.tmp / 'classes'), str(SRC), str(TEST)], check=True, capture_output=True, text=True)
+        subprocess.run(['javac', '-Xlint:all', '-Werror', '-encoding', 'UTF-8', '-d', str(cls.tmp / 'classes'), str(SRC), *map(str, TR), str(TEST)], check=True, capture_output=True, text=True)
 
     @classmethod
     def tearDownClass(cls): shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def java(self, *a):
-        r = subprocess.run(['java', '-Dstdout.encoding=UTF-8', '-cp', str(self.tmp / 'classes'), 'dev.nxnative.android.SignerJvmTest', *map(str, a)],
+        r = subprocess.run(['java', TR_RES, '-Dstdout.encoding=UTF-8', '-cp', str(self.tmp / 'classes'), 'dev.nxnative.android.SignerJvmTest', *map(str, a)],
                            capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout.rstrip('\n').split(' ', 1)[1]

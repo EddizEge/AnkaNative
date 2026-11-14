@@ -21,6 +21,9 @@ import pack_android  # noqa: E402
 
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android/RewriteKey.java'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/RewriteKeyJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 GAME = '0100000000000000'
 
 
@@ -35,8 +38,8 @@ def key_with(tree, files, src, gdir, game_tsv=None, v1=False):   # the key over 
 
 def java_keys(t, tree, mod, pack_game=None):   # RewriteKey.keys on the JVM (RewriteKeyJvmTest)
     classes = t / 'classes'
-    if not classes.is_dir(): subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(classes), str(SRC), str(TEST)], check=True, capture_output=True, text=True)
-    r = subprocess.run(['java', *([f'-Dpack.game={pack_game}'] if pack_game else []), '-cp', str(classes), 'dev.nxnative.android.RewriteKeyJvmTest', str(tree), str(mod),
+    if not classes.is_dir(): subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(classes), str(SRC), *map(str, TR), str(TEST)], check=True, capture_output=True, text=True)
+    r = subprocess.run(['java', TR_RES, *([f'-Dpack.game={pack_game}'] if pack_game else []), '-cp', str(classes), 'dev.nxnative.android.RewriteKeyJvmTest', str(tree), str(mod),
                         f'dm/games/{GAME}/', 'main', *pack_android.REWRITER], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     return r.stdout.split('\n')[:-1]

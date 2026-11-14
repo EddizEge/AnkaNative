@@ -15,6 +15,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/GameListJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 FIX_TID = '0100000000AB0000'
 FIX2 = '0100000000AC0000'   # a game whose supported build is its base, display version 1.8.0 (as Mario Kart World)
 FIX3 = '0100000000AD0000'   # a game with a romfs_check row, as Donkey Kong Bananza's
@@ -44,7 +47,7 @@ class GameListJvm(unittest.TestCase):
         (cls.tmp / 'stub').mkdir()
         (cls.tmp / 'stub/BuildConfig.java').write_text(STUB)
         srcs = [SRC / f'{n}.java' for n in ('BuildCheck', 'DumpLayout', 'RomfsCheck', 'GameList', 'Frontend', 'Nup', 'Zstd', 'Pack', 'Profile', 'ShaderLibs')]
-        r = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-d', str(cls.tmp / 'classes'), *map(str, srcs), str(TEST), str(cls.tmp / 'stub/BuildConfig.java')],
+        r = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-d', str(cls.tmp / 'classes'), *map(str, srcs), *map(str, TR), str(TEST), str(cls.tmp / 'stub/BuildConfig.java')],
                            capture_output=True, text=True)
         assert r.returncode == 0, r.stdout + r.stderr
 
@@ -53,7 +56,7 @@ class GameListJvm(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def java(self, *args):
-        return subprocess.run(['java', '-cp', str(self.tmp / 'classes'), 'dev.nxnative.android.GameListJvmTest', *map(str, args)], capture_output=True, text=True)
+        return subprocess.run(['java', TR_RES, '-cp', str(self.tmp / 'classes'), 'dev.nxnative.android.GameListJvmTest', *map(str, args)], capture_output=True, text=True)
 
     def test_list_and_build_check(self):
         run = self.tmp / 'run'

@@ -10,6 +10,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/UpdateCheckJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 BODY = REPO / 'android/app/src/jvmtest/release-v0.1.3.md'   # gh release view v0.1.3 -R moceure/BananaNative --json body
 MANIFEST = REPO / 'android/app/src/main/AndroidManifest.xml'
 
@@ -19,14 +22,14 @@ class UpdateCheckJvm(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
-        subprocess.run(['javac', '-Xlint:all', '-Werror', '-encoding', 'UTF-8', '-d', cls.tmp.name, str(SRC / 'UpdateCheck.java'), str(SRC / 'ReleaseNotes.java'), str(TEST)],
+        subprocess.run(['javac', '-Xlint:all', '-Werror', '-encoding', 'UTF-8', '-d', cls.tmp.name, str(SRC / 'UpdateCheck.java'), str(SRC / 'ReleaseNotes.java'), *map(str, TR), str(TEST)],
                        check=True, capture_output=True, text=True)
 
     @classmethod
     def tearDownClass(cls): cls.tmp.cleanup()
 
     def java(self, *a):
-        r = subprocess.run(['java', '-Dstdout.encoding=UTF-8', '-cp', self.tmp.name, 'dev.nxnative.android.UpdateCheckJvmTest', *a], capture_output=True, text=True, encoding='utf-8')
+        r = subprocess.run(['java', TR_RES, '-Dstdout.encoding=UTF-8', '-cp', self.tmp.name, 'dev.nxnative.android.UpdateCheckJvmTest', *a], capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         return r.stdout
 

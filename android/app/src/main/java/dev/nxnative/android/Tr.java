@@ -1,0 +1,226 @@
+package dev.nxnative.android;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.MissingResourceException;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+/**
+ * The launcher's texts for classes without a Context (docs/i18n.md). Every text lives in the app's string resources (res/values/strings_&lt;area&gt;.xml, English,
+ * and the same files under values-tr, values-pt-rBR and values-b+es+419); a class that has a Context calls getString(R.string.x) itself, a class without Android
+ * (BuildCheck, Pack, Profile, SaveStore... the JVM tests compile them on their own) calls {@link #s} / {@link #p} with the resource's name. No Android classes here.
+ * <p>
+ * The texts come from a {@link Backend}: in the app, {@code TrAndroid} (the app's Resources, installed by {@code App} in every process before anything runs); on the
+ * JVM, {@link Xml}, which reads the same XML files from the folder the system property {@value #RES_PROPERTY} names (dm/tools/tests pass
+ * android/app/src/main/res), so the JVM tests see the English the app shows. {@link #english} renders in English whatever the user's language: logs, the readiness
+ * report and anything pasted into an issue stay English (and parseable).
+ * <p>
+ * Formatting is Android's: with arguments the text goes through String.format (positional %1$s, %2$d; a literal percent sign is %%), without arguments it is returned
+ * as written (a lone % stays %). A key that does not exist throws MissingResourceException: test_android_i18n.py checks every key in the Java exists.
+ */
+final class Tr {
+    /** The system property that names the res folder (the one holding values/) for the JVM backend */
+    static final String RES_PROPERTY = "nx.tr.res";
+    /** The JVM backend's user language (a BCP 47 tag, as tr, pt-BR, es-419); English when unset. For tests of a translation on the JVM */
+    static final String LOCALE_PROPERTY = "nx.tr.locale";
+
+    /** Where texts come from. locale null: the user's language (the app's current one); otherwise that language, falling back to English per text */
+    interface Backend {
+        /** The string resource name, formatted with args (none: as written); MissingResourceException when there is no such string */
+        String string(Locale locale, String key, Object... args);
+
+        /** The plurals resource name, the item for the count n, formatted with args (n is not added: pass it as an argument when the text shows it) */
+        String plural(Locale locale, String key, int n, Object... args);
+    }
+
+    private static volatile Backend backend;
+
+    private Tr() {}
+
+    /** The app's backend (App.attachBaseContext) or a test's; replaces any earlier one */
+    static void install(Backend b) { backend = b; }
+
+    static Backend backend() {
+        Backend b = backend;
+        if (b != null) return b;
+        synchronized (Tr.class) {
+            if (backend == null) {
+                String res = System.getProperty(RES_PROPERTY);
+                if (res == null || res.isEmpty())
+                    throw new IllegalStateException("Tr has no backend: the app installs TrAndroid (App); on the JVM pass -D" + RES_PROPERTY + "=<android/app/src/main/res>");
+                String tag = System.getProperty(LOCALE_PROPERTY, "");
+                backend = new Xml(new File(res), tag.isEmpty() ? null : Locale.forLanguageTag(tag));
+            }
+            return backend;
+        }
+    }
+
+    /** A string in the user's language */
+    static String s(String key, Object... args) { return backend().string(null, key, args); }
+
+    /** A plural in the user's language: the item for n, formatted with args */
+    static String p(String key, int n, Object... args) { return backend().plural(null, key, n, args); }
+
+    /** A string in English, whatever the user's language: logs, reports, anything parsed back */
+    static String english(String key, Object... args) { return backend().string(Locale.ENGLISH, key, args); }
+
+    /** A plural in English */
+    static String englishP(String key, int n, Object... args) { return backend().plural(Locale.ENGLISH, key, n, args); }
+
+    /** Android's formatting: as written without arguments, String.format with them (in the given locale; ROOT when null) */
+    static String format(Locale locale, String text, Object... args) {
+        return args == null || args.length == 0 ? text : String.format(locale == null ? Locale.ROOT : locale, text, args);
+    }
+
+    /**
+     * The JVM backend: the app's res/values*&#47;strings*.xml as aapt2 reads them (escapes, quotes, white space), for the JVM tests. English is values/; another
+     * language is its folder (values-tr, values-pt-rBR, values-b+es+419) with English for each text it lacks. Plurals pick "one" for n == 1 and "other" otherwise
+     * (English's rule; the app uses each language's own rules through Android).
+     */
+    static final class Xml implements Backend {
+        private final File res;
+        private final Locale user;
+        private final Map<String, Map<String, String>> strings = new HashMap<>();
+        private final Map<String, Map<String, Map<String, String>>> plurals = new HashMap<>();
+
+        /** res: the folder holding values/; user: the language s() and p() render in (null: English) */
+        Xml(File res, Locale user) {
+            this.res = res;
+            this.user = user;
+            if (!new File(res, "values").isDirectory()) throw new IllegalStateException("Tr.Xml: no values folder in " + res);
+        }
+
+        @Override public String string(Locale locale, String key, Object... args) {
+            Locale l = locale == null ? user : locale;
+            for (String dir : folders(l)) {
+                String t = load(dir).get(key);
+                if (t != null) return format(l, t, args);
+            }
+            throw new MissingResourceException("no string " + key + " in " + res + "/values", "string", key);
+        }
+
+        @Override public String plural(Locale locale, String key, int n, Object... args) {
+            Locale l = locale == null ? user : locale;
+            for (String dir : folders(l)) {
+                load(dir);
+                Map<String, String> items = plurals.get(dir).get(key);
+                if (items == null) continue;
+                String t = n == 1 && items.containsKey("one") ? items.get("one") : items.get("other");
+                if (t == null) throw new MissingResourceException("plurals " + key + " in " + dir + " has no other item", "plurals", key);
+                return format(l, t, args);
+            }
+            throw new MissingResourceException("no plurals " + key + " in " + res + "/values", "plurals", key);
+        }
+
+        /** The folders a language reads, most specific first, values/ last */
+        static List<String> folders(Locale l) {
+            List<String> out = new ArrayList<>();
+            if (l != null && !l.getLanguage().isEmpty() && !l.getLanguage().equals("en")) {
+                String lang = l.getLanguage(), region = l.getCountry();
+                if (!region.isEmpty()) {
+                    out.add("values-b+" + lang + "+" + region);
+                    if (region.length() == 2) out.add("values-" + lang + "-r" + region);
+                }
+                out.add("values-" + lang);
+            }
+            out.add("values");
+            return out;
+        }
+
+        private synchronized Map<String, String> load(String dir) {
+            Map<String, String> m = strings.get(dir);
+            if (m != null) return m;
+            m = new LinkedHashMap<>();
+            Map<String, Map<String, String>> pl = new LinkedHashMap<>();
+            File[] files = new File(res, dir).listFiles((d, n) -> n.startsWith("strings") && n.endsWith(".xml"));
+            if (files != null) {
+                java.util.Arrays.sort(files);
+                for (File f : files) read(f, m, pl);
+            }
+            strings.put(dir, m);
+            plurals.put(dir, pl);
+            return m;
+        }
+
+        private static void read(File f, Map<String, String> strings, Map<String, Map<String, String>> plurals) {
+            org.w3c.dom.Document doc;
+            try {
+                DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+                dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                doc = dbf.newDocumentBuilder().parse(f);
+            } catch (Exception e) {
+                throw new IllegalStateException("Tr.Xml: cannot read " + f + ": " + e.getMessage(), e);
+            }
+            NodeList kids = doc.getDocumentElement().getChildNodes();
+            for (int i = 0; i < kids.getLength(); i++) {
+                if (kids.item(i).getNodeType() != Node.ELEMENT_NODE) continue;
+                Element e = (Element) kids.item(i);
+                String name = e.getAttribute("name");
+                if (e.getTagName().equals("string")) strings.put(name, unescape(text(e, f)));
+                else if (e.getTagName().equals("plurals")) {
+                    Map<String, String> items = new LinkedHashMap<>();
+                    NodeList it = e.getElementsByTagName("item");
+                    for (int k = 0; k < it.getLength(); k++) items.put(((Element) it.item(k)).getAttribute("quantity"), unescape(text((Element) it.item(k), f)));
+                    plurals.put(name, items);
+                }
+            }
+        }
+
+        /** An element's text; markup inside a string is not used in this app (docs/i18n.md), so an element child is an error */
+        private static String text(Element e, File f) {
+            NodeList k = e.getChildNodes();
+            StringBuilder s = new StringBuilder();
+            for (int i = 0; i < k.getLength(); i++) {
+                Node n = k.item(i);
+                if (n.getNodeType() == Node.TEXT_NODE || n.getNodeType() == Node.CDATA_SECTION_NODE) s.append(n.getNodeValue());
+                else if (n.getNodeType() == Node.ELEMENT_NODE) throw new IllegalStateException("Tr.Xml: markup in " + e.getAttribute("name") + " (" + f + ")");
+            }
+            return s.toString();
+        }
+
+        /**
+         * A resource string as aapt2 compiles it: outside double quotes, runs of white space become one space and leading/trailing space goes; double quotes are
+         * dropped (inside them white space stays); backslash escapes \n \t \' \" \\ \@ \? and &#92;uXXXX
+         */
+        static String unescape(String raw) {
+            StringBuilder out = new StringBuilder();
+            boolean quoted = false, space = false;
+            for (int i = 0; i < raw.length(); i++) {
+                char c = raw.charAt(i);
+                if (c == '\\' && i + 1 < raw.length()) {
+                    if (space && out.length() > 0) out.append(' ');
+                    space = false;
+                    char n = raw.charAt(++i);
+                    switch (n) {
+                        case 'n': out.append('\n'); break;
+                        case 't': out.append('\t'); break;
+                        case 'u':
+                            if (i + 4 < raw.length()) { out.append((char) Integer.parseInt(raw.substring(i + 1, i + 5), 16)); i += 4; }
+                            else out.append('u');
+                            break;
+                        default: out.append(n);   // \' \" \\ \@ \? and any other: the character itself
+                    }
+                } else if (c == '"') {
+                    quoted = !quoted;
+                } else if (!quoted && Character.isWhitespace(c)) {
+                    space = true;
+                } else {
+                    if (space && out.length() > 0) out.append(' ');
+                    space = false;
+                    out.append(c);
+                }
+            }
+            return out.toString();
+        }
+    }
+}

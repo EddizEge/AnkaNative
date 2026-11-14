@@ -11,6 +11,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/PackZipJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 STUB = '''package dev.nxnative.android;
 public final class BuildConfig {
     public static final String NX_PROFILES = "040074A01BF12000\\tDonkey Kong Bananza\\t22852\\tabcdef012345\\t458752 main=aa\\n0400C3F00006E000\\tMario Kart World\\t0\\tunknown\\t";
@@ -27,11 +30,11 @@ class PackZipJvm(unittest.TestCase):
             (d / 'stub').mkdir()
             (d / 'stub/BuildConfig.java').write_text(STUB)
             srcs = [SRC / f'{n}.java' for n in ('PackZip', 'Pack', 'DumpLayout', 'BuildCheck', 'RomfsCheck', 'Nup', 'Zstd', 'Profile', 'ShaderLibs', 'SaveStore', 'Streams')]
-            r = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-d', str(d / 'classes'), *map(str, srcs), str(TEST), str(d / 'stub/BuildConfig.java')],
+            r = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-d', str(d / 'classes'), *map(str, srcs), *map(str, TR), str(TEST), str(d / 'stub/BuildConfig.java')],
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             (d / 'run').mkdir()
-            r = subprocess.run(['java', '-cp', str(d / 'classes'), 'dev.nxnative.android.PackZipJvmTest', str(d / 'run')], capture_output=True, text=True)
+            r = subprocess.run(['java', TR_RES, '-cp', str(d / 'classes'), 'dev.nxnative.android.PackZipJvmTest', str(d / 'run')], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertTrue(r.stdout.startswith('ok '), r.stdout)
 

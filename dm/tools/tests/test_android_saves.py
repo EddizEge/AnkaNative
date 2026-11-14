@@ -13,6 +13,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/LauncherJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 PLAT = REPO / 'dm/host/plat/plat_android.c'
 STUB = '''package dev.nxnative.android;
 public final class BuildConfig {
@@ -111,7 +114,7 @@ class LauncherJvm(unittest.TestCase):
         (d / 'stub').mkdir()
         (d / 'stub/BuildConfig.java').write_text(STUB)
         cls.classes = d / 'classes'
-        subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-d', str(cls.classes), str(SRC / 'SaveStore.java'), str(SRC / 'SaveMigrate.java'), str(SRC / 'Profile.java'), str(TEST), str(d / 'stub/BuildConfig.java')],
+        subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-d', str(cls.classes), str(SRC / 'SaveStore.java'), str(SRC / 'SaveMigrate.java'), str(SRC / 'Profile.java'), *map(str, TR), str(TEST), str(d / 'stub/BuildConfig.java')],
                        check=True, capture_output=True, text=True)
 
     @classmethod
@@ -119,7 +122,7 @@ class LauncherJvm(unittest.TestCase):
         cls.tmp.cleanup()
 
     def java(self, *args, **kw):
-        return subprocess.run(['java', '-cp', str(self.classes), 'dev.nxnative.android.LauncherJvmTest', *map(str, args)], capture_output=True, text=True, **kw)
+        return subprocess.run(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.LauncherJvmTest', *map(str, args)], capture_output=True, text=True, **kw)
 
     def test_saves_and_profiles(self):
         with tempfile.TemporaryDirectory() as d:
@@ -131,7 +134,7 @@ class LauncherJvm(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             s = Path(d) / 'saves/040074A01BF12000'; s.mkdir(parents=True); (s / 'slot0.bin').write_text('x')
             (Path(d) / 'src').mkdir(); (Path(d) / 'src/a.bin').write_text('a')
-            h = subprocess.Popen(['java', '-cp', str(self.classes), 'dev.nxnative.android.LauncherJvmTest', 'holdtwice', str(s)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            h = subprocess.Popen(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.LauncherJvmTest', 'holdtwice', str(s)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             try:
                 self.assertEqual(h.stdout.readline().strip(), 'held')
                 r = self.java('locked', s)

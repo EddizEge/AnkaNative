@@ -12,6 +12,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/ReadinessJvmTest.java'
+# The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 PROBE = REPO / 'dm/gfx/vk_android/vka_readiness.c'
 FIXTURE = REPO / 'android/app/src/jvmtest/honor-pnm-n49.readiness.txt'   # the tested phone's facts on its own driver (nxhost_vk_readiness, 2026-11-03)
 VK_HEADER = REPO / 'dm/third_party/vulkan-headers/include/vulkan/vulkan_core.h'
@@ -83,14 +86,14 @@ class ReadinessJvm(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.classes = Path(cls.tmp.name) / 'classes'
-        subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(cls.classes), str(SRC / 'Readiness.java'), str(TEST)], check=True, capture_output=True, text=True)
+        subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(cls.classes), str(SRC / 'Readiness.java'), *map(str, TR), str(TEST)], check=True, capture_output=True, text=True)
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def java(self, *args):
-        return subprocess.run(['java', '-cp', str(self.classes), 'dev.nxnative.android.ReadinessJvmTest', *map(str, args)], capture_output=True, text=True)
+        return subprocess.run(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.ReadinessJvmTest', *map(str, args)], capture_output=True, text=True)
 
     def test_decisions(self):
         r = self.java()
