@@ -171,7 +171,7 @@ public final class MainActivity extends Activity {
         gpuRow = new Ui.Setting(this, "🎮", getString(R.string.home_gpu_driver), v -> GpuDriver.dialog(this, PICK_DRIVER)).chevron(this);   // custom GPU drivers (GpuDriver.java)
         sys.addView(gpuRow.view);
         sys.addView(new Ui.Setting(this, "📁", getString(R.string.home_folders), v -> Folders.dialog(this)).value(getString(R.string.home_folders_value)).chevron(this).view);   // the game, pack and save folders, kept across updates (Folders.java)
-        sys.addView(new Ui.Setting(this, "🌐", getString(R.string.settings_language), v -> Lang.dialog(this)).value(Lang.label(this)).chevron(this).view);   // the app's language (Lang.java)
+        sys.addView(new Ui.Setting(this, "🌐", Lang.title(this), v -> Lang.dialog(this)).value(Lang.label(this)).chevron(this).view);   // the app's language (Lang.java)
 
         Ui.add(content, Ui.section(this, getString(R.string.home_section_help)), Ui.SECTION_GAP);
         LinearLayout help = settingsCard(content);

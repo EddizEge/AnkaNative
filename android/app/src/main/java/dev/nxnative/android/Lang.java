@@ -79,6 +79,9 @@ final class Lang {
         return base.createConfigurationContext(o);
     }
 
+    /** The row's label (Settings › Language), so the home screen that draws the row never reads a settings key */
+    static String title(Context c) { return c.getString(R.string.settings_language); }
+
     /** The row's value: the chosen language's name */
     static String label(Context c) {
         String t = chosen(c);
