@@ -21,14 +21,14 @@
     <string name="prepare_head_failed">No se pudo preparar %1$s</string>
     <string name="prepare_head_running">Preparando %1$s</string>
     <string name="prepare_card_update">Actualización %1$s</string>
-    <string name="prepare_card_simulated">%1$s  (motor simulado)</string>
-    <string name="prepare_card_progress">%1$d %%  ·  shaders %2$,d de %3$,d</string>
+    <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
+    <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
     <string name="prepare_button_pause">Pausar</string>
     <string name="prepare_button_prepare_again">Volver a preparar</string>
     <string name="prepare_button_retry">Reintentar</string>
     <string name="prepare_button_start">Iniciar</string>
     <string name="prepare_button_resume">Reanudar</string>
-    <string name="prepare_game_ready_toast">%1$s está listo para jugar.</string>
+    <string name="prepare_game_ready_toast">Ya puedes jugar a %1$s.</string>
     <string name="prepare_checking">Revisando %1$s…</string>
 
     <!-- Ondevice: a picked dump -->
@@ -37,7 +37,7 @@
     <string name="prepare_label_delete_work">Eliminar archivos de trabajo</string>
     <string name="prepare_label_manage">Administrar</string>
     <string name="prepare_other_folder_job">Una preparación sin terminar de este volcado escribe en %1$s: %2$s\n\nReanúdala desde la tarjeta o elimina sus archivos de trabajo (⋯ › %3$s) antes de preparar el juego en otra carpeta.</string>
-    <string name="prepare_busy">Se está preparando %1$s en este momento (%2$s). Ponlo en pausa primero y luego vuelve a intentarlo.</string>
+    <string name="prepare_busy">Se está preparando %1$s en este momento (%2$s). Pausa primero la preparación y luego vuelve a intentarlo.</string>
     <string name="prepare_redo_code_update">Reescribe el código del juego (unos minutos). %1$s</string>
     <string name="prepare_redo_both">Vuelve a crear el código del juego y los shaders a partir de tu volcado (%1$s, en segundo plano).</string>
     <string name="prepare_redo_code">Reescribe el código del juego a partir de tu volcado (unos minutos, en segundo plano). Los shaders se conservan.</string>
@@ -103,11 +103,11 @@
     <string name="prepare_stage_check">Revisando la biblioteca de shaders</string>
     <string name="prepare_step_shaders_progress">Traduciendo shaders: %1$,d de %2$,d</string>
     <string name="prepare_status_done">Listo para jugar.</string>
-    <string name="prepare_status_failed">Se detuvo en %1$s: %2$s. Toca %3$s para continuar.</string>
+    <string name="prepare_status_failed">Se detuvo durante %1$s: %2$s. Toca %3$s para continuar.</string>
     <string name="prepare_status_pending">Aún no se inició.</string>
     <string name="prepare_status_paused">En pausa: %1$s. %2$s.</string>
     <string name="prepare_status_running">%1$s (paso %2$d de %3$d).</string>
-    <string name="prepare_status_interrupted">Se interrumpió en %1$s. Toca %2$s para continuar.</string>
+    <string name="prepare_status_interrupted">Se interrumpió (%1$s). Toca %2$s para continuar.</string>
     <string name="prepare_reason_user">la pausaste tú</string>
     <string name="prepare_reason_battery">batería por debajo del 20 %: conecta el cargador para continuar</string>
     <string name="prepare_reason_thermal">el teléfono está demasiado caliente: continuará cuando se enfríe</string>
@@ -123,7 +123,7 @@
     <string name="prepare_note_none">Preparando un juego</string>
     <string name="prepare_note_simulated">%1$s (simulado)</string>
     <string name="prepare_note_starting">Iniciando…</string>
-    <string name="prepare_note_done">%1$s está listo para jugar</string>
+    <string name="prepare_note_done">Ya puedes jugar a %1$s</string>
     <string name="prepare_note_done_text">Abre Anka Native y toca %1$s.</string>
     <string name="prepare_note_running">Preparando %1$s</string>
     <string name="prepare_note_waiting">En espera: %1$s</string>
@@ -143,6 +143,6 @@
     <string name="prepare_dump_free_unknown">No se puede leer el espacio libre de %1$s.</string>
     <string name="prepare_dump_space">Para preparar el juego se necesitan %1$.1f GB libres junto al volcado; %2$s tiene %3$.2f GB libres.</string>
     <string name="prepare_dump_not_writable">No se puede crear %1$s: no se puede escribir en la carpeta que está junto al volcado.</string>
-    <string name="prepare_status_failed_coded">Se detuvo en %1$s. %2$s Toca %3$s para continuar.</string>
-    <string name="prepare_status_failed_sentence">Se detuvo en %1$s: %2$s Toca %3$s para continuar.</string>
+    <string name="prepare_status_failed_coded">Se detuvo durante %1$s. %2$s Toca %3$s para continuar.</string>
+    <string name="prepare_status_failed_sentence">Se detuvo durante %1$s: %2$s Toca %3$s para continuar.</string>
 </resources>
