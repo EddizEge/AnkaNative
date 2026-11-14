@@ -125,8 +125,8 @@ int vka_memu_vs_feeds(vka_shader *vs, vka_shader *fs) {
 // (vka_memu_retire), free again once that fence is done. Its control words are host-visible: before reuse, the most the last submission asked for is read, and an arena
 // that was too small is made again larger (to DM_VK_MESH_EMU_MB, default 256 MiB; it starts at 16 MiB)
 enum { NARENA = 6 };
-typedef struct { VkBuffer buf, ctl; VkDeviceMemory mem, cmem; volatile uint32_t *cp; uint32_t words; uint64_t fence; int used; } arena;
-static arena g_ar[NARENA]; static int g_cur = -1;
+typedef struct { VkBuffer buf, ctl; VkDeviceMemory mem, cmem; volatile uint32_t *cp; uint32_t words; uint64_t fence, last; int used; } arena;
+static arena g_ar[NARENA]; static int g_cur = -1; static uint64_t g_acq;   // (last: g_acq when the arena was last taken)
 static void arena_free(arena *a) {
     if (a->buf) { vk.vkDestroyBuffer(V.dev, a->buf, NULL); vk.vkFreeMemory(V.dev, a->mem, NULL); }
     a->buf = VK_NULL_HANDLE; a->mem = VK_NULL_HANDLE; a->words = 0;
@@ -159,9 +159,22 @@ int vka_memu_arena(VkCommandBuffer cb, VkBuffer *buf, VkBuffer *ctl, uint32_t *c
         for (int i = 0; i < NARENA && k < 0; i++) if (!g_ar[i].buf) k = i;
         if (k < 0) { VRED_ONCE("mesh draws through compute: more than %d submissions in flight with them; the draws of this one are skipped", NARENA); return 0; }
         arena *a = &g_ar[k];
-        uint32_t maxw = (uint32_t)((uint64_t)VKA_ENV("DM_VK_MESH_EMU_MB", 256) << 18), want = 4u << 20;   // (words: 16 MiB to start)
+        int mb = VKA_ENV("DM_VK_MESH_EMU_MB", 256);   // (words below: 2^18 a MiB, so 16383 MiB at most in 32 bits)
+        if (mb < 1 || mb > 16383) { VRED_ONCE("mesh draws through compute: DM_VK_MESH_EMU_MB=%d is not 1-16383: 256 taken", mb); mb = 256; }
+        uint32_t maxw = (uint32_t)mb << 18, want = 4u << 20;   // (words: 16 MiB to start)
         uint32_t rng = V.props.limits.maxStorageBufferRange / 4; if (rng && maxw > rng) maxw = rng;   // (bound whole as a storage buffer)
         if (maxw < want) want = maxw;
+        // Arenas never shrink while used, but one left idle (not taken for ARENA_IDLE submissions: it was for a burst of submissions in flight) gives its memory back;
+        // made again, an arena starts at the size of the largest one there, so a game that needed that much does not lose workgroups to a small new one
+        enum { ARENA_IDLE = 1024 };
+        g_acq++; a->last = g_acq;
+        for (int i = 0; i < NARENA; i++) {
+            arena *o = &g_ar[i];
+            if (i == k || !o->buf || o->used || o->fence > done || g_acq - o->last < ARENA_IDLE) continue;
+            static _Atomic int nl; if (atomic_fetch_add(&nl, 1) < 4) VLOG("mesh draws through compute: arena %d not used for %d submissions: its %.0f MiB freed", i, ARENA_IDLE, o->words / 262144.0);
+            arena_free(o);
+        }
+        if (!a->buf) for (int i = 0; i < NARENA; i++) if (g_ar[i].buf && g_ar[i].words > want) want = g_ar[i].words < maxw ? g_ar[i].words : maxw;
         if (a->buf && a->cp && a->cp[VKA_MEMU_CTL_ASKED] > a->words && a->words < maxw) {   // the last submission asked for more: larger, up to the limit
             uint64_t asked = a->cp[VKA_MEMU_CTL_ASKED], w = a->words; while (w < asked && w < maxw) w *= 2; if (w > maxw) w = maxw;
             VLOG("mesh draws through compute: a submission asked for %.1f MiB of arena, it had %.1f: now %.1f MiB (DM_VK_MESH_EMU_MB=%u at most)", asked / 262144.0, a->words / 262144.0, w / 262144.0, maxw >> 18);
