@@ -178,6 +178,33 @@ int main(void) {
         CHECK(!x && !nl, "a module without a ladder is left as it is");
         free(x);
     }
+    {   // the float arithmetic made exact: every float result of an arithmetic or GLSL.std.450 instruction carries NoContraction once (the already exact
+        // multiply keeps its one), no integer result does (IAdd, UMin)
+        vka_memu_layout Le; CHECK(vka_memu_layout_of(MEMU_MESH_EXACT, sizeof MEMU_MESH_EXACT / 4, &Le, err, sizeof err), "exact mesh layout (%s)", err);
+        convert(MEMU_MESH_EXACT, sizeof MEMU_MESH_EXACT / 4, 0, "mesh_exact", &Le);
+        size_t n; uint32_t *o = vka_memu_cs(MEMU_MESH_EXACT, sizeof MEMU_MESH_EXACT / 4, &n, err, sizeof err);
+        int nfloat = 0, nint = 0, ndec = 0, twice = 0, dec_int = 0, undecorated = 0;
+        if (o) {
+            uint32_t bound = o[3]; uint8_t *dec = calloc(bound, 1), *isf = calloc(bound, 1); uint32_t glsl = 0;
+            for (size_t i = 5; i < n; i += o[i] >> 16) {
+                uint32_t op = o[i] & 0xffff, len = o[i] >> 16; if (!len) break;
+                if (op == 71 && len >= 3 && o[i + 2] == 42) { ndec++; twice += dec[o[i + 1]]++ > 0; }
+                if (op == 11) glsl = o[i + 1];
+                if (op == 22) isf[o[i + 1]] = 1;
+                if (op == 23 && isf[o[i + 2]]) isf[o[i + 1]] = 1;
+            }
+            for (size_t i = 5; i < n; i += o[i] >> 16) {
+                uint32_t op = o[i] & 0xffff, len = o[i] >> 16; if (!len) break;
+                int arith = op == 127 || op == 129 || op == 131 || op == 133 || op == 136 || op == 142 || op == 148 || (op == 12 && o[i + 3] == glsl);
+                if (!arith && op != 128) continue;
+                if (isf[o[i + 1]]) { nfloat++; undecorated += !dec[o[i + 2]]; } else { nint++; dec_int += dec[o[i + 2]] > 0; }
+            }
+            free(dec); free(isf);
+        }
+        CHECK(o && nfloat == 10 && !undecorated && ndec == 10 && !twice, "10 float results, each NoContraction once (%d float, %d undecorated, %d decorations, %d twice)", nfloat, undecorated, ndec, twice);
+        CHECK(o && nint >= 2 && !dec_int, "no integer result decorated (IAdd, UMin: %d, %d decorated)", nint, dec_int);
+        free(o);
+    }
     {   // a GL depth specialization constant in a module without lane built-ins: vka_spv_spec_freeze leaves it, vka_spv_spec_fold (the compute form's) folds it
         size_t fn = 0; uint32_t *fz = vka_spv_spec_freeze(MEMU_MESH_SPEC, sizeof MEMU_MESH_SPEC / 4, 0, 1, &fn);
         CHECK(!fz, "no lane built-in: the freeze leaves the module");

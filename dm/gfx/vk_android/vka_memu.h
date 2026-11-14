@@ -21,6 +21,9 @@ typedef struct vka_memu_sh {
     dmsh_vk_entry ce, ve;            // the entries of its compute form (the stage compute) and of its vertex shader (no binding)
     struct vka_shader *cs[2], *vs;
 } vka_memu_sh;
+// The keys name a shader's derived forms, not the converter's code: they are what the prewarm list records (vka_pso.c), and the driver's pipeline cache is keyed by
+// the module's own words, so a converter change (vka_memu_spv.c) needs no new key. The prewarm list's records then make the new forms at the next start, as before;
+// a new key would make them stale (dropped) and leave each form to its first draw
 #define VKA_MEMU_KEY_CS 0x4d454d555f43535full   // a compute form's key: the shader's key XOR this (XOR VKA_MEMU_KEY_GL for GL depth): no library key
 #define VKA_MEMU_KEY_GL 0x00000000474c3130ull
 #define VKA_MEMU_KEY_VS 0x4d454d555f56535full
