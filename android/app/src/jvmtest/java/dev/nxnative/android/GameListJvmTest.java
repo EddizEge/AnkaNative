@@ -253,7 +253,7 @@ public final class GameListJvmTest {
                     check(f.error == null && f.version == 65536, tag + ": patched data passes: " + f.error);
                     check(r.ok(), tag + ": card: " + r.kind + " " + r.detail);
                 } else {
-                    String want = (Nup.isNup(d) ? "This game .nup's update data" : "This game folder's update data") + " is not version 65536's full update RomFS (System/RegionLangMask.txt: ";
+                    String want = (Nup.isNup(d) ? "This game .nup's update data" : "This game folder's update data") + " is not the full update RomFS of version 65536 (System/RegionLangMask.txt: ";
                     check(f.error != null && f.error.startsWith(want) && f.error.contains("expected main's build ID " + id(2).substring(0, 16)), tag + ": Prepare: " + f.error);
                     check(c[0].equals("missing") ? f.error.contains(": missing,") : f.error.contains("line 4 is \"" + mask(1, "").substring(mask(1, "").lastIndexOf('\n') + 1) + "\""),
                             tag + ": says what it found: " + f.error);

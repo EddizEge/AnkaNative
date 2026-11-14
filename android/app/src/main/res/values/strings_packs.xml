@@ -96,8 +96,8 @@
     <string name="packs_romfs_detail_line">%1$s: %2$s, expected %3$s on line %4$d</string>
     <string name="packs_romfs_folder_base">This game folder\'s data is not the base game\'s RomFS (%1$s). Dump or extract the game again as the patched RomFS, or use the .nup.</string>
     <string name="packs_romfs_nup_base">This game .nup\'s data is not the base game\'s RomFS (%1$s). Dump or extract the game again as the patched RomFS.</string>
-    <string name="packs_romfs_folder_update">This game folder\'s update data is not version %1$d\'s full update RomFS (%2$s). Dump or extract the update again as the patched RomFS, or use the .nup.</string>
-    <string name="packs_romfs_nup_update">This game .nup\'s update data is not version %1$d\'s full update RomFS (%2$s). Dump or extract the update again as the patched RomFS.</string>
+    <string name="packs_romfs_folder_update">This game folder\'s update data is not the full update RomFS of version %1$d (%2$s). Dump or extract the update again as the patched RomFS, or use the .nup.</string>
+    <string name="packs_romfs_nup_update">This game .nup\'s update data is not the full update RomFS of version %1$d (%2$s). Dump or extract the update again as the patched RomFS.</string>
     <!-- BuildCheck: a pack's code against the game build -->
     <string name="packs_build_label_other_build">Pack is for another build</string>
     <string name="packs_build_label_missing">Pack is for another update</string>
