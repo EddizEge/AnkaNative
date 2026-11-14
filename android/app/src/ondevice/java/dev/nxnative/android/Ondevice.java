@@ -75,6 +75,10 @@ final class Ondevice {
     static String shadersText(File packDir, String titleId) {
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
+        // the update's split reads only the dump's files that hold those shaders (shader_split.py DM_SPLIT_DELTA), when the profile has its time; else the whole split's
+        if (n >= 0 && p != null && p.updateSplit() != null) return String.format(Locale.getDefault(), "Updates the shaders from your dump: %,d of the %,d are new or changed in "
+                + "this app version; the others are kept as they are. Only the parts of your dump that hold the new ones are read: %s in all, in the background.",
+                n, p.shaderTotal, ShaderLibs.minutesText(n, p.updateSplit()));
         if (n >= 0 && p != null) return String.format(Locale.getDefault(), "Updates the shaders from your dump: %,d of the %,d are new or changed in this app version; the "
                 + "others are kept as they are. The dump's shaders are read again first, which is most of the time: %s in all, in the background.",
                 n, p.shaderTotal, ShaderLibs.minutesText(n, p.split()));

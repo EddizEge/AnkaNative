@@ -41,9 +41,11 @@ mem_map_limit	on
 shader_groups	/Shader/ApplicationPackage=layout /Shader/=shader /Effect/=effect /UI/=layout /Layout2Shader/=layout
 shader_note	The Legend of Zelda: Ocarina of Time shaders
 
-# The phone's own split (Prepare, and every shader update, which reads every shader of the dump again): about 35 minutes on the POCO F8 Pro (2026-11-09, 42,346
-# shaders); the launcher's time estimates take it (ShaderLibs.minutes)
-android_split_minutes	30	45
+# The phone's own split (Prepare): about 35 minutes on the POCO F8 Pro (2026-11-09, 42,346 shaders); the launcher's time estimates take it (ShaderLibs.minutes).
+# The second pair is the split of a shader update (shader_split.py DM_SPLIT_DELTA, Profile.updateSplit), which reads only the dump's files that hold the shaders the
+# update translates: an ESTIMATE from the PC, not measured on a phone yet. The 0.2.2 -> 0.2.3 update's split (584 shaders in 35 of the RomFS files) takes 11-40 s
+# on the PC at J=1, warm to cold; the phone's full split is about 3.6 times the PC's (35 min against 9.8), so 1-3 minutes.
+android_split_minutes	30	45	1	3
 
 # ---- Frame rate ----
 # The game steps its time by a frame ratio, base rate / its int frame rate, whatever the frame took (main+0x6e6cc4): at 15 fps it played at 25 % speed (session-2026-11-07

@@ -123,9 +123,11 @@ def header(g):
             sys.exit(f"{g.id}: romfs_check takes <path in the RomFS> <line, from 1> <expected line (no | or ;), or main for the version's main build ID>: {rc}")
     aw = g.get('android_window', '')   # the Android launcher's default Game resolution for this game when the player chose none (Prefs.gameWindow): one of Prefs.WINDOWS
     if aw and aw not in ('1920x1080', 'original', '1280x720'): sys.exit(f'{g.id}: android_window must be 1920x1080, original or 1280x720: {aw}')
-    asm = g.values('android_split_minutes')   # the phone's shader split of this game, <lo> <hi> minutes (the Android launcher's Prepare and update estimates, ShaderLibs.minutes)
-    if asm and (len(asm) != 1 or len(asm[0]) != 2 or not all(x.isdigit() for x in asm[0]) or not 0 < int(asm[0][0]) <= int(asm[0][1])):
-        sys.exit(f'{g.id}: android_split_minutes takes one row <lo> <hi> (minutes, 0 < lo <= hi): {asm}')
+    # the phone's shader split of this game, <lo> <hi> minutes, and optionally the split of a shader update (shader_split.py DM_SPLIT_DELTA: only the files that hold the
+    # shaders the update translates), <update lo> <update hi> (the Android launcher's Prepare and update estimates, ShaderLibs.minutes)
+    asm = g.values('android_split_minutes')
+    if asm and (len(asm) != 1 or len(asm[0]) not in (2, 4) or not all(x.isdigit() for x in asm[0]) or not all(0 < int(asm[0][i]) <= int(asm[0][i + 1]) for i in range(0, len(asm[0]), 2))):
+        sys.exit(f'{g.id}: android_split_minutes takes one row <lo> <hi> [<update lo> <update hi>] (minutes, 0 < lo <= hi): {asm}')
     pl = g.get('pad_layout', 'simple')   # the virtual gamepad's first layout (DmGamepad.m; afterwards whatever the player switched to in game is kept): simple = 2D, full = 3D (D-pad, right stick, L3 / R3),
     if pl not in ('simple', 'full', 'touch'): sys.exit(f'{g.id}: pad_layout must be simple, full or touch: {pl}')   # touch = Tap (no control: every touch goes to the game's touch screen)
     sks = g.get('shader_key_skip', '')   # control-section bytes the shader keys hash as zeros, <offset>+<length> (hle_nvn.c keys_hash, shader_split.py key_ctl; Batman: Arkham Knight: GLSLC's compile information, 0x770+0x78)

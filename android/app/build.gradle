@@ -94,8 +94,9 @@ def romfsChecksOf = { String game -> tsvRows(game, 'romfs_check').findAll { it.s
 def gpuTsOf = { String game -> tsvRows(game, 'gpu_timestamps').with { rs -> rs.isEmpty() || rs[0].size() < 2 ? 'submission' : rs[0][1].trim() } }
 // The profile's default Game resolution (game.tsv android_window: one of Prefs.WINDOWS; empty without the key: the main screen's default)
 def windowOf = { String game -> tsvRows(game, 'android_window').with { rs -> rs.isEmpty() || rs[0].size() < 2 ? '' : rs[0][1].trim() } }
-// The phone's shader split of the game in minutes (game.tsv android_split_minutes <lo> <hi>: "lo-hi"; empty without the row: ShaderLibs.minutes' 4-8)
-def splitOf = { String game -> tsvRows(game, 'android_split_minutes').with { rs -> rs.isEmpty() || rs[0].size() < 3 ? '' : "${rs[0][1].trim()}-${rs[0][2].trim()}".toString() } }
+// The phone's shader split of the game in minutes (game.tsv android_split_minutes <lo> <hi> [<update lo> <update hi>]: "lo-hi", or "lo-hi,ulo-uhi" with the split of a
+// shader update, which reads only the files of the shaders it translates; empty without the row: ShaderLibs.minutes' 4-8)
+def splitOf = { String game -> tsvRows(game, 'android_split_minutes').with { rs -> rs.isEmpty() || rs[0].size() < 3 ? '' : ("${rs[0][1].trim()}-${rs[0][2].trim()}" + (rs[0].size() >= 5 ? ",${rs[0][3].trim()}-${rs[0][4].trim()}" : '')).toString() } }
 def nxProfiles = nxGames.collect { g -> [g, nameOf(g).replaceAll(/[\t\n\\"]/, ' '), shaderTotalOf(g), shaderInputsOf(g), buildsOf(g), reqsOf(g), statusOf(g), deltaOf(g), stampOf(g), resolutionOf(g), romfsChecksOf(g), gpuTsOf(g), windowOf(g), splitOf(g)].join('\\t') }.join('\\n')
 def lockOf = { String key -> def f = new File(repo, 'dm/gfx/tools/dmsh_chain.lock'); f.isFile() ? (f.readLines().find { it.startsWith(key + '\t') }?.split('\t')?.getAt(1) ?: 'unknown') : 'unknown' }
 

@@ -195,8 +195,9 @@ final class ShaderLibs {
     static int[] minutes(int n) { return minutes(n, null); }
 
     /**
-     * As {@link #minutes}, with the game's own split time (split: {lo, hi} minutes, game.tsv android_split_minutes, Profile.split; null: the 4-8 minutes above). The split
-     * reads every shader of the dump whatever an update translates, so it is most of a small update's time (Ocarina of Time: about 35 minutes on the POCO F8 Pro)
+     * As {@link #minutes}, with the game's own split time (split: {lo, hi} minutes, game.tsv android_split_minutes, Profile.split; null: the 4-8 minutes above). A whole
+     * split is most of a small update's time (Ocarina of Time: about 35 minutes on the POCO F8 Pro); an update's own split (Profile.updateSplit) reads only the files
+     * that hold the shaders it translates (Ocarina of Time's 1-3 minutes, an estimate from the PC)
      */
     static int[] minutes(int n, int[] split) {
         int sl = split != null ? split[0] : 4, sh = split != null ? split[1] : 8;

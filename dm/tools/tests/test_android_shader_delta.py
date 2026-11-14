@@ -297,6 +297,9 @@ class Launcher(unittest.TestCase):
         lo3, hi3, text3 = self.java('minutes', 582, 30, 45).split(' ', 2)
         self.assertTrue(31 <= int(lo3) <= 33 and 46 <= int(hi3) <= 48, (lo3, hi3))
         self.assertEqual(text3, f'about {lo3}-{hi3} minutes')
+        # An update's own split (the second pair, Profile.updateSplit): Ocarina of Time's 584 shaders after a 1-3 minute delta split, a few minutes in all
+        lo4, hi4, _ = self.java('minutes', 584, 1, 3).split(' ', 2)
+        self.assertTrue(2 <= int(lo4) <= 3 and 4 <= int(hi4) <= 6, (lo4, hi4))
         lo2, hi2, _ = self.java('minutes', 2322).split(' ', 2)
         self.assertTrue(int(lo2) < int(lo) and int(hi2) < int(hi) and int(lo2) >= 5)
         self.assertRegex(text, r'^about \d+-\d+ minutes$')
