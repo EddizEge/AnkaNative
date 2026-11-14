@@ -19,7 +19,7 @@
     <string name="settings_profile_missing">%1$s não tem um perfil de jogo neste app, então não pode rodar aqui. Este app roda: %2$s.</string>
     <string name="settings_profile_missing_named">%1$s (%2$s) não tem um perfil de jogo neste app, então não pode rodar aqui. Este app roda: %3$s.</string>
     <!-- GameSettings: a game's own settings. %1$s: Settings (home's page title) -->
-    <string name="settings_game_intro">Só para este jogo, a partir da próxima vez que ele iniciar. Padrão segue o que está em %1$s.</string>
+    <string name="settings_game_intro">Só para este jogo, a partir da próxima vez que ele for iniciado. A opção Padrão segue %1$s.</string>
     <string name="settings_game_resolution">Resolução do jogo</string>
     <string name="settings_game_res_level">Resolução 3D</string>
     <string name="settings_game_fps_cap">Limite de FPS</string>
@@ -31,7 +31,7 @@
     <string name="settings_game_intro_skip">Pular introdução (depuração)</string>
     <string name="settings_game_intro_skip_about">No jogo, segure − e + juntos por 1 s: pressiona A durante vídeos e menus, encerra os vídeos antes e para quando o jogo em si começa. Segure de novo para parar</string>
     <string name="settings_game_ram_saver">Economia de RAM (usa o armazenamento)</string>
-    <string name="settings_game_ram_saver_about">Guarda os dados de textura do jogo em um arquivo em vez da RAM comprimida: cerca de 1 GB a mais de RAM livre quando falta memória no celular, mas cada carregamento de área grava esses dados no armazenamento (cerca de 2 GB em Ocarina of Time) e precisa desse espaço livre. Desativado: como antes</string>
+    <string name="settings_game_ram_saver_about">Guarda os dados de textura do jogo em um arquivo em vez da RAM comprimida: cerca de 1 GB a mais de RAM livre quando falta memória no celular, mas cada carregamento de área grava esses dados no armazenamento (cerca de 2 GB em Ocarina of Time) e precisa desse espaço livre. Desativada: como antes</string>
     <string name="settings_game_env">Variáveis de ambiente extras</string>
     <string name="settings_game_env_none">Nenhuma (linhas KEY=VALUE para o host, depois do env.txt)</string>
     <!-- %1$d: how many lines; %2$s: the lines, a space between them -->
@@ -51,7 +51,7 @@
     <string name="settings_game_gpu_timing_title">Temporização da GPU · %1$s</string>
     <!-- %1$s: the stored DM_RES_LEVEL value -->
     <string name="settings_game_res_level_gone">Dinâmica (a do próprio jogo; o valor salvo %1$s não é mais oferecido)</string>
-    <string name="settings_game_res_level_about">O jogo muda sozinho a nitidez da imagem 3D. Um nível fixo a mantém ali: um nível mais baixo dá menos trabalho à GPU, um mais alto é mais nítido. \"Nunca acima de\" deixa o jogo baixar o nível quando está pesado, mas não subir além daquele nível. A partir da próxima vez que o jogo iniciar; uma linha DM_RES_LEVEL no env.txt tem prioridade.</string>
+    <string name="settings_game_res_level_about">O jogo muda sozinho a nitidez da imagem 3D. Um nível fixo a mantém ali: um nível mais baixo dá menos trabalho à GPU, um mais alto é mais nítido. As opções \"never above\" (nunca acima de) deixam o jogo baixar o nível quando está pesado, mas não subir além daquele nível. Vale a partir da próxima vez que o jogo for iniciado; uma linha DM_RES_LEVEL no env.txt tem prioridade.</string>
     <string name="settings_game_res_level_title">Resolução 3D · %1$s</string>
     <!-- %1$s: the default window size's name -->
     <string name="settings_game_default_choice">Padrão (%1$s)</string>
@@ -99,7 +99,7 @@
     <string name="settings_folders_pack_other_game">Esse pacote é de %1$s, não de %2$s (%3$s).</string>
     <string name="settings_folders_pack_set">Pasta do pacote definida</string>
     <!-- %1$s: the folder; %2$s: the shader library's version -->
-    <string name="settings_folders_pack_set_ready">%1$s\n\nEla tem a biblioteca de shaders deste app (%2$s): pronto para jogar.</string>
+    <string name="settings_folders_pack_set_ready">%1$s\n\nEla tem a biblioteca de shaders deste app (%2$s): tudo pronto para jogar.</string>
     <!-- %1$s: the folder; %2$s: what is wrong with its shader library, a sentence -->
     <string name="settings_folders_copy_title">Copiar o save?</string>
     <!-- %1$s: the current save folder; %2$s: the folder picked -->
@@ -118,10 +118,10 @@
     <string name="settings_gpu_installing_unnamed">Instalando o driver…</string>
     <string name="settings_gpu_install_failed">Driver de GPU não instalado: %1$s</string>
     <string name="settings_gpu_installed">Driver de GPU instalado e escolhido: %1$s</string>
-    <string name="settings_gpu_picked_system">Driver de GPU: sistema</string>
+    <string name="settings_gpu_picked_system">Driver de GPU: o do sistema</string>
     <string name="settings_gpu_picked">Driver de GPU: %1$s</string>
     <string name="settings_gpu_recommended">%1$s (recomendado)</string>
-    <string name="settings_gpu_title">Driver de GPU (vale a partir da próxima vez que um jogo iniciar)</string>
+    <string name="settings_gpu_title">Driver de GPU (vale a partir do próximo início do jogo)</string>
     <string name="settings_gpu_install">Instalar…</string>
     <string name="settings_gpu_remove_picked">Remover o escolhido…</string>
     <string name="settings_gpu_remove_title">Remover %1$s?</string>
@@ -130,7 +130,7 @@
     <string name="settings_gpu_remove">Remover driver</string>
     <string name="settings_gpu_removed">Driver %1$s removido; o driver do sistema está em uso</string>
     <!-- %1$s: a zip's file name; two spaces before the parenthesis -->
-    <string name="settings_gpu_zip_found">%1$s  (a pasta gpu_drivers do app)</string>
+    <string name="settings_gpu_zip_found">%1$s\u0020\u0020(a pasta gpu_drivers do app)</string>
     <string name="settings_gpu_pick_zip">Escolher um zip…</string>
     <string name="settings_gpu_download">Baixar…</string>
     <string name="settings_gpu_install_title">Instalar o zip de um driver (com meta.json)</string>
@@ -152,13 +152,13 @@
     <string name="settings_driverzip_cannot_move">não é possível mover o driver para %1$s</string>
     <!-- GitHub: the driver download and the app update -->
     <string name="settings_net_not_https">não é um link https: %1$s</string>
-    <string name="settings_net_rate_limit">Limite de requisições do GitHub atingido, tente de novo mais tarde</string>
+    <string name="settings_net_rate_limit">limite de requisições do GitHub atingido; tente de novo mais tarde</string>
     <!-- %1$d: the HTTP status code -->
-    <string name="settings_net_http">O GitHub respondeu HTTP %1$d</string>
-    <string name="settings_net_no_network">Sem rede (não foi possível acessar o GitHub)</string>
-    <string name="settings_net_timeout">Sem rede (o GitHub não respondeu a tempo)</string>
+    <string name="settings_net_http">o GitHub respondeu HTTP %1$d</string>
+    <string name="settings_net_no_network">sem rede (não foi possível acessar o GitHub)</string>
+    <string name="settings_net_timeout">sem rede (o GitHub não respondeu a tempo)</string>
     <!-- %1$s: the JSON parser's detail (English) -->
-    <string name="settings_net_bad_answer">Não foi possível ler a resposta do GitHub: %1$s</string>
+    <string name="settings_net_bad_answer">não foi possível ler a resposta do GitHub: %1$s</string>
     <string name="settings_driverfetch_zip_too_large">o zip tem mais de 512 MB: não é um pacote de driver</string>
     <string name="settings_driverfetch_download_too_large">o download tem mais de 512 MB: não é um pacote de driver</string>
     <string name="settings_driverfetch_title">Baixar um driver (releases do GitHub)</string>
@@ -170,9 +170,9 @@
     <string name="settings_driverfetch_installed">Instalado e escolhido: %1$s</string>
     <!-- Updater: the in-app update -->
     <string name="settings_update_title">Atualizações</string>
-    <string name="settings_update_release_only">Só o app de lançamento (dev.ankanative.android) verifica atualizações. Um app de teste verifica quando o update.txt na pasta de arquivos dele indica repo= ou url=.</string>
+    <string name="settings_update_release_only">Só o app oficial (dev.ankanative.android) verifica atualizações. Um app de teste verifica quando o update.txt na pasta de arquivos dele indica repo= ou url=.</string>
     <!-- %1$s: the app's version name -->
-    <string name="settings_update_not_release">A versão deste build (%1$s) não é uma versão de lançamento: não há com o que comparar.</string>
+    <string name="settings_update_not_release">A versão deste build (%1$s) não é uma versão oficial (release): não há com o que comparar.</string>
     <string name="settings_update_checking">Verificando atualizações…</string>
     <string name="settings_update_check_failed">A verificação de atualizações falhou: %1$s</string>
     <!-- %1$s: the version, X.Y.Z -->
