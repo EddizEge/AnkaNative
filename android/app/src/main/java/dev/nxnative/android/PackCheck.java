@@ -47,7 +47,7 @@ final class PackCheck {
         String m = p.unfinishedModule();
         if (m != null) return new Msg("packs_check_unfinished", m, new Msg("packs_label_prepare_again"));
         Job j = rewriting(c, p.dir, game, p.titleId);
-        if (j != null) return new Msg("packs_check_rewriting", j.name(), j.statusText(false));   // statusText: prepare's, English; the integrator switches it to statusMsg
+        if (j != null) return new Msg("packs_check_rewriting", j.name(), j.statusMsg(false));
         return BuildCheck.build(p, game).msg;
     }
 

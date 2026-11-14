@@ -324,9 +324,6 @@ final class Job {
         }
     }
 
-    /** statusMsg in English: the packs area embeds it in its own English texts (PackCheck.blocking, PackUi's import refusal) until they take statusMsg */
-    synchronized String statusText(boolean serviceAlive) { return statusMsg(serviceAlive).english(); }
-
     /** Why the job is paused (job.json's reason), in words */
     static Msg reasonMsg(String r) {
         switch (r) {

@@ -140,7 +140,7 @@ final class PackUi {
             if (remembered != null && remembered.isFile()) {
                 Job j = Job.read(remembered);
                 if (SaveStore.same(j.pack(), target) && !"done".equals(j.state()))
-                    throw new IOException(a.getString(R.string.packs_ui_import_job, target, j.statusText(false), a.getString(R.string.packs_label_manage)));   // statusText: prepare's, English; the integrator switches it to statusMsg
+                    throw new LocalizedIOException("packs_ui_import_job", target, j.statusMsg(false), new Msg("packs_label_manage"));
             }
             Pack p = PackZip.stage(source, packs, g.titleId);
             try {
