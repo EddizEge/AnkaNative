@@ -34,7 +34,9 @@ def xlate_embedded():
     return '%s (%s)' % (NO_RUN, (r.stderr.strip().splitlines() or r.stdout.strip().splitlines() or [f'exit code {r.returncode}'])[0])
 
 def no_run_message(embedded):
-    if sys.platform == 'darwin': return f'the translator {embedded}: it needs the .NET 10 runtime for this Mac\'s architecture (brew install --cask dotnet-sdk); unset DOTNET_ROOT if it names another one'
+    if sys.platform == 'darwin':   # Homebrew's plain dotnet-sdk cask is .NET 11 now, whose runtime does not start a translator built for .NET 10
+        return (f'the translator {embedded}: it needs the .NET 10 runtime for this Mac\'s architecture (https://dotnet.microsoft.com/download/dotnet/10.0, '
+                'or brew install --cask dotnet-sdk@10); unset DOTNET_ROOT if it names another one')
     return (f'the translator {embedded}: it needs the .NET 10 runtime (https://dotnet.microsoft.com/download/dotnet/10.0, or the system\'s dotnet-runtime-10.0 package) '
             'and, off the Mac, XLATE naming the launcher for this computer (pack_android.py sets it: dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate-<linux|win>-<x64|arm64>)')
 
