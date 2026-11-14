@@ -326,7 +326,7 @@ What the Activity calls:
 
 ### Build and tests
 
-- `libnxhost.so` builds with NDK 28.2 for API 33, `-DGAME=040074A01BF12000`, and links with `--no-undefined` against `aaudio`, `mediandk` and `android` (with the replay merged: 7.8 MB with debug info, 1.46 MB stripped). It exports `nxhost_main`, the `nxhost_*` launcher interface and `JNI_OnLoad`.
+- `libnxhost.so` builds with NDK 28.2 for API 33 (at the time; now API 31: [README.md](README.md#android-versions)), `-DGAME=040074A01BF12000`, and links with `--no-undefined` against `aaudio`, `mediandk` and `android` (with the replay merged: 7.8 MB with debug info, 1.46 MB stripped). It exports `nxhost_main`, the `nxhost_*` launcher interface and `JNI_OnLoad`.
 - Mac unit tests, also in `make -C dm/host/tests GAME=… run`:
   - `t_android_av` covers the resampler (equal-rate delay, 48 → 44.1 kHz frame accounting over uneven calls, 48 → 96 kHz interpolation), the channel map (in place, both directions), the SPS size of four libx264 SPSs (1080p crop, 720p, an odd 322×242 crop, interlaced 480), NV12 / I420 layouts with stride, slice and crop into NV12, and NV12 → RGBA (BT.601 / BT.709, limited / full).
   - `t_android_input` covers every key's mapping (sixteen buttons once each), the dead zone and diagonal, trigger hysteresis, the hat, the Z / RZ over RX / RY rule, the default on-screen layout (no overlaps), a launcher layout (`nxin_touch_set_layout`: held touches let go, stick clicks, the default back), sticks, the D-pad, finger slots, letterboxing, cancel, the sensor frame for the four rotations, and shakes.

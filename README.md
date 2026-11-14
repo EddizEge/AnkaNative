@@ -49,9 +49,10 @@ What changed, with more numbers: [CHANGELOG_ANKA_NATIVE.md](CHANGELOG_ANKA_NATIV
 
 ## What you need
 
-- Android 13 or newer, a 64-bit phone with a **Snapdragon (Adreno) GPU** and **12-16 GB of RAM**. Only a 12 GB POCO F8 Pro (Adreno 830)
-  was tried with this release; with 12 GB, memory is tight. The app also installs on Android 12 and 12L, where the game needs a
-  Vulkan 1.3 driver such as the Anka Turnip driver (the phone's own Android 12 driver is usually older); Android 12 is **untested**.
+- Android 13 or newer (Android 12 and 12L: the app installs, but is **untested** there and needs a custom driver with Vulkan 1.3
+  and placed memory maps, such as the Anka Turnip driver; [Android versions](android/README.md#android-versions)), a 64-bit phone
+  with a **Snapdragon (Adreno) GPU** and **12-16 GB of RAM**. Only a 12 GB POCO F8 Pro (Adreno 830) was tried with this release;
+  with 12 GB, memory is tight.
 - **Less than 16 GB of RAM: turn the RAM saver on** (the game's ⋯ › Game settings › RAM saver). Without it Android may close the
   game in heavy areas; with it, total RAM use in Ocarina of Time dropped to 9.6 GB on the 12 GB test phone. It costs storage writes
   (about 2 GB per area load) and needs that much free space.
