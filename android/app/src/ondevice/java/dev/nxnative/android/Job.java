@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.Locale;
 
 /**
  * One on-device job (ONDEVICE.md "The job model"): <work>/ondevice/job.json, the manifest the service writes as it goes and the launcher reads when the service is
@@ -29,7 +28,11 @@ import java.util.Locale;
 final class Job {
     static final int FORMAT = 2;   // 2: the shaders step writes the library too (vk_android_build.py's result cache); 1 had a library step of its own
     static final String[] STEPS = {"identify", "rewrite", "split", "shaders", "pack"};
-    static final String[] STEP_TEXT = {"Checking the dump", "Rewriting the game code", "Finding the shaders", "Translating shaders", "Finishing the pack"};
+    /** The steps in words (strings_prepare.xml), by STEPS' index */
+    static final String[] STEP_KEYS = {"prepare_step_identify", "prepare_step_rewrite", "prepare_step_split", "prepare_step_shaders", "prepare_step_pack"};
+    /** The same inside a sentence ("Stopped at checking the dump: …"): resources of their own, never a translation lower-cased */
+    static final String[] STEP_IN_SENTENCE_KEYS = {"prepare_step_identify_in_sentence", "prepare_step_rewrite_in_sentence", "prepare_step_split_in_sentence",
+            "prepare_step_shaders_in_sentence", "prepare_step_pack_in_sentence"};
     /** Each step's share of the progress bar, roughly its time on the phone (ONDEVICE.md "Time and power"); the shaders' share is counted by shader */
     private static final int[] WEIGHT = {1, 5, 12, 78, 4};
     static final int SHADERS = 3;
@@ -88,7 +91,7 @@ final class Job {
     static Job read(File f) throws IOException {
         try {
             JSONObject o = new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8));
-            if (o.optInt("format") != FORMAT) throw new IOException(f + ": job format " + o.optInt("format") + ", this app writes " + FORMAT);
+            if (o.optInt("format") != FORMAT) throw new IOException(f + ": job format " + o.optInt("format") + ", this app writes " + FORMAT);   // i18n-keep: never shown (a reader skips such a job; logs)
             return new Job(f, o);
         } catch (JSONException e) {
             throw new IOException(f + ": " + e.getMessage());
@@ -139,7 +142,7 @@ final class Job {
             throw new IOException(e);
         }
         File dir = file.getParentFile();
-        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot make " + dir);
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new LocalizedIOException("prepare_cannot_make_folder", dir);
         File tmp = new File(dir, file.getName() + ".tmp");
         try (FileOutputStream out = new FileOutputStream(tmp)) {
             out.write(o.toString(1).getBytes(StandardCharsets.UTF_8));
@@ -284,43 +287,56 @@ final class Job {
     // the tool's total once it reported one: the shaders it translates (a delta update keeps the others, android/SHADERS.md#delta-updates), else the profile's count
     synchronized long shadersTotal() { long t = stepTotal(SHADERS); Profile p = Profile.of(titleId()); return t > 1 || !step(STEPS[SHADERS]).optString("stage").isEmpty() ? t : p != null ? p.shaderTotal : 0; }
 
+    /** Step i in words, as a heading ("Checking the dump") */
+    static Msg stepName(int i) { return new Msg(STEP_KEYS[i]); }
+
+    /** Step i in words inside a sentence ("checking the dump") */
+    static Msg stepInSentence(int i) { return new Msg(STEP_IN_SENTENCE_KEYS[i]); }
+
     /** "Translating shaders: 12,345 of 22,852" during the shaders step ("Writing the shader library" at its end), else the step and its count when it has one */
-    synchronized String stepText() {
+    synchronized Msg stepMsg() {
         int i = current();
         if (i == SHADERS) {
             String stage = step(STEPS[i]).optString("stage");
-            if (stage.equals("library") || stage.equals("done")) return "Writing the shader library";
-            if (stage.equals("check")) return "Checking the shader library";
-            return String.format(Locale.getDefault(), "%s: %,d of %,d", STEP_TEXT[i], shadersDone(), shadersTotal());
+            if (stage.equals("library") || stage.equals("done")) return new Msg("prepare_stage_library");
+            if (stage.equals("check")) return new Msg("prepare_stage_check");
+            return new Msg("prepare_step_shaders_progress", shadersDone(), shadersTotal());
         }
         long d = stepDone(i), t = stepTotal(i);
-        return STEP_TEXT[i] + (t > 1 ? String.format(Locale.getDefault(), " %,d / %,d", d, t) : t == 1 || d == 0 ? "" : String.format(Locale.getDefault(), " %,d", d));
+        if (t > 1) return new Msg("prepare_step_progress", stepName(i), d, t);
+        return t == 1 || d == 0 ? stepName(i) : new Msg("prepare_step_count", stepName(i), d);
     }
 
-    /** One line for the screen and the notification: what the job is doing or why it stopped */
-    synchronized String statusText(boolean serviceAlive) {
+    /**
+     * One line for the screen and the notification: what the job is doing or why it stopped. A failure's English error (job.json) is its argument: the
+     * integrator shows JobErrors' text for the packer's error codes after the errors package merges (docs/i18n.md "Errors of the packer")
+     */
+    synchronized Msg statusMsg(boolean serviceAlive) {
         String s = state();
-        String step = "step " + (current() + 1) + " of " + STEPS.length;
         switch (s) {
-            case "done": return "Ready to play.";
-            case "failed": return "Stopped at " + STEP_TEXT[current()].toLowerCase(Locale.ROOT) + ": " + error().replaceAll("[.\\s]+$", "") + ". Tap Retry to go on.";
-            case "pending": return "Not started yet.";
-            case "paused": return "Paused: " + reasonText(reason()) + ". " + stepText() + ".";
-            case "running": return serviceAlive ? stepText() + " (" + step + ")."
-                    : "Interrupted at " + stepText() + ". Tap Resume to go on.";
-            default: return s;
+            case "done": return new Msg("prepare_status_done");
+            case "failed": return new Msg("prepare_status_failed", stepInSentence(current()), error().replaceAll("[.\\s]+$", ""), new Msg("prepare_button_retry"));
+            case "pending": return new Msg("prepare_status_pending");
+            case "paused": return new Msg("prepare_status_paused", reasonMsg(reason()), stepMsg());
+            case "running": return serviceAlive ? new Msg("prepare_status_running", stepMsg(), current() + 1, STEPS.length)
+                    : new Msg("prepare_status_interrupted", stepMsg(), new Msg("prepare_button_resume"));
+            default: return new Msg("prepare_status_raw", s);
         }
     }
 
-    static String reasonText(String r) {
+    /** statusMsg in English: the packs area embeds it in its own English texts (PackCheck.blocking, PackUi's import refusal) until they take statusMsg */
+    synchronized String statusText(boolean serviceAlive) { return statusMsg(serviceAlive).english(); }
+
+    /** Why the job is paused (job.json's reason), in words */
+    static Msg reasonMsg(String r) {
         switch (r) {
-            case "user": return "by you";
-            case "battery": return "battery below 20 %: plug in the charger to go on";
-            case "thermal": return "the phone is too hot: it goes on when it has cooled";
-            case "timeout": return "Android's daily limit for background work: open the app and tap Resume";
-            case "refused": return "Android did not let it start in the background: open the app and tap Resume";
-            case "apk": return "the app was updated with other shader tools: the shaders are translated again";
-            default: return r.isEmpty() ? "stopped" : r;
+            case "user": return new Msg("prepare_reason_user");
+            case "battery": return new Msg("prepare_reason_battery");
+            case "thermal": return new Msg("prepare_reason_thermal");
+            case "timeout": return new Msg("prepare_reason_timeout", new Msg("prepare_button_resume"));
+            case "refused": return new Msg("prepare_reason_refused", new Msg("prepare_button_resume"));
+            case "apk": return new Msg("prepare_reason_apk");
+            default: return r.isEmpty() ? new Msg("prepare_reason_none") : new Msg("prepare_status_raw", r);
         }
     }
 

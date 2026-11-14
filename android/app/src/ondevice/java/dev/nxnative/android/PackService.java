@@ -92,8 +92,8 @@ public final class PackService extends Service {
         super.onCreate();
         nm = getSystemService(NotificationManager.class);
         pm = getSystemService(PowerManager.class);
-        NotificationChannel ch = new NotificationChannel(CHANNEL, "Preparing a game", NotificationManager.IMPORTANCE_LOW);
-        ch.setDescription("Progress while the app prepares a game from your dump");
+        NotificationChannel ch = new NotificationChannel(CHANNEL, getString(R.string.prepare_channel_name), NotificationManager.IMPORTANCE_LOW);
+        ch.setDescription(getString(R.string.prepare_channel_description));
         nm.createNotificationChannel(ch);
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nxnative:pack");
         wake.setReferenceCounted(false);
@@ -120,7 +120,7 @@ public final class PackService extends Service {
         if (ACTION_PAUSE.equals(action)) {
             String from = intent.getStringExtra(EXTRA_FROM);
             boolean running = worker != null && worker.isAlive();
-            logPause(job, (from != null ? from : "an intent without \"from\"") + (running ? "" : ", nothing running"));
+            logPause(job, (from != null ? from : "an intent without \"from\"") + (running ? "" : ", nothing running"));   // i18n-keep: a log line
             if (running) requestStop("user");
             else if (worker == null) stopSelf(startId);   // a stale notification: nothing runs here
             return START_STICKY;
@@ -190,7 +190,7 @@ public final class PackService extends Service {
 
     /** A pause the user asked for, in logcat (nxpack) and in the current step's log (ondevice/logs/<step>.log): who asked and when */
     private void logPause(Job j, String from) {
-        String line = "[pack] " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(new Date()) + " pause asked (from " + from + ")";
+        String line = "[pack] " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(new Date()) + " pause asked (from " + from + ")";   // i18n-keep: a log line
         Log.i(TAG, line);
         if (j == null) return;
         int i = j.current();
@@ -292,8 +292,9 @@ public final class PackService extends Service {
                 if (starts > MAX_STARTS) {   // twice ended by Android inside this step (START_STICKY brought it back): stop instead of looping
                     j.ended(s);
                     j.stepState(s, "pending");
-                    j.state("failed", null, Job.STEP_TEXT[i].toLowerCase(Locale.ROOT) + " was stopped by Android " + (starts - 1) + " times before it finished, most likely "
-                            + "for memory (it needs up to " + (s.equals("rewrite") ? "2.7" : "1.5") + " GB). Close other apps, then tap Retry");
+                    // job.json's error is English (docs/i18n.md): the status line shows it inside its own sentence
+                    j.state("failed", null, new Msg("prepare_error_step_killed", Job.stepInSentence(i), starts - 1, s.equals("rewrite") ? "2.7" : "1.5",
+                            new Msg("prepare_button_retry")).english());
                     save(j, true);
                     break;
                 }
@@ -366,7 +367,7 @@ public final class PackService extends Service {
         if (s.equals("identify")) {
             DumpCheck.Result r = DumpCheck.check(j.dump(), false);
             if (!r.ok()) return r.error;
-            if (!r.titleId.equals(j.titleId()) || r.version != j.version()) return "the dump changed: it is now " + r.titleId + " " + r.version;
+            if (!r.titleId.equals(j.titleId()) || r.version != j.version()) return new Msg("prepare_error_dump_changed", r.titleId, String.valueOf(r.version)).english();
             j.stepProgress(s, 1, 1, "identify");
             return null;
         }
@@ -416,18 +417,18 @@ public final class PackService extends Service {
                 argv = new String[] {dump.getPath(), "--version", v, "--out", pack.getPath(), "--shader-cache", j.shaderCache().getPath(), "--keep-code", "-j", "1", "--in-process"};
                 break;
             default:
-                return "unknown step " + s;
+                return "unknown step " + s;   // i18n-keep: a programming error (STEPS has no other step), never a user's
         }
         File logs = new File(od, "logs");
         logs.mkdirs();
         File log = new File(logs, s + ".log");
-        String head = "== " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(new Date()) + " " + Prefs.buildTag(this) + ", engine " + BuildConfig.NX_PACK_ENGINE + ": "
+        String head = "== " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(new Date()) + " " + Prefs.buildTag(this) + ", engine " + BuildConfig.NX_PACK_ENGINE + ": "   // i18n-keep: the step log's head
                 + tool + " " + String.join(" ", argv) + "\n";
         Files.write(log.toPath(), head.getBytes(StandardCharsets.UTF_8), java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
         if (s.equals("shaders")) {   // a failed shader's kept result would fail every Retry the same way: those shaders are translated again (ShaderResults)
             List<ShaderResults.Failed> again = ShaderResults.dropFailed(xlate);
             StringBuilder b = new StringBuilder();
-            for (ShaderResults.Failed f : again) b.append("[retry] translating again, it failed before: ").append(f).append('\n');
+            for (ShaderResults.Failed f : again) b.append("[retry] translating again, it failed before: ").append(f).append('\n');   // i18n-keep: the step log
             if (b.length() > 0) Files.write(log.toPath(), b.toString().getBytes(StandardCharsets.UTF_8), java.nio.file.StandardOpenOption.APPEND);
         }
         int workers = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
@@ -453,7 +454,7 @@ public final class PackService extends Service {
         File envFile = new File(od, "env.txt");
         if (envFile.isFile()) for (String l : Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8)) {
             int eq = l.indexOf('=');
-            if (eq > 0 && !l.startsWith("#")) { PackEngine.setenv(l.substring(0, eq).trim(), l.substring(eq + 1).trim()); Files.write(log.toPath(), ("[env.txt] " + l.trim() + "\n").getBytes(StandardCharsets.UTF_8), java.nio.file.StandardOpenOption.APPEND); }
+            if (eq > 0 && !l.startsWith("#")) { PackEngine.setenv(l.substring(0, eq).trim(), l.substring(eq + 1).trim()); Files.write(log.toPath(), ("[env.txt] " + l.trim() + "\n").getBytes(StandardCharsets.UTF_8), java.nio.file.StandardOpenOption.APPEND); }   // i18n-keep: the step log
         }
         Tail tail = new Tail(j, s, log);
         tail.start();
@@ -468,7 +469,7 @@ public final class PackService extends Service {
         }
         Log.i(TAG, s + ": exit " + code);
         if (code == PackEngine.INTERRUPTED) return "interrupted";
-        if (code != 0) return s + " stopped with code " + code + (tail.lastRed != null ? ": " + tail.lastRed : "") + " (log: " + log + ")";
+        if (code != 0) return (tail.lastRed != null ? new Msg("prepare_error_tool_exit_red", s, code, tail.lastRed, log) : new Msg("prepare_error_tool_exit", s, code, log)).english();
         if (s.equals("split")) {
             Outputs.finish(split);   // every output synced, then the marker: a reboot after the step is recorded done cannot leave cut tables accepted in split/
             // the scan results go only once job.json records the split done (work()): a kill before that resumes from them instead of scanning everything again
@@ -489,7 +490,7 @@ public final class PackService extends Service {
             File want = new File(PackNative.repo(), "dm/games/" + j.titleId() + "/shader_map.tsv");
             if (java.util.Arrays.equals(Files.readAllBytes(want.toPath()), Files.readAllBytes(have.toPath()))) return null;
         } catch (IOException | RuntimeException | UnsatisfiedLinkError e) {
-            return "cannot compare the dump's shaders with the app's list: " + e.getMessage();
+            return new Msg("prepare_error_compare", e.getMessage()).english();
         }
         try {
             Outputs.delete(split);   // a Retry splits again, from the start
@@ -498,8 +499,8 @@ public final class PackService extends Service {
         }
         Job.deleteTree(j.splitScan(this));
         j.stepState("split", "pending");
-        return "the dump's shaders are not the ones this app knows for " + j.name() + " (" + Profile.versionName(j.version()) + ", " + have.getName()
-                + " differs). The dump may be incomplete or modified: dump the game again, then Retry";
+        // English, with the version's English (Profile.versionName): job.json's error
+        return new Msg("prepare_error_shader_map", j.name(), Profile.versionName(j.version()), have.getName(), new Msg("prepare_button_retry")).english();
     }
 
     /** Reads the step's log as it grows: progress lines into the job, the last [RED] line for a failure's message */
@@ -628,35 +629,44 @@ public final class PackService extends Service {
         Notification.Builder b = new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.anka_notify).setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_PROGRESS).setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
                 .setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
-        String name = j == null ? "a game" : j.name();
-        String sim = engine.simulated() ? " (simulated)" : "";
-        if (j == null) return b.setContentTitle("Preparing " + name + sim).setContentText("Starting…").build();
+        boolean sim = engine.simulated();
+        if (j == null) return b.setContentTitle(simulated(getString(R.string.prepare_note_none), sim)).setContentText(getString(R.string.prepare_note_starting)).build();
+        String name = j.name();
         String state = j.state();
         int pct = (int) Math.round(j.overall() * 100);
         int i = j.current();
-        if (state.equals("done")) return b.setContentTitle(name + " is ready to play" + sim).setContentText("Open Anka Native and tap Play.").setAutoCancel(true).build();
+        if (state.equals("done")) return b.setContentTitle(simulated(getString(R.string.prepare_note_done, name), sim))
+                .setContentText(getString(R.string.prepare_note_done_text, getString(R.string.prepare_button_play))).setAutoCancel(true).build();
         boolean running = state.equals("running") && worker != null;
         boolean waiting = state.equals("paused") && worker != null;   // the policy's pause: it goes on by itself
-        b.setContentTitle((running ? "Preparing " : waiting ? "Waiting: " : state.equals("failed") ? "Could not prepare " : "Paused: ") + name + sim);
+        b.setContentTitle(simulated(getString(running ? R.string.prepare_note_running : waiting ? R.string.prepare_note_waiting
+                : state.equals("failed") ? R.string.prepare_note_failed : R.string.prepare_note_paused, name), sim));
         Intent pause = new Intent(this, PackService.class).setAction(ACTION_PAUSE).putExtra(EXTRA_FROM, "notification");
-        Notification.Action pauseAction = new Notification.Action.Builder(null, "Pause",
+        Notification.Action pauseAction = new Notification.Action.Builder(null, getString(R.string.prepare_button_pause),
                 PendingIntent.getService(this, 1, pause, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build();
+        String step = j.stepMsg().text(), steps = getString(R.string.prepare_note_step, i + 1, Job.STEPS.length, pct);
         if (waiting) {
-            return b.setContentText(Job.reasonText(j.reason())).setStyle(new Notification.BigTextStyle().bigText(j.stepText() + " · " + pct + " %\n" + Job.reasonText(j.reason())))
-                    .setSubText("Step " + (i + 1) + " of " + Job.STEPS.length + " · " + pct + " %").setOngoing(true).addAction(pauseAction).build();
+            String reason = Job.reasonMsg(j.reason()).text();
+            return b.setContentText(reason).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_progress_why, step, pct, reason)))
+                    .setSubText(steps).setOngoing(true).addAction(pauseAction).build();
         }
         if (running) {
             long d = j.stepDone(i), t = j.stepTotal(i);
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
-            b.setContentText(j.stepText()).setSubText("Step " + (i + 1) + " of " + Job.STEPS.length + " · " + pct + " %").setOngoing(true).addAction(pauseAction);
+            b.setContentText(step).setSubText(steps).setOngoing(true).addAction(pauseAction);
         } else {
-            String why = state.equals("failed") ? j.error() : Job.reasonText(j.reason());
-            b.setContentText(j.stepText() + " · " + pct + " %").setStyle(new Notification.BigTextStyle().bigText(j.stepText() + " · " + pct + " %\n" + why)).setOngoing(false);
+            // a failure's English error (job.json) as it is: the integrator shows JobErrors' text for the packer's error codes (docs/i18n.md "Errors of the packer")
+            String why = state.equals("failed") ? j.error() : Job.reasonMsg(j.reason()).text();
+            b.setContentText(getString(R.string.prepare_note_progress, step, pct))
+                    .setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_progress_why, step, pct, why))).setOngoing(false);
             Intent resume = new Intent(this, PackService.class).setAction(ACTION_START).putExtra(EXTRA_JOB, j.file.getPath());
-            b.addAction(new Notification.Action.Builder(null, state.equals("failed") ? "Retry" : "Resume",
+            b.addAction(new Notification.Action.Builder(null, getString(state.equals("failed") ? R.string.prepare_button_retry : R.string.prepare_button_resume),
                     PendingIntent.getForegroundService(this, 2, resume, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build());
         }
         return b.build();
     }
+
+    /** A notification's title, marked when a test build's simulated engine made the pack */
+    private String simulated(String title, boolean sim) { return sim ? getString(R.string.prepare_note_simulated, title) : title; }
 }
