@@ -1,6 +1,6 @@
 """The shaders step's use of the phone's cores and memory (ShaderWorkers.java, android/app/src/ondevice; android/SHADERS.md#build-speed): the subinterpreter workers
 vk_android_build.py gets (DMSH_VK_INTERPS) for the cores the job may use and the memory the phone reports, and the translator's first generation (DOTNET_GCgen0size).
-PackService sets both for the shaders step. The JVM part is skipped without a JDK."""
+PackService sets both for the shaders step, and the same count for the split (DM_SPLIT_INTERPS). The JVM part is skipped without a JDK."""
 import re
 import shutil
 import subprocess
@@ -46,7 +46,8 @@ class Workers(unittest.TestCase):
 
 class Service(unittest.TestCase):
     def test_shaders_step_environment(self):
-        """PackService gives the shaders step the workers and the translator's generation before env.txt (which may override them), and only the shaders step"""
+        """PackService gives the shaders and split steps their workers, and the translator's generation, before env.txt (which may override them); the tools'
+        own 'subinterpreters: ' lines (how many run, or that none can here) go to logcat"""
         s = SERVICE.read_text(encoding='utf-8')
         i, g, e = s.find('"DMSH_VK_INTERPS"'), s.find('"DOTNET_GCgen0size"'), s.find('File envFile = new File(od, "env.txt")')
         self.assertTrue(0 < i < e and 0 < g < e, 'set before env.txt is read')
@@ -54,6 +55,7 @@ class Service(unittest.TestCase):
         self.assertRegex(s, r'ShaderWorkers\.gen0\(\)')
         sp = s.find('"DM_SPLIT_INTERPS"')
         self.assertTrue(0 < sp < e, 'the split\'s workers set before env.txt is read')
+        self.assertRegex(s, r'else if \(line\.startsWith\("subinterpreters: "\)\) Log\.i\(TAG, step \+ ": " \+ line\);')
 
 
 class Tool(unittest.TestCase):

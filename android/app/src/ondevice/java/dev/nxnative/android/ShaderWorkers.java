@@ -10,6 +10,8 @@ package dev.nxnative.android;
  * generation (DOTNET_GCgen0size, hexadecimal bytes as .NET reads it) makes it collect less often: 26 % less translator time at 64 MiB, 43 % at 256 MiB alone on
  * the PC. In the whole step (4,588 shaders, PC) 64 MiB made 4 workers 16 % faster and 6 workers no faster, and 256 MiB gained nothing over 64 for 60 MB more: 64 MiB
  * on every phone. The translator runs one call at a time (DMSH_VK_XLATE_J, unchanged).
+ * Measured on the PC in the phone's form only, not yet run on a phone (android/SHADERS.md, The phone's form): where subinterpreters cannot be set up, each tool
+ * prints a "subinterpreters: not usable here" line (PackService copies it to logcat) and runs as before; env.txt can set both counts to 1.
  * No Android classes: dm/tools/tests/test_android_shader_workers.py runs it on the JVM.
  */
 final class ShaderWorkers {

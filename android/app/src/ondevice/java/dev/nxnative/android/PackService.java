@@ -450,7 +450,8 @@ public final class PackService extends Service {
         PackEngine.setenv("DMSH_VK_INTERPS", String.valueOf(s.equals("shaders") ? interps : 1));
         PackEngine.setenv("DM_SPLIT_INTERPS", String.valueOf(s.equals("split") ? interps : 1));
         PackEngine.setenv("DOTNET_GCgen0size", ShaderWorkers.gen0());
-        Log.i(TAG, s + ": " + workers + " workers, " + interps + " subinterpreters (" + String.format(Locale.ROOT, "%.1f", totalGib) + " GiB)");
+        // (asked for: the tool says whether they run, in a "subinterpreters: " line that Tail copies here; where none can be set up the step runs as before)
+        Log.i(TAG, s + ": " + workers + " workers, " + interps + " subinterpreters asked (" + String.format(Locale.ROOT, "%.1f", totalGib) + " GiB)");
         // Tests: ondevice/env.txt, KEY=VALUE lines, overrides any of the above for the tools (e.g. DMSH_VK_XLATE_J=6 to compare the translator's threads)
         File envFile = new File(od, "env.txt");
         if (envFile.isFile()) for (String l : Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8)) {
@@ -568,6 +569,9 @@ public final class PackService extends Service {
                     j.stepProgress(step, Long.parseLong(m.group(1)), Long.parseLong(m.group(2)), m.group(3));
                     changed = true;
                 } else if (line.startsWith("[RED] ")) lastRed = line.substring(6);
+                // the tools' word on their subinterpreter workers (vk_android_build.py, shader_split.py): how many, or that they are not usable here and the
+                // step runs as before (android/SHADERS.md, The phone's form): in logcat beside the line above that set them
+                else if (line.startsWith("subinterpreters: ")) Log.i(TAG, step + ": " + line);
             }
             if (changed) save(j, false);
         }
