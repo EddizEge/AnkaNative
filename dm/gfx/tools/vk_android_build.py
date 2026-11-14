@@ -24,7 +24,8 @@
 #   DMSH_VK_RESULTS the result folder (default <output>/v-<V>/results), DMSH_VK_BATCH shaders per translator call (default 64), DMSH_VK_PROGRESS a file the progress is also
 #   written to (JSON, replaced by rename), DMSH_VK_KEEP=0 deletes the result folder once the library is written, DMSH_VK_XLATE_J translator calls at once (default 1
 #   for the library form, J for the program; with subinterpreter workers, over all of them), DMSH_VK_INTERPS subinterpreter workers (default 1: J threads of this
-#   interpreter; more needs the translator and the validator as libraries: the phone, whose process may not fork; run_batches_interps), DMSH_VK_REQUIRE_ALL=1 writes no library unless every shader built (exit 1) but
+#   interpreter; more needs the translator and the validator as libraries: the phone, whose process may not fork; run_batches_interps; where no worker can be set up,
+#   a line 'subinterpreters: not usable here' and the threads), DMSH_VK_REQUIRE_ALL=1 writes no library unless every shader built (exit 1) but
 #   those the profile's manifest of this version (vk_delta.tsv, a full Mac build) has as "-": every shader the Mac's build holds
 # Resumable: each shader's result (its modules, compressed, and its reflection) is one file <results>/<key>.r, written to a temporary name and renamed, stamped with
 #   the tools digest, the profile inputs digest, the validator's version and the key; a rerun skips every key with a valid result (a killed build resumes; a later build of the same version is a cache hit)
@@ -567,7 +568,7 @@ def validate(data, w, tag):
 # Translator calls at once: DMSH_VK_XLATE_J, default 1 for the library form (on the phone threads of one process made the translator slower, not faster:
 # android/ONDEVICE.md, The translator on the phone; the other J threads still validate, compress and run the Python half), J for the program form
 XLATE_J = max(1, int(os.environ.get('DMSH_VK_XLATE_J') or (1 if XLATE_LIB else int(os.environ.get('J', '8')))))
-XLATE_GATE = threading.Semaphore(XLATE_J)   # (a subinterpreter worker's is QueueGate: one gate for all the workers)
+XLATE_GATE = threading.Semaphore(XLATE_J)   # (a subinterpreter worker's is PipeGate: one gate for all the workers)
 
 
 def translate(jobs_list, w, tag):
@@ -769,6 +770,8 @@ def write_library(keys_ok):
     ok = sorted(keys_ok, key=key_int)
     for key in ok:
         h, at = result_parts(key)
+        if os.path.getsize(result_path(key)) < at + sum(m[2] for m in h['modules']):   # before anything is written (the result files were all checked before the library, as read_result did)
+            sys.exit(f'[RED] {result_path(key)} is cut short: delete it and run again')
         entry, bb, c1 = entry_parts(key, h['refl'], len(h['modules']))
         c1_off = put(len(c1)) if c1 else 0
         b0, m0 = nb, nm
@@ -787,8 +790,18 @@ def write_library(keys_ok):
     loose = os.environ.get('DMSH_VK_LOOSE') == '1'
     if loose: os.makedirs(os.path.join(out, 'spv'), exist_ok=True)
     path = os.path.join(out, VK['LIB_FILE']); tmp = path + '.tmp'
+    try: _write_library(tmp, head, entries, binds, mods, blob_off - mo - len(mods), blob, parts, loose)
+    except BaseException:   # (a result file changed since, a full disk, an interrupt: no 800 MB half library left beside the outputs)
+        try: os.unlink(tmp)
+        except OSError: pass
+        raise
+    os.replace(tmp, path)
+    return path, blob_off + blob
+
+
+def _write_library(tmp, head, entries, binds, mods, gap, blob, parts, loose):   # write_library's file: the tables, then the blob copied from the result files
     with open(tmp, 'wb') as f:
-        f.write(head); f.write(entries); f.write(binds); f.write(mods); f.write(b'\0' * (blob_off - mo - len(mods)))
+        f.write(head); f.write(entries); f.write(binds); f.write(mods); f.write(b'\0' * gap)
         at_blob = 0
         def item(b):   # the next blob item, after the padding put() gave it
             nonlocal at_blob
@@ -803,8 +816,6 @@ def write_library(keys_ok):
                     item(stored)
                     if loose: open(os.path.join(out, 'spv', key + (f'_{variant}' if variant else '') + '.spv'), 'wb').write(zstd.decompress(stored) if codec == VK['CODEC_ZSTD'] else stored)
         assert at_blob == blob
-    os.replace(tmp, path)
-    return path, blob_off + blob
 
 
 # ---- the build
@@ -1004,8 +1015,11 @@ PROCS = max(1, int(os.environ.get('DMSH_VK_PROCS') or (NJ if XLATE_LIB is None a
 
 
 def run_batches(batches):
+    global INTERPS
     if not batches: return
-    if INTERPS > 1: return run_batches_interps(batches)
+    if INTERPS > 1:
+        if run_batches_interps(batches): return
+        INTERPS = 1   # no worker could be set up here: the threads, for this phase and the next
     if PROCS > 1:
         import multiprocessing
         ex = cf.ProcessPoolExecutor(min(PROCS, len(batches)), mp_context=multiprocessing.get_context('fork'))
@@ -1019,11 +1033,12 @@ def run_batches(batches):
 
 
 # Subinterpreter workers: DMSH_VK_INTERPS (default 1: J threads of this interpreter, as before). The phone runs this tool in the app's process, which must not fork
-# (android/ONDEVICE.md), so DMSH_VK_PROCS is not for it, and its J threads share one GIL: the Python half (the passes and reflection, about 60 % of a shader's time;
+# (android/README.md, Build the APK), so DMSH_VK_PROCS is not for it, and its J threads share one GIL: the Python half (the passes and reflection, about 60 % of a shader's time;
 # android/SHADERS.md#build-speed) ran on one core. Python 3.14's subinterpreters each have their own GIL, so N of them run it on N cores in one process. Each worker
 # runs this script with WORKER set up to WorkerReady (the set-up: tables, profile, borrowed functions; its own descriptors of the package files), then whole batches
 # as run_batch does. The translator and the validator must be the libraries (a subinterpreter cannot start programs). DMSH_VK_XLATE_J translator calls at once over
-# all the workers (QueueGate). A shader's result depends only on its own inputs, so the results and the library are the same as with threads
+# all the workers (PipeGate). A shader's result depends only on its own inputs, so the results and the library are the same as with threads. When no worker can be
+# set up (no concurrent.interpreters, a module of the set-up that cannot load in a subinterpreter), one line says so and the J threads do the work, as before
 INTERPS = max(1, int(os.environ.get('DMSH_VK_INTERPS') or 1))
 if INTERPS > 1 and (PROCS > 1 or not XLATE_LIB or not isinstance(VALIDATE, SpirvValLib)):
     if not WORKER: print(f'DMSH_VK_INTERPS={INTERPS} ignored: subinterpreter workers need the translator and the validator as libraries (XLATE, SPIRV_VAL) and DMSH_VK_PROCS=1', flush=True)
@@ -1034,11 +1049,14 @@ class WorkerReady(Exception):
     """Where a subinterpreter worker's set-up ends: the rest of this script is the parent's"""
 
 
-class QueueGate:
-    """XLATE_GATE shared by the subinterpreter workers: a cross-interpreter queue holding one token for each translator call allowed at once"""
-    def __init__(self, q): self.q = q
-    def __enter__(self): self.q.get()
-    def __exit__(self, *exc): self.q.put(None)
+class PipeGate:
+    """XLATE_GATE shared by the subinterpreter workers: a pipe holding one byte for each translator call allowed at once. A worker waiting for one blocks in the
+    kernel (os.read); a concurrent.interpreters queue's get polls every 10 ms in Python 3.14, so 4-6 workers waiting for the one translator call woke the phone's
+    cores hundreds of times a second for the whole step"""
+    def __init__(self, r, w): self.r, self.w = r, w
+    def __enter__(self):
+        if os.read(self.r, 1) != b'x': raise RuntimeError('the translator gate was closed')
+    def __exit__(self, *exc): os.write(self.w, b'x')
 
 
 def run_batch_json(batch):   # run_batch for the parent of a subinterpreter worker: its result as JSON text (a string crosses interpreters as it is)
@@ -1049,7 +1067,7 @@ def run_batch_json(batch):   # run_batch for the parent of a subinterpreter work
 # What a worker runs first, in its __main__: this script with WORKER (_cfg, JSON) set, up to WorkerReady. Its functions stay in _ns
 WORKER_BOOT = '''
 import json, sys
-_w = json.loads(_cfg); _w['gate'] = _gate
+_w = json.loads(_cfg)
 sys.argv = _w['argv']; sys.path.insert(0, _w['here'])
 _ns = {'__name__': '__main__', '__file__': _w['file'], '__builtins__': __builtins__, '_DMSH_VK_WORKER': _w}
 try: exec(compile(open(_w['file']).read(), _w['file'], 'exec'), _ns)
@@ -1060,43 +1078,72 @@ except BaseException as _e:
 
 def run_batches_interps(batches):
     """run_batches with INTERPS subinterpreter workers, made for these batches (a phase) and closed after them: the vertex phase's workers get the pixel shaders'
-    inputs the parent has read by then. Progress and the cache counters come back from each batch, as from a worker process"""
-    from concurrent import interpreters
+    inputs the parent has read by then. Progress and the cache counters come back from each batch, as from a worker process. The first worker is set up before
+    any batch: when that fails (no concurrent.interpreters, a module the set-up imports that cannot load in a subinterpreter), one line says so and this returns
+    False, and the caller runs the batches in threads. → True when the batches ran here"""
+    try:
+        from concurrent import interpreters
+    except ImportError as e: return interps_unusable(e)
     import queue
     need = {k for b in batches for k in b}
     ps = set().union(*[PAIRS.get(k, ()) for k in need if STAGE_OF[k] == 'vs'])
-    cfg = json.dumps({'work': w, 'file': os.path.abspath(__file__), 'here': HERE, 'argv': sys.argv, 'loc': {k: loc[k] for k in need},
+    gate = os.pipe(); os.write(gate[1], b'x' * XLATE_J)
+    cfg = json.dumps({'work': w, 'file': os.path.abspath(__file__), 'here': HERE, 'argv': sys.argv, 'loc': {k: loc[k] for k in need}, 'gate': gate,
                       'packs': {n: offs for n, (_, offs) in packs.items()}, 'ps_inputs': {k: sorted(PS_INPUTS[k]) for k in ps if k in PS_INPUTS}})
-    gate = interpreters.create_queue()
-    for _ in range(XLATE_J): gate.put(None)
-    idle, made, ready = queue.SimpleQueue(), [], []   # workers not running a batch: (interpreter, its result queue); every worker; those whose set-up ran
+    idle, made, ready = queue.SimpleQueue(), [], set()   # workers not running a batch: (interpreter, its result queue); every worker; the ids of those whose set-up ran
+
+    def new():
+        it = interpreters.create(); made.append(it); res = interpreters.create_queue()
+        it.prepare_main(_cfg=cfg, _out=res)
+        try: it.exec(WORKER_BOOT)
+        except interpreters.ExecutionFailed as e: raise RuntimeError(f'translation worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        ready.add(it.id)
+        idle.put((it, res))
 
     def one(batch):
         try: it, res = idle.get_nowait()
-        except queue.Empty:
-            it, res = interpreters.create(), interpreters.create_queue(); made.append(it)
-            it.prepare_main(_cfg=cfg, _gate=gate, _out=res)
-            try: it.exec(WORKER_BOOT)
-            except interpreters.ExecutionFailed as e: raise RuntimeError(f'translation worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
-            ready.append(it)
+        except queue.Empty: new(); it, res = idle.get_nowait()
         try:
             it.exec(f'_out.put(_ns["run_batch_json"]({list(batch)!r}))')
-            n, c = json.loads(res.get())
+            n, c = json.loads(res.get())   # (exec has returned: the result is in the queue, no wait)
         except interpreters.ExecutionFailed as e:   # run_batch raised (a translator that died): as from a thread, the build stops
             raise RuntimeError(f'translation worker, batch from {batch[0]}: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
         finally: idle.put((it, res))
         return n, collections.Counter(c)
 
-    ex = cf.ThreadPoolExecutor(min(INTERPS, len(batches)))
+    ex = None
     try:
+        try: new()
+        except Exception as e: return interps_unusable(e)
+        if not INTERPS_SAID: print(f'subinterpreters: {INTERPS} translation workers', flush=True); INTERPS_SAID.append(1)
+        ex = cf.ThreadPoolExecutor(min(INTERPS, len(batches)))
         for f in cf.as_completed([ex.submit(one, b) for b in batches]):
             n, c = f.result(); STATS.update(c); progress('translate', n)
     except BaseException:
-        ex.shutdown(wait=True, cancel_futures=True); raise
+        if ex: ex.shutdown(wait=True, cancel_futures=True)
+        raise
     finally:
-        ex.shutdown()
-        for it in ready: it.exec('[__import__("os").close(_fd) for _fd, _ in _ns["packs"].values()]')   # each worker's package descriptors
-        for it in made: it.close()
+        if ex: ex.shutdown()
+        left = 0
+        for it in made:   # each worker on its own, so one that cannot be closed (still running, after a second interrupt) leaves the others closed
+            try:
+                if it.is_running(): raise RuntimeError('it is still running a batch')
+                if it.id in ready: it.exec('[__import__("os").close(_fd) for _fd, _ in _ns["packs"].values()]')   # its package descriptors
+                it.close()
+            except Exception as e:
+                left += 1; print(f'[RED] a translation worker could not be closed ({type(e).__name__}: {e}): it stays in this process', flush=True)
+        if not left: os.close(gate[0]); os.close(gate[1])   # (a worker left running may still use the gate)
+    return True
+
+
+INTERPS_SAID = []   # the line naming the workers, once a run
+
+
+def interps_unusable(e):
+    """No subinterpreter worker here: the one line saying so (the phone's shaders.log; android/SHADERS.md), and the caller's threads instead. → False"""
+    why = (str(e).split('\n') or [''])[0]
+    print(f'subinterpreters: not usable here ({type(e).__name__}: {why}): DMSH_VK_INTERPS={INTERPS} ignored, the shaders run in {NJ} threads of one interpreter as before', flush=True)
+    return False
 
 
 if WORKER:   # a subinterpreter worker: the parent's work folder, the shaders' places (locate may have moved them), its own descriptors of the package files, the pixel
@@ -1105,7 +1152,7 @@ if WORKER:   # a subinterpreter worker: the parent's work folder, the shaders' p
     loc.update({k: tuple(v) for k, v in WORKER['loc'].items()})
     for _name, _offs in WORKER['packs'].items(): packs[_name] = (os.open(os.path.join(dm_dir, _name), os.O_RDONLY), _offs)
     PS_INPUTS.update({k: set(v) for k, v in WORKER['ps_inputs'].items()})
-    XLATE_GATE = QueueGate(WORKER['gate'])
+    XLATE_GATE = PipeGate(*WORKER['gate'])
     raise WorkerReady
 
 T_START = time.time()

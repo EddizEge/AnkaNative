@@ -1,7 +1,15 @@
 """The shaders step's use of the phone's cores and memory (ShaderWorkers.java, android/app/src/ondevice; android/SHADERS.md#build-speed): the subinterpreter workers
 vk_android_build.py gets (DMSH_VK_INTERPS) for the cores the job may use and the memory the phone reports, and the translator's first generation (DOTNET_GCgen0size).
-PackService sets both for the shaders step, and the same count for the split (DM_SPLIT_INTERPS). The JVM part is skipped without a JDK."""
+PackService sets both for the shaders step, and the same count for the split (DM_SPLIT_INTERPS). The JVM part is skipped without a JDK.
+Build: vk_android_build.py with 2 subinterpreter workers gives the library, index.json and _vk_build.json of its threads, byte for byte, and where no worker can
+be set up, one line and the threads. It needs the phone's form on this computer, so it runs only when these are set (skipped otherwise):
+DMSH_TEST_XLATE_LIB the translator library built for this computer (dmsh_xlate_android, `dotnet publish dmsh_xlate_android.csproj -c Release
+-p:RuntimeIdentifier=linux-x64 -p:NativeLib=Shared -p:OutputType=Library`), DMSH_TEST_VK_PKG Ocarina of Time's split package (the shader_split.py package of
+the dump the profile's shader_map.tsv was made from); SPIRV-Tools' libSPIRV-Tools-shared from DMSH_TEST_SPIRV_LIB or the system's."""
+import ctypes.util
+import os
 import re
+import sys
 import shutil
 import subprocess
 import tempfile
@@ -64,6 +72,65 @@ class Tool(unittest.TestCase):
         t = (REPO / 'dm/gfx/tools/vk_android_build.py').read_text(encoding='utf-8')
         self.assertIn("INTERPS = max(1, int(os.environ.get('DMSH_VK_INTERPS') or 1))", t)
         self.assertTrue(re.search(r'if INTERPS > 1 and \(PROCS > 1 or not XLATE_LIB or not isinstance\(VALIDATE, SpirvValLib\)\)', t))
+
+
+XLATE_LIB, PKG = os.environ.get('DMSH_TEST_XLATE_LIB'), os.environ.get('DMSH_TEST_VK_PKG')
+SPIRV_LIB = os.environ.get('DMSH_TEST_SPIRV_LIB') or ctypes.util.find_library('SPIRV-Tools-shared')
+# Run the tool with concurrent.interpreters hidden: no worker can be set up, as on a Python without them
+NO_INTERPS = """import os, runpy, sys
+sys.modules['concurrent.interpreters'] = None
+sys.argv = sys.argv[1:]; sys.path.insert(0, os.path.dirname(sys.argv[0]))
+runpy.run_path(sys.argv[0], run_name='__main__')
+"""
+
+
+@unittest.skipUnless(XLATE_LIB and PKG and SPIRV_LIB and sys.version_info >= (3, 14), 'DMSH_TEST_XLATE_LIB, DMSH_TEST_VK_PKG and SPIRV-Tools\' library (Python 3.14)')
+class Build(unittest.TestCase):
+    """vk_android_build.py in the phone's form (both tools as libraries, one translator call at a time) on a sample of Ocarina of Time's shaders"""
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix='shworkers_build_'))
+        rows = [l.split('\t') for l in (REPO / 'dm/games/0400486024DEC000/shader_map.tsv').read_text().splitlines() if l and not l.startswith(('#', 'package'))]
+        cls.keys = [r[3] for r in rows[::1200]]   # 36 keys over the whole map, of every package; the tool adds their pairs
+        (cls.tmp / 'no_interps.py').write_text(NO_INTERPS)
+
+    @classmethod
+    def tearDownClass(cls): shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def build(self, name, interps, wrap=(), fail=False):
+        d = self.tmp / name
+        env = dict(os.environ, DM_GAME='0400486024DEC000', XLATE=XLATE_LIB, SPIRV_VAL=SPIRV_LIB, J='2', DMSH_VK_XLATE_J='1', DMSH_VK_INTERPS=str(interps),
+                   DMSH_VK_RESULTS=str(d / 'results'), TMPDIR=str(self.tmp))
+        env.pop('DMSH_VK_BUILD_CACHE', None)
+        r = subprocess.run([sys.executable, *wrap, str(REPO / 'dm/gfx/tools/vk_android_build.py'), '--target', 'vulkan', PKG, str(d / 'out'), *self.keys],
+                           capture_output=True, text=True, env=env)
+        if fail: return r
+        self.assertEqual(r.returncode, 0, r.stdout[-3000:] + r.stderr[-3000:])
+        lib = next((d / 'out').glob('v-*'))
+        return {n: (lib / n).read_bytes() for n in ('dmsh_vk.lib', 'index.json', '_vk_build.json')}, r.stdout
+
+    def test_workers_same_library(self):
+        threads, out_t = self.build('threads', 1)
+        workers, out_w = self.build('workers', 2)
+        self.assertNotIn('subinterpreters: ', out_t)
+        self.assertIn('subinterpreters: 2 translation workers', out_w)
+        self.assertGreater(len(threads['dmsh_vk.lib']), 4096)
+        for n in threads: self.assertEqual(threads[n], workers[n], n)
+        fallback, out_f = self.build('fallback', 2, (str(self.tmp / 'no_interps.py'),))
+        self.assertEqual(out_f.count('subinterpreters: not usable here ('), 1, out_f)   # once, for both phases
+        self.assertIn('DMSH_VK_INTERPS=2 ignored, the shaders run in 2 threads of one interpreter as before', out_f)
+        for n in threads: self.assertEqual(threads[n], fallback[n], n)
+
+    def test_cut_short_result(self):
+        """A result file cut short (its head whole, a module's bytes not) stops the library before any of it is written: no dmsh_vk.lib.tmp is left"""
+        self.build('whole', 1)
+        shutil.copytree(self.tmp / 'whole/results', self.tmp / 'cut/results')
+        r = max((self.tmp / 'cut/results').glob('*.r'), key=lambda p: p.stat().st_size)
+        r.write_bytes(r.read_bytes()[:-1])
+        p = self.build('cut', 1, fail=True)
+        self.assertEqual(p.returncode, 1, p.stdout[-2000:])
+        self.assertIn(f'[RED] {r} is cut short: delete it and run again', p.stdout + p.stderr)
+        self.assertEqual([x.name for x in (self.tmp / 'cut/out').rglob('dmsh_vk.lib*')], [])
 
 
 if __name__ == '__main__':
