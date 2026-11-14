@@ -71,6 +71,40 @@ public final class TrJvmTest {
         same(x.string(null, "x_pct"), "battery below 20 %", "a lone % without arguments stays");
         same(x.string(null, "x_pct_args", 40), "40 % done", "%% with arguments");
         same(x.string(null, "x_uni"), "ç @ ?", "unicode and @ ? escapes");
+
+        // A shipped build (Tr.forBuild, Tr.Lenient): a missing key or a bad format logs one line and shows the English, or the key; a debuggable build throws
+        File trDir = new File(a[0], "res/values-tr");
+        check(trDir.mkdirs(), "scratch " + trDir);
+        Files.write(new File(dir, "strings_y.xml").toPath(), ("<resources>\n"
+                + "<string name=\"y_count\">%1$d left</string>\n"
+                + "<string name=\"y_only_en\">English only</string>\n"
+                + "<plurals name=\"y_games\"><item quantity=\"one\">%1$d game</item><item quantity=\"other\">%1$d games</item></plurals>\n"
+                + "</resources>\n").getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(trDir, "strings_y.xml").toPath(), ("<resources>\n"
+                + "<string name=\"y_count\">%1$s kaldı %2$s</string>\n"
+                + "<plurals name=\"y_games\"><item quantity=\"other\">%2$d oyun</item></plurals>\n"
+                + "</resources>\n").getBytes(StandardCharsets.UTF_8));
+        Tr.Xml ytr = new Tr.Xml(new File(a[0], "res"), Locale.forLanguageTag("tr"));
+        java.util.List<String> log = new java.util.ArrayList<>();
+        Tr.Backend strict = Tr.forBuild(ytr, true, log::add), lenient = Tr.forBuild(ytr, false, log::add);
+        check(strict == ytr, "a debuggable build installs the bare backend");
+        try { strict.string(null, "y_missing"); check(false, "debuggable: a missing key throws"); } catch (MissingResourceException expected) { /* loud */ }
+        try { strict.string(null, "y_count", 3); check(false, "debuggable: a bad format throws"); } catch (java.util.IllegalFormatException expected) { /* loud */ }
+        same(lenient.string(null, "y_only_en"), "English only", "shipped: a text without its translation is the English, no error");
+        check(log.isEmpty(), "shipped: nothing logged for a working text: " + log);
+        same(lenient.string(null, "y_missing"), "y_missing", "shipped: a missing key shows the key");
+        check(log.size() == 1 && log.get(0).contains("y_missing") && log.get(0).contains("MissingResourceException"), "shipped: one line naming the key: " + log);
+        same(lenient.string(null, "y_missing"), "y_missing", "shipped: the same key again");
+        check(log.size() == 1, "shipped: one line per key, not one per use: " + log);
+        same(lenient.string(null, "y_count", 3), "3 left", "shipped: a translation whose format fails shows the English");
+        check(log.size() == 2 && log.get(1).contains("y_count") && log.get(1).contains("Format"), "shipped: the line names the key and the format error: " + log);
+        same(lenient.string(null, "y_count", "x"), "%1$d left", "shipped: English that fails too is shown as written");
+        same(lenient.plural(null, "y_games", 2, 2), "2 games", "shipped: a plural whose format fails shows the English");
+        same(lenient.plural(null, "y_nope", 2, 2), "y_nope", "shipped: a missing plural shows the key");
+        same(lenient.string(Locale.ENGLISH, "y_count", 4), "4 left", "shipped: english() as before");
+        Tr.install(lenient);
+        same(new Msg("y_count", 5).text(), "5 left", "shipped: a Msg goes through the same guard");
+        same(Tr.s("y_missing2"), "y_missing2", "shipped: Tr.s goes through the same guard");
         System.out.println("ok");
     }
 }

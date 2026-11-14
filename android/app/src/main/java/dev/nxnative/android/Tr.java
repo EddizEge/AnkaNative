@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.MissingResourceException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -26,7 +29,9 @@ import org.w3c.dom.NodeList;
  * report and anything pasted into an issue stay English (and parseable).
  * <p>
  * Formatting is Android's: with arguments the text goes through String.format (positional %1$s, %2$d; a literal percent sign is %%), without arguments it is returned
- * as written (a lone % stays %). A key that does not exist throws MissingResourceException: test_android_i18n.py checks every key in the Java exists.
+ * as written (a lone % stays %). A key that does not exist throws MissingResourceException: test_android_i18n.py checks every key in the Java exists. That test is
+ * the guard; a shipped (non-debuggable) app wraps its backend in {@link Lenient} (App), so a key or a format the test missed costs the user an English text, not a
+ * crash. Debuggable builds and the JVM throw.
  */
 final class Tr {
     /** The system property that names the res folder (the one holding values/) for the JVM backend */
@@ -49,6 +54,9 @@ final class Tr {
 
     /** The app's backend (App.attachBaseContext) or a test's; replaces any earlier one */
     static void install(Backend b) { backend = b; }
+
+    /** The backend a build installs: as it is when debuggable (a missing key or a bad format throws, loud for developers), else wrapped in {@link Lenient} */
+    static Backend forBuild(Backend b, boolean debuggable, Consumer<String> log) { return debuggable ? b : new Lenient(b, log); }
 
     static Backend backend() {
         Backend b = backend;
@@ -80,6 +88,49 @@ final class Tr {
     /** Android's formatting: as written without arguments, String.format with them (in the given locale; ROOT when null) */
     static String format(Locale locale, String text, Object... args) {
         return args == null || args.length == 0 ? text : String.format(locale == null ? Locale.ROOT : locale, text, args);
+    }
+
+    /**
+     * A shipped build's backend (docs/i18n.md "A missing key in a shipped build"): a text that fails (no such key, a format that does not fit its arguments, any
+     * error of the backend) is not worth a crash of the user's screen. It writes one error line naming the key and the error (once per key, language and kind in a
+     * process), then returns the key's English, formatted; if that fails too, the English as written; if the key has no English at all, the key itself.
+     * test_android_i18n.py, not this, keeps such texts out of the app; the JVM tests and debuggable builds use the bare backend, which throws.
+     */
+    static final class Lenient implements Backend {
+        private final Backend inner;
+        private final Consumer<String> log;
+        private final Set<String> said = ConcurrentHashMap.newKeySet();
+
+        Lenient(Backend inner, Consumer<String> log) {
+            this.inner = inner;
+            this.log = log;
+        }
+
+        @Override public String string(Locale locale, String key, Object... args) {
+            try {
+                return inner.string(locale, key, args);
+            } catch (RuntimeException e) {
+                report("string", locale, key, e);
+                try { return inner.string(Locale.ENGLISH, key, args); } catch (RuntimeException e2) { /* the English as written, below */ }
+                try { return inner.string(Locale.ENGLISH, key); } catch (RuntimeException e3) { return key; }
+            }
+        }
+
+        @Override public String plural(Locale locale, String key, int n, Object... args) {
+            try {
+                return inner.plural(locale, key, n, args);
+            } catch (RuntimeException e) {
+                report("plurals", locale, key, e);
+                try { return inner.plural(Locale.ENGLISH, key, n, args); } catch (RuntimeException e2) { /* the English as written, below */ }
+                try { return inner.plural(Locale.ENGLISH, key, n); } catch (RuntimeException e3) { return key; }
+            }
+        }
+
+        private void report(String type, Locale locale, String key, RuntimeException e) {
+            String lang = locale == null ? "user" : locale.toLanguageTag();
+            if (said.add(type + "/" + key + "/" + lang))
+                log.accept("[RED] text " + type + " " + key + " (" + lang + "): " + e + "; shown in English (docs/i18n.md)");
+        }
     }
 
     /**
