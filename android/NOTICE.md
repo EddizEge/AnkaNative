@@ -26,7 +26,7 @@ build shader libraries is the same GPL combined work.
 `dm/host/tests/t_android_memu.c`, `dm/host/tests/memu/` and `dm/tools/tests/test_vka_memu.py`, ported from [Banana Native](https://git.eden-emu.dev/moceure/BananaNative)
 v0.3.12 / v0.3.13 (b39bf8b5, 624c267e) after [Hokkaido](https://github.com/pavelgajdo/Hokkaido)'s compute mesh emulation (GPL-3.0-or-later; its #569 and #642). Their
 SPDX headers are kept. Hokkaido is pavelgajdo's fork of [Lichii](https://github.com/zortos293/Lichii), and #569 (by zortos293) and #642 (by RomainROCH) are Lichii pull
-requests; Lichii's files carry "Copyright 2026 Eden Emulator Project" and GPL-3.0-or-later. That Function-scope booleans start false in the compute form is the finding of
+requests; the Lichii files they changed carry "Copyright 2026 Eden Emulator Project" (most also a "yuzu Emulator Project" line) and GPL-3.0-or-later. That Function-scope booleans start false in the compute form is the finding of
 nebadasSwifty's Banana Native pull request #170. Every `libnxhost.so` is therefore a GPL-3.0-or-later work as a whole. The rest of that port (the hooks in `vka_draw.c`, `vka_exec.c`, `vka_pso.c`,
 `vka_shader.c`, `vka_dev.c`, the specialization-constant fold `vka_spv_spec_freeze` and the shader split's BNSH slots 7 and 8) is Banana Native's MIT code.
 

@@ -25,9 +25,9 @@ Anka Native is built on other people's work. This file is where they are credite
   set of its own (their finding of v0.2.9, ad509ad8, re-implemented as a SPIR-V set rewrite at module creation).
   The NVN2 task and mesh work ported from it: `nvnCommandBufferDrawMeshTasksIndirect` and its `{count, 1, 1}` copies (`hle_nvn.c`, `vka_exec.c` `mdx_*`,
   1d2aec48 and d1180632); the task and mesh shaders of BNSH program slots 7 and 8 in the shader split (`shader_split.py`, 1d2aec48); a depth / stencil
-  image's first clear in the submission (`vka_tex.c` `ds_here`, 1d2aec48); and mesh draws through compute (b39bf8b5, 624c267e): its hooks in `vka_draw.c`,
-  `vka_exec.c`, `vka_pso.c`, `vka_shader.c` and `vka_dev.c` and the specialization-constant fold `vka_spv_spec_freeze` are MIT, its `vka_memu*` files and
-  `memu/` passes are GPL-3.0-or-later (below and in [android/NOTICE.md](android/NOTICE.md)). All by moceure unless named.
+  image's first clear in the submission (`vka_tex.c` `ds_here`, 1d2aec48); the specialization-constant fold `vka_spv_spec_freeze` (`vka_spvpatch.c`, 1d2aec48);
+  and mesh draws through compute (b39bf8b5, 624c267e): its hooks in `vka_draw.c`, `vka_exec.c`, `vka_pso.c`, `vka_shader.c` and `vka_dev.c` are MIT, its
+  `vka_memu*` files and `memu/` passes are GPL-3.0-or-later (below and in [android/NOTICE.md](android/NOTICE.md)). All by moceure unless named.
 
 ## Code and findings from other projects
 
@@ -52,7 +52,7 @@ Anka Native is built on other people's work. This file is where they are credite
   acts on was first patched by Lichii's Max Resolution add-on (carried into Banana Native by sutormin.kirill, 2fab0634), and its palette of levels is the one
   Banana Native's profile lists (849d2fb3). Ideas only, apart from the next entry.
 - **Mesh draws through compute** (`dm/gfx/vk_android/vka_memu*`, `memu/`, GPL-3.0-or-later): Lichii's compute emulation of task and mesh programs
-  (pull requests #569 by zortos293 and #642 by RomainROCH; Lichii's files: "Copyright 2026 Eden Emulator Project", GPL-3.0-or-later), as carried in
+  (pull requests #569 by zortos293 and #642 by RomainROCH; Lichii's files: "Copyright 2026 Eden Emulator Project", most also a "yuzu Emulator Project" line, GPL-3.0-or-later), as carried in
   [Hokkaido](https://github.com/pavelgajdo/Hokkaido) (pavelgajdo's fork of Lichii) and ported to this replay by Banana Native (b39bf8b5, 624c267e), with
   the finding of nebadasSwifty's Banana Native pull request #170 (Function-scope booleans start false). The files keep their SPDX headers; details in
   [android/NOTICE.md](android/NOTICE.md).
