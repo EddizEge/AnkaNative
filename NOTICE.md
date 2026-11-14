@@ -17,7 +17,8 @@ Anka Native is built on other people's work. This file is where they are credite
   contributors", kept in [LICENSE](LICENSE)): small fixes ported from it after Anka Native's base, each naming its Banana Native commit in the code and the commit
   message: the `VK_EXT_device_fault` report of a lost device (`vka_dev.c`, 65745297); the variable-rate shading calls as empty implementations (`hle_nvn.c`,
   b39bf8b5); SDK 22's `IsOunceVibrationDeviceMounted` (`hle_hid.c`, b39bf8b5); the audio focus asked for again
-  after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish).
+  after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish); one prewarm build at a time
+  on Turnip (`vka_pso.c`, d393736c and 84d1b9df by wraphs).
 
 ## Code and findings from other projects
 
