@@ -23,6 +23,19 @@
     <string name="prepare_card_update">Güncelleme %1$s</string>
     <string name="prepare_card_simulated">%1$s  (benzetim motoru)</string>
     <string name="prepare_card_progress">%%%1$d  ·  shader %2$,d / %3$,d</string>
+    <string name="prepare_eta_less">Bir dakikadan az kaldı</string>
+    <plurals name="prepare_eta_minutes">
+        <item quantity="one">Yaklaşık %1$d dakika kaldı</item>
+        <item quantity="other">Yaklaşık %1$d dakika kaldı</item>
+    </plurals>
+    <plurals name="prepare_eta_hours">
+        <item quantity="one">Yaklaşık %1$d saat kaldı</item>
+        <item quantity="other">Yaklaşık %1$d saat kaldı</item>
+    </plurals>
+    <plurals name="prepare_eta_hours_minutes">
+        <item quantity="one">Yaklaşık %1$d saat %2$d dakika kaldı</item>
+        <item quantity="other">Yaklaşık %1$d saat %2$d dakika kaldı</item>
+    </plurals>
     <string name="prepare_button_pause">Duraklat</string>
     <string name="prepare_button_prepare_again">Yeniden hazırla</string>
     <string name="prepare_button_retry">Yeniden dene</string>

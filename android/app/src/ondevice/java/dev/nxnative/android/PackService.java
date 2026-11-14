@@ -51,7 +51,8 @@ import java.util.regex.Pattern;
  *     itself when charging / cooled (thermal MODERATE or better).</li>
  * <li>Android 14+'s 6 hours a day for dataSync services (onTimeout): paused like Pause, reason "timeout"; the launcher's Resume, once the app is open, goes on.</li>
  * </ul>
- * The launcher binds with a Messenger (MSG_REGISTER with replyTo) and gets MSG_STATE messages, data "job" = job.json's text, as the job changes.
+ * The launcher binds with a Messenger (MSG_REGISTER with replyTo) and gets MSG_STATE messages, data "job" = job.json's text, as the job changes, and "eta_min" =
+ * the minutes the running job has left (Eta: 0 under a minute, -1 for none; not in job.json), every 10 s at least while the job runs.
  */
 public final class PackService extends Service {
     static final String ACTION_START = "dev.nxnative.android.pack.START", ACTION_PAUSE = "dev.nxnative.android.pack.PAUSE";
@@ -81,6 +82,18 @@ public final class PackService extends Service {
     private int batteryPct = 100, thermal;
     private boolean charging = true;
     private long lastNote, lastSave, lastSend;
+    /** The running job's time left (Eta), kept across a pause while this process lives (etaKey: its job), so a resume goes on from the rate it measured */
+    private static volatile Eta eta;
+    private static String etaKey;
+    /** Every 10 s while a job runs: the launcher and the notification get the time left as it counts down (a library write prints no line for minutes) */
+    private static final long TICK_MS = 10_000;
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            if (worker == null) return;
+            publish(job, false);
+            main.postDelayed(this, TICK_MS);
+        }
+    };
     private final PowerManager.OnThermalStatusChangedListener thermalListener = s -> { thermal = s; policy(); };
     private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { battery(i); policy(); }
@@ -158,6 +171,8 @@ public final class PackService extends Service {
         Job.remember(this, j.file);
         worker = new Thread(this::work, "nxpack-job");
         worker.start();
+        main.removeCallbacks(tick);
+        main.postDelayed(tick, TICK_MS);
         return START_STICKY;
     }
 
@@ -316,11 +331,14 @@ public final class PackService extends Service {
                 }
             }
             j.state("running", null, null);
+            Eta est = etaFor(j);
+            est.running(true, SystemClock.elapsedRealtime());
             save(j, true);
             int i;
             while ((i = j.next()) >= 0) {
                 if (!waitWhileAuto(j)) break;
                 String s = Job.STEPS[i];
+                est.step(i, SystemClock.elapsedRealtime());
                 j.stepState(s, "running");
                 int starts = j.start(s);
                 save(j, true);
@@ -368,9 +386,28 @@ public final class PackService extends Service {
             j.state("failed", null, String.valueOf(e));
             save(j, true);
         } finally {
+            Eta est = eta;
+            if (est != null) est.running(false, SystemClock.elapsedRealtime());
             if (wake.isHeld()) wake.release();
             main.post(this::finished);
         }
+    }
+
+    /**
+     * The job's estimator: the one this process already has for it (a resume), else a new one. What its shaders step translates as far as known before it says:
+     * its own total once the tool gave one, else the update's count when the pack has an older library the profile's delta manifest knows (the build's
+     * DMSH_VK_DELTA_FROM below), else every shader of the game; the library holds every shader of the game either way
+     */
+    private static synchronized Eta etaFor(Job j) {
+        String key = j.file.getPath() + "@" + j.created();
+        if (eta != null && key.equals(etaKey)) return eta;
+        Profile p = Profile.of(j.titleId());
+        int all = p != null ? p.shaderTotal : (int) Math.max(0, j.shadersTotal());
+        long told = j.stepTotal(Job.SHADERS);
+        int delta = told > 1 ? -1 : Pack.deltaShaders(j.pack(), j.titleId());
+        eta = new Eta(told > 1 ? (int) told : delta >= 0 ? delta : all, all, ShaderLibs.SHADER_S_HI);
+        etaKey = key;
+        return eta;
     }
 
     private void finished() {
@@ -385,6 +422,8 @@ public final class PackService extends Service {
     /** Waits while the policy pauses the job; false when the job is to stop */
     private boolean waitWhileAuto(Job j) throws InterruptedException {
         if (autoReason == null) return stopReason == null;
+        Eta est = eta;
+        if (est != null) est.running(false, SystemClock.elapsedRealtime());   // waiting is no running time
         j.state("paused", autoReason, null);
         save(j, true);
         if (wake.isHeld()) wake.release();
@@ -393,6 +432,7 @@ public final class PackService extends Service {
         }
         if (stopReason != null) return false;
         wake.acquire(7 * 3600_000L);
+        if (est != null) est.running(true, SystemClock.elapsedRealtime());
         j.state("running", null, null);
         save(j, true);
         return true;
@@ -447,6 +487,18 @@ public final class PackService extends Service {
                 if (bad != null) return bad;
                 bad = resultsRoom(xlate);
                 if (bad != null) return bad;
+                // the time left weighs the translation's two phases (non-vertex shaders, then vertex ones) by the split's map
+                Eta est = eta;
+                if (est != null) {
+                    int[] mix = null;
+                    try {
+                        mix = Eta.shaderMix(new File(split, "shader_map.tsv"));
+                        if (mix == null) Log.w(TAG, "time left: the split's shader_map.tsv has no stage column: every shader counts alike");
+                    } catch (IOException e) {
+                        Log.w(TAG, "time left: the split's shader_map.tsv: " + e + ": every shader counts alike");   // the estimate still works, a little less well
+                    }
+                    est.mix(mix);
+                }
                 tool = "dm/gfx/tools/vk_android_build.py";
                 argv = new String[] {"--target", "vulkan", new File(split, "pkg").getPath(), lib.getPath()};
                 break;
@@ -632,6 +684,7 @@ public final class PackService extends Service {
     private final class Tail extends Thread {
         private final Job j;
         private final String step;
+        private final int index;
         private final File log;
         private volatile boolean done;
         private long pos;
@@ -643,6 +696,7 @@ public final class PackService extends Service {
             super("nxpack-tail");
             this.j = j;
             this.step = step;
+            this.index = java.util.Arrays.asList(Job.STEPS).indexOf(step);
             this.log = log;
             pos = log.length();
         }
@@ -684,7 +738,10 @@ public final class PackService extends Service {
                 watch.line(line);
                 Matcher m = PROGRESS.matcher(line);
                 if (m.find()) {
-                    j.stepProgress(step, Long.parseLong(m.group(1)), Long.parseLong(m.group(2)), m.group(3));
+                    long d = Long.parseLong(m.group(1)), t = Long.parseLong(m.group(2));
+                    j.stepProgress(step, d, t, m.group(3));
+                    Eta est = eta;
+                    if (est != null) est.progress(index, d, t, m.group(3), SystemClock.elapsedRealtime());
                     changed = true;
                 } else if (line.startsWith("[RED] ")) lastRed = line.substring(6);
                 // the tools' word on their subinterpreter workers (vk_android_build.py, shader_split.py): how many, or that they are not usable here and the
@@ -716,6 +773,9 @@ public final class PackService extends Service {
     private void publish(Job j, boolean force) {
         if (j == null) return;
         long now = SystemClock.elapsedRealtime();
+        // the time left, asked once here for both (it smooths and rounds as it is asked); none unless the worker runs the job
+        Eta est = eta;
+        int etaMin = est != null && worker != null && "running".equals(j.state()) ? est.minutes(now) : -1;
         if (force || now - lastSend >= 250) {
             lastSend = now;
             Message m = Message.obtain(null, MSG_STATE);
@@ -723,6 +783,7 @@ public final class PackService extends Service {
             b.putString("job", j.json());
             b.putString("file", j.file.getPath());
             b.putBoolean("alive", worker != null);
+            b.putInt("eta_min", etaMin);
             m.setData(b);
             for (Messenger c : clients) {
                 try {
@@ -734,7 +795,7 @@ public final class PackService extends Service {
         }
         if (worker != null && (force || now - lastNote >= 1000)) {
             lastNote = now;
-            nm.notify(NOTE, note(j));
+            nm.notify(NOTE, note(j, etaMin));
         }
     }
 
@@ -754,7 +815,10 @@ public final class PackService extends Service {
         }
     }
 
-    private Notification note(Job j) {
+    private Notification note(Job j) { return note(j, -1); }
+
+    /** etaMin: the minutes the running job has left (Eta), -1 for none */
+    private Notification note(Job j, int etaMin) {
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         Notification.Builder b = new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.anka_notify).setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_PROGRESS).setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
@@ -784,7 +848,12 @@ public final class PackService extends Service {
             long d = j.stepDone(i), t = j.stepTotal(i);
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
-            b.setContentText(step).setSubText(steps).setOngoing(true).addAction(pauseAction);
+            if (etaMin >= 0) {   // the time left beside the step; in full when the notification is expanded
+                String left = Eta.text(etaMin).text();
+                b.setContentText(getString(R.string.prepare_note_running_eta, step, left))
+                        .setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_running_eta_big, step, left)));
+            } else b.setContentText(step);
+            b.setSubText(steps).setOngoing(true).addAction(pauseAction);
         } else {
             // a failure: the text of the packer's error code when it has one, else the English error (job.json)
             String why = state.equals("failed") ? j.errorText() : Job.reasonMsg(j.reason()).text();
