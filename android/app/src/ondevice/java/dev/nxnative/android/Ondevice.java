@@ -287,7 +287,7 @@ final class Ondevice {
         boolean onMessage(Message m) {
             if (m.what != PackService.MSG_STATE) return false;
             Bundle d = m.getData();
-            Job j = Job.of(new File(d.getString("file", "")), d.getString("job", "{}"));
+            Job j = d.containsKey("job") ? Job.of(new File(d.getString("file", "")), d.getString("job", "{}")) : null;   // none: a service with no job
             if (j != null) job = j;
             jobAlive = d.getBoolean("alive");
             jobStopping = d.getBoolean("stopping");
@@ -308,7 +308,25 @@ final class Ondevice {
             return "running".equals(s) || "paused".equals(s) && !"user".equals(j.reason()) && !"timeout".equals(j.reason());
         }
 
+        /** When Home last resumed a job left waiting for a game (afterGame) */
+        long afterGameAt;
+
+        /**
+         * A job left paused for a game whose service is gone (its process died while the game ran: a low-memory kill, or Android refused the restart), once
+         * no game runs: resumed by Home, which is in front (GameGate.resumeAfterGame). At most every 10 s: a start Android refuses leaves it paused "refused"
+         */
+        void afterGame() {
+            long now = SystemClock.elapsedRealtime();
+            if (job == null || !resumed || service != null || now - resumedAt < 2500 || now - afterGameAt < 10_000 || !"paused".equals(job.state())
+                    || !GameGate.REASON.equals(job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
+            if (!GameGate.resumeAfterGame(job.state(), job.reason(), jobAlive, PrepareGate.gameRunning(a))) return;
+            afterGameAt = now;
+            android.util.Log.i("nxpack", "the job waited for a game that has ended, and its service is gone: Home resumes it");
+            startService(job);
+        }
+
         void show() {
+            afterGame();
             boolean alive = job != null && alive();
             boolean ready = job != null && ready(job);
             // A finished job: its game goes into the list with its pack (once), and the card goes: Play is on the game's card

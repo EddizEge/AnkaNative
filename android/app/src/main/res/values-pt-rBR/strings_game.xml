@@ -14,6 +14,7 @@
     <string name="game_save_copied">Seu save foi copiado para o armazenamento do app (%1$s). A pasta antiga %2$s foi mantida como estava.</string>
     <string name="game_save_not_copied">Não foi possível copiar seu save para o armazenamento do app (%1$s). Desta vez o jogo usa o save onde ele está, %2$s.</string>
     <string name="game_checking_gpu">%1$s: verificando a GPU deste celular…</string>
+    <string name="game_prepare_pausing">%1$s: pausando a preparação antes, para o jogo ter a memória do celular. A preparação continua sozinha quando o jogo for fechado…</string>
     <!-- game_details_gpu: %1$s: the GPU line (readiness_gpu_*), %2$.1f: the memory in GiB -->
     <string name="game_details_gpu">GPU: %1$s\nMemória: %2$.1f GiB, segundo o Android.</string>
     <!-- Labels of other screens are arguments: Settings and its GPU driver row (home), Game settings (home's Manage sheet) -->

@@ -24,7 +24,7 @@ import java.nio.file.StandardCopyOption;
  *   "shader_inputs": the profile inputs its split and library are made for (JobInputs; another APK's start the split or the shaders over),
  *   "split_full": the split reads every file (a delta split's package missed a shader the build wanted), "notice": why a step runs again, a code the status line adds
  *   in words (Job.noticeMsg: "inputs_changed", "split_full"),
- *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, timeout) or "", "error": why failed (English),
+ *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, game, timeout) or "", "error": why failed (English),
  *   "error_code": the code of that failure, Prepare's own (PrepareErrors) or the packer's (JobErrors), or "", "error_args": its arguments (strings),
  *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
  * </pre>
@@ -433,6 +433,7 @@ final class Job {
             case "user": return new Msg("prepare_reason_user");
             case "battery": return new Msg("prepare_reason_battery");
             case "thermal": return new Msg("prepare_reason_thermal");
+            case "game": return new Msg("prepare_reason_game");   // GameGate: a game runs
             case "timeout": return new Msg("prepare_reason_timeout", new Msg("prepare_button_resume"));
             case "refused": return new Msg("prepare_reason_refused", new Msg("prepare_button_resume"));
             case "apk": return new Msg("prepare_reason_apk");

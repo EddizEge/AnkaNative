@@ -51,12 +51,17 @@ import java.util.regex.Pattern;
  * <li>Battery below 20 % and not charging, or thermal status SEVERE or worse: the tool is interrupted, the job waits (paused, wake lock released) and goes on by
  *     itself when charging / cooled (thermal MODERATE or better).</li>
  * <li>Android 14+'s 6 hours a day for dataSync services (onTimeout): paused like Pause, reason "timeout"; the launcher's Resume, once the app is open, goes on.</li>
+ * <li>A game (GameGate, PrepareGate): while a game's process runs, the job waits, reason "game", and goes on by itself when it is gone (polled every 2 s,
+ *     however the game ended). A game about to start asks first (ACTION_GAME): a process that has run a tool stops it and ends, leaving the game its memory,
+ *     and the game starts the service again in a new process, which waits; one that has run none waits as it is.</li>
  * </ul>
  * The launcher binds with a Messenger (MSG_REGISTER with replyTo) and gets MSG_STATE messages, data "job" = job.json's text, as the job changes, and "eta_min" =
  * the minutes the running job has left (Eta: 0 under a minute, -1 for none; not in job.json), every 10 s at least while the job runs.
  */
 public final class PackService extends Service {
     static final String ACTION_START = "dev.nxnative.android.pack.START", ACTION_PAUSE = "dev.nxnative.android.pack.PAUSE";
+    /** A game is about to start (PrepareGate, from the game's process): the job waits while it runs (GameGate) */
+    static final String ACTION_GAME = "dev.nxnative.android.pack.GAME";
     static final String EXTRA_JOB = "job";
     /** ACTION_PAUSE's sender, for the logs (a job paused with reason "user"): notification, launcher or adb; missing = an intent from elsewhere */
     static final String EXTRA_FROM = "from";
@@ -78,7 +83,15 @@ public final class PackService extends Service {
     private volatile Job job;
     private volatile Thread worker;
     private volatile String stopReason;   // user, timeout: the job pauses and the service stops
-    private volatile String autoReason;   // battery, thermal: the job waits and goes on by itself
+    private volatile String autoReason;   // battery, thermal, game: the job waits and goes on by itself
+    /** A game's process runs (PrepareGate.gameRunning: polled every 2 s while a worker runs, and set by ACTION_GAME) */
+    private volatile boolean game;
+    /** A game asked this process to make room (ACTION_GAME) and starts the service again when its process ends (GameGate.endProcess) */
+    private volatile boolean gameAsked;
+    /** The worker waits in waitWhileAuto (for GameGate.ready) */
+    private volatile boolean waiting;
+    /** The heat wait holds until thermal MODERATE or better */
+    private boolean hot;
     private volatile boolean inTool;
     /** The notification left for after this service (leaveNote: the 20-s fallback, onTimeout): the worker's updates no longer replace it */
     private volatile boolean noteLeft;
@@ -96,6 +109,21 @@ public final class PackService extends Service {
             Job j = job;
             if (j != null && "running".equals(j.state())) publish(j, false);   // a wait for the battery or the heat has no time left to show: its notification stands
             main.postDelayed(this, TICK_MS);
+        }
+    };
+    /** Every 2 s while a worker runs: whether a game's process runs (the job waits while it does, and goes on when it is gone, however it ended) */
+    private static final long GAME_POLL_MS = 2_000;
+    private final Runnable gameWatch = new Runnable() {
+        @Override public void run() {
+            if (worker == null) return;
+            boolean g = PrepareGate.gameRunning(PackService.this);
+            if (g != game) {
+                Log.i(TAG, g ? "a game runs: the job waits" : "the game's process is gone: the job goes on");
+                game = g;
+                if (!g) gameAsked = false;
+                policy();
+            }
+            main.postDelayed(this, GAME_POLL_MS);
         }
     };
     private final PowerManager.OnThermalStatusChangedListener thermalListener = s -> { thermal = s; policy(); };
@@ -121,6 +149,7 @@ public final class PackService extends Service {
         battery(Build.VERSION.SDK_INT >= 33 ? registerReceiver(batteryReceiver, bf, Context.RECEIVER_NOT_EXPORTED) : registerReceiver(batteryReceiver, bf));
         thermal = pm.getCurrentThermalStatus();
         pm.addThermalStatusListener(getMainExecutor(), thermalListener);
+        game = PrepareGate.gameRunning(this);
         policy();
     }
 
@@ -143,6 +172,7 @@ public final class PackService extends Service {
             else if (worker == null) stopSelf(startId);   // a stale notification: nothing runs here
             return START_STICKY;
         }
+        if (ACTION_GAME.equals(action)) return game(startId);
         String path = intent == null ? null : intent.getStringExtra(EXTRA_JOB);
         File f = path != null ? new File(path) : Job.remembered(this);
         Job j = null;
@@ -151,8 +181,10 @@ public final class PackService extends Service {
         } catch (IOException e) {
             Log.w(TAG, "job: " + e.getMessage());
         }
-        // A sticky restart (no intent: the process was killed) resumes only a job that was running; a start resumes one that is not done
-        boolean go = j != null && (intent == null ? "running".equals(j.state()) : !"done".equals(j.state()) || j.apkChanged());
+        // A sticky restart (no intent: the process was killed) resumes only a job that was running or waiting by itself (the battery, the heat, a game: it
+        // waits again as long as that holds); a start resumes one that is not done
+        boolean go = j != null && (intent == null ? "running".equals(j.state()) || "paused".equals(j.state()) && JobForm.waitsByItself(j.reason())
+                : !"done".equals(j.state()) || j.apkChanged());
         if (!go && (worker == null || !worker.isAlive())) {
             // startForegroundService must be answered by startForeground even when there is nothing to do
             if (intent != null) startForeground(j);
@@ -164,6 +196,11 @@ public final class PackService extends Service {
             startForeground(job);
             return START_STICKY;
         }
+        return begin(j, intent != null, startId);
+    }
+
+    /** Runs job j on a new worker (none runs). user: the user's Start / Resume / Retry, after which earlier deaths in a step count no more */
+    private int begin(Job j, boolean user, int startId) {
         job = j;
         if (!startForeground(j)) {
             // Android refused a foreground service here (a start from the background): the job stays as it is, the launcher's Resume starts it
@@ -171,13 +208,84 @@ public final class PackService extends Service {
             return START_NOT_STICKY;
         }
         stopReason = null;
-        if (intent != null) j.endedAll();   // the user's Start / Resume / Retry: earlier deaths in a step count no more (only sticky restarts add up)
+        if (user) j.endedAll();   // only sticky restarts (and a game's start) add up
         Job.remember(this, j.file);
+        game = game || PrepareGate.gameRunning(this);   // the worker's first wait (work) must know before it starts (game: a game's start asked just now)
+        policy();
         worker = new Thread(this::work, "nxpack-job");
         worker.start();
         main.removeCallbacks(tick);
         main.postDelayed(tick, TICK_MS);
+        main.removeCallbacks(gameWatch);
+        main.postDelayed(gameWatch, GAME_POLL_MS);
         return START_STICKY;
+    }
+
+    /**
+     * A game is about to start (PrepareGate, from the game's process: its activity is in front, so Android allowed this start). GameGate decides: nothing (no job
+     * works, or a pause the user asked for is in hand), the job waits in this process, or its tool stops and this process ends (waitWhileAuto), after which the
+     * game starts this service again. The game listens for "game_ready" (publish)
+     */
+    private int game(int startId) {
+        game = true;   // the caller is the game's process; the watch confirms it every 2 s
+        boolean alive = worker != null && worker.isAlive();
+        Job j = alive ? job : null;
+        if (!alive) {
+            File f = Job.remembered(this);
+            try {
+                if (f != null && f.isFile()) j = Job.read(f);
+            } catch (IOException e) {
+                Log.w(TAG, "a game starts: the job: " + e.getMessage());
+            }
+        }
+        GameGate.Act act = GameGate.onGame(alive, PackNative.ranTool(), stopReason != null, j == null ? "" : j.state(), j == null ? "" : j.reason());
+        Log.i(TAG, "a game starts: " + act + (j == null ? ", no job" : ", the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()))
+                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : ""));
+        gameAsked = true;   // also a Pause in hand: once its worker ends, this process ends too (finished)
+        if (alive) {
+            startForeground(job);   // startForegroundService's answer
+            if (act != GameGate.Act.NOTHING) gamePause();
+            return START_STICKY;
+        }
+        if (act == GameGate.Act.NOTHING) {
+            startForeground(j);   // startForegroundService's answer, then nothing to do; a paused or failed job's notification stays as it was (Resume, Retry)
+            stopForeground(j != null && ("paused".equals(j.state()) || "failed".equals(j.state())) ? STOP_FOREGROUND_DETACH : STOP_FOREGROUND_REMOVE);
+            stopSelf(startId);
+            if (PackNative.ranTool()) {   // an earlier job's process, kept by Android: what its tools left goes before the game starts
+                Log.i(TAG, "a game starts: ending this process, which keeps what an earlier tool left");
+                Process.killProcess(Process.myPid());
+            }
+            return START_NOT_STICKY;
+        }
+        return begin(j, false, startId);   // its worker waits for the game before anything else (work)
+    }
+
+    /**
+     * The job is to wait for the game that starts: written paused (reason game) at once, so a process that dies while the tool stops leaves it waiting for the
+     * game; the policy interrupts the tool, and the worker waits (or ends this process: waitWhileAuto). A tool that has not stopped within 20 s goes with the
+     * process, as after a Pause (requestStop)
+     */
+    private void gamePause() {
+        Job j = job;
+        if (j != null && "running".equals(j.state())) {
+            j.state("paused", GameGate.REASON, null);
+            save(j, true);
+        }
+        policy();
+        synchronized (lock) { lock.notifyAll(); }   // a worker that already waits (the battery, the heat) looks again: it may end this process
+        Thread w = worker;
+        main.postDelayed(() -> {
+            if (w != null && w.isAlive() && worker == w && inTool && game) {
+                Log.w(TAG, "the tool did not stop within 20 s for the game: ending the process");
+                Job jj = job;
+                if (jj != null) {
+                    jj.state("paused", GameGate.REASON, null);
+                    save(jj, true);
+                    leaveNote(jj);
+                }
+                Process.killProcess(Process.myPid());
+            }
+        }, 20_000);
     }
 
     /** Android 14+'s daily dataSync limit (6 h): pause cleanly and stop within the seconds Android gives (else it ends the app) */
@@ -275,21 +383,18 @@ public final class PackService extends Service {
         charging = i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
     }
 
-    /** The automatic pause: below 20 % on battery, or SEVERE heat (until MODERATE or better) */
+    /** The automatic pause: a game's process runs (GameGate), below 20 % on battery, or SEVERE heat (until MODERATE or better) */
     private void policy() {
-        String r = null;
-        if (batteryPct < 20 && !charging) r = "battery";
-        else if (thermal >= PowerManager.THERMAL_STATUS_SEVERE || ("thermal".equals(autoReason) && thermal > PowerManager.THERMAL_STATUS_MODERATE)) r = "thermal";
+        hot = thermal >= PowerManager.THERMAL_STATUS_SEVERE || hot && thermal > PowerManager.THERMAL_STATUS_MODERATE;
+        String r = game ? GameGate.REASON : batteryPct < 20 && !charging ? "battery" : hot ? "thermal" : null;
         String was = autoReason;
         autoReason = r;
         if (r != null && was == null) {
             Log.i(TAG, "pausing: " + r + " (battery " + batteryPct + " %" + (charging ? ", charging" : "") + ", thermal " + thermal + ")");
             if (inTool) engine.interrupt();
         }
-        if (r == null && was != null) {
-            Log.i(TAG, "going on: battery " + batteryPct + " %" + (charging ? ", charging" : "") + ", thermal " + thermal);
-            synchronized (lock) { lock.notifyAll(); }
-        }
+        if (r == null && was != null) Log.i(TAG, "going on: battery " + batteryPct + " %" + (charging ? ", charging" : "") + ", thermal " + thermal);
+        if (!java.util.Objects.equals(r, was)) synchronized (lock) { lock.notifyAll(); }   // the worker's wait ends, or says the new reason
     }
 
     // ---- The job ----
@@ -316,6 +421,13 @@ public final class PackService extends Service {
         Job j = job;
         wake.acquire(7 * 3600_000L);
         try {
+            // a game runs (or the battery or the heat says wait): nothing is done before, not even the reads below (the profile, the dump's results), which load
+            // the packer
+            if (!waitWhileAuto(j)) {
+                j.state("paused", stopReason, null);
+                save(j, true);
+                return;
+            }
             dropOtherGames(j);
             File oldXlate = new File(j.dir(), "xlate");   // where an older build (0.2.2) kept the results, on shared storage
             if (oldXlate.exists()) {
@@ -441,18 +553,35 @@ public final class PackService extends Service {
         stopForeground(STOP_FOREGROUND_DETACH);
         if (j != null) nm.notify(NOTE, note(j));
         stopSelf();
+        if (gameAsked && PackNative.ranTool()) {   // a game starts (a Pause was in hand, or the job ended meanwhile): what the tools left goes with this process
+            Log.i(TAG, "a game starts: ending this process, which keeps what the tools left");
+            Process.killProcess(Process.myPid());
+        }
     }
 
-    /** Waits while the policy pauses the job; false when the job is to stop */
+    /**
+     * Waits while the policy pauses the job (job.json says why, as the reason changes); false when the job is to stop. A wait for a game that asked to start
+     * (ACTION_GAME) in a process that has run a tool ends the process instead (GameGate.endProcess): what the tool left would stay beside the game
+     */
     private boolean waitWhileAuto(Job j) throws InterruptedException {
         if (autoReason == null) return stopReason == null;
         Eta est = eta;
         if (est != null) est.running(false, SystemClock.elapsedRealtime());   // waiting is no running time
-        j.state("paused", autoReason, null);
-        save(j, true);
         if (wake.isHeld()) wake.release();
         synchronized (lock) {
-            while (autoReason != null && stopReason == null) lock.wait(30_000);
+            String shown = null;
+            while (autoReason != null && stopReason == null) {
+                String r = autoReason;
+                if (GameGate.REASON.equals(r) && GameGate.endProcess(PackNative.ranTool(), gameAsked)) endForGame(j);
+                waiting = true;
+                if (!r.equals(shown)) {
+                    j.state("paused", r, null);
+                    save(j, true);   // also tells the game (publish: game_ready)
+                    shown = r;
+                }
+                lock.wait(30_000);
+            }
+            waiting = false;
         }
         if (stopReason != null) return false;
         wake.acquire(7 * 3600_000L);
@@ -460,6 +589,18 @@ public final class PackService extends Service {
         j.state("running", null, null);
         save(j, true);
         return true;
+    }
+
+    /**
+     * A game is to start and this process has run a tool (GameGate STOP_AND_END): the job is left paused for the game with its notification, and the process
+     * ends; the game, which saw its binding drop, starts the service again in a new process that waits for it (PrepareGate). Never returns
+     */
+    private void endForGame(Job j) {
+        Log.i(TAG, "a game starts: ending this process, which keeps what the tools left; the game starts the service again to wait for it");
+        j.state("paused", GameGate.REASON, null);
+        save(j, true);
+        leaveNote(j);
+        Process.killProcess(Process.myPid());
     }
 
     /** Runs step i; null when it is done, else why it failed */
@@ -797,7 +938,17 @@ public final class PackService extends Service {
     }
 
     private void publish(Job j, boolean force) {
-        if (j == null) return;
+        if (j == null) {   // no job in this service (a game's start found nothing to pause): the game may start (PrepareGate)
+            Message m = Message.obtain(null, MSG_STATE);
+            Bundle b = new Bundle();
+            b.putBoolean("alive", false);
+            b.putBoolean("game_ready", true);
+            m.setData(b);
+            for (Messenger c : clients) {
+                try { c.send(Message.obtain(m)); } catch (RemoteException e) { clients.remove(c); }
+            }
+            return;
+        }
         long now = SystemClock.elapsedRealtime();
         // the time left, asked once here for both (it smooths and rounds as it is asked); none unless the worker runs the job and no pause was asked for
         Eta est = eta;
@@ -812,6 +963,8 @@ public final class PackService extends Service {
             b.putBoolean("alive", worker != null);
             b.putBoolean("stopping", stopping);   // a pause was asked for and the tool is stopping (JobForm STOPPING)
             b.putInt("eta_min", etaMin);
+            // a game about to start may (PrepareGate): no worker, or one that waits for the game in a process that has run no tool
+            b.putBoolean("game_ready", GameGate.ready(worker != null, waiting && GameGate.REASON.equals(autoReason), PackNative.ranTool()));
             m.setData(b);
             for (Messenger c : clients) {
                 try {
@@ -832,7 +985,7 @@ public final class PackService extends Service {
             case MSG_REGISTER:
                 if (m.replyTo != null) {
                     clients.add(m.replyTo);
-                    if (job != null) publish(job, true);
+                    publish(job, true);
                 }
                 return true;
             case MSG_UNREGISTER:

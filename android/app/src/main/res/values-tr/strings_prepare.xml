@@ -133,6 +133,7 @@
     <string name="prepare_reason_user">elle</string>
     <string name="prepare_reason_battery">pil yüzde 20\'nin altında: devam etmesi için şarj cihazını tak</string>
     <string name="prepare_reason_thermal">telefon çok ısındı: soğuyunca devam eder</string>
+    <string name="prepare_reason_game">bir oyun açık: oyun kapanınca devam eder</string>
     <string name="prepare_reason_timeout">Android\'in arka plan işleri için günlük sınırı doldu: uygulamayı aç ve %1$s düğmesine dokun</string>
     <string name="prepare_reason_refused">Android arka planda başlamasına izin vermedi: uygulamayı aç ve %1$s düğmesine dokun</string>
     <string name="prepare_reason_apk">uygulama başka shader araçlarıyla güncellendi: shader\'lar yeniden çevriliyor</string>

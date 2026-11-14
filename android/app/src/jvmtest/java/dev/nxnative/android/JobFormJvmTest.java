@@ -28,6 +28,8 @@ public final class JobFormJvmTest {
         check(JobForm.of("paused", "refused", true, false), JobForm.Form.PAUSED, "refused is no wait");
         check(JobForm.of("paused", "battery", true, false), JobForm.Form.WAITING, "the battery wait");
         check(JobForm.of("paused", "thermal", true, false), JobForm.Form.WAITING, "the heat wait");
+        check(JobForm.of("paused", "game", true, false), JobForm.Form.WAITING, "the wait while a game runs (GameGate)");
+        check(JobForm.of("paused", "game", false, false), JobForm.Form.PAUSED, "a game's wait left behind by its process: Resume");
         check(JobForm.of("paused", "battery", false, false), JobForm.Form.PAUSED, "a battery wait whose process died");
         check(JobForm.of("running", "", false, false), JobForm.Form.PAUSED, "a running job whose process died");
         check(JobForm.of("failed", "", true, true), JobForm.Form.FAILED, "failed");

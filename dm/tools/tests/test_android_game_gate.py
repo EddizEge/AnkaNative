@@ -1,0 +1,140 @@
+"""A game and this app's Prepare job (GameGate.java, PrepareGate.java, PackService.java, GameActivity.java, Ondevice.java). The phone test of 2026-11-14: a
+game started beside a running Prepare (from a frontend) or beside the automatic shader update (Play, which stays on during it) ran a 12 GB phone out of
+memory, and about 30 s after the game was in, lmkd ended the job's process and the user's background apps. Now a game about to start pauses the job first
+(reason "game"), a process that has run a tool ends instead of waiting beside the game, and the job goes on by itself when the game's process is gone. The
+decisions run on the JVM (GameGateJvmTest); the rest checks that the game, the service and Home use them as written. Skipped without a JDK (the JVM part)."""
+import re
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[3]
+MAIN = REPO / 'android/app/src/main/java/dev/nxnative/android'
+ONDEVICE = REPO / 'android/app/src/ondevice/java/dev/nxnative/android'
+TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/GameGateJvmTest.java'
+RES = REPO / 'android/app/src/main/res'
+
+
+def code(p):
+    """A Java file's code, without its comments"""
+    return re.sub(r'/\*.*?\*/|//[^\n]*', '', p.read_text(encoding='utf-8'), flags=re.S)
+
+
+def body(s, start, end='\n    }\n'):
+    i = s.index(start)
+    return s[i:s.index(end, i)]
+
+
+@unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
+class Decide(unittest.TestCase):
+    def test_decisions(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            r = subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(d / 'classes'), str(MAIN / 'GameGate.java'), str(ONDEVICE / 'JobForm.java'), str(TEST)],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            r = subprocess.run(['java', '-cp', str(d / 'classes'), 'dev.nxnative.android.GameGateJvmTest'], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('all ok', r.stdout)
+
+
+class Game(unittest.TestCase):
+    g = code(MAIN / 'GameActivity.java')
+    gate = code(ONDEVICE / 'PrepareGate.java')
+
+    def test_pauses_before_the_host(self):
+        """The game asks before the readiness check and before the host starts; start() runs again from the gate"""
+        st = body(self.g, 'private void start() {')
+        self.assertLess(st.index('if (prepareHold(name)) return;'), st.index('if (readinessHold(id)) return;'))
+        self.assertLess(st.index('if (prepareHold(name)) return;'), st.index('Native.start('))
+        hold = body(self.g, 'private boolean prepareHold(String name) {')
+        self.assertIn('PrepareGate.hold(this, () -> { if (!isFinishing() && !isDestroyed()) start(); })', hold)
+        self.assertIn('R.string.game_prepare_pausing', hold)
+        self.assertIn('Native.note("[nxlaunch] Prepare: " + PrepareGate.outcome)', self.g)
+
+    def test_the_gate(self):
+        """ACTION_GAME from the game's process (an activity in front may start the service), a binding that only follows the service, game_ready, a new
+        start when the job's process ended to make room, and a bound wait"""
+        self.assertIn('GameGate.pauseFirst(j.state(), j.reason())', self.gate)
+        self.assertIn('a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_GAME))', self.gate)
+        self.assertIn('a.bindService(new Intent(a, PackService.class), this, 0)', self.gate)
+        self.assertIn('getBoolean("game_ready", false)', self.gate)
+        self.assertIn('ask();', body(self.gate, 'public void onServiceDisconnected('))
+        self.assertIn('h.postDelayed(() -> finish(', self.gate)
+        self.assertRegex(self.gate, r'WAIT_MS = 25_000;')
+        fin = body(self.gate, 'private void finish(String why) {')
+        self.assertIn('if (done) return;', fin)
+        self.assertIn('go.run();', fin)
+
+    def test_game_process_name(self):
+        """The process the service watches is GameActivity's"""
+        m = (REPO / 'android/app/src/main/AndroidManifest.xml').read_text()
+        self.assertRegex(m, r'android:name="\.GameActivity"[^>]*android:process=":game"')
+        self.assertIn('c.getPackageName() + ":game"', self.gate)
+
+
+class Service(unittest.TestCase):
+    s = code(ONDEVICE / 'PackService.java')
+
+    def test_action_game(self):
+        self.assertIn('if (ACTION_GAME.equals(action)) return game(startId);', self.s)
+        g = body(self.s, 'private int game(int startId) {')
+        self.assertIn('GameGate.onGame(alive, PackNative.ranTool(), stopReason != null,', g)
+        self.assertIn('startForeground(job);', g)   # startForegroundService's answer
+        self.assertIn('return begin(j, false, startId);', g)
+
+    def test_policy_and_watch(self):
+        pol = body(self.s, 'private void policy() {')
+        self.assertIn('String r = game ? GameGate.REASON :', pol)
+        w = body(self.s, 'private final Runnable gameWatch = new Runnable() {', '\n    };\n')
+        self.assertIn('PrepareGate.gameRunning(PackService.this)', w)
+        self.assertIn('policy();', w)
+        self.assertIn('main.postDelayed(gameWatch, GAME_POLL_MS);', body(self.s, 'private int begin(Job j, boolean user, int startId) {'))
+
+    def test_wait_first_and_end_for_the_game(self):
+        """The worker waits before anything else (the reads that load the packer), and a wait for a game that asked, after a tool ran here, ends the process"""
+        work = body(self.s, 'private void work() {')
+        self.assertLess(work.index('if (!waitWhileAuto(j)) {'), work.index('dropOtherGames(j);'))
+        wait = body(self.s, 'private boolean waitWhileAuto(Job j) throws InterruptedException {')
+        self.assertIn('GameGate.endProcess(PackNative.ranTool(), gameAsked)) endForGame(j);', wait)
+        self.assertLess(wait.index('waiting = true;'), wait.index('save(j, true);'))
+        end = body(self.s, 'private void endForGame(Job j) {')
+        self.assertLess(end.index('save(j, true);'), end.index('leaveNote(j);'))
+        self.assertLess(end.index('leaveNote(j);'), end.index('Process.killProcess(Process.myPid());'))
+        pause = body(self.s, 'private void gamePause() {')
+        self.assertLess(pause.index('j.state("paused", GameGate.REASON, null);'), pause.index('policy();'))
+
+    def test_publish_says_ready(self):
+        pub = body(self.s, 'private void publish(Job j, boolean force) {')
+        self.assertIn('b.putBoolean("game_ready", GameGate.ready(worker != null, waiting && GameGate.REASON.equals(autoReason), PackNative.ranTool()));', pub)
+        self.assertIn('b.putBoolean("game_ready", true);', pub)   # no job
+
+    def test_ran_tool(self):
+        e = code(ONDEVICE / 'PackEngine.java')
+        run = body(e, 'static int packRun(String tool, String[] argv, String logPath) {')
+        self.assertLess(run.index('ran = true;'), run.index('return run0('))
+
+    def test_sticky_restart_waits_again(self):
+        self.assertIn('"paused".equals(j.state()) && JobForm.waitsByItself(j.reason())', body(self.s, 'public int onStartCommand('))
+
+
+class Home(unittest.TestCase):
+    def test_after_game(self):
+        o = code(ONDEVICE / 'Ondevice.java')
+        show = body(o, '        void show() {', '\n        }\n')
+        self.assertIn('afterGame();', show)
+        self.assertIn('GameGate.resumeAfterGame(job.state(), job.reason(), jobAlive, PrepareGate.gameRunning(a))', body(o, '        void afterGame() {', '\n        }\n'))
+        self.assertIn('d.containsKey("job")', o)
+
+    def test_texts(self):
+        for d in ('values', 'values-tr', 'values-pt-rBR', 'values-b+es+419'):
+            t = ''.join(p.read_text(encoding='utf-8') for p in (RES / d).glob('strings_*.xml'))
+            for k in ('prepare_reason_game', 'game_prepare_pausing'):
+                self.assertIn(f'name="{k}"', t, f'{d}: {k}')
+        self.assertIn('case "game": return new Msg("prepare_reason_game");', code(ONDEVICE / 'Job.java'))
+
+
+if __name__ == '__main__':
+    unittest.main()

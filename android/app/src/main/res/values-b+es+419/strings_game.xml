@@ -13,6 +13,7 @@
     <string name="game_save_copied">Tu partida guardada se copió al almacenamiento de la app (%1$s). La carpeta anterior, %2$s, se conserva tal como estaba.</string>
     <string name="game_save_not_copied">No se pudo copiar tu partida guardada al almacenamiento de la app (%1$s). Esta vez se usa donde está, en %2$s.</string>
     <string name="game_checking_gpu">%1$s: revisando la GPU de este teléfono…</string>
+    <string name="game_prepare_pausing">%1$s: pausando primero la preparación para que el juego tenga la memoria del teléfono. La preparación continuará sola cuando se cierre el juego…</string>
     <string name="game_details_gpu">GPU: %1$s\nMemoria: %2$.1f GiB según Android.</string>
     <string name="game_ready_missing">Falta: %1$s.\n\nEl juego puede detenerse o mostrar gráficos incorrectos. Un controlador de GPU personalizado (%2$s › %3$s) podría ayudar.</string>
     <string name="game_ready_missing_black_system">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se muestra ninguna imagen: la pantalla queda en negro mientras el juego se ejecuta. Elige un controlador personalizado que tenga mapeos de memoria ubicados en %3$s › %4$s, o en %5$s (solo para este juego).</string>

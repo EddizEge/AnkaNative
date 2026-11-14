@@ -189,6 +189,8 @@ public final class PrepareTextsJvmTest {
         eq("by you", "prepare_reason_user");
         eq("battery below 20 %: plug in the charger to go on", "prepare_reason_battery");
         eq("the phone is too hot: it goes on when it has cooled", "prepare_reason_thermal");
+        eq("a game is running: it goes on when the game ends", "prepare_reason_game");
+        eq("Paused: a game is running: it goes on when the game ends. " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_game"), step);
         eq("Android's daily limit for background work: open the app and tap Resume", "prepare_reason_timeout", new Msg("prepare_button_resume"));
         eq("Android did not let it start in the background: open the app and tap Resume", "prepare_reason_refused", new Msg("prepare_button_resume"));
         eq("the app was updated with other shader tools: the shaders are translated again", "prepare_reason_apk");

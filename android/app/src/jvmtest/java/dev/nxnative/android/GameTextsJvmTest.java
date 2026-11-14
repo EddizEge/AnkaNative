@@ -36,6 +36,7 @@ public final class GameTextsJvmTest {
         same("Your save was copied into the app's storage (" + dir + "). The old folder " + old + " is kept as it was.", "game_save_copied", dir, old);
         same("Your save could not be copied into the app's storage (" + "disk full" + "). This start plays it where it is, " + old + ".", "game_save_not_copied", "disk full", old);
         same(name + ": checking this phone's GPU…", "game_checking_gpu", name);
+        same(name + ": pausing Prepare first, so the game has the phone's memory. Prepare goes on by itself when the game ends…", "game_prepare_pausing", name);
         same("GPU: " + "Adreno 830, Vulkan 1.3" + "\nMemory: " + "11.2" + " GiB as Android reports it.", "game_details_gpu", "Adreno 830, Vulkan 1.3", Double.parseDouble("11.2"));
         String missing = "VK_KHR_map_memory2, placed memory maps";
         same("Missing: " + missing + ".\n\nThe game may stop or draw wrongly. A custom GPU driver (Settings › GPU driver) may help.", "game_ready_missing", missing, HomeLabels.settings(), HomeLabels.gpuDriver());

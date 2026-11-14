@@ -14,6 +14,7 @@
     <string name="game_save_copied">Your save was copied into the app\'s storage (%1$s). The old folder %2$s is kept as it was.</string>
     <string name="game_save_not_copied">Your save could not be copied into the app\'s storage (%1$s). This start plays it where it is, %2$s.</string>
     <string name="game_checking_gpu">%1$s: checking this phone\'s GPU…</string>
+    <string name="game_prepare_pausing">%1$s: pausing Prepare first, so the game has the phone\'s memory. Prepare goes on by itself when the game ends…</string>
     <!-- The start-up readiness notice and its Details. %1$s: the names of the missing items, joined by ", " -->
     <!-- game_details_gpu: %1$s: the GPU line (readiness_gpu_*), %2$.1f: the memory in GiB -->
     <string name="game_details_gpu">GPU: %1$s\nMemory: %2$.1f GiB as Android reports it.</string>

@@ -164,6 +164,7 @@
     <string name="prepare_reason_user">by you</string>
     <string name="prepare_reason_battery">battery below 20 %: plug in the charger to go on</string>
     <string name="prepare_reason_thermal">the phone is too hot: it goes on when it has cooled</string>
+    <string name="prepare_reason_game">a game is running: it goes on when the game ends</string>
     <string name="prepare_reason_timeout">Android\'s daily limit for background work: open the app and tap %1$s</string>
     <string name="prepare_reason_refused">Android did not let it start in the background: open the app and tap %1$s</string>
     <string name="prepare_reason_apk">the app was updated with other shader tools: the shaders are translated again</string>

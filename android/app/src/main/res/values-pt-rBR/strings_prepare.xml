@@ -145,6 +145,7 @@
     <string name="prepare_reason_user">por você</string>
     <string name="prepare_reason_battery">bateria abaixo de 20%: conecte o carregador para continuar</string>
     <string name="prepare_reason_thermal">o celular está muito quente: a preparação continua quando ele esfriar</string>
+    <string name="prepare_reason_game">um jogo está aberto: a preparação continua quando o jogo for fechado</string>
     <string name="prepare_reason_timeout">limite diário do Android para trabalho em segundo plano: abra o app e toque em %1$s</string>
     <string name="prepare_reason_refused">o Android não deixou a preparação começar em segundo plano: abra o app e toque em %1$s</string>
     <string name="prepare_reason_apk">o app foi atualizado com outras ferramentas de shaders: os shaders são traduzidos de novo</string>

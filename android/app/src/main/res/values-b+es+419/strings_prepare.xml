@@ -129,6 +129,7 @@
     <string name="prepare_reason_user">la pausaste tú</string>
     <string name="prepare_reason_battery">batería por debajo del 20 %: conecta el cargador para continuar</string>
     <string name="prepare_reason_thermal">el teléfono está demasiado caliente: continuará cuando se enfríe</string>
+    <string name="prepare_reason_game">hay un juego abierto: continuará cuando se cierre el juego</string>
     <string name="prepare_reason_timeout">se alcanzó el límite diario de Android para el trabajo en segundo plano: abre la app y toca %1$s</string>
     <string name="prepare_reason_refused">Android no dejó que se iniciara en segundo plano: abre la app y toca %1$s</string>
     <string name="prepare_reason_apk">la app se actualizó con otras herramientas de shaders: los shaders se vuelven a traducir</string>

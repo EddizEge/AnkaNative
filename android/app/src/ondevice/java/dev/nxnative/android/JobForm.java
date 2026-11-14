@@ -17,7 +17,7 @@ final class JobForm {
         RUNNING,
         /** a pause was asked for and the worker has not ended yet (the tool stops at the shader or file in hand): no time left, no action */
         STOPPING,
-        /** paused by the service's own policy (battery, heat): the worker waits and goes on by itself; ongoing, Pause */
+        /** paused by the service's own policy (battery, heat, a game that runs): the worker waits and goes on by itself; ongoing, Pause */
         WAITING,
         /** paused, or a running job whose process died: Resume */
         PAUSED,
@@ -27,8 +27,9 @@ final class JobForm {
         DONE
     }
 
-    /** Whether a job paused for this reason (job.json "reason") goes on by itself while its service lives (PackService.policy, waitWhileAuto) */
-    static boolean waitsByItself(String reason) { return "battery".equals(reason) || "thermal".equals(reason); }
+    /** Whether a job paused for this reason (job.json "reason") goes on by itself while its service lives (PackService.policy, waitWhileAuto): the battery, the
+     *  heat, or a game that runs (GameGate) */
+    static boolean waitsByItself(String reason) { return "battery".equals(reason) || "thermal".equals(reason) || "game".equals(reason); }
 
     /**
      * state, reason: job.json's; worker: the service's worker runs this job and goes on (false when the service is about to end its process, or has none);

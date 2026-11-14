@@ -470,6 +470,20 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         } catch (RuntimeException e) { /* no answer: left as it was */ }
     }
 
+    private boolean prepareAsked;
+
+    /**
+     * true: the start waits until this app's Prepare job waits for the game (PrepareGate: it may be working; the game's memory would run out beside it, the
+     * phone test of 2026-11-14), then start() runs again. Meanwhile the screen says so; at most PrepareGate.WAIT_MS, then the game starts anyway
+     */
+    private boolean prepareHold(String name) {
+        if (prepareAsked) return false;
+        prepareAsked = true;
+        if (!PrepareGate.hold(this, () -> { if (!isFinishing() && !isDestroyed()) start(); })) return false;
+        overlay.setText(getString(R.string.game_prepare_pausing, name));
+        return true;
+    }
+
     private Map<String, String> rFacts;
     private List<Readiness.Check> rChecks;
 
@@ -481,6 +495,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             Pack pack = Pack.read(packDir);
             String romfs = pack.romfsPath(game);   // a folder's RomFS folder, or <file>.nup:<selector>/romfs (NUP.md)
             if (romfs == null) throw Nup.isNup(game) ? new LocalizedIOException("game_nup_no_romfs", game.getName(), pack.romfsSelector()) : new LocalizedIOException("game_no_romfs", game);
+            if (prepareHold(name)) return;   // this app's Prepare job pauses first (PrepareGate): a game beside it runs the phone out of memory
             if (readinessHold(id)) return;   // after the pack's own checks (a missing pack says so first), before the save is locked or anything is written
             // The user's lines, read first: the paths the launcher sets cannot be changed by them (guard), but the test app's env-<id>.txt may name a test save folder (one game's file only: a global DM_SAVE would point every game at one save)
             List<String> user = new ArrayList<>(guard(userEnv(new File(files, "env.txt")), "env.txt", false));   // diagnostic switches (every game: never DM_SAVE) (DM_SVC=1, DM_FS=1, ...), as the iPhone's Documents/env.txt
@@ -520,6 +535,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             ui.postDelayed(this::noteOwnRate, 30000);
             hostRunning = true;
             if (readinessLine != null) Native.note(readinessLine + (triedAnyway ? "; the player chose Try anyway" : ""));   // the readiness check (readinessHold)
+            if (PrepareGate.outcome != null) Native.note("[nxlaunch] Prepare: " + PrepareGate.outcome);   // i18n-keep: the game's log (prepareHold)
             Native.note("[nxlaunch] game: " + game + (Nup.isNup(game) ? " (.nup)" : " (folder)") + ", DM_ROMFS " + romfs + ", pack " + packDir);
             Native.note("[nxlaunch] save: " + save + " (" + saveHow + ")" + (saveNote != null ? "; " + saveNote : ""));
             Native.note("Anka Native " + BuildConfig.VERSION_NAME + " (" + BuildConfig.NX_COMMIT + "), host libnxhost_" + id + ".so; " + name + " " + id + " version " + pack.version);
