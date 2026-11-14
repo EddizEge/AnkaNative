@@ -75,19 +75,18 @@ final class Ondevice {
 
     /** What making a pack's shaders does and takes, for Prepare's dialogs: an update of the changed ones when the manifest knows the pack's older library, else all of them */
     static String shadersText(File packDir, String titleId) {
-        // ShaderLibs.minutesText (the packs area's, English): the integrator switches these calls to minutesMsg after both packages merge
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
-        if (n >= 0 && p != null) return Tr.s("prepare_shaders_update", n, p.shaderTotal, ShaderLibs.minutesText(n));
-        return p != null ? Tr.s("prepare_shaders_make", ShaderLibs.minutesText(p.shaderTotal)) : Tr.s("prepare_shaders_make_default");
+        if (n >= 0 && p != null) return Tr.s("prepare_shaders_update", n, p.shaderTotal, ShaderLibs.minutesMsg(n).text());
+        return p != null ? Tr.s("prepare_shaders_make", ShaderLibs.minutesMsg(p.shaderTotal).text()) : Tr.s("prepare_shaders_make_default");
     }
 
     /** "Prepare updates the shaders …" / "Prepare makes the shaders …": shadersText as one sentence after the word Prepare (the home screen's shader dialog) */
     static Msg prepareShadersMsg(File packDir, String titleId) {
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
-        if (n >= 0 && p != null) return new Msg("prepare_shaders_update_step", n, p.shaderTotal, ShaderLibs.minutesText(n));
-        return p != null ? new Msg("prepare_shaders_make_step", ShaderLibs.minutesText(p.shaderTotal)) : new Msg("prepare_shaders_make_step_default");
+        if (n >= 0 && p != null) return new Msg("prepare_shaders_update_step", n, p.shaderTotal, ShaderLibs.minutesMsg(n));
+        return p != null ? new Msg("prepare_shaders_make_step", ShaderLibs.minutesMsg(p.shaderTotal)) : new Msg("prepare_shaders_make_step_default");
     }
 
     private static final java.util.Set<String> autoTried = new java.util.HashSet<>();
@@ -431,7 +430,7 @@ final class Ondevice {
                 // ShaderLibs.jobMinutesText, PackCheck.blocking (f.build) and PackCheck.shaders (lp) are the packs area's English: the integrator switches them to
                 // jobMinutesMsg, blockingMsg and shadersMsg after both packages merge
                 String what = code && shaders ? (delta >= 0 ? a.getString(R.string.prepare_redo_code_update, shadersText(pd, r.titleId))
-                                : a.getString(R.string.prepare_redo_both, ShaderLibs.jobMinutesText(Profile.of(r.titleId).shaderTotal)))
+                                : a.getString(R.string.prepare_redo_both, ShaderLibs.jobMinutesMsg(Profile.of(r.titleId).shaderTotal).text()))
                         : code ? a.getString(R.string.prepare_redo_code)
                         : shadersText(pd, r.titleId);
                 // the dialog's paragraphs: what is redone, why, the pack folder
@@ -452,8 +451,7 @@ final class Ondevice {
             String version = String.valueOf(r.version);
             String which = r.version == 0 ? (other ? a.getString(R.string.prepare_what_base_code, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_base))
                     : other ? a.getString(R.string.prepare_what_update_code, version, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_update, version);
-            // ShaderLibs.jobMinutesText (the packs area's, English): the integrator switches it to jobMinutesMsg after both packages merge
-            String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesText(prof.shaderTotal), r.free / 1073741824.0, r.work,
+            String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesMsg(prof.shaderTotal).text(), r.free / 1073741824.0, r.work,
                     AppStorage.pack(a, r.titleId));
             Runnable go = () -> {
                 try {
