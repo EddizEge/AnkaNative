@@ -82,8 +82,6 @@
     <string name="readiness_check_gpu">GPU e driver</string>
     <string name="readiness_gpu_stale">%1$s. O driver de GPU foi trocado enquanto esta tela estava aberta: saia e abra de novo para verificar o novo driver.</string>
     <string name="readiness_check_driver_picked">Driver de GPU escolhido</string>
-    <!-- %1$s: a GPU driver's name and version, or home's "System"; %2$s › %3$s: Settings › GPU driver -->
-    <string name="readiness_driver_picked">%1$s (%2$s › %3$s).</string>
     <string name="readiness_check_own_driver">Driver de GPU próprio</string>
     <string name="readiness_own_driver_same">%1$s, o mesmo que esta tela verificou.</string>
     <string name="readiness_own_driver_other">Este jogo usa o próprio driver de GPU, %1$s; esta tela verificou %2$s. A verificação feita antes de o jogo iniciar usa o driver do jogo, e o resultado dela pode ser diferente deste.</string>
