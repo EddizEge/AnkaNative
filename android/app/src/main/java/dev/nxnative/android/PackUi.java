@@ -160,7 +160,7 @@ final class PackUi {
             Folders.setPack(a, g.titleId, target);
             String lp = Pack.libraryProblem(target, g.titleId);
             String shaders = lp == null ? "It has this app's shader library (" + BuildConfig.NX_DMSH_VK_CHAIN + "): ready to play."
-                    : Pack.playableLibrary(target, g.titleId) != null || Pack.legacyLibrary(target, g.titleId) != null
+                    : Pack.playableLibrary(target, g.titleId, Ondevice.isDump(new File(g.gameDir))) != null || Pack.legacyLibrary(target, g.titleId) != null
                     ? "Its shaders are of an older version: the game plays with them while the app updates them, as after an app update." : lp + " The game's card offers what fixes it.";
             new AlertDialog.Builder(a).setTitle("Pack imported").setMessage(target + "\n\n" + shaders + (old != null ? "\n\nThe pack folder picked before (" + old + ") is kept as it was; the game now uses this one." : ""))
                     .setPositiveButton("OK", null).show();

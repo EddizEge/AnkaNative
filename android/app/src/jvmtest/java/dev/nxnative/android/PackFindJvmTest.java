@@ -124,8 +124,22 @@ public final class PackFindJvmTest {
         check(PackFind.shaderTier(olderInputs, DKB, false) == -1, "that update needs a dump too");
         check(Pack.deltaShaders(olderInputs, DKB) == 7, "its row's count");
         check(Pack.libraryProblem(olderInputs, DKB).contains("7 of the game's 22,852 shaders are new or changed"), "the card says what the update makes: " + Pack.libraryProblem(olderInputs, DKB));
-        check(Pack.playableLibrary(olderInputs, DKB) != null, "and Play stays on: the replay loads this version's library (same ABI)");
-        check(Pack.playableLibrary(inputs, DKB) == null, "but not for inputs the manifest does not know");
+        check(Pack.ownInputsDelta(olderInputs, DKB) == 7, "its own row, by its inputs");
+        check(Pack.playableLibrary(olderInputs, DKB, true) != null, "and Play stays on: the replay loads this version's library (same ABI)");
+        check(Pack.playableLibrary(inputs, DKB, true) == null, "but not for inputs the manifest does not know");
+        // Not a dump (a pack made on a computer): no update can bring it current, so it is not played as if one were running (Play asks first, Start anyway)
+        check(Pack.playableLibrary(olderInputs, DKB, false) == null, "no update without a dump: not played silently");
+        // This version's library of inputs the manifest does not know, beside an older version's library the manifest does know: the older row is not this
+        // library's, so the card does not say the update makes that many of its shaders, nor plays this library as one being updated
+        File mixed = pack(new File(t, "mixed-pack"), DKB, "aa", cur, "222222222222", false);
+        byte[] oh = lib(DKB, "abcdef012345", "abc123abc123");
+        put(oh, 24, "0ld000000001");
+        write(new File(mixed, "shaders/v-0ld000000001/dmsh_vk.lib"), oh);
+        check(Pack.deltaShaders(mixed, DKB) == 500, "the pack's delta update starts from the older library's row");
+        check(Pack.ownInputsDelta(mixed, DKB) == -1, "this version's library has no row of its own");
+        check(!Pack.libraryProblem(mixed, DKB).contains("new or changed"), "the card does not take the older library's count for it: " + Pack.libraryProblem(mixed, DKB));
+        File pl = Pack.playableLibrary(mixed, DKB, true);
+        check(pl != null && pl.getParentFile().getName().equals("v-0ld000000001"), "the older library is the one played while the update runs");
 
         // The app's pack: preferred when it fits; a fitting ancestor pack beats an app pack that needs an update
         File app = pack(new File(t, "app/packs/" + DKB), DKB, "aa", cur);

@@ -168,7 +168,7 @@ final class Game implements GameList.View {
             if (!p.titleId.equalsIgnoreCase(g.titleId) || p.unfinishedModule() != null) return false;
             if (!BuildCheck.build(p, new File(g.gameDir)).ok()) return false;
             File pd = new File(g.packDir);
-            return Pack.libraryProblem(pd, g.titleId) == null || Pack.playableLibrary(pd, g.titleId) != null || Pack.legacyLibrary(pd, g.titleId) != null;
+            return Pack.libraryProblem(pd, g.titleId) == null || Pack.playableLibrary(pd, g.titleId, Ondevice.isDump(new File(g.gameDir))) != null || Pack.legacyLibrary(pd, g.titleId) != null;
         } catch (IOException | RuntimeException e) {
             return false;
         }

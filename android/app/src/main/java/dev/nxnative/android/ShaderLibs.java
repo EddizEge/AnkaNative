@@ -154,6 +154,21 @@ final class ShaderLibs {
     }
 
     /**
+     * How many shaders the update of this version's own library translates when that library was made from other profile inputs than this APK's (inputs:
+     * Profile.shaderInputs): the delta manifest's "&lt;current&gt;@&lt;its inputs&gt;" row alone (delta: Profile.delta), not any row the pack's other libraries match;
+     * -1 when the pack has no such library of titleId's game or the manifest has no row for its inputs
+     */
+    static int ownInputsDelta(File packDir, String titleId, String current, String inputs, String delta) {
+        if (current == null || inputs == null || !inputs.matches("[0-9a-f]{12}")) return -1;
+        File d = new File(new File(packDir, "shaders"), "v-" + current);
+        Header h = header(new File(d, "dmsh_vk.lib"));
+        if (h == null || !titleId.equals(h.game)) return -1;
+        String li = inputsOf(d);
+        if (!li.matches("[0-9a-f]{12}") || li.equals(inputs)) return -1;
+        return toTranslate(delta, List.of(current + "@" + li));
+    }
+
+    /**
      * How many shaders a delta update translates when the pack has the older versions given: the fewest of the profile's "from" rows (delta: "version=count,…", from the
      * manifest's from rows) for those versions; -1 when the manifest has none of them (the update then translates as many as a full build, or more as the tool finds)
      */
