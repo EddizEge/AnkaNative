@@ -4,7 +4,7 @@
     <!-- GameActivity: the game's screen -->
     <string name="game_panel_open_description">Abrir o painel do jogo</string>
     <!-- Two spaces before the bracket: the second is   so that it is not collapsed -->
-    <string name="game_paused">Pausado\n\nToque para continuar  (A ou Start no controle)</string>
+    <string name="game_paused">Pausado\n\nToque para continuar \u0020(A ou Start no controle)</string>
     <string name="game_stopped_in_background">O jogo foi encerrado enquanto estava em segundo plano (o Android encerrou o processo dele). O progresso não salvo foi perdido; inicie o jogo de novo pelo launcher.</string>
     <string name="game_intro_skip_on">Pular introdução ativado: pressionando A e encerrando vídeos até o jogo começar</string>
     <string name="game_intro_skip_off">Pular introdução desativado</string>
@@ -17,7 +17,7 @@
     <!-- game_details_gpu: %1$s: the GPU line (readiness_gpu_*), %2$.1f: the memory in GiB -->
     <string name="game_details_gpu">GPU: %1$s\nMemória: %2$.1f GiB, segundo o Android.</string>
     <!-- Labels of other screens are arguments: Settings and its GPU driver row (home), Game settings (home's Manage sheet) -->
-    <string name="game_ready_missing">Faltando: %1$s.\n\nO jogo pode parar ou desenhar errado. Um driver de GPU personalizado (%2$s › %3$s) pode ajudar.</string>
+    <string name="game_ready_missing">Faltando: %1$s.\n\nO jogo pode travar ou exibir gráficos errados. Um driver de GPU personalizado (%2$s › %3$s) pode ajudar.</string>
     <!-- %2$s: the name Settings › GPU driver shows for the phone's own driver (home's "System"), then Settings › GPU driver and Game settings -->
     <string name="game_ready_missing_black_system">Faltando: %1$s.\n\nCom este driver de GPU (%2$s) nada é desenhado: a tela fica preta enquanto o jogo roda. Escolha um driver personalizado com suporte a placed memory maps em %3$s › %4$s, ou em %5$s, só para este jogo.</string>
     <!-- %2$s: the custom GPU driver's name and version; %3$s: the GPU driver list's choice of the phone's own driver (settings), then Settings › GPU driver and Game settings -->
@@ -91,13 +91,13 @@
     <string name="game_controls_picture_position">Posição da imagem (esta tela)</string>
     <string name="game_controls_edit_layout">Editar o layout dos controles…</string>
     <!-- %1$s: a group of controls (game_controls_group_*), %2$d: its size in percent -->
-    <string name="game_controls_hint_group">%1$s: arraste para mover, use um segundo dedo para redimensionar (%2$d %%)</string>
+    <string name="game_controls_hint_group">%1$s: arraste para mover, use um segundo dedo para redimensionar (%2$d%%)</string>
     <string name="game_controls_hint_picture">imagem: arraste para as faixas pretas</string>
     <string name="game_controls_hint">Arraste um controle ou a imagem; faça o gesto de pinça em um controle para redimensioná-lo</string>
     <string name="game_controls_vibrate">Vibrar ao tocar</string>
     <string name="game_controls_show_log">Mostrar o log sobre o jogo</string>
-    <string name="game_controls_opacity">Opacidade %1$d %%</string>
-    <string name="game_controls_size">Tamanho %1$d %%</string>
+    <string name="game_controls_opacity">Opacidade %1$d%%</string>
+    <string name="game_controls_size">Tamanho %1$d%%</string>
     <string name="game_controls_reset_all">Redefinir os controles</string>
 
     <!-- Overlay: the performance overlay's switches and its readings over the game -->
@@ -148,6 +148,6 @@
     <string name="game_selftest_no_host">FALHA: este host não tem nxhost_vk_selftest</string>
     <string name="game_selftest_running">Autoteste gráfico em execução (%1$d quadros, cerca de %2$d s)</string>
     <!-- %2$s: Share log (home's Settings row); Back is the phone's back gesture or button -->
-    <string name="game_selftest_pass">SUCESSO (código de retorno %1$d)\nVolte para sair; %2$s envia o log desta execução.</string>
-    <string name="game_selftest_fail">FALHA (código de retorno %1$d)\nVolte para sair; %2$s envia o log desta execução.</string>
+    <string name="game_selftest_pass">SUCESSO (código de retorno %1$d)\nVolte para sair; use %2$s para enviar o log desta execução.</string>
+    <string name="game_selftest_fail">FALHA (código de retorno %1$d)\nVolte para sair; use %2$s para enviar o log desta execução.</string>
 </resources>
