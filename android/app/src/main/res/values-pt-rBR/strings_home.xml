@@ -62,10 +62,10 @@
     <string name="home_license_lsfg">geração de quadros LSFG</string>
     <string name="home_license_xlate">o tradutor de shaders</string>
     <!-- %1$s: the app's version -->
-    <string name="home_update_version_release_only">Anka Native %1$s · só no app de lançamento</string>
+    <string name="home_update_version_release_only">Anka Native %1$s · só no app oficial</string>
     <!-- %1$d of %2$d: the overlay items that are on, of all -->
     <string name="home_overlay_on">Ativada · %1$d de %2$d itens</string>
-    <string name="home_off">Desativado</string>
+    <string name="home_off">Desativada</string>
     <string name="home_lsfg_not_built">Não incluída neste build</string>
     <!-- %1$d: the frame generation multiplier (2x, 3x, …) -->
     <string name="home_lsfg_on">Ativada · %1$dx</string>
@@ -132,7 +132,7 @@
     <string name="home_restore_saves">Restaurar saves</string>
     <string name="home_import_save">Importar save</string>
     <string name="home_prepare_again">Preparar de novo</string>
-    <string name="home_prepare_again_value">Refaz o que não serve</string>
+    <string name="home_prepare_again_value">Refaz o que não for compatível</string>
     <string name="home_export_pack">Exportar pacote…</string>
     <string name="home_export_pack_value">Um .zip, em uma pasta que você escolher</string>
     <string name="home_import_pack">Importar pacote…</string>
@@ -181,13 +181,13 @@
     <string name="home_pick_a_pack_folder">Escolher uma pasta de pacote</string>
     <string name="home_pick_android_pack">Escolha a pasta do pacote (android-pack, com pack.tsv)</string>
     <!-- The summary of Add game for a folder of games: one paragraph each; also logged in English -->
-    <string name="home_added_ok">Adicionados: %1$s.</string>
+    <string name="home_added_ok">Jogos adicionados: %1$s.</string>
     <!-- %2$s: home_prepare (the card's button) -->
-    <string name="home_added_prepare">Precisam ser preparados: %1$s. Nenhum pacote compatível foi encontrado: o botão %2$s de cada cartão cria um neste celular (um jogo por vez).</string>
+    <string name="home_added_prepare">Falta preparar: %1$s. Nenhum pacote compatível foi encontrado: o botão %2$s de cada cartão cria um neste celular (um jogo por vez).</string>
     <!-- %2$s: the title IDs this app runs -->
-    <string name="home_added_unsupported">Não compatíveis com este app: %1$s. Este app roda: %2$s.</string>
-    <string name="home_added_no_pack">Nenhum pacote encontrado: %1$s. Adicione cada um separadamente para escolher a pasta do pacote dele.</string>
-    <string name="home_added_failed">Não adicionados: %1$s</string>
+    <string name="home_added_unsupported">Sem suporte neste app: %1$s. Este app roda: %2$s.</string>
+    <string name="home_added_no_pack">Nenhum pacote encontrado: %1$s. Adicione cada jogo separadamente para escolher a pasta do pacote dele.</string>
+    <string name="home_added_failed">Não foi possível adicionar: %1$s</string>
     <!-- %1$s: the file, %2$s: why -->
     <!-- %2$s: home_remove (the Manage sheet's button) -->
     <string name="home_added_twice">Outro dump do mesmo jogo já estava na lista, então os dois cartões foram mantidos: %1$s. Use ⋯ › %2$s para tirar um deles (nada é excluído).</string>
@@ -220,13 +220,13 @@
     <string name="home_busy_save">Um backup ou restauração de saves de %1$s ainda está em andamento: o botão %2$s aguarda até terminar.</string>
     <string name="home_busy_pack">Uma exportação ou importação do pacote de %1$s ainda está em andamento: o botão %2$s aguarda até terminar.</string>
     <string name="home_pack_unusable">Não é possível usar o pacote: %1$s</string>
-    <string name="home_pack_placeholder">Este pacote é um marcador de posição, não um pacote para jogar.</string>
+    <string name="home_pack_placeholder">Este pacote é provisório (placeholder), não um pacote para jogar.</string>
     <string name="home_no_pack_for">Nenhum pacote para %1$s</string>
     <!-- %1$s: why this version cannot prepare (Ondevice), %2$s: the pack folder -->
     <string name="home_no_pack_for_body">%1$s\n\nPacote: %2$s</string>
     <string name="home_pick_pack_folder_button">Escolher pasta do pacote</string>
     <string name="home_shaders_missing">Faltam shaders</string>
-    <string name="home_shaders_missing_body">Sem eles o jogo não desenha nada.\n\n%1$s</string>
+    <string name="home_shaders_missing_body">Sem eles, o jogo não mostra imagem nenhuma.\n\n%1$s</string>
     <string name="home_start_anyway">Iniciar mesmo assim</string>
     <string name="home_pack_cannot_start">O pacote não consegue iniciar este jogo</string>
     <!-- %1$s: home_prepare_again, %2$s: why (PackCheck), %3$s: the pack folder -->
