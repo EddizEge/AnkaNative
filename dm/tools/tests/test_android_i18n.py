@@ -406,6 +406,23 @@ class Resources(unittest.TestCase):
         bad = [b for p in java_files() for b in key_problems(p.name, p.read_text(encoding='utf-8'))]
         self.assertEqual(bad, [], 'a key that is not a string literal or a key table of literals in the call (or a getIdentifier outside TrAndroid)')
 
+    def test_keys_of_own_area(self):
+        """A Java file names only its own area's keys and common_ (its area: the i18n_ratchet tsv that lists it). A label or a text of another area comes
+        through the owner's accessor (HomeLabels, SidePanel.stopLabel, Profile.versionMsg...), so one resource names a button everywhere (docs/i18n.md
+        "Texts that cross areas", "References to other labels")"""
+        areas = {name: area for name, (area, _) in read_ratchet().items()}
+        bad = []
+        for (typ, k), where in sorted(java_keys().items()):
+            prefix = k.split('_')[0]
+            if prefix not in AREAS or prefix == 'common':
+                continue   # app_name (build.gradle's resValue)
+            for w in where:
+                f = w.split(':')[0]
+                area = areas.get(f)
+                if area != prefix:
+                    bad.append(f'{w}: {typ} {k} (the file is {area or "in no area"})')
+        self.assertEqual(bad, [], "another area's key read directly: take it from the owner's accessor")
+
     def test_completeness(self):
         """Not a failure: how much of the English each language has (docs/i18n.md: untranslated is absent, never English copied)"""
         todo = [k for k, v in self.base.items() if v[2].get('translatable') != 'false']

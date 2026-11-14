@@ -50,13 +50,6 @@
     <string name="packs_nup_unpacked_size">%1$s: decompressed to %2$d bytes, the TOC says %3$d</string>
     <string name="packs_nup_file_error">%1$s: %2$s: %3$s</string>
     <string name="packs_nup_file_hash">%1$s: %2$s does not match its SHA-256: the file is damaged</string>
-    <!-- Labels of other screens that sentences name; the integrator may switch them to the owning area's resource -->
-    <string name="packs_label_export">Export pack…</string>
-    <string name="packs_label_import">Import pack…</string>
-    <string name="packs_label_prepare_again">Prepare again</string>
-    <string name="packs_label_prepare_shaders">Prepare shaders</string>
-    <string name="packs_label_stop_game">Stop the game</string>
-    <string name="packs_label_manage">Manage</string>
     <!-- PackZip: Export pack and Import pack -->
     <string name="packs_zip_cannot_list">cannot list %1$s</string>
     <string name="packs_zip_link">%1$s is a link: a pack holds files and folders only</string>

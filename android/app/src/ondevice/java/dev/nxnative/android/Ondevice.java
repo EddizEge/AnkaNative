@@ -56,6 +56,9 @@ final class Ondevice {
      * is there for UI work. A play or release build without the packer offers no Prepare: the simulated engine's placeholder pack never starts, so its Prepare only
      * looked done (Anka Native 0.1.0 shipped that way)
      */
+    /** The Preparing card's ⋯ button as other areas' sentences name it ("forget it in its ⋯ Manage") */
+    static Msg manageLabel() { return new Msg("prepare_label_manage"); }
+
     static boolean available() { return "native".equals(BuildConfig.NX_PACK_ENGINE) || !BuildConfig.NX_PLAY; }
 
     /** What to do instead when this APK cannot prepare a game (available() is false), for the screen */
@@ -564,7 +567,7 @@ final class Ondevice {
             Button f = Ui.button(a, a.getString(R.string.prepare_manage_forget), Ui.Kind.QUIET, v -> { d[0].dismiss(); forget(); });
             f.setEnabled(!running);
             Ui.add(box, f, 10, Ui.wrap());
-            Button w = Ui.button(a, a.getString(R.string.prepare_manage_delete_work), Ui.Kind.DANGER, v -> { d[0].dismiss(); deleteWork(j, false); });
+            Button w = Ui.button(a, a.getString(R.string.prepare_manage_delete_work, a.getString(R.string.prepare_label_delete_work)), Ui.Kind.DANGER, v -> { d[0].dismiss(); deleteWork(j, false); });
             w.setEnabled(!running);
             Ui.add(box, w, 8, Ui.wrap());
             if (ownPack(j) != null) {

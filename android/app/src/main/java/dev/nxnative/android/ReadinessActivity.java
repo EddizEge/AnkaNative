@@ -158,7 +158,7 @@ public final class ReadinessActivity extends Activity {
         Msg gpuLine = Readiness.gpuMsg(f);
         gpu.add(new Readiness.Check(new Msg("readiness_check_gpu"), stale ? Readiness.Status.WARNING : f.containsKey("gpu.name") ? Readiness.Status.INFO : f.containsKey("error") ? Readiness.Status.FAIL : Readiness.Status.WARNING,
                 stale ? new Msg("readiness_gpu_stale", gpuLine) : gpuLine, "driver"));
-        gpu.add(new Readiness.Check(new Msg("readiness_check_driver_picked"), Readiness.Status.INFO, new Msg("readiness_driver_picked", driverName(d)), "driver"));
+        gpu.add(new Readiness.Check(new Msg("readiness_check_driver_picked"), Readiness.Status.INFO, new Msg("readiness_driver_picked", driverName(d), HomeLabels.settings(), HomeLabels.gpuDriver()), "driver"));
         r.sections.add(new Section(Tr.s("readiness_section_phone"), phone));
         r.sections.add(new Section(Tr.s("readiness_section_gpu"), gpu));
         StringBuilder rep = new StringBuilder(header(c, null)).append('\n');
@@ -279,8 +279,8 @@ public final class ReadinessActivity extends Activity {
         }
     }
 
-    /** A GPU driver as the screen names it: its label (a name and a version), or System for the phone's own driver */
-    private static Object driverName(GpuDriver.Info d) { return d == null ? new Msg("readiness_driver_system") : d.label(); }
+    /** A GPU driver as the screen names it: its label (a name and a version), or the name Settings › GPU driver shows for the phone's own driver */
+    private static Object driverName(GpuDriver.Info d) { return d == null ? HomeLabels.gpuSystem() : d.label(); }
 
     /** An exception's message as an argument of a Msg: a LocalizedIOException's own Msg (English in the report, the user's language on the screen), else its message */
     private static Object detail(Exception e) {
@@ -413,7 +413,8 @@ public final class ReadinessActivity extends Activity {
                         : why == ApplicationExitInfo.REASON_ANR ? new Msg("readiness_exit_anr") : normal ? new Msg("readiness_exit_normal") : new Msg("readiness_exit_other", exitName(why));
                 String desc = lastGame.getDescription();   // Android's own words, as written
                 Msg line = normal ? new Msg("readiness_last_exit_normal", what, when)
-                        : desc != null && !desc.isEmpty() ? new Msg("readiness_last_exit_desc", what, when, desc) : new Msg("readiness_last_exit", what, when);
+                        : desc != null && !desc.isEmpty() ? new Msg("readiness_last_exit_desc", what, when, desc, HomeLabels.settings(), HomeLabels.shareLog())
+                        : new Msg("readiness_last_exit", what, when, HomeLabels.settings(), HomeLabels.shareLog());
                 l.add(new Readiness.Check(new Msg("readiness_check_last_exit"), normal ? Readiness.Status.PASS : Readiness.Status.WARNING, line, null));
             }
             if (kills > 0) l.add(new Readiness.Check(new Msg("readiness_check_kills"), Readiness.Status.WARNING, Msg.plural("readiness_kills", kills, kills,

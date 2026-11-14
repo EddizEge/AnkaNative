@@ -47,7 +47,7 @@ final class SaveUi {
     private static boolean ready(MainActivity a, Game g, int running) {
         if (a.needAccess()) return false;
         if (busy(g.titleId)) { a.error(a.getString(R.string.saves_busy, g.name)); return false; }
-        if (gameRunning(a, g)) { a.error(a.getString(running, g.name)); return false; }
+        if (gameRunning(a, g)) { a.error(a.getString(running, g.name, SidePanel.stopLabel().text())); return false; }
         return true;
     }
 
@@ -92,7 +92,7 @@ final class SaveUi {
         if (!ready(a, g, R.string.saves_running_restore)) return;
         File to = backups(g);
         List<SaveStore.Backup> l = SaveStore.list(to);
-        if (l.isEmpty()) { a.error(a.getString(R.string.saves_restore_none, g.name, to)); return; }
+        if (l.isEmpty()) { a.error(a.getString(R.string.saves_restore_none, g.name, to, HomeLabels.backUpSaves().text())); return; }
         String[] labels = new String[l.size()];
         for (int i = 0; i < labels.length; i++) {
             SaveStore.Backup b = l.get(i);
@@ -127,7 +127,7 @@ final class SaveUi {
         if (why != null) { a.error(a.getString(R.string.saves_not_restored_refused, why.text())); return; }
         String st = stamp();
         Ui.confirmDanger(a, a.getString(R.string.saves_restore_confirm_title, g.name),
-                a.getString(R.string.saves_restore_confirm_body, save, what, new File(backups(g), st + SaveStore.BEFORE_RESTORE)),
+                a.getString(R.string.saves_restore_confirm_body, save, what, new File(backups(g), st + SaveStore.BEFORE_RESTORE), HomeLabels.restoreSaves().text()),
                 a.getString(R.string.saves_restore_button), () -> {
                     if (!ready(a, g, R.string.saves_running_restore)) return;
                     run(a, g, a.getString(R.string.saves_restore_wait, g.name), () -> SaveStore.restore(from, save, backups(g), st), (r, err) -> {

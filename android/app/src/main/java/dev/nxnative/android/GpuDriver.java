@@ -62,6 +62,9 @@ final class GpuDriver {
         return out;
     }
 
+    /** The driver list's choice of the phone's own driver ("System (the phone's own driver)"), as other areas' sentences name it */
+    static Msg systemLabel() { return new Msg("settings_gpu_system"); }
+
     /** The picked driver, null = the system's (also when the picked one was removed) */
     static Info selected(Context c) {
         String s = Prefs.of(c).getString("gpu_driver", "");

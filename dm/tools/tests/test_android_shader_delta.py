@@ -23,6 +23,8 @@ except ImportError:
     except ImportError: zstd = None
 
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android/ShaderLibs.java'
+# ShaderLibs names a label of the home screen (Prepare shaders) through HomeLabels (docs/i18n.md "References to other labels")
+LABELS = REPO / 'android/app/src/main/java/dev/nxnative/android/HomeLabels.java'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/ShaderLibsJvmTest.java'
 # The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
 TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
@@ -197,7 +199,7 @@ class Launcher(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix='shlibs_'))
-        subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(cls.tmp / 'classes'), str(SRC), *map(str, TR), str(TEST)], check=True, capture_output=True, text=True)
+        subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(cls.tmp / 'classes'), str(SRC), str(LABELS), *map(str, TR), str(TEST)], check=True, capture_output=True, text=True)
 
     @classmethod
     def tearDownClass(cls): shutil.rmtree(cls.tmp, ignore_errors=True)

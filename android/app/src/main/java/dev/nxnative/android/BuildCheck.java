@@ -178,8 +178,8 @@ final class BuildCheck {
             if (nso.errorMsg != null) return new Result(Kind.UNREADABLE, nso.errorMsg, new Msg("packs_build_where", nso.label, nso.errorMsg));
             if (!nso.exists())
                 return new Result(Kind.MISSING, nso.nup != null
-                        ? new Msg("packs_build_missing_nup", name, Profile.versionMsg(parse(p.version)), nso.label, new Msg("packs_label_prepare_again"))
-                        : new Msg("packs_build_missing_folder", name, Profile.versionMsg(parse(p.version)), nso.label, new Msg("packs_label_prepare_again")),
+                        ? new Msg("packs_build_missing_nup", name, Profile.versionMsg(parse(p.version)), nso.label, HomeLabels.prepareAgain())
+                        : new Msg("packs_build_missing_folder", name, Profile.versionMsg(parse(p.version)), nso.label, HomeLabels.prepareAgain()),
                         new Msg("packs_build_missing_detail", nso.label, p.version));
             String id;
             try {
@@ -194,8 +194,8 @@ final class BuildCheck {
         }
         if (firstMod != null)
             return new Result(Kind.OTHER_BUILD, Nup.isNup(game)
-                    ? new Msg("packs_build_other_nup", name, firstMod, shortId(firstWant), shortId(firstHave), Profile.versionMsg(parse(p.version)), new Msg("packs_label_prepare_again"), diff)
-                    : new Msg("packs_build_other_folder", name, firstMod, shortId(firstWant), shortId(firstHave), Profile.versionMsg(parse(p.version)), new Msg("packs_label_prepare_again"), diff),
+                    ? new Msg("packs_build_other_nup", name, firstMod, shortId(firstWant), shortId(firstHave), Profile.versionMsg(parse(p.version)), HomeLabels.prepareAgain(), diff)
+                    : new Msg("packs_build_other_folder", name, firstMod, shortId(firstWant), shortId(firstHave), Profile.versionMsg(parse(p.version)), HomeLabels.prepareAgain(), diff),
                     diff);
         Profile prof = Profile.of(p.titleId);
         Map<Long, Map<String, String>> sup = prof == null ? Map.of() : prof.buildMap();

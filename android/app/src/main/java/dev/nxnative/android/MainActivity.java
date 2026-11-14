@@ -180,7 +180,7 @@ public final class MainActivity extends Activity {
         help.addView(new Ui.Setting(this, "🧪", getString(R.string.home_selftest), v -> startActivity(new Intent(this, SelftestActivity.class))).value(getString(R.string.home_selftest_value)).chevron(this).view);
         help.addView(new Ui.Setting(this, "📨", getString(R.string.home_share_log), v -> shareLog()).value(getString(R.string.home_share_log_value)).chevron(this).view);
         if (BuildConfig.NX_PLAY) {   // a test build always takes adb commands (Prefs.adbControl)
-            Ui.Setting adb = new Ui.Setting(this, "🛠", getString(R.string.home_adb), null).value(getString(R.string.home_adb_value));
+            Ui.Setting adb = new Ui.Setting(this, "🛠", getString(R.string.home_adb_debug, getString(R.string.home_adb)), null).value(getString(R.string.home_adb_value));
             adb.toggle(this, Prefs.adbControl(this), (b, on) -> {
                 if (on == Prefs.adbControl(this)) return;   // the switch set to what is stored (below): nothing to do
                 if (!on) { Prefs.adbControl(this, false); return; }
@@ -258,7 +258,7 @@ public final class MainActivity extends Activity {
             for (String k : CONTROL_EXTRAS) if (i.hasExtra(k)) asked.add(k);
             if (!asked.isEmpty()) {   // another app (or adb) asked for a control command: never acted on while ADB control is off (issue #7)
                 android.util.Log.w("nxnative", "launcher intent from " + getReferrer() + " with " + asked + " ignored: ADB control is off (Settings › ADB control)");
-                Toast.makeText(this, getString(R.string.home_control_ignored), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, getString(R.string.home_control_ignored, getString(R.string.home_settings), getString(R.string.home_adb)), Toast.LENGTH_LONG).show();
                 i = new Intent(i);
                 for (String k : asked) i.removeExtra(k);
             }
@@ -338,15 +338,15 @@ public final class MainActivity extends Activity {
     private void askFrontend(Game card, File file, List<Game> others) {
         String msg;
         if (card != null && file == null)
-            msg = getString(R.string.home_frontend_start_body, card.name);
+            msg = getString(R.string.home_frontend_start_body, card.name, getString(R.string.home_play));
         else if (card != null)
-            msg = getString(R.string.home_frontend_same_build_body, getString(R.string.app_name), file.getPath(), card.name, card.gameDir);
+            msg = getString(R.string.home_frontend_same_build_body, getString(R.string.app_name), file.getPath(), card.name, card.gameDir, getString(R.string.home_play));
         else if (others.isEmpty())
-            msg = getString(R.string.home_frontend_add_body, getString(R.string.app_name), file.getPath(), getString(R.string.home_add));
+            msg = getString(R.string.home_frontend_add_body, getString(R.string.app_name), file.getPath(), getString(R.string.home_add), getString(R.string.home_add_game));
         else {
             StringBuilder list = new StringBuilder();
             for (Game o : others) list.append(list.length() == 0 ? "" : "\n").append(getString(R.string.home_frontend_other_dump_item, o.gameDir, o.packDir));
-            msg = getString(R.string.home_frontend_add_body_others, getString(R.string.app_name), file.getPath(), getString(R.string.home_add), list.toString());
+            msg = getString(R.string.home_frontend_add_body_others, getString(R.string.app_name), file.getPath(), getString(R.string.home_add), list.toString(), getString(R.string.home_add_game));
         }
         AlertDialog d = new AlertDialog.Builder(this)
                 .setTitle(card != null ? getString(R.string.home_frontend_start_title, card.name) : getString(R.string.home_frontend_add_title))
@@ -926,8 +926,8 @@ public final class MainActivity extends Activity {
         if (needAccess()) return;
         Msg why = Profile.missingMsg(g.titleId, g.name);
         if (why != null) { error(why.text()); return; }
-        if (SaveUi.busy(g.titleId)) { error(getString(R.string.home_busy_save, g.name)); return; }
-        if (PackUi.busy(g.titleId)) { error(getString(R.string.home_busy_pack, g.name)); return; }
+        if (SaveUi.busy(g.titleId)) { error(getString(R.string.home_busy_save, g.name, getString(R.string.home_play))); return; }
+        if (PackUi.busy(g.titleId)) { error(getString(R.string.home_busy_pack, g.name, getString(R.string.home_play))); return; }
         File gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
         Runnable pickPack = () -> { pendingGame = gd; pendingId = g.titleId; pickFolder(PICK_PACK, getString(R.string.home_pick_pack_folder)); };

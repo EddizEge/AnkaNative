@@ -38,11 +38,12 @@ public final class GameTextsJvmTest {
         same(name + ": checking this phone's GPU…", "game_checking_gpu", name);
         same("GPU: " + "Adreno 830, Vulkan 1.3" + "\nMemory: " + "11.2" + " GiB as Android reports it.", "game_details_gpu", "Adreno 830, Vulkan 1.3", "11.2");
         String missing = "VK_KHR_map_memory2, placed memory maps";
-        same("Missing: " + missing + ".\n\nThe game may stop or draw wrongly. A custom GPU driver (Settings › GPU driver) may help.", "game_ready_missing", missing);
+        same("Missing: " + missing + ".\n\nThe game may stop or draw wrongly. A custom GPU driver (Settings › GPU driver) may help.", "game_ready_missing", missing, HomeLabels.settings(), HomeLabels.gpuDriver());
         same("Missing: " + missing + ".\n\nWith this GPU driver (" + "System" + ") nothing is drawn: the screen stays black while the game runs. " + "Pick a custom driver that has placed memory maps"
-                + " in Settings › GPU driver, or in this game's Game settings.", "game_ready_missing_black_system", missing);
+                + " in Settings › GPU driver, or in this game's Game settings.", "game_ready_missing_black_system", missing, HomeLabels.gpuSystem(), HomeLabels.settings(), HomeLabels.gpuDriver(), HomeLabels.gameSettings());
         same("Missing: " + missing + ".\n\nWith this GPU driver (" + "Turnip 25.1" + ") nothing is drawn: the screen stays black while the game runs. " + "Pick System (the phone's own driver)"
-                + " in Settings › GPU driver, or in this game's Game settings.", "game_ready_missing_black_custom", missing, "Turnip 25.1");
+                + " in Settings › GPU driver, or in this game's Game settings.", "game_ready_missing_black_custom", missing, "Turnip 25.1",
+                new Msg("settings_gpu_system") /* GpuDriver.systemLabel() */, HomeLabels.settings(), HomeLabels.gpuDriver(), HomeLabels.gameSettings());
         same("Runs with less: " + "timeline semaphores" + ".", "game_ready_limits_message", "timeline semaphores");
         same("Not ready for this game", "game_ready_not_ready_title");
         same("Start anyway (black screen)", "game_ready_start_black");
@@ -52,7 +53,7 @@ public final class GameTextsJvmTest {
         same("✕ " + "Placed memory" + ": " + "The driver has none." , "game_details_fail_item", "Placed memory", "The driver has none.");
         same("! " + "Timeline" + ": " + "Slower." , "game_details_warn_item", "Timeline", "Slower.");
         same("Details", "game_ready_details");
-        same("Runs with less: x." + "\n\nDetails are also in Settings › Readiness check.", "game_ready_details_also", "Runs with less: x.");
+        same("Runs with less: x." + "\n\nDetails are also in Settings › Readiness check.", "game_ready_details_also", "Runs with less: x.", HomeLabels.settings(), HomeLabels.readinessCheck());
         same("Don't show this again", "game_ready_dont_show");
         same("Back", "game_ready_back");
         same("Readiness check", "game_ready_check_title");
@@ -91,7 +92,7 @@ public final class GameTextsJvmTest {
         same("Pause when the game comes back from the background", "game_panel_pause_on_return");
         same("Stop the game", "game_panel_stop");
         same("Stop the game?", "game_panel_stop_title");
-        same("The game ends; unsaved progress is lost. The log stays for Share log.", "game_panel_stop_message");
+        same("The game ends; unsaved progress is lost. The log stays for Share log.", "game_panel_stop_message", HomeLabels.shareLog());
         same("Stop", "game_panel_stop_confirm");
         same("Keep running", "game_panel_keep_running");
         same("Back to the game", "game_panel_back");
@@ -189,7 +190,7 @@ public final class GameTextsJvmTest {
         same("FAIL: this host has no nxhost_vk_selftest", "game_selftest_no_host");
         same("Graphics self-test running (" + frames + " frames, about " + frames / 60 + " s)", "game_selftest_running", frames, frames / 60);
         for (int rc : new int[] {0, -3}) same((rc == 0 ? "PASS" : "FAIL") + " (return code " + rc + ")\nBack to return; Share log sends this run's log.",
-                rc == 0 ? "game_selftest_pass" : "game_selftest_fail", rc);
+                rc == 0 ? "game_selftest_pass" : "game_selftest_fail", rc, HomeLabels.shareLog());
         // LocalizedIOException: the English a log or a test reads, the text a screen shows
         LocalizedIOException e = new LocalizedIOException("game_save_unfinished_restore", new Msg("game_cannot_create", dir));
         n++;

@@ -13,7 +13,7 @@ REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/ReadinessJvmTest.java'
 # The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
-TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException', 'HomeLabels')]   # HomeLabels: home's labels that other areas' sentences name
 TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 PROBE = REPO / 'dm/gfx/vk_android/vka_readiness.c'
 FIXTURE = REPO / 'android/app/src/jvmtest/honor-pnm-n49.readiness.txt'   # the tested phone's facts on its own driver (nxhost_vk_readiness, 2026-11-03)

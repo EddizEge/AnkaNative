@@ -101,14 +101,14 @@ final class Folders {
         if (!SaveStore.same(save, app)) return a.getString(R.string.settings_folders_save_default_old, save.getPath(), app);
         String from = Prefs.migratedFrom(a, g.titleId);
         File backups = Prefs.backupsDir(new File(g.gameDir), g.titleId);
-        return from != null ? a.getString(R.string.settings_folders_save_default_copied, save.getPath(), from, backups)
-                : a.getString(R.string.settings_folders_save_default_app, save.getPath(), backups);
+        return from != null ? a.getString(R.string.settings_folders_save_default_copied, save.getPath(), from, backups, HomeLabels.backUpSaves().text())
+                : a.getString(R.string.settings_folders_save_default_app, save.getPath(), backups, HomeLabels.backUpSaves().text());
     }
 
     /** Settings › Folders: the only game's folders, else the user picks the game first */
     static void dialog(MainActivity a) {
         List<Game> list = Game.load(a);
-        if (list.isEmpty()) { a.error(a.getString(R.string.settings_folders_no_games)); return; }
+        if (list.isEmpty()) { a.error(a.getString(R.string.settings_folders_no_games, HomeLabels.addGame().text(), HomeLabels.folders().text())); return; }
         if (list.size() == 1) { dialog(a, list.get(0)); return; }
         String[] names = new String[list.size()];
         for (int i = 0; i < names.length; i++) names[i] = list.get(i).name + "  (" + list.get(i).titleId + ")";

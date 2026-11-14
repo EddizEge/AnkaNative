@@ -10,7 +10,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/GameTextsJvmTest.java'
 # The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
-TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException', 'HomeLabels')]   # HomeLabels: home's labels that other areas' sentences name
 TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 
 

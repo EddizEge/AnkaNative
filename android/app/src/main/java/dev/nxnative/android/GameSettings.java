@@ -24,7 +24,7 @@ final class GameSettings {
         AlertDialog[] d = new AlertDialog[1];
         Runnable again = () -> { d[0].dismiss(); dialog(a, g); };
         String id = g.titleId;
-        box.addView(Ui.small(a, a.getString(R.string.settings_game_intro)));
+        box.addView(Ui.small(a, a.getString(R.string.settings_game_intro, HomeLabels.settings().text())));
         Profile prof = Profile.of(id);
         if (prof != null && prof.hasResolution())   // only where it does something: a profile with window_fn or graphics_scale rows
             Ui.add(box, new Ui.Setting(a, "🖼️", a.getString(R.string.settings_game_resolution), v -> resolution(a, g, again)).value(windowLabel(a, id)).chevron(a).view, 8);
@@ -174,7 +174,7 @@ final class GameSettings {
     private static void cap(MainActivity a, Game g, Runnable done) {
         int n = Prefs.FPS_CAPS.length;
         String[] labels = new String[n + 2];
-        labels[0] = a.getString(R.string.settings_game_fps_cap_default, MainActivity.capLabel(Prefs.fpsCap(a)));
+        labels[0] = a.getString(R.string.settings_game_fps_cap_default, MainActivity.capLabel(Prefs.fpsCap(a)), HomeLabels.settings().text());
         labels[1] = MainActivity.capLabel(-1);
         int checked = 0;
         boolean own = Prefs.ownFpsCap(a, g.titleId);

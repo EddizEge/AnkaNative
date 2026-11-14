@@ -363,9 +363,10 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             boolean placed = false;
             for (Readiness.Check c : fails) placed |= "ext.VK_KHR_map_memory2".equals(c.fact) || "ext.VK_EXT_map_memory_placed".equals(c.fact) || "feature.memoryMapPlaced".equals(c.fact);
             GpuDriver.Info drv = GpuDriver.selected(this, id);
-            String m = !placed ? getString(R.string.game_ready_missing, missing)
-                    : drv == null ? getString(R.string.game_ready_missing_black_system, missing)
-                    : getString(R.string.game_ready_missing_black_custom, missing, drv.label());
+            String settings = HomeLabels.settings().text(), driverRow = HomeLabels.gpuDriver().text(), gameSettings = HomeLabels.gameSettings().text();
+            String m = !placed ? getString(R.string.game_ready_missing, missing, settings, driverRow)
+                    : drv == null ? getString(R.string.game_ready_missing_black_system, missing, HomeLabels.gpuSystem().text(), settings, driverRow, gameSettings)
+                    : getString(R.string.game_ready_missing_black_custom, missing, drv.label(), GpuDriver.systemLabel().text(), settings, driverRow, gameSettings);
             readinessDialog(getString(R.string.game_ready_not_ready_title), m, details(fails, warns, gpu), report,
                     getString(placed ? R.string.game_ready_start_black : R.string.game_ready_try_anyway), true);
         } else if (!warns.isEmpty() && !Prefs.of(this).getString(Prefs.gameKey("readiness_seen", id), "").equals(warnKey(f, warns))) {
@@ -408,7 +409,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             box.setOrientation(android.widget.LinearLayout.VERTICAL);
             box.setPadding(p, p / 2, p, 0);
             TextView t = new TextView(this);
-            t.setText(getString(R.string.game_ready_details_also, msg));
+            t.setText(getString(R.string.game_ready_details_also, msg, HomeLabels.settings().text(), HomeLabels.readinessCheck().text()));
             t.setTextSize(15);
             box.addView(t);
             again.setText(getString(R.string.game_ready_dont_show));

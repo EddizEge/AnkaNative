@@ -54,6 +54,9 @@ final class SidePanel extends FrameLayout {
         setVisibility(GONE);
     }
 
+    /** The panel's Stop the game button, as other areas' sentences name it ("stop it first (its in-game panel › %2$s)") */
+    static Msg stopLabel() { return new Msg("game_panel_stop"); }
+
     boolean isOpen() { return open; }
     void toggle() { if (open) close(); else open(); }
 
@@ -171,7 +174,7 @@ final class SidePanel extends FrameLayout {
         box.addView(ret);
         Button stop = new Button(act);
         stop.setText(act.getString(R.string.game_panel_stop));
-        stop.setOnClickListener(v -> new AlertDialog.Builder(act).setTitle(act.getString(R.string.game_panel_stop_title)).setMessage(act.getString(R.string.game_panel_stop_message))
+        stop.setOnClickListener(v -> new AlertDialog.Builder(act).setTitle(act.getString(R.string.game_panel_stop_title)).setMessage(act.getString(R.string.game_panel_stop_message, HomeLabels.shareLog().text()))
                 .setPositiveButton(act.getString(R.string.game_panel_stop_confirm), (d, w) -> { Native.note("stopped by the user"); if (act instanceof GameActivity) ((GameActivity) act).backToFrontend(); android.os.Process.killProcess(android.os.Process.myPid()); })
                 .setNegativeButton(act.getString(R.string.game_panel_keep_running), null).show());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);

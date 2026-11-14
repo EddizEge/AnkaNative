@@ -28,8 +28,12 @@ public final class SettingsTextsJvmTest {
         out("game_default", Tr.english("settings_game_default_value", "60 fps"));
         out("res_level_gone", Tr.english("settings_game_res_level_gone", "fixed:7"));
         out("save_old", Tr.english("settings_folders_save_default_old", "/sdcard/Switch2/saves/X", "/data/saves/X"));
-        out("save_app", Tr.english("settings_folders_save_default_app", "/data/saves/X", "/sdcard/Switch2/backups/X"));
-        out("save_copied", Tr.english("settings_folders_save_default_copied", "/data/saves/X", "/sdcard/Switch2/saves/X", "/sdcard/Switch2/backups/X"));
+        out("save_app", Tr.english("settings_folders_save_default_app", "/data/saves/X", "/sdcard/Switch2/backups/X", HomeLabels.backUpSaves()));
+        out("save_copied", Tr.english("settings_folders_save_default_copied", "/data/saves/X", "/sdcard/Switch2/saves/X", "/sdcard/Switch2/backups/X", HomeLabels.backUpSaves()));
+        // Home's labels named inside settings' sentences (docs/i18n.md "References to other labels")
+        out("no_games", Tr.english("settings_folders_no_games", HomeLabels.addGame(), HomeLabels.folders()));
+        out("game_intro", Tr.english("settings_game_intro", HomeLabels.settings()));
+        out("fps_cap_default", Tr.english("settings_game_fps_cap_default", "30 fps", HomeLabels.settings()));
         out("pack_default_app", Tr.english("settings_folders_pack_default_app", "/data/packs/X", Tr.english("settings_folders_library_present", "vk7")));
         out("pack_set_ready", Tr.english("settings_folders_pack_set_ready", "/sdcard/pack", "vk7"));
         out("copy_message", Tr.english("settings_folders_copy_message", "/a", "/b"));

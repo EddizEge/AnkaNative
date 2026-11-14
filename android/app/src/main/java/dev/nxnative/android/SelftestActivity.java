@@ -66,7 +66,7 @@ public final class SelftestActivity extends Activity implements SurfaceHolder.Ca
             int rc = Native.selftest(h.getSurface(), FRAMES);
             ui.post(() -> {
                 status.setTextColor(rc == 0 ? Color.GREEN : Color.RED);
-                status.setText(getString(rc == 0 ? R.string.game_selftest_pass : R.string.game_selftest_fail, rc));
+                status.setText(getString(rc == 0 ? R.string.game_selftest_pass : R.string.game_selftest_fail, rc, HomeLabels.shareLog().text()));
             });
         }, "nxselftest", 1 << 20);
         t.start();

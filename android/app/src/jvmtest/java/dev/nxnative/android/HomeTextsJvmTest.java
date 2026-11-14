@@ -48,8 +48,20 @@ public final class HomeTextsJvmTest {
                 + "driver through Anka Native's launcher, without asking you. A GPU driver is code that runs inside the game. Turn it on only while you use adb, then off again.", "adb confirm");
 
         // MainActivity: Home, a frontend's game, Manage
-        same(Tr.s("home_frontend_add_body", "Anka Native", path, Tr.s("home_add")), "Another app asked " + "Anka Native" + " to open\n\n" + path
+        // Labels named inside sentences are arguments (docs/i18n.md "References to other labels"): the English is the same as when they were typed in
+        same(Tr.s("home_frontend_add_body", "Anka Native", path, Tr.s("home_add"), Tr.s("home_add_game")), "Another app asked " + "Anka Native" + " to open\n\n" + path
                 + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add.", "frontend add body");
+        same(Tr.s("home_frontend_add_body_others", "Anka Native", path, Tr.s("home_add"), "• /a (pack /p)", Tr.s("home_add_game")), "Another app asked " + "Anka Native" + " to open\n\n" + path
+                + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add." + "\n\nYour list has another dump of this game:\n"
+                + "• /a (pack /p)" + "\n\nAdd game then asks whether this file replaces it or both are kept.", "frontend add body, other dumps");
+        same(Tr.s("home_frontend_start_body", name, Tr.s("home_play")),
+                "Another app asked to start " + name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything.", "frontend start body");
+        same(Tr.s("home_frontend_same_build_body", "Anka Native", path, name, "/g", Tr.s("home_play")), "Another app asked " + "Anka Native" + " to open\n\n" + path
+                + "\n\nwhich is the same game build as your card of " + name + " (" + "/g" + "). Play starts your card with its own files and pack; that file is not added and your card is not changed.",
+                "frontend same build");
+        same(Tr.s("home_control_ignored", Tr.s("home_settings"), Tr.s("home_adb")), "A command from another app was ignored (Settings › ADB control is off)", "control ignored");
+        same(Tr.s("home_adb_debug", Tr.s("home_adb")), "ADB control (debug)", "adb row");
+        same(Tr.s("home_busy_save", name, Tr.s("home_play")), "A save backup or restore of " + name + " is still working: Play waits for it.", "busy save");
         same(Tr.s("home_foreign_pack_body", Tr.s("home_prepare_again")),
                 "This game's pack was made by other tools than this app's. It usually still runs. If the game misbehaves, ⋯ › Prepare again remakes it from your dump.", "foreign pack");
         same(Tr.s("home_manage_facts", id, Tr.s("home_manage_game_nup", path), "/p", Tr.s("home_manage_shaders_present", "abc"), Tr.s("home_manage_saves_not_set")),
@@ -82,7 +94,7 @@ public final class HomeTextsJvmTest {
              "Prepare " + "Makes the shaders from your dump (about 20-35 minutes, in the background).".replaceFirst("^Makes", "makes") + "\n\n" + "lp", "shaders missing, dump");
         same(Tr.s("home_pack_problem_dump", Tr.s("home_prepare_again"), "why", "/p"), "Prepare again fixes it from your dump, on this phone.\n\n" + "why" + "\n\nPack: " + "/p", "pack problem");
         // Changed on purpose (no possessive after a runtime name): was name + "'s pack is still working"
-        same(Tr.s("home_busy_pack", name), "An export or import of the pack of " + name + " is still working: Play waits for it.", "busy pack (rephrased)");
+        same(Tr.s("home_busy_pack", name, Tr.s("home_play")), "An export or import of the pack of " + name + " is still working: Play waits for it.", "busy pack (rephrased)");
         same(Tr.s("home_lsfg_no_dll", "Lossless.dll not found"), "Lossless.dll not found" + ". Put it in Documents/Emulation/bios or Switch2, or pick it.", "frame generation note");
         System.out.println("ok home texts");
     }

@@ -103,7 +103,7 @@ final class ShaderLibs {
     }
 
     /** The warning for a game played on such a library, in the user's language (screen only: MainActivity's chip and Toast) */
-    static String legacyWarning() { return Tr.s("packs_legacy_warning", new Msg("packs_label_prepare_shaders")); }
+    static String legacyWarning() { return Tr.s("packs_legacy_warning", HomeLabels.prepareShaders()); }
 
     /** The versions of the libraries of titleId's game a pack folder has, other than current (what a delta update can start from) */
     static List<String> older(File packDir, String titleId, String current) {

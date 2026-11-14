@@ -157,7 +157,7 @@ final class PackZip {
             if (t == null || top != null && !top.equals(t)) throw new LocalizedIOException("packs_zip_no_tsv_root");
             top = t;
         }
-        if (top == null || zf.getEntry(top + "pack.tsv") == null) throw new LocalizedIOException("packs_zip_no_tsv", new Msg("packs_label_export"));
+        if (top == null || zf.getEntry(top + "pack.tsv") == null) throw new LocalizedIOException("packs_zip_no_tsv", HomeLabels.exportPack());
         return top;
     }
 

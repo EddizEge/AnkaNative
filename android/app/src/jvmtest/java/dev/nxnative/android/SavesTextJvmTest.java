@@ -166,7 +166,7 @@ public final class SavesTextJvmTest {
         File save = new File("/s/saves/040074A01BF12000"), to = new File("/s/save-backups/040074A01BF12000"), dir = new File(to, "20261103-140509");
         same(Tr.english("saves_busy", g), "A save backup or restore of " + g + " is still working.", "busy");
         for (String[] w : new String[][] {{"saves_running_backup", "back up"}, {"saves_running_restore", "restore"}, {"saves_running_import", "import"}})
-            same(Tr.english(w[0], g), g + " is running (it holds its save): stop it first (its in-game panel › Stop the game), then " + w[1] + ". The game may be writing its save.", w[0]);
+            same(Tr.english(w[0], g, new Msg("game_panel_stop") /* SidePanel.stopLabel(), an Android class */), g + " is running (it holds its save): stop it first (its in-game panel › Stop the game), then " + w[1] + ". The game may be writing its save.", w[0]);
         same(Tr.english("saves_backup_nothing", g, save), g + " has no save yet in " + save + ": nothing to back up.", "nothing to back up");
         same(Tr.english("saves_backup_wait", g), "Backing up the save of " + g + "…", "backup wait (rephrased)");
         same(Tr.english("saves_backup_failed", "why", save), "No backup was made: why\n\nThe save in " + save + " was only read, never changed.", "backup failed");
@@ -178,7 +178,7 @@ public final class SavesTextJvmTest {
             same(Tr.englishP(key, 3, 3, size, dir), 3 + " files, " + size + tail, key);
             same(Tr.englishP(key, 1, 1, size, dir), "1 file, " + size + tail, key + ", one (was \"1 files\")");
         }
-        same(Tr.english("saves_restore_none", g, to), "No backups of " + g + " yet in " + to + ". Back up saves makes one.", "no backups");
+        same(Tr.english("saves_restore_none", g, to, HomeLabels.backUpSaves()), "No backups of " + g + " yet in " + to + ". Back up saves makes one.", "no backups");
         String when = "2026-11-03 14:05:09";
         same(Tr.englishP("saves_restore_item", 2, when, 2, size), when + "\n" + 2 + " files, " + size, "restore item");
         same(Tr.englishP("saves_restore_item_device", 2, when, 2, size), when + "\n" + 2 + " files, " + size + " (with the device save)", "restore item, device");
@@ -190,7 +190,7 @@ public final class SavesTextJvmTest {
         same(Tr.english("saves_not_restored_refused", "why"), "Not restored: why.", "refused");
         same(Tr.english("saves_restore_confirm_title", g), "Restore the save of " + g + "?", "confirm title (rephrased)");
         File before = new File(to, "20261103-150000-before-restore");
-        same(Tr.english("saves_restore_confirm_body", save, when, before), "Replaced: the save in " + save + ", with " + when + ".\n\nFirst, the current save is backed up to "
+        same(Tr.english("saves_restore_confirm_body", save, when, before, HomeLabels.restoreSaves()), "Replaced: the save in " + save + ", with " + when + ".\n\nFirst, the current save is backed up to "
                 + before + " (checked), so this can be undone with Restore saves…. Nothing is deleted from the backups.", "confirm body");
         same(Tr.english("saves_restore_button"), "Restore", "restore button");
         same(Tr.english("saves_restore_wait", g), "Restoring the save of " + g + "…", "restore wait (rephrased)");

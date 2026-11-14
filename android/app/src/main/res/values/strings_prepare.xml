@@ -39,8 +39,10 @@
     <string name="prepare_resume_title">Resume preparing?</string>
     <!-- %1$s: the job's status line -->
     <string name="prepare_resume_body">%1$s\n\nIt goes on from where it stopped.</string>
-    <!-- the Manage sheet's button prepare_manage_delete_work, named inside a sentence -->
+    <!-- the Manage sheet's button (prepare_manage_delete_work shows it with …), also named inside a sentence -->
     <string name="prepare_label_delete_work">Delete working files</string>
+    <!-- The Preparing card's ⋯ button, named inside other areas' sentences (Ondevice.manageLabel; its description is prepare_card_manage) -->
+    <string name="prepare_label_manage">Manage</string>
     <string name="prepare_other_folder_job">An unfinished job for this dump writes to %1$s: %2$s\n\nResume it from the card, or delete its working files (⋯ › %3$s) before preparing into another folder.</string>
     <string name="prepare_busy">%1$s is being prepared now (%2$s). Pause it first, then try again.</string>
     <!-- %1$s: prepare_shaders_update -->
@@ -74,7 +76,8 @@
     <string name="prepare_manage_info">%1$s\n\nDump: %2$s\nWorking files: %3$s\nPack: %4$s\nLogs: %5$s</string>
     <string name="prepare_manage_running">Pause first to forget or delete.</string>
     <string name="prepare_manage_forget">Forget this job…</string>
-    <string name="prepare_manage_delete_work">Delete working files…</string>
+    <!-- %1$s: prepare_label_delete_work, the button's label -->
+    <string name="prepare_manage_delete_work" translatable="false">%1$s…</string>
     <string name="prepare_manage_delete_pack">Delete the prepared pack too…</string>
     <string name="prepare_manage_title">Preparing %1$s</string>
     <string name="prepare_button_done">Done</string>

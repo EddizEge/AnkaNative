@@ -12,7 +12,7 @@ REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/SettingsTextsJvmTest.java'
 # The launcher's texts (docs/i18n.md): Tr and its message classes compile with every launcher class, and the JVM reads the English from the app's resources
-TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException')]
+TR = [REPO / f'android/app/src/main/java/dev/nxnative/android/{n}.java' for n in ('Tr', 'Msg', 'LocalizedIOException', 'HomeLabels')]   # HomeLabels: home's labels that other areas' sentences name
 TR_RES = f'-Dnx.tr.res={REPO / "android/app/src/main/res"}'
 STUB = '''package dev.nxnative.android;
 public final class BuildConfig {
@@ -43,6 +43,9 @@ EXPECTED = {
                 + ", on shared storage: they stay when the app is uninstalled.",
     'save_copied': '/data/saves/X' + " (default: in the app's storage" + "; copied from " + '/sdcard/Switch2/saves/X' + ", which is kept as it was"
                    + "). Back up saves puts copies in " + '/sdcard/Switch2/backups/X' + ", on shared storage: they stay when the app is uninstalled.",
+    'no_games': "No games yet: + Add game first. Each game has its own folders (its card's ⋯ › Folders…).",
+    'game_intro': 'For this game only, from its next start. Default follows Settings.',
+    'fps_cap_default': 'Default (Settings: ' + '30 fps' + ')',
     'pack_default_app': '/data/packs/X' + " (default: in the app's storage)" + '\\n' + 'Shader library ' + 'vk7' + ': present.',
     'pack_set_ready': '/sdcard/pack' + '\\n\\n' + "It has this app's shader library (" + 'vk7' + "): ready to play.",
     'copy_message': "The folder you picked is empty. Your current save is in " + '/a' + ".\\n\\nCopy it into " + '/b' + "? The current folder stays as it is: nothing is deleted.",

@@ -45,7 +45,7 @@ final class PackCheck {
     /** {@link #blocking} as a Msg (the screen's text(), a log's english()), null when the code can be started */
     static Msg blockingMsg(Context c, Pack p, File game) {
         String m = p.unfinishedModule();
-        if (m != null) return new Msg("packs_check_unfinished", m, new Msg("packs_label_prepare_again"));
+        if (m != null) return new Msg("packs_check_unfinished", m, HomeLabels.prepareAgain());
         Job j = rewriting(c, p.dir, game, p.titleId);
         if (j != null) return new Msg("packs_check_rewriting", j.name(), j.statusMsg(false));
         return BuildCheck.build(p, game).msg;

@@ -35,7 +35,7 @@ final class PackUi {
     private static boolean ready(MainActivity a, Game g) {
         if (a.needAccess()) return false;
         if (busy(g.titleId)) { a.error(a.getString(R.string.packs_ui_busy, g.name)); return false; }
-        if (SaveUi.gameRunning(a, g)) { a.error(a.getString(R.string.packs_ui_running, g.name, a.getString(R.string.packs_label_stop_game))); return false; }
+        if (SaveUi.gameRunning(a, g)) { a.error(a.getString(R.string.packs_ui_running, g.name, SidePanel.stopLabel().text())); return false; }
         return true;
     }
 
@@ -54,7 +54,7 @@ final class PackUi {
     static void importPick(MainActivity a, Game g) {
         if (!ready(a, g)) return;
         new AlertDialog.Builder(a).setTitle(a.getString(R.string.packs_ui_import_title, g.name))
-                .setItems(new String[] {a.getString(R.string.packs_ui_import_zip, a.getString(R.string.packs_label_export)), a.getString(R.string.packs_ui_import_folder)}, (d, w) -> {
+                .setItems(new String[] {a.getString(R.string.packs_ui_import_zip, HomeLabels.exportPack().text()), a.getString(R.string.packs_ui_import_folder)}, (d, w) -> {
                     pending = g;
                     if (w == 1) { a.pickFolder(PICK_IMPORT_DIR, a.getString(R.string.packs_ui_import_pick_folder)); return; }
                     Toast.makeText(a, a.getString(R.string.packs_ui_import_pick_zip), Toast.LENGTH_LONG).show();
@@ -125,7 +125,7 @@ final class PackUi {
             if (err != null) { a.error(a.getString(R.string.packs_ui_export_failed, err, pack)); return; }
             File z = (File) r;
             new AlertDialog.Builder(a).setTitle(R.string.packs_ui_exported_title)
-                    .setMessage(a.getString(R.string.packs_ui_exported, z, SaveStore.size(z.length()), a.getString(R.string.packs_label_import))).setPositiveButton(android.R.string.ok, null).show();
+                    .setMessage(a.getString(R.string.packs_ui_exported, z, SaveStore.size(z.length()), HomeLabels.importPack().text())).setPositiveButton(android.R.string.ok, null).show();
         });
     }
 
@@ -140,7 +140,7 @@ final class PackUi {
             if (remembered != null && remembered.isFile()) {
                 Job j = Job.read(remembered);
                 if (SaveStore.same(j.pack(), target) && !"done".equals(j.state()))
-                    throw new LocalizedIOException("packs_ui_import_job", target, j.statusMsg(false), new Msg("packs_label_manage"));
+                    throw new LocalizedIOException("packs_ui_import_job", target, j.statusMsg(false), Ondevice.manageLabel());
             }
             Pack p = PackZip.stage(source, packs, g.titleId);
             try {

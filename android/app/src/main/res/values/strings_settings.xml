@@ -28,7 +28,8 @@
     <string name="settings_profile_missing">%1$s has no game profile in this app, so it cannot run here. This app runs: %2$s.</string>
     <string name="settings_profile_missing_named">%1$s (%2$s) has no game profile in this app, so it cannot run here. This app runs: %3$s.</string>
     <!-- GameSettings: a game's own settings (its Manage sheet › Game settings…). %1$s in the titles: the game's name -->
-    <string name="settings_game_intro">For this game only, from its next start. Default follows Settings.</string>
+    <!-- %1$s: Settings (home's page title) -->
+    <string name="settings_game_intro">For this game only, from its next start. Default follows %1$s.</string>
     <string name="settings_game_resolution">Game resolution</string>
     <string name="settings_game_res_level">3D resolution</string>
     <string name="settings_game_fps_cap">Frame rate cap</string>
@@ -65,8 +66,8 @@
     <!-- %1$s: the default window size's name -->
     <string name="settings_game_default_choice">Default (%1$s)</string>
     <string name="settings_game_resolution_title">Game resolution · %1$s</string>
-    <!-- %1$s: the main screen's frame rate cap -->
-    <string name="settings_game_fps_cap_default">Default (Settings: %1$s)</string>
+    <!-- %1$s: the main screen's frame rate cap, %2$s: Settings (home's page title) -->
+    <string name="settings_game_fps_cap_default">Default (%2$s: %1$s)</string>
     <string name="settings_game_fps_cap_title">Frame rate cap · %1$s</string>
     <!-- %1$s: the main screen's GPU driver, a name and its version -->
     <string name="settings_game_driver_default">Default (the main screen\'s: %1$s)</string>
@@ -76,11 +77,12 @@
     <string name="settings_game_env_title">Extra environment · %1$s</string>
     <!-- Folders: a game's game, pack and save folders. %1$s in the values: the folder's path -->
     <string name="settings_folders_save_default_old">%1$s (default: your save from an earlier version, beside the game. The game\'s next start copies it into the app\'s storage, %2$s, and plays it from there; this folder is never changed)</string>
-    <!-- %2$s: the backups folder -->
-    <string name="settings_folders_save_default_app">%1$s (default: in the app\'s storage). Back up saves puts copies in %2$s, on shared storage: they stay when the app is uninstalled.</string>
-    <!-- %2$s: where the save was copied from; %3$s: the backups folder -->
-    <string name="settings_folders_save_default_copied">%1$s (default: in the app\'s storage; copied from %2$s, which is kept as it was). Back up saves puts copies in %3$s, on shared storage: they stay when the app is uninstalled.</string>
-    <string name="settings_folders_no_games">No games yet: + Add game first. Each game has its own folders (its card\'s ⋯ › Folders…).</string>
+    <!-- %2$s: the backups folder; %3$s: the Manage sheet's Back up saves row (home's label) -->
+    <string name="settings_folders_save_default_app">%1$s (default: in the app\'s storage). %3$s puts copies in %2$s, on shared storage: they stay when the app is uninstalled.</string>
+    <!-- %2$s: where the save was copied from; %3$s: the backups folder; %4$s: the Manage sheet's Back up saves row (home's label) -->
+    <string name="settings_folders_save_default_copied">%1$s (default: in the app\'s storage; copied from %2$s, which is kept as it was). %4$s puts copies in %3$s, on shared storage: they stay when the app is uninstalled.</string>
+    <!-- %1$s: the Add game button (its icon is the +), %2$s: the Manage sheet's Folders row (home's labels; the … after it is this sentence's) -->
+    <string name="settings_folders_no_games">No games yet: + %1$s first. Each game has its own folders (its card\'s ⋯ › %2$s…).</string>
     <string name="settings_folders_which_game">Folders of which game?</string>
     <!-- %1$s: the shader library's version -->
     <string name="settings_folders_library_present">Shader library %1$s: present.</string>

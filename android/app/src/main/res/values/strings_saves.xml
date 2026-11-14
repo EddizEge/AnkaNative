@@ -49,10 +49,10 @@
     <string name="saves_migrate_mismatch_after_move">the app\'s copy does not match the save after the move (%1$s)</string>
     <!-- SaveUi: the game card's Manage sheet (Back up saves, Restore saves…, Import save…). %1$s is the game's name -->
     <string name="saves_busy">A save backup or restore of %1$s is still working.</string>
-    <!-- "Stop the game" is the in-game panel's button -->
-    <string name="saves_running_backup">%1$s is running (it holds its save): stop it first (its in-game panel › Stop the game), then back up. The game may be writing its save.</string>
-    <string name="saves_running_restore">%1$s is running (it holds its save): stop it first (its in-game panel › Stop the game), then restore. The game may be writing its save.</string>
-    <string name="saves_running_import">%1$s is running (it holds its save): stop it first (its in-game panel › Stop the game), then import. The game may be writing its save.</string>
+    <!-- %2$s: the in-game panel's Stop the game button (the game area's label) -->
+    <string name="saves_running_backup">%1$s is running (it holds its save): stop it first (its in-game panel › %2$s), then back up. The game may be writing its save.</string>
+    <string name="saves_running_restore">%1$s is running (it holds its save): stop it first (its in-game panel › %2$s), then restore. The game may be writing its save.</string>
+    <string name="saves_running_import">%1$s is running (it holds its save): stop it first (its in-game panel › %2$s), then import. The game may be writing its save.</string>
     <string name="saves_backup_nothing">%1$s has no save yet in %2$s: nothing to back up.</string>
     <string name="saves_backup_wait">Backing up the save of %1$s…</string>
     <!-- %1$s: why (saves_* above, or a system error) -->
@@ -67,8 +67,8 @@
         <item quantity="one">%1$d file, %2$s, with the device save, checked file by file (SHA-256) against the save.\n\n%3$s\n\nThe save itself was not changed. Backups are never deleted by the app.</item>
         <item quantity="other">%1$d files, %2$s, with the device save, checked file by file (SHA-256) against the save.\n\n%3$s\n\nThe save itself was not changed. Backups are never deleted by the app.</item>
     </plurals>
-    <!-- "Back up saves" is the Manage sheet's row -->
-    <string name="saves_restore_none">No backups of %1$s yet in %2$s. Back up saves makes one.</string>
+    <!-- %3$s: the Manage sheet's Back up saves row (home's label) -->
+    <string name="saves_restore_none">No backups of %1$s yet in %2$s. %3$s makes one.</string>
     <!-- A row of the Restore list: %1$s its date and time, %2$d files, %3$s their size -->
     <plurals name="saves_restore_item">
         <item quantity="one">%1$s\n%2$d file, %3$s</item>
@@ -87,8 +87,8 @@
     <string name="saves_import_source">the folder %1$s</string>
     <string name="saves_not_restored_refused">Not restored: %1$s.</string>
     <string name="saves_restore_confirm_title">Restore the save of %1$s?</string>
-    <!-- %1$s the save folder, %2$s the source (a backup's date and time, or saves_import_source), %3$s the automatic backup's folder. "Restore saves…" is the Manage sheet's row -->
-    <string name="saves_restore_confirm_body">Replaced: the save in %1$s, with %2$s.\n\nFirst, the current save is backed up to %3$s (checked), so this can be undone with Restore saves…. Nothing is deleted from the backups.</string>
+    <!-- %1$s the save folder, %2$s the source (a backup's date and time, or saves_import_source), %3$s the automatic backup's folder, %4$s the Manage sheet's Restore saves row (home's label; the … after it is this sentence's) -->
+    <string name="saves_restore_confirm_body">Replaced: the save in %1$s, with %2$s.\n\nFirst, the current save is backed up to %3$s (checked), so this can be undone with %4$s…. Nothing is deleted from the backups.</string>
     <string name="saves_restore_button">Restore</string>
     <string name="saves_restore_wait">Restoring the save of %1$s…</string>
     <string name="saves_restore_failed">Not restored: %1$s\n\nThe save in %2$s is as it was.</string>

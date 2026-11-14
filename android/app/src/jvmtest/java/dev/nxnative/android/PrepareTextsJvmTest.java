@@ -104,7 +104,8 @@ public final class PrepareTextsJvmTest {
                 new File(dir, "logs"));
         eq("Pause first to forget or delete.", "prepare_manage_running");
         eq("Forget this job…", "prepare_manage_forget");
-        eq("Delete working files…", "prepare_manage_delete_work");
+        eq("Delete working files…", "prepare_manage_delete_work", new Msg("prepare_label_delete_work"));   // the row: the label, with … (one translated text)
+        eq("Manage", "prepare_label_manage");   // Ondevice.manageLabel(): the ⋯ button as packs' import refusal names it
         eq("Delete the prepared pack too…", "prepare_manage_delete_pack");
         eq("Preparing " + name, "prepare_manage_title", name);
         eq("Done", "prepare_button_done");

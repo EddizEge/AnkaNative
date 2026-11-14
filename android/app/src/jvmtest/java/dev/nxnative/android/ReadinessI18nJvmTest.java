@@ -83,6 +83,13 @@ public final class ReadinessI18nJvmTest {
         st = Readiness.status("retired");
         check(st.toString().equals("[INFO] Status on Android: retired") && st.titleText().equals("Status on Android") && st.messageText().equals("retired"), "another status: " + st);
 
+        // ReadinessActivity's sentences that name home's Settings rows take them as arguments (HomeLabels): the English as when the words were typed in
+        check(new Msg("readiness_driver_picked", HomeLabels.gpuSystem(), HomeLabels.settings(), HomeLabels.gpuDriver()).english().equals("System (Settings › GPU driver)."), "driver picked");
+        check(new Msg("readiness_last_exit", new Msg("readiness_exit_crashed"), "5 minutes ago", HomeLabels.settings(), HomeLabels.shareLog()).english()
+                .equals("The last game crashed, 5 minutes ago. Settings › Share log sends its log."), "last exit");
+        check(new Msg("readiness_last_exit_desc", new Msg("readiness_exit_crashed"), "5 minutes ago", "lmk", HomeLabels.settings(), HomeLabels.shareLog()).english()
+                .equals("The last game crashed, 5 minutes ago (lmk). Settings › Share log sends its log."), "last exit with Android's description");
+
         // In another language (made-up translations in a scratch res folder): titleText and messageText translated, rendered when shown; title, message,
         // toString and the GPU line English
         File scratch = Files.createTempDirectory("readiness-i18n").toFile();

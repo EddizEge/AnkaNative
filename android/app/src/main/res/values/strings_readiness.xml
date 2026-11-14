@@ -72,9 +72,8 @@
     <string name="readiness_check_gpu">GPU and driver</string>
     <string name="readiness_gpu_stale">%1$s. The GPU driver was changed while this screen was open: leave it and open it again to check the new one.</string>
     <string name="readiness_check_driver_picked">GPU driver picked</string>
-    <!-- %1$s: a GPU driver's name and version, or readiness_driver_system -->
-    <string name="readiness_driver_picked">%1$s (Settings › GPU driver).</string>
-    <string name="readiness_driver_system">System</string>
+    <!-- %1$s: a GPU driver's name and version, or the name Settings › GPU driver shows for the phone's own (home's "System"); %2$s › %3$s: Settings › GPU driver -->
+    <string name="readiness_driver_picked">%1$s (%2$s › %3$s).</string>
     <string name="readiness_check_own_driver">Its own GPU driver</string>
     <string name="readiness_own_driver_same">%1$s, the one this screen checked.</string>
     <string name="readiness_own_driver_other">This game uses its own GPU driver, %1$s; this screen checked %2$s. The check before the game starts uses the game\'s driver, and its result can differ from this one.</string>
@@ -106,8 +105,9 @@
     <string name="readiness_last_exit_none">No game has run yet.</string>
     <!-- %1$s: how the game ended (readiness_exit_*), %2$s: when (Android's relative time, "5 minutes ago"), %3$s: Android's description of the end -->
     <string name="readiness_last_exit_normal">The last game %1$s, %2$s.</string>
-    <string name="readiness_last_exit">The last game %1$s, %2$s. Settings › Share log sends its log.</string>
-    <string name="readiness_last_exit_desc">The last game %1$s, %2$s (%3$s). Settings › Share log sends its log.</string>
+    <!-- then Settings › Share log (home's labels): %3$s › %4$s, and %4$s › %5$s after Android's description -->
+    <string name="readiness_last_exit">The last game %1$s, %2$s. %3$s › %4$s sends its log.</string>
+    <string name="readiness_last_exit_desc">The last game %1$s, %2$s (%3$s). %4$s › %5$s sends its log.</string>
     <string name="readiness_exit_memory">stopped by Android for memory</string>
     <string name="readiness_exit_crashed">crashed</string>
     <string name="readiness_exit_anr">stopped responding</string>
