@@ -281,7 +281,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
                 return app;
             case FAILED:
                 saveNote = "not copied into the app's storage (" + r.message + "): this start plays the save in " + old + "; the next start tries again";   // i18n-keep: the log's save line
-                Toast.makeText(this, getString(R.string.game_save_not_copied, r.message, old), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, getString(R.string.game_save_not_copied, r.messageText(), old), Toast.LENGTH_LONG).show();
                 return old;
             default:   // the app has a save already, or there is none to copy
                 return app;
