@@ -1,4 +1,101 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Türkçe: the saves area (SaveUi, SaveStore, SaveMigrate). docs/i18n.md: keys start with saves_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- SaveStore and SaveMigrate: lower-case reasons, shown after a colon -->
+    <string name="saves_cannot_create">%1$s oluşturulamıyor</string>
+    <string name="saves_in_use">kayıt kullanımda (%1$s): oyunu çalışıyor (önce onu durdur) ya da yedeklemesi veya geri yüklemesi sürüyor</string>
+    <string name="saves_diff_missing">%1$s eksik</string>
+    <string name="saves_diff_differs">%1$s farklı</string>
+    <string name="saves_diff_extra">%1$s fazladan var</string>
+    <string name="saves_not_a_folder">%1$s bir klasör değil</string>
+    <string name="saves_cannot_list">%1$s listelenemiyor</string>
+    <string name="saves_link_in_save">%1$s bir bağlantı: kayıt klasöründe yalnızca dosya ve klasör olur</string>
+    <string name="saves_not_file_or_folder">%1$s ne dosya ne de klasör</string>
+    <string name="saves_cannot_write">%1$s yazılamıyor</string>
+    <string name="saves_not_a_manifest">%1$s bir kayıt yedeği bildirimi (manifest) değil</string>
+    <string name="saves_no_save_folder">şurada kayıt klasörü yok: %1$s</string>
+    <string name="saves_backups_overlap">yedekler klasörü (%1$s) ile kayıt klasörü (%2$s) iç içe</string>
+    <string name="saves_copy_mismatch">kopya kayıtla eşleşmiyor (%1$s)</string>
+    <string name="saves_changed_running">kayıt kopyalanırken değişti (%1$s): oyun çalışıyor mu?</string>
+    <string name="saves_cannot_name_backup">yedek adlandırılamıyor: %1$s</string>
+    <string name="saves_backup_damaged">yedek (%1$s) manifest dosyasıyla eşleşmiyor (%2$s): hasarlı olduğu için geri yüklenmiyor</string>
+    <string name="saves_source_overlap">geri yüklenecek klasör (%1$s) ile kayıt klasörü (%2$s) iç içe</string>
+    <string name="saves_source_working_folder">%1$s, kaydın bir çalışma klasörü (%2$s); geri yüklenecek bir kayıt değil</string>
+    <string name="saves_no_device_save">%1$s içinde cihaz kaydı yok, ama %2$s içinde var: yalnızca ana kaydı geri yüklemek onu başka bir cihaz kaydıyla eşleştirirdi, bu yüzden geri yüklenmiyor. Bu uygulamanın yaptığı bir yedek ikisini de içerir</string>
+    <string name="saves_cannot_clear">%1$s temizlenemiyor</string>
+    <string name="saves_restore_copy_mismatch">kaydın yanındaki kopya yedekle eşleşmiyor (%1$s): kayıt değiştirilmedi</string>
+    <string name="saves_cannot_remove">%1$s kaldırılamıyor</string>
+    <string name="saves_restore_mismatch_after">geri yüklemeden sonra kayıt yedekle eşleşmiyor (%1$s)</string>
+    <string name="saves_set_foreign">%1$s, bu kaydın parçalarını değil şunu gösteriyor: %2$s. Kayıt olduğu gibi bırakıldı; kaydı kullanmak için o dosyayı başka yere taşı</string>
+    <string name="saves_cannot_move_back">%1$s geri taşınamıyor (hedef: %2$s)</string>
+    <string name="saves_marker_foreign">%1$s işaret dosyası %3$s.new / .re / .restore yerine şunu gösteriyor: %2$s. Kayıt olduğu gibi bırakıldı; kaydı kullanmak için o işaret dosyasını başka yere taşı</string>
+    <string name="saves_marker_gone">%1$s işaret dosyası artık var olmayan bir yolu gösteriyor: %2$s. Kayıt olduğu gibi bırakıldı; kaydı kullanmak için o işaret dosyasını başka yere taşı</string>
+    <string name="saves_cannot_move">%1$s taşınamıyor (hedef: %2$s)</string>
+    <string name="saves_is_link">%1$s bir bağlantı</string>
+    <string name="saves_when_before_restore">%1$s (otomatik, bir geri yüklemeden önce)</string>
+    <!-- SaveMigrate -->
+    <string name="saves_migrate_old_pending">%1$s içindeki kayıtta yarım kalmış bir kaydetme ya da geri yükleme var: bu başlatmada tamamlanır, bir sonrakinde kopyalanır</string>
+    <string name="saves_migrate_old_has_no_device">eski kayıtta yok</string>
+    <string name="saves_migrate_device_foreign">%1$s bir cihaz kaydı içeriyor, ama %2$s içinde kayıt yok ve bu cihaz kaydı şunun kopyası değil: %3$s (%4$s)</string>
+    <string name="saves_changed">kayıt kopyalanırken değişti (%1$s)</string>
+    <string name="saves_migrate_cannot_clear_empty">boş klasör temizlenemiyor: %1$s</string>
+    <string name="saves_migrate_mismatch_after_move">taşımadan sonra uygulamanın kopyası kayıtla eşleşmiyor (%1$s)</string>
+    <!-- SaveStore.sizeMsg -->
+    <plurals name="saves_size_bytes">
+        <item quantity="one">%1$d bayt</item>
+        <item quantity="other">%1$d bayt</item>
+    </plurals>
+    <!-- SaveUi -->
+    <string name="saves_busy">%1$s için bir kayıt yedekleme ya da geri yükleme hâlâ sürüyor.</string>
+    <string name="saves_running_backup">%1$s çalışıyor (kaydını açık tutuyor): önce durdur (oyun içi panel › %2$s), sonra yedekle. Oyun kaydını yazıyor olabilir.</string>
+    <string name="saves_running_restore">%1$s çalışıyor (kaydını açık tutuyor): önce durdur (oyun içi panel › %2$s), sonra geri yükle. Oyun kaydını yazıyor olabilir.</string>
+    <string name="saves_running_import">%1$s çalışıyor (kaydını açık tutuyor): önce durdur (oyun içi panel › %2$s), sonra içe aktar. Oyun kaydını yazıyor olabilir.</string>
+    <string name="saves_backup_nothing">%1$s için henüz kayıt yok (%2$s): yedeklenecek bir şey yok.</string>
+    <string name="saves_backup_wait">Kayıt yedekleniyor: %1$s…</string>
+    <string name="saves_backup_failed">Yedek oluşturulmadı: %1$s\n\n%2$s içindeki kayıt yalnızca okundu, hiç değiştirilmedi.</string>
+    <string name="saves_backup_done_title">Kayıtlar yedeklendi</string>
+    <plurals name="saves_backup_done_body">
+        <item quantity="one">%1$d dosya, %2$s; kayıtla dosya dosya karşılaştırıldı (SHA-256).\n\n%3$s\n\nKaydın kendisi değiştirilmedi. Yedekler uygulama tarafından asla silinmez.</item>
+        <item quantity="other">%1$d dosya, %2$s; kayıtla dosya dosya karşılaştırıldı (SHA-256).\n\n%3$s\n\nKaydın kendisi değiştirilmedi. Yedekler uygulama tarafından asla silinmez.</item>
+    </plurals>
+    <plurals name="saves_backup_done_body_device">
+        <item quantity="one">%1$d dosya, %2$s, cihaz kaydıyla birlikte; kayıtla dosya dosya karşılaştırıldı (SHA-256).\n\n%3$s\n\nKaydın kendisi değiştirilmedi. Yedekler uygulama tarafından asla silinmez.</item>
+        <item quantity="other">%1$d dosya, %2$s, cihaz kaydıyla birlikte; kayıtla dosya dosya karşılaştırıldı (SHA-256).\n\n%3$s\n\nKaydın kendisi değiştirilmedi. Yedekler uygulama tarafından asla silinmez.</item>
+    </plurals>
+    <string name="saves_restore_none">%1$s için henüz yedek yok (%2$s). %3$s ile bir yedek oluşturabilirsin.</string>
+    <plurals name="saves_restore_item">
+        <item quantity="one">%1$s\n%2$d dosya, %3$s</item>
+        <item quantity="other">%1$s\n%2$d dosya, %3$s</item>
+    </plurals>
+    <plurals name="saves_restore_item_device">
+        <item quantity="one">%1$s\n%2$d dosya, %3$s (cihaz kaydıyla)</item>
+        <item quantity="other">%1$s\n%2$d dosya, %3$s (cihaz kaydıyla)</item>
+    </plurals>
+    <string name="saves_restore_item_from">%1$s\nkaynak: %2$s</string>
+    <string name="saves_restore_list_title">%1$s: geri yüklenecek yedeği seç</string>
+    <string name="saves_import_pick">İçe aktarılacak kayıt klasörünü seç (kaydın dosyalarını içeren klasör, ör. saves/%1$s)</string>
+    <string name="saves_import_source">%1$s klasörü</string>
+    <string name="saves_not_restored_refused">Geri yüklenmedi: %1$s.</string>
+    <string name="saves_restore_confirm_title">%1$s kaydı geri yüklensin mi?</string>
+    <string name="saves_restore_confirm_body">Değiştirilecek: %1$s içindeki kayıt. Kaynak: %2$s.\n\nÖnce mevcut kayıt %3$s klasörüne yedeklenir (doğrulanarak), böylece bu işlem %4$s… ile geri alınabilir. Yedeklerden hiçbir şey silinmez.</string>
+    <string name="saves_restore_button">Geri yükle</string>
+    <string name="saves_restore_wait">Kayıt geri yükleniyor: %1$s…</string>
+    <string name="saves_restore_failed">Geri yüklenmedi: %1$s\n\n%2$s içindeki kayıt olduğu gibi duruyor.</string>
+    <string name="saves_restore_failed_pending">Geri yüklenmedi: %1$s\n\n%2$s içindeki kayıt olduğu gibi duruyor; yalnızca yarım kalmış bir değiş tokuş bir sonraki yedeklemede, geri yüklemede ya da oyun başlatılışında tamamlanacak.</string>
+    <plurals name="saves_restored">
+        <item quantity="one">%1$d dosya geri yüklendi (%2$s)</item>
+        <item quantity="other">%1$d dosya geri yüklendi (%2$s)</item>
+    </plurals>
+    <plurals name="saves_restored_device">
+        <item quantity="one">%1$d dosya geri yüklendi (%2$s, cihaz kaydıyla)</item>
+        <item quantity="other">%1$d dosya geri yüklendi (%2$s, cihaz kaydıyla)</item>
+    </plurals>
+    <plurals name="saves_restored_before">
+        <item quantity="one">%1$d dosya geri yüklendi (%2$s); eski kayıt şurada: %3$s</item>
+        <item quantity="other">%1$d dosya geri yüklendi (%2$s); eski kayıt şurada: %3$s</item>
+    </plurals>
+    <plurals name="saves_restored_device_before">
+        <item quantity="one">%1$d dosya geri yüklendi (%2$s, cihaz kaydıyla); eski kayıt şurada: %3$s</item>
+        <item quantity="other">%1$d dosya geri yüklendi (%2$s, cihaz kaydıyla); eski kayıt şurada: %3$s</item>
+    </plurals>
 </resources>
