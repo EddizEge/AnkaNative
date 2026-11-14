@@ -19,11 +19,11 @@
     <string name="packs_nup_not_file">%1$s bir dosya değil</string>
     <string name="packs_nup_too_short">%1$s bir .nup için çok kısa</string>
     <string name="packs_nup_no_magic">%1$s bir .nup değil (NUP imzası yok)</string>
-    <string name="packs_nup_format">%1$s .nup biçimi %2$d; bu uygulama yalnızca biçim 1 okur</string>
+    <string name="packs_nup_format">%1$s: .nup biçimi %2$d; bu uygulama yalnızca biçim 1 okur</string>
     <string name="packs_nup_header_size">%1$s: başlık boyutu %2$d</string>
     <string name="packs_nup_toc_place">%1$s: TOC başlıktan hemen sonra gelmiyor</string>
     <string name="packs_nup_offsets">%1$s: TOC ve blob konumları uyuşmuyor</string>
-    <string name="packs_nup_size">%1$s boyutu %2$d bayt, başlığında %3$d yazıyor: eksik (hâlâ kopyalanıyor mu?) ya da hasarlı</string>
+    <string name="packs_nup_size">%1$s: boyutu %2$d bayt, başlığında %3$d yazıyor: eksik (hâlâ kopyalanıyor mu?) ya da hasarlı</string>
     <string name="packs_nup_flags">%1$s bu uygulamanın bilmediği bayraklar içeriyor: %2$d</string>
     <string name="packs_nup_package_count">%1$s içinde %2$d paket var</string>
     <string name="packs_nup_records">%1$s: paket kayıtları TOC içine sığmıyor</string>
@@ -81,7 +81,7 @@
     <!-- RomfsCheck -->
     <string name="packs_romfs_found_missing">eksik</string>
     <string name="packs_romfs_found_line">satır %1$d: \"%2$s\"</string>
-    <string name="packs_romfs_want_main">main build ID: %1$s…</string>
+    <string name="packs_romfs_want_main">main build ID\'si %1$s…</string>
     <string name="packs_romfs_detail">%1$s: %2$s, beklenen: %3$s</string>
     <string name="packs_romfs_detail_line">%1$s: %2$s, satır %4$d için beklenen: %3$s</string>
     <string name="packs_romfs_folder_base">Bu oyun klasöründeki veri, temel oyunun RomFS verisi değil (%1$s). Oyunun dökümünü yamalı RomFS olarak yeniden al ya da yeniden çıkar, veya .nup dosyasını kullan.</string>
@@ -152,7 +152,7 @@
     <string name="packs_ui_import_failed_kept">Paket içe aktarılmadı: %1$s\n\n%2$s içindeki paket olduğu gibi duruyor.</string>
     <string name="packs_ui_import_failed_none">Paket içe aktarılmadı: %1$s\n\nHiçbir şey değiştirilmedi.</string>
     <string name="packs_ui_library_current">Bu uygulamanın shader kütüphanesini (%1$s) içeriyor: oynamaya hazır.</string>
-    <string name="packs_ui_library_older">Shader\'ları daha eski bir sürümden: uygulama onları güncellerken oyun onlarla oynanabilir, tıpkı bir uygulama güncellemesinden sonraki gibi.</string>
+    <string name="packs_ui_library_older">Shader\'ları daha eski bir sürüme ait: uygulama onları güncellerken oyun onlarla oynanabilir, tıpkı bir uygulama güncellemesinden sonraki gibi.</string>
     <string name="packs_ui_library_problem">%1$s Oyunun kartı, bunu düzelten seçeneği sunar.</string>
     <string name="packs_ui_imported_title">Paket içe aktarıldı</string>
     <string name="packs_ui_imported_old">%1$s\n\n%2$s\n\nDaha önce seçilen paket klasörü (%3$s) olduğu gibi tutuluyor; oyun artık bunu kullanıyor.</string>
