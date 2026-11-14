@@ -126,7 +126,7 @@
     <string name="packs_dump_other_title">%1$s başka bir başlığa ait (%2$s); oyun ise %3$s.</string>
     <string name="packs_dump_no_npdm_short">exefs/main.npdm yok</string>
     <!-- ShaderLibs -->
-    <string name="packs_legacy_warning">Bu oyunun shader\'ları sürümlü shader güncellemelerinden önce yapıldı, bu yüzden bu uygulama sürümü onları kısmen güncelleyemez. Onlarla oynamaya devam edebilirsin, ama shader\'ları %1$s ile bir kez daha güncellemen önerilir: bundan sonra shader düzeltmeleri küçük, artımlı güncellemeler olarak gelir.</string>
+    <string name="packs_legacy_warning">Bu oyunun shader\'ları sürümlü shader güncellemelerinden önce yapıldı, bu yüzden bu uygulama sürümü onları kısmen güncelleyemez. Onlarla oynamaya devam edebilirsin, ama onları bir kez daha %1$s ile güncellemen önerilir: bundan sonra shader düzeltmeleri küçük, artımlı güncellemeler olarak gelir.</string>
     <string name="packs_minutes">yaklaşık %1$d-%2$d dakika</string>
     <!-- PackUi -->
     <string name="packs_ui_busy">%1$s paketinin dışa ya da içe aktarımı hâlâ sürüyor.</string>

@@ -61,7 +61,7 @@
     <string name="prepare_ask_title">%1$s hazırlansın mı?</string>
     <string name="prepare_ready_title">Oynamaya hazır</string>
     <string name="prepare_ready_body">Paketi uyuyor: hazırlanması gereken bir şey yok.\n\nPaket: %1$s</string>
-    <string name="prepare_simulated_pack">Bu paket benzetim motoruyla yapıldı: bir yer tutucu olduğu için oyun başlatılmaz. Paket ve kütüphanesi tamam olduğu için %1$s etkin.</string>
+    <string name="prepare_simulated_pack">Bu paket benzetim motoruyla yapıldı: bir yer tutucu olduğu için oyun başlatılmaz. Paket ve kütüphanesi tamam olduğu için %1$s düğmesi etkin.</string>
 
     <!-- Ondevice: the job's Manage sheet -->
     <string name="prepare_manage_info">%1$s\n\nDöküm: %2$s\nÇalışma dosyaları: %3$s\nPaket: %4$s\nGünlükler: %5$s</string>

@@ -59,7 +59,7 @@
     <string name="game_panel_pause_on_return">Oyun arka plandan dönünce duraklat</string>
     <string name="game_panel_stop">Oyunu durdur</string>
     <string name="game_panel_stop_title">Oyun durdurulsun mu?</string>
-    <string name="game_panel_stop_message">Oyun kapanır; kaydedilmemiş ilerleme kaybolur. Günlük, %1$s için saklanır.</string>
+    <string name="game_panel_stop_message">Oyun kapanır; kaydedilmemiş ilerleme kaybolur. Günlük saklanır; %1$s ile gönderebilirsin.</string>
     <string name="game_panel_stop_confirm">Durdur</string>
     <string name="game_panel_keep_running">Çalışmaya devam etsin</string>
     <string name="game_panel_back">Oyuna dön</string>

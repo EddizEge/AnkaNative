@@ -106,7 +106,7 @@
     <string name="home_prepare_shaders">Shader\'ları hazırla</string>
     <string name="home_prepare">Hazırla</string>
     <string name="home_foreign_pack">Başka araçlarla yapılmış paket</string>
-    <string name="home_foreign_pack_body">Bu oyunun paketi, bu uygulamanınkinden farklı araçlarla yapılmış. Genellikle yine de çalışır. Oyun düzgün çalışmazsa ⋯ › %1$s, paketi dökümden yeniden yapar.</string>
+    <string name="home_foreign_pack_body">Bu oyunun paketi, bu uygulamanınkinden farklı araçlarla yapılmış. Genellikle yine de çalışır. Oyun düzgün çalışmazsa ⋯ › %1$s ile paket dökümden yeniden yapılabilir.</string>
 
     <!-- MainActivity: a game's Manage sheet -->
     <string name="home_game_settings">Oyun ayarları</string>
@@ -162,7 +162,7 @@
     <string name="home_added_unsupported">Bu uygulamada desteklenmiyor: %1$s. Bu uygulama şunları çalıştırır: %2$s.</string>
     <string name="home_added_no_pack">Paket bulunamadı: %1$s. Paket klasörünü seçmek için onu tek başına ekle.</string>
     <string name="home_added_failed">Eklenmedi: %1$s</string>
-    <string name="home_added_twice">Aynı oyunun başka bir dökümü zaten listedeydi, bu yüzden iki kart da tutuldu: %1$s. ⋯ › %2$s birini kaldırır (hiçbir şey silinmez).</string>
+    <string name="home_added_twice">Aynı oyunun başka bir dökümü zaten listedeydi, bu yüzden iki kart da tutuldu: %1$s. ⋯ › %2$s ile biri kaldırılabilir (hiçbir şey silinmez).</string>
     <string name="home_added_none_title">Oyun eklenmedi</string>
     <string name="home_added_title">Oyunlar eklendi</string>
     <string name="home_replace_title">%1$s değiştirilsin mi?</string>
@@ -183,8 +183,8 @@
     <string name="home_remove_body_save">Yalnızca liste kaydı gider. Döküm, paketi ve kayıtların (%1$s) telefonda kalır; %2$s ile geri getirebilirsin.</string>
     <string name="home_remove_body">Yalnızca liste kaydı gider. Döküm, paketi ve kayıtların telefonda kalır; %1$s ile geri getirebilirsin.</string>
     <string name="home_remove_yes">Kaldır</string>
-    <string name="home_busy_save">%1$s için bir kayıt yedekleme ya da geri yükleme hâlâ sürüyor: %2$s bunun bitmesini bekler.</string>
-    <string name="home_busy_pack">%1$s paketinin dışa ya da içe aktarımı hâlâ sürüyor: %2$s bunun bitmesini bekler.</string>
+    <string name="home_busy_save">%1$s için bir kayıt yedekleme ya da geri yükleme hâlâ sürüyor: %2$s düğmesi bunun bitmesini bekler.</string>
+    <string name="home_busy_pack">%1$s paketinin dışa ya da içe aktarımı hâlâ sürüyor: %2$s düğmesi bunun bitmesini bekler.</string>
     <string name="home_pack_unusable">Paket kullanılamıyor: %1$s</string>
     <string name="home_pack_placeholder">Bu paket bir yer tutucu; oynanacak bir paket değil.</string>
     <string name="home_no_pack_for">%1$s için paket yok</string>
@@ -194,7 +194,7 @@
     <string name="home_shaders_missing_body">Shader\'lar olmadan oyun hiçbir şey çizmez.\n\n%1$s</string>
     <string name="home_start_anyway">Yine de başlat</string>
     <string name="home_pack_cannot_start">Paket bu oyunu başlatamıyor</string>
-    <string name="home_pack_problem_dump">%1$s bunu dökümden, bu telefonda düzeltir.\n\n%2$s\n\nPaket: %3$s</string>
+    <string name="home_pack_problem_dump">%1$s seçeneği bunu dökümden, bu telefonda düzeltir.\n\n%2$s\n\nPaket: %3$s</string>
     <string name="home_pack_problem">%1$s\n\nPaket: %2$s</string>
 
     <!-- MainActivity: the Settings page's dialogs, the logs -->
