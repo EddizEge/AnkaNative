@@ -58,9 +58,6 @@ final class Ondevice {
      */
     static boolean available() { return "native".equals(BuildConfig.NX_PACK_ENGINE) || !BuildConfig.NX_PLAY; }
 
-    /** What to do instead when this APK cannot prepare a game (available() is false), in English: the home screen still reads it (MainActivity) until it takes unavailableText() */
-    static final String UNAVAILABLE = Tr.english("prepare_unavailable");
-
     /** What to do instead when this APK cannot prepare a game (available() is false), for the screen */
     static String unavailableText() { return Tr.s("prepare_unavailable"); }
 

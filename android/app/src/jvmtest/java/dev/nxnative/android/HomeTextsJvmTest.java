@@ -78,7 +78,8 @@ public final class HomeTextsJvmTest {
         same(Tr.s("home_remove_body_save", "/s", Tr.s("home_add_game")),
                 "Only the list entry goes. Your dump, its pack and your saves" + " (" + "/s" + ")" + " stay on the phone; Add game brings it back.", "remove, save");
         same(Tr.s("home_remove_body", Tr.s("home_add_game")), "Only the list entry goes. Your dump, its pack and your saves" + "" + " stay on the phone; Add game brings it back.", "remove");
-        same(Tr.s("home_shaders_missing_prepare", "makes the shaders", "lp"), "Prepare " + "makes the shaders" + "\n\n" + "lp", "shaders missing, dump");
+        same(Tr.s("home_shaders_missing_prepare", Tr.s("prepare_shaders_make_step_default"), "lp"),
+             "Prepare " + "Makes the shaders from your dump (about 20-35 minutes, in the background).".replaceFirst("^Makes", "makes") + "\n\n" + "lp", "shaders missing, dump");
         same(Tr.s("home_pack_problem_dump", Tr.s("home_prepare_again"), "why", "/p"), "Prepare again fixes it from your dump, on this phone.\n\n" + "why" + "\n\nPack: " + "/p", "pack problem");
         // Changed on purpose (no possessive after a runtime name): was name + "'s pack is still working"
         same(Tr.s("home_busy_pack", name), "An export or import of the pack of " + name + " is still working: Play waits for it.", "busy pack (rephrased)");

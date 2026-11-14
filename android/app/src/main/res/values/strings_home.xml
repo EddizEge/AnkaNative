@@ -219,8 +219,8 @@
     <string name="home_no_pack_for_body">%1$s\n\nPack: %2$s</string>
     <string name="home_pick_pack_folder_button">Pick pack folder</string>
     <string name="home_shaders_missing">Shaders missing</string>
-    <!-- %1$s: what Prepare makes, lower-cased (Ondevice.shadersText, until Ondevice.prepareShadersMsg replaces this sentence), %2$s: what is wrong with the shaders (Pack) -->
-    <string name="home_shaders_missing_prepare">Prepare %1$s\n\n%2$s</string>
+    <!-- Two paragraphs: %1$s: the sentence of what Prepare makes (Ondevice.prepareShadersMsg, prepare's), %2$s: what is wrong with the shaders (Pack) -->
+    <string name="home_shaders_missing_prepare" translatable="false">%1$s\n\n%2$s</string>
     <string name="home_shaders_missing_body">Without them the game draws nothing.\n\n%1$s</string>
     <string name="home_start_anyway">Start anyway</string>
     <string name="home_pack_cannot_start">The pack cannot start this game</string>

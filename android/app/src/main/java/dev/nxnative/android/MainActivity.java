@@ -709,7 +709,7 @@ public final class MainActivity extends Activity {
                 boolean nup = Nup.isNup(k.game);
                 // Why Prepare cannot start from it (another build than this app's, an incomplete dump), plainly; a pack made elsewhere can still be picked
                 String why = k.found != null && k.found.error != null ? k.found.error
-                        : !Ondevice.available() ? (nup ? getString(R.string.home_no_pack_nup_unavailable, Ondevice.UNAVAILABLE) : getString(R.string.home_no_pack_folder_unavailable, Ondevice.UNAVAILABLE))
+                        : !Ondevice.available() ? (nup ? getString(R.string.home_no_pack_nup_unavailable, Ondevice.unavailableText()) : getString(R.string.home_no_pack_folder_unavailable, Ondevice.unavailableText()))
                         : nup ? getString(R.string.home_no_pack_nup_no_dump) : getString(R.string.home_no_pack_folder_no_dump);
                 new AlertDialog.Builder(this).setTitle(k.found != null && k.found.version < 0 && k.found.titleId != null && Profile.of(k.found.titleId) != null && !DumpLayout.versions(k.game).isEmpty()
                                 ? getString(R.string.home_other_version_title, k.name) : nup ? getString(R.string.home_no_pack_nup_title) : getString(R.string.home_no_pack_folder_title))
@@ -890,7 +890,7 @@ public final class MainActivity extends Activity {
         }
         if (p.simulated) {   // a placeholder of the simulated engine (Anka Native 0.1.0's Prepare made one): it has no game code and no shaders, so it never starts
             if (dump) packProblem(g, getString(R.string.home_pack_placeholder), pickPack);
-            else new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.UNAVAILABLE, g.packDir))
+            else new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.unavailableText(), g.packDir))
                     .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).show();
             return;
         }
@@ -913,9 +913,8 @@ public final class MainActivity extends Activity {
             return;
         }
         if (lp != null) {
-            // Ondevice.shadersText (prepare) lower-cased inside "Prepare …": left as it is; the integrator switches it to Ondevice.prepareShadersMsg (docs/i18n.md)
             AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(R.string.home_shaders_missing)
-                    .setMessage(dump ? getString(R.string.home_shaders_missing_prepare, Ondevice.shadersText(new File(g.packDir), g.titleId).replaceFirst("^Updates", "updates").replaceFirst("^Makes", "makes"), lp)
+                    .setMessage(dump ? getString(R.string.home_shaders_missing_prepare, Ondevice.prepareShadersMsg(new File(g.packDir), g.titleId).text(), lp)
                             : getString(R.string.home_shaders_missing_body, lp))
                     .setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).setNegativeButton(android.R.string.cancel, null);
             if (dump) b.setPositiveButton(R.string.home_prepare, (d, w) -> Ondevice.prepare(this, gd, false));
