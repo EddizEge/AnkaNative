@@ -195,7 +195,7 @@ void vka_rp_end(void) {
     vka_barrier(g_cb);   // the pass's writes before whatever reads them next (copies, the present, the next pass's samples)
     R.on = 0; vka_tex_feedback(NULL, NULL, 0);
     if (vka_nan_on()) vka_nan_pass(g_cb, R.cim, R.clv, R.cl0, R.nci);
-    if (R.bigd) { vka_bigdepth_pass_serial = R.bigd; R.bigd = 0; }   // (DM_VK_BIGDEPTH_SYNC: waited for at the next draw, vka_exec.c chunk_check)
+    if (R.bigd) { vka_bigdepth_pass_serial = R.bigd; R.bigd = 0; }   // (DM_VK_BIGDEPTH_SYNC: waited for at the next draw with no clear pending, else at the submission's end: vka_exec.c chunk_check, sub_commit)
 }
 static void rt_range(const vka_img *im, const view_t *v, int has_v, uint32_t *lv, uint32_t *l0, uint32_t *nl) {
     *lv = has_v && v->set_levels ? v->base_level : 0;
