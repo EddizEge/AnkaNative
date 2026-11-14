@@ -1,6 +1,6 @@
 # nxnative on Android
 
-The Android port of the host: one launcher APK (`android/app`) that holds the host, one per game it runs (`libnxhost_<title ID>.so`, built from `android/host`), and no game code, and a pack per game, made from the user's own dump: by the app itself on the phone (**Prepare**, ONDEVICE.md), or on the Mac and copied to the phone beside the game folder. This build boots a game's CPU side and replays its NVN clears, copies and presents on Vulkan (draws are not on Vulkan yet), plays its sound through AAudio, decodes its movies with `AMediaCodec` and takes gamepads, touch and phone motion; a graphics self-test checks the Vulkan path without a game. [PORTING.md](PORTING.md) has the design, the status and the next pieces; [TESTING.md](TESTING.md) the steps on a phone. [FRONTENDS.md](FRONTENDS.md) says how emulator frontends (ES-DE, Daijisho, iiSU, Pegasus…) start a game, and what another app can do with that intent.
+The Android port of the host: one launcher APK (`android/app`) that holds the host, one per game it runs (`libnxhost_<title ID>.so`, built from `android/host`), and no game code, and a pack per game, made from the user's own dump: by the app itself on the phone (**Prepare**, ONDEVICE.md), or on a computer (Windows, Linux or the Mac: [Pack a game](#pack-a-game)) and copied to the phone beside the game folder. This build boots a game's CPU side and replays its NVN clears, copies and presents on Vulkan (draws are not on Vulkan yet), plays its sound through AAudio, decodes its movies with `AMediaCodec` and takes gamepads, touch and phone motion; a graphics self-test checks the Vulkan path without a game. [PORTING.md](PORTING.md) has the design, the status and the next pieces; [TESTING.md](TESTING.md) the steps on a phone. [FRONTENDS.md](FRONTENDS.md) says how emulator frontends (ES-DE, Daijisho, iiSU, Pegasus…) start a game, and what another app can do with that intent.
 
 | Folder | What |
 |---|---|
@@ -20,8 +20,11 @@ Preparing a game on a computer works on Windows, Linux and the Mac. It needs:
   `clang` and `gcc` on the `PATH`. The first time it is needed, `dm/tools/nso.py` builds the decoder, `libzbicdec` (`dm/third_party/zstd-zbic`), into
   `dm/third_party/zstd-zbic/build/<sources' digest>-<CPU>/` and loads it from there afterwards, with no compiler needed again until the decoder's sources
   change; `DM_ZBIC_LIB=<library>` names a build made elsewhere instead. The Mac has one with Xcode's command line tools (`xcode-select --install`), Linux
-  with the distribution's `gcc` or `clang`; on Windows put [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw/releases)'s `bin` folder on the `PATH`, or
-  MSYS2's `gcc` (the build takes GCC's options, so not MSVC's `cl`; the Windows build of the decoder is not tested yet).
+  with the distribution's `gcc` or `clang` (on Debian and Ubuntu `build-essential`: `gcc` alone may come without the C library's headers); on Windows put
+  [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw/releases)'s `bin` folder on the `PATH`, or MSYS2's `mingw64` or `ucrt64` `gcc` (not its `msys` `gcc`,
+  whose DLLs need `msys-2.0.dll` and do not load into python.org's Python; and since `cc` is tried first, a Cygwin or `msys` `cc` on the `PATH` would be taken:
+  set `CC` then). The build takes GCC's options, so not MSVC's `cl`; the Windows build of the decoder is not tested yet. A build that does not load (a
+  compiler for another CPU) stays in that folder and is taken again: delete the folder, or let the interface's check, which removes it, build it again.
 - The **.NET 10 runtime**, which runs the committed shader translator (`dm/gfx/tools/dmsh_xlate_bin`). On the Mac it starts as `dmsh_xlate`; on Linux and
   Windows `pack_android.py` starts it through the launcher beside it, `dmsh_xlate-<linux|win>-<x64|arm64>`.
 - **spirv-val** (SPIRV-Tools) on the `PATH`.
@@ -37,7 +40,7 @@ py -3.14 -m venv D:\Switch2\.venv-anka
 D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4
 ```
 
-Linux (the distribution's `dotnet-runtime-10.0`, `spirv-tools` and `gcc` packages; Python 3.14 from the distribution or micromamba):
+Linux (the distribution's `dotnet-runtime-10.0`, `spirv-tools` and `gcc` packages, `build-essential` instead of `gcc` on Debian and Ubuntu; Python 3.14 from the distribution or micromamba):
 
 ```sh
 python3.14 -m venv <dump folder>/.venv-anka
@@ -69,8 +72,9 @@ On Windows (Windows Terminal, PowerShell or cmd.exe): `D:\Switch2\.venv-anka\Scr
 It needs nothing beyond that Python (the standard library; `dm/tools/prepare_tui`) and leads through five screens:
 
 1. **Check**: what [the environment](#the-environment) lists, each found or missing with the commands that fix it on this system (the ones above): Python
-   3.14, Capstone 5, lz4, the ZBIC decoder (built with the C compiler and loaded, through `nso.py`'s own `zbic_build` and `zbic_decoder`, which takes a few
-   seconds the first time and none once it is built), the .NET 10 runtime (and that the committed translator starts and is the one `dmsh_chain.lock` names),
+   3.14, Capstone 5, lz4, the ZBIC decoder (built with the C compiler through `nso.py`'s own `zbic_build`, which takes a few seconds the first time and none
+   once it is built, then loaded as `nso.zbic_decoder` loads it, in a Python of its own, and made to decode a small ZBIC stream; a build in the folder that
+   does not load or decode is removed and, when an earlier compiler made it, built again), the .NET 10 runtime (and that the committed translator starts and is the one `dmsh_chain.lock` names),
    `spirv-val` and this copy's line ends. A missing one stops here, before the pick, with exit code 1.
 2. **Pick the game**: a file browser of folders, `.nup` files and dump folders (arrows, PgUp / PgDn, Home / End, Enter opens a folder or picks a game,
    Backspace or Left goes up, typing filters the list, Ctrl+L or `/` types or pastes a full path with Tab completion, Tab moves to the places: the home

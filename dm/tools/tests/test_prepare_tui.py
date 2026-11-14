@@ -9,7 +9,8 @@
   state file (written, read back, a damaged one); a path dropped on the terminal in the shell's quoting
 - the packer's output: progress lines in the three spellings, step lines, error: lines and [RED] lines, and a failure's code paired as the phone pairs it
 - the ZBIC decoder's check (checks.check_zbic) on a copy of its sources: built with the C compiler found, then cached (at once), no compiler (each system's
-  install line), a compiler that fails, a DM_ZBIC_LIB that does not load
+  install line), a compiler that fails (its lines), a DM_ZBIC_LIB that does not load, a $CC with an unclosed quote, a build folder that cannot be written,
+  a compiler that writes junk (removed), junk an earlier compiler left (built again), a library that loads but does not decode, and run_all including it
 - the packer as a child process (runner.Run): a worker left behind holding the output (the run still ends), a log that cannot be written (the run goes on),
   a folder that cannot be written, the lock against a second run; a failure without a code in words (a signal, a permission error, else a bug to report)
 - the estimator (eta.py, the phone's Eta.java on the computer's steps): steady, a falling rate, a stall, the translation's end and the library's countdown, a
@@ -471,8 +472,8 @@ class Runs(unittest.TestCase):
 
 class ZbicCheck(unittest.TestCase):
     """The check of the ZBIC decoder (checks.check_zbic) on a copy of dm/third_party/zstd-zbic without its build folder, so nso.zbic_build builds there: a C
-    compiler found (built and loaded), the build then cached (loaded at once, no compiler asked for), no compiler (the system's install line), a compiler that
-    fails, and a DM_ZBIC_LIB that does not load"""
+    compiler found (built, loaded and decoding), the build then cached (at once, no compiler asked for), no compiler (the system's install line), a compiler that
+    fails, a DM_ZBIC_LIB that does not load, and the cases below"""
     def setUp(self):
         import shutil
         from prepare_tui import checks
@@ -510,7 +511,7 @@ class ZbicCheck(unittest.TestCase):
 
     def test_missing(self):
         self.no_compiler()
-        for sysname, line in (('debian', 'sudo apt install gcc'), ('fedora', 'sudo dnf install gcc'), ('arch', 'sudo pacman -S gcc'), ('mac', 'xcode-select --install'),
+        for sysname, line in (('debian', 'sudo apt install build-essential'), ('fedora', 'sudo dnf install gcc'), ('arch', 'sudo pacman -S gcc'), ('mac', 'xcode-select --install'),
                               ('windows', 'LLVM-MinGW'), ('linux', "distribution's gcc or clang")):
             c = self.checks.check_zbic(sysname)
             self.assertFalse(c.ok); self.assertIn('no C compiler', c.found)
@@ -522,13 +523,80 @@ class ZbicCheck(unittest.TestCase):
         cc = self.d / 'badcc'; cc.write_text('#!/bin/sh\necho "badcc: error: this compiler builds nothing" >&2\nexit 1\n'); cc.chmod(0o755)
         os.environ['CC'] = str(cc)
         c = self.checks.check_zbic('fedora')
-        self.assertFalse(c.ok); self.assertIn('does not build', c.found); self.assertIn('builds nothing', c.found)
+        self.assertFalse(c.ok); self.assertIn('does not build', c.found); self.assertIn('badcc: error: this compiler builds nothing', c.detail)   # (its own line)
         self.assertIn('did not build', c.fix[0]); self.assertIn('sudo dnf install gcc', c.fix)
 
     def test_named_library_does_not_load(self):
         os.environ[nso.ZBIC_LIB_ENV] = str(self.d / 'nothere.so')
         c = self.checks.check_zbic('debian')
         self.assertFalse(c.ok); self.assertIn('does not load', c.found); self.assertIn('DM_ZBIC_LIB', c.fix[0])
+
+    def test_cc_unclosed_quote(self):
+        """A $CC that cannot be split into words (shlex: no closing quotation): the check says so, never a traceback"""
+        os.environ['CC'] = "gcc 'x"
+        c = self.checks.check_zbic('arch')
+        self.assertFalse(c.ok); self.assertIn('cannot be read as a command', c.found); self.assertIn('quotes', c.fix[0])
+
+    @unittest.skipIf(os.name == 'nt' or hasattr(os, 'geteuid') and os.geteuid() == 0, 'POSIX permissions (root ignores them)')
+    def test_folder_not_writable(self):
+        """The build folder cannot be made: its own fix (not the compiler's), no exception out of the check"""
+        self.src.chmod(0o555)
+        try: c = self.checks.check_zbic('arch')
+        finally: self.src.chmod(0o755)
+        self.assertFalse(c.ok); self.assertIn('cannot be written', c.fix[0]); self.assertNotIn('pacman', ' '.join(c.fix))
+
+    def test_run_all_has_it(self):
+        """The real run_all checks the decoder (the end-to-end tests put their own checks in its place)"""
+        from unittest import mock
+        mark = self.checks.Check('zbic', False, 'x')
+        with mock.patch.object(self.checks, 'check_zbic', return_value=mark): self.assertIn(mark, self.checks.run_all('arch'))
+
+    def fake_cc(self, body):
+        """A compiler for build.sh that writes body (a shell command with $out, the -o argument) and exits 0"""
+        cc = self.d / 'fakecc'
+        cc.write_text('#!/bin/sh\nout=\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n' + body + '\n'); cc.chmod(0o755)
+        return str(cc)
+
+    def real_cc(self):
+        import shutil
+        return next((c for c in ('cc', 'clang', 'gcc') if shutil.which(c)), None)
+
+    @unittest.skipIf(os.name == 'nt', 'a POSIX shell script as the compiler')
+    def test_junk_build_removed(self):
+        """A compiler that exits 0 but writes no real library: missing with the other-computer fix, and the junk removed (nso.zbic_build would take it as done)"""
+        os.environ['CC'] = self.fake_cc('printf junkjunk > "$out"')
+        c = self.checks.check_zbic('arch')
+        self.assertFalse(c.ok); self.assertIn('cannot be used here', c.found); self.assertIn('another kind of computer', c.fix[0])
+        self.assertEqual(self.checks.zbic_libs(), set())
+
+    @unittest.skipIf(os.name == 'nt', 'a POSIX shell script as the compiler')
+    def test_earlier_junk_built_again(self):
+        """A junk build an earlier compiler left in the folder: the check removes it and builds again with the compiler found now"""
+        cc = self.real_cc()
+        if not cc: self.skipTest('no C compiler on this machine')
+        os.environ['CC'] = self.fake_cc('printf junkjunk > "$out"')
+        junk = nso.zbic_build()   # (as the rewriter would have left it)
+        self.assertEqual(Path(junk).read_bytes(), b'junkjunk')
+        os.environ['CC'] = cc
+        c = self.checks.check_zbic('arch')
+        self.assertTrue(c.ok, c.found); self.assertIn('built now', c.found); self.assertNotEqual(Path(junk).read_bytes(), b'junkjunk')
+
+    @unittest.skipIf(os.name == 'nt', 'a POSIX shell script as the compiler')
+    def test_loads_but_does_not_decode(self):
+        """A library with both entry points that does not decode ZBIC: missing, as the rewrite would fail; as DM_ZBIC_LIB and as a build in the folder"""
+        cc = self.real_cc()
+        if not cc: self.skipTest('no C compiler on this machine')
+        stub = self.d / 'stub.c'
+        stub.write_text('long zbic_decompress(void *d, unsigned long n, const char *s, unsigned long m) { return -1; }\n'
+                        'const char *zbic_error_name(long e) { return "stub"; }\n')
+        os.environ['CC'] = self.fake_cc(f'{cc} -shared -fPIC -o "$out" {stub}')
+        c = self.checks.check_zbic('arch')
+        self.assertFalse(c.ok); self.assertIn('does not decode ZBIC', c.found); self.assertEqual(self.checks.zbic_libs(), set())
+        lib = self.d / 'libstub.so'
+        subprocess.run([cc, '-shared', '-fPIC', '-o', str(lib), str(stub)], check=True)
+        os.environ.pop('CC'); os.environ[nso.ZBIC_LIB_ENV] = str(lib)
+        c = self.checks.check_zbic('arch')
+        self.assertFalse(c.ok); self.assertIn('does not decode ZBIC', c.found); self.assertIn('DM_ZBIC_LIB', c.fix[0])
 
 
 # ---- the estimator

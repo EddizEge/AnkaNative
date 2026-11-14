@@ -119,6 +119,7 @@ def draw_checks(sc, res, scroll=0, busy=False):
         found = scr.wrap(c.found, max(10, sc.w - 5 - nw))   # what was found in full (a path, a version string), on more lines when it is long
         lines.append(([(mark + ' ', GREEN | BOLD if c.ok else RED | BOLD), (scr.pad(scr.fit(c.name, nw - 1, sc.g.dots), nw), BOLD), (found[0], 0 if c.ok else RED)], 2))
         lines += [([(f, 0 if c.ok else RED)], 4 + nw) for f in found[1:]]
+        lines += [([(l, DIM)], 4 + nw) for d in c.detail for l in scr.wrap(d, max(10, sc.w - 5 - nw))]   # (a compiler's last lines)
         if not c.ok and c.fix == []: continue
         if not c.ok and fix_shown(res, c):
             lines.append(([(T('checks.same_fix'), YELLOW)], 6))
@@ -580,6 +581,7 @@ def plain_checks(ui, run_checks):
     res = run_checks()
     for c in res:
         ui.say(f'  [{"ok" if c.ok else "missing"}] {c.name}: {c.found}')
+        for d in c.detail: ui.say('        ' + d)
         if not c.ok and fix_shown(res, c): ui.say('        ' + T('checks.same_fix'))
         elif not c.ok and c.fix:
             ui.say('        ' + T('checks.fix'))

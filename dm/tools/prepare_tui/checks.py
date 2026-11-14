@@ -1,11 +1,11 @@
 # What the packer needs on a computer (android/README.md, "The environment"), each found or missing with the fix for this system: the Python (3.14, which has the
 # zstd the shader tools read), Capstone 5, lz4, the ZBIC decoder of system 22.0.0+ games (libzbicdec, which dm/tools/nso.py builds with this computer's C compiler
-# the first time and loads by ctypes: checked by building and loading it with nso.py's own functions), the .NET 10 runtime with the committed translator really
+# the first time and loads by ctypes: checked by building it with nso.py's own function and decoding a small stream with it), the .NET 10 runtime with the committed translator really
 # starting and being the one dmsh_chain.lock names (tool_lock.py), spirv-val, and the source tree's line ends (the chain version this copy computes is the
 # committed one: a checkout or zip with CRLF line ends gives another, and the libraries it would build would not load).
 # Each check runs in this Python (the one that runs pack_android.py, which starts the tools with it) and never takes more than the translator's start or the
 # decoder's first build (a few seconds; once built, it is loaded from its folder at once).
-import os, re, shutil, subprocess, sys
+import base64, hashlib, os, platform, re, shutil, struct, subprocess, sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
@@ -16,8 +16,9 @@ PIP = '-m pip install "capstone>=5,<6" lz4'
 
 
 class Check:
-    def __init__(self, name, ok, found, fix=()):
+    def __init__(self, name, ok, found, fix=(), detail=()):
         self.name, self.ok, self.found, self.fix = name, ok, found, list(fix)   # fix: lines, commands as they are typed on this system
+        self.detail = list(detail)   # lines a tool printed (a compiler's last lines), shown under what was found
 
     def __repr__(self): return f'Check({self.name}, {self.ok}, {self.found!r})'
 
@@ -60,10 +61,10 @@ def pkg_fix(sysname):
 
 def install(sysname, what):
     """The command that installs what ('dotnet', 'spirv' or 'cc', a C compiler: android/README.md's gcc or clang on Linux, Xcode's command line tools on the
-    Mac, LLVM-MinGW on Windows) on this system"""
+    Mac, LLVM-MinGW on Windows) on this system. Debian's is build-essential: its gcc only recommends libc6-dev, the C library's headers the decoder needs"""
     if sysname == 'windows': return [T({'dotnet': 'fix.dotnet_win', 'spirv': 'fix.spirv_win', 'cc': 'fix.cc_win'}[what])]
     if sysname == 'mac': return {'dotnet': ['brew install --cask dotnet-sdk'], 'spirv': ['brew install spirv-tools'], 'cc': ['xcode-select --install']}[what]
-    pkgs = {'debian': ('sudo apt install dotnet-runtime-10.0', 'sudo apt install spirv-tools', 'sudo apt install gcc'),
+    pkgs = {'debian': ('sudo apt install dotnet-runtime-10.0', 'sudo apt install spirv-tools', 'sudo apt install build-essential'),
             'fedora': ('sudo dnf install dotnet-runtime-10.0', 'sudo dnf install spirv-tools', 'sudo dnf install gcc'),
             'arch': ('sudo pacman -S dotnet-runtime', 'sudo pacman -S spirv-tools', 'sudo pacman -S gcc'),
             'suse': ('sudo zypper install dotnet-runtime-10.0', 'sudo zypper install spirv-tools', 'sudo zypper install gcc')}
@@ -102,26 +103,72 @@ def zbic_libs():   # the decoder libraries built in this copy of the source so f
     return {str(p) for p in root.glob('*/*') if p.is_file()} if root.is_dir() else set()
 
 
+# A ZBIC stream the check decodes with the library it loaded: 600 bytes of test_nso.py's synthetic(600, 7), compressed by zstd at level 19 and turned into ZBIC
+# by test_nso.zstd_to_zbic (four FSE tables in ZBIC's coding, a checksum). A library that loads but does not decode ZBIC fails the check, as the rewrite would.
+ZBIC_SAMPLE = base64.b64decode(
+    'WkJJQ2RYAUUHAOKFFBwJAE/f4gQAjL9BDAOwQteWdbFxU7QPI6cwSGIE3AfSlfuv//9Z/ru7cusPDuwkAmTJ/0rVjiVuFVxhqeJrSMIV2eA+EK5Wph8PJCZL7hQJUwFEqAwAANNuTfh06rgx1QoLBzrF'
+    'DvhvADCNTyAMFEFRq6b4PzBNjfkZayYoydHk5+28tsMtX7vhXJm8U7zfInCRnPcIJXGL9uL2FWGoV2MlamlzDw5OjI9EhIGfq4bE8AW5UKT9Ef9Dt1vUlZIhgSR4cgbqOLYHp1Njp9np4ipQ0ryjEc+i'
+    'EynCz3ERwLcmlyWXIwG0CZPY')
+ZBIC_SAMPLE_SIZE, ZBIC_SAMPLE_SHA256 = 600, 'ea54c9ec2a43bb39962cea2ec46c11fbf5ec59e0830907f302f6e87abb621d14'
+
+
+def zbic_decodes(decode):
+    """Raises nso.Error unless decode turns ZBIC_SAMPLE into its 600 bytes"""
+    out, err = decode(ZBIC_SAMPLE, ZBIC_SAMPLE_SIZE)
+    if err: raise nso.Error(T('check.zbic_no_decode', f'{err[1]}, zstd error {err[0]}'))
+    if hashlib.sha256(bytes(out)).hexdigest() != ZBIC_SAMPLE_SHA256: raise nso.Error(T('check.zbic_no_decode', T('check.zbic_wrong_bytes')))
+
+
+ZBIC_TRY = """import sys; sys.path.insert(0, sys.argv[1]); import nso; from prepare_tui import checks
+try: checks.zbic_decodes(nso.zbic_decoder())
+except (ValueError, OSError, AttributeError) as e: print(e); sys.exit(1)"""
+
+
+def zbic_try(lib):
+    """'' when the library lib (a path, or the bare name DM_ZBIC_LIB may give) loads and decodes ZBIC_SAMPLE as nso.zbic_decoder loads it for the rewriter, else
+    why not. In a Python of its own, as the packer's: a library that crashes when it is loaded ends only that one, and the file there now is what is loaded (the
+    dynamic linker would hand this process a library it loaded earlier from the same path again, after a build replaced it)"""
+    env = dict(os.environ, **{nso.ZBIC_LIB_ENV: str(lib)})
+    try: r = subprocess.run([sys.executable, '-c', ZBIC_TRY, str(REPO / 'dm/tools')], env=env, capture_output=True, text=True, errors='replace', timeout=60)
+    except (OSError, subprocess.SubprocessError) as e: return T('check.zbic_no_try', e)
+    if r.returncode == 0: return ''
+    out = (r.stdout.strip() or r.stderr.strip()).splitlines()
+    return out[-1] if r.returncode == 1 and out else T('check.zbic_crash', r.returncode)
+
+
 def check_zbic(sysname):
-    """The ZBIC decoder as the rewriter and the shader split get it (nso.zbic_decoder): the library DM_ZBIC_LIB names, loaded; else this computer's build,
-    made now by nso.zbic_build with the C compiler it finds ($CC, else cc, clang or gcc) when there is none yet, and loaded. A build already there is only
-    loaded (no compiler needed). Missing: no compiler (the system's install line), a build that fails (the compiler's last lines), a library that does not load"""
+    """The ZBIC decoder as the rewriter and the shader split get it (nso.zbic_decoder): the library DM_ZBIC_LIB names; else this computer's build, made now by
+    nso.zbic_build with the C compiler it finds ($CC, else cc, clang or gcc) when there is none yet. A build already there takes no compiler. Either way the
+    library is loaded and decodes a small ZBIC stream (zbic_try). A build in the folder that does not (made by a compiler for another CPU or word size, or one
+    that wrote no real library) is removed, since nso.zbic_build takes any file there as done: one an earlier compiler made is built again at once with the
+    compiler found now. Missing: no compiler (the system's install line), a $CC that cannot be read, a build that fails (the compiler's last lines), a library
+    that does not load or decode, a build folder that cannot be written"""
     name, env = T('check.zbic'), os.environ.get(nso.ZBIC_LIB_ENV)
+    if env:
+        why = zbic_try(env)
+        if why: return Check(name, False, why, [T('fix.zbic_env', nso.ZBIC_LIB_ENV)])
+        return Check(name, True, T('check.zbic_env', env, nso.ZBIC_LIB_ENV))
     try:
-        if env:
-            nso.zbic_decoder()
-            return Check(name, True, T('check.zbic_env', env, nso.ZBIC_LIB_ENV))
-        before = zbic_libs()
-        lib = nso.zbic_build()
-        nso.zbic_decoder()
-        return Check(name, True, T('check.zbic_cached' if lib in before else 'check.zbic_built', lib))
-    except (nso.Error, OSError, AttributeError) as e:   # AttributeError: a library without zbic_decompress (ctypes)
+        while True:   # (twice at most: an earlier build that is no good here is built again once)
+            before = zbic_libs()
+            lib = nso.zbic_build()
+            cached = lib in before
+            why = zbic_try(lib).replace(f'; {nso.ZBIC_LIB_ENV} names the library', '')   # (nso's words for a library named by it: zbic_try names it so)
+            if not why: return Check(name, True, T('check.zbic_cached' if cached else 'check.zbic_built', lib))
+            shutil.rmtree(Path(lib).parent)   # so that the next build is a real one
+            if not cached:
+                return Check(name, False, T('check.zbic_unusable', why), [T('fix.cc_target', platform.machine() or '?', struct.calcsize('P') * 8)]
+                             + install(sysname, 'cc') + [T('fix.cc_or', nso.ZBIC_LIB_ENV)])
+    except OSError as e: return Check(name, False, str(e), [T('fix.zbic_write', Path(nso.ZBIC_SRC) / 'build', nso.ZBIC_LIB_ENV)])
+    except ValueError as e:   # nso.Error, or shlex's on a $CC with a quote that is not closed
         why = str(e)
-        if env: return Check(name, False, why, [T('fix.zbic_env', nso.ZBIC_LIB_ENV)])
+        if not isinstance(e, nso.Error): return Check(name, False, T('check.cc_unreadable', os.environ.get('CC', ''), why), [T('fix.cc_quotes')])
         if 'no C compiler' in why:   # nso.zbic_build's words when it finds none (test_prepare_tui.py ZbicCheck.test_missing holds them to it)
             return Check(name, False, T('check.no_cc'), [T('fix.cc')] + install(sysname, 'cc') + [T('fix.cc_or', nso.ZBIC_LIB_ENV)])
-        if isinstance(e, OSError): return Check(name, False, why, [T('fix.zbic_write', Path(nso.ZBIC_SRC) / 'build', nso.ZBIC_LIB_ENV)])
-        return Check(name, False, why, [T('fix.cc_broken')] + install(sysname, 'cc') + [T('fix.cc_or', nso.ZBIC_LIB_ENV)])
+        found, lines = why, ''
+        if m := re.match(r'(libzbicdec does not build with .* \(exit code -?\d+\)): (.*)$', why, re.S): found, lines = m.groups()   # nso's words, then the compiler's
+        return Check(name, False, found, [T('fix.cc_broken')] + install(sysname, 'cc') + [T('fix.cc_or', nso.ZBIC_LIB_ENV)],   # last lines joined by ' | '
+                     lines.split(' | ') if lines else ())
 
 
 def dotnet_runtimes():
