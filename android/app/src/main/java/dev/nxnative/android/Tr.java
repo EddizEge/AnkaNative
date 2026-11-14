@@ -112,8 +112,7 @@ final class Tr {
         @Override public String plural(Locale locale, String key, int n, Object... args) {
             Locale l = locale == null ? user : locale;
             for (String dir : folders(l)) {
-                load(dir);
-                Map<String, String> items = plurals.get(dir).get(key);
+                Map<String, String> items = pluralsOf(dir).get(key);
                 if (items == null) continue;
                 String t = n == 1 && items.containsKey("one") ? items.get("one") : items.get("other");
                 if (t == null) throw new MissingResourceException("plurals " + key + " in " + dir + " has no other item", "plurals", key);
@@ -135,6 +134,12 @@ final class Tr {
             }
             out.add("values");
             return out;
+        }
+
+        /** A folder's plurals, read under the lock that load() fills the map under */
+        private synchronized Map<String, Map<String, String>> pluralsOf(String dir) {
+            load(dir);
+            return plurals.get(dir);
         }
 
         private synchronized Map<String, String> load(String dir) {
