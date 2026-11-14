@@ -292,9 +292,9 @@ public final class PackService extends Service {
                 if (starts > MAX_STARTS) {   // twice ended by Android inside this step (START_STICKY brought it back): stop instead of looping
                     j.ended(s);
                     j.stepState(s, "pending");
-                    // job.json's error is English (docs/i18n.md): the status line shows it inside its own sentence
-                    j.state("failed", null, new Msg("prepare_error_step_killed", Job.stepInSentence(i), starts - 1, s.equals("rewrite") ? "2.7" : "1.5",
-                            new Msg("prepare_button_retry")).english());
+                    // job.json's error is English (docs/i18n.md), its code and arguments beside it: the status line shows it in the user's language
+                    String[] killed = PrepareErrors.coded("step_killed", s, starts - 1, s.equals("rewrite") ? "2.7" : "1.5");
+                    j.state("failed", null, PrepareErrors.message(killed).english(), killed);
                     save(j, true);
                     break;
                 }
@@ -367,8 +367,8 @@ public final class PackService extends Service {
         String s = Job.STEPS[i];
         if (s.equals("identify")) {
             DumpCheck.Result r = DumpCheck.check(j.dump(), false);
-            if (!r.ok()) return r.error;
-            if (!r.titleId.equals(j.titleId()) || r.version != j.version()) return new Msg("prepare_error_dump_changed", r.titleId, String.valueOf(r.version)).english();
+            if (!r.ok()) { failCode = r.code; return r.error; }   // DumpCheck's own refusals have a code; DumpLayout's stay English (job.json's error)
+            if (!r.titleId.equals(j.titleId()) || r.version != j.version()) return failed("dump_changed", r.titleId, String.valueOf(r.version));
             j.stepProgress(s, 1, 1, "identify");
             return null;
         }
@@ -470,8 +470,12 @@ public final class PackService extends Service {
         }
         Log.i(TAG, s + ": exit " + code);
         if (code == PackEngine.INTERRUPTED) return "interrupted";
-        if (code != 0) failCode = tail.lastRed != null ? tail.watch.code() : null;
-        if (code != 0) return (tail.lastRed != null ? new Msg("prepare_error_tool_exit_red", s, code, tail.lastRed, log) : new Msg("prepare_error_tool_exit", s, code, log)).english();
+        if (code != 0) {   // the packer's code of the [RED] line when it printed one (JobErrors), else Prepare's own: the tool stopped, with its last [RED] line if any
+            String[] packer = tail.lastRed != null ? tail.watch.code() : null;
+            String err = tail.lastRed != null ? failed("tool_exit_red", s, code, tail.lastRed, log) : failed("tool_exit", s, code, log);
+            if (packer != null) failCode = packer;
+            return err;
+        }
         if (s.equals("split")) {
             Outputs.finish(split);   // every output synced, then the marker: a reboot after the step is recorded done cannot leave cut tables accepted in split/
             // the scan results go only once job.json records the split done (work()): a kill before that resumes from them instead of scanning everything again
@@ -492,7 +496,7 @@ public final class PackService extends Service {
             File want = new File(PackNative.repo(), "dm/games/" + j.titleId() + "/shader_map.tsv");
             if (java.util.Arrays.equals(Files.readAllBytes(want.toPath()), Files.readAllBytes(have.toPath()))) return null;
         } catch (IOException | RuntimeException | UnsatisfiedLinkError e) {
-            return new Msg("prepare_error_compare", e.getMessage()).english();
+            return failed("compare_failed", e.getMessage());
         }
         try {
             Outputs.delete(split);   // a Retry splits again, from the start
@@ -501,11 +505,19 @@ public final class PackService extends Service {
         }
         Job.deleteTree(j.splitScan(this));
         j.stepState("split", "pending");
-        // English, with the version's English (Profile.versionName): job.json's error
-        return new Msg("prepare_error_shader_map", j.name(), Profile.versionName(j.version()), have.getName(), new Msg("prepare_button_retry")).english();
+        // English, with the version's English (Profile.versionName), in job.json's error; the code and its arguments beside it
+        return failed("shader_map", j.name(), j.version(), have.getName());
     }
 
-    /** The packer's error: line of the failed step's last [RED] line ({code, argument...}, JobErrors.Watch), null for none; set by step(), read by the loop */
+    /** A failure of Prepare's own (PrepareErrors): its code and arguments for job.json (failCode), its English as the step's error */
+    private String failed(String code, Object... args) {
+        String[] c = PrepareErrors.coded(code, args);
+        failCode = c;
+        return PrepareErrors.message(c).english();
+    }
+
+    /** The failed step's code ({code, argument...}): Prepare's own (PrepareErrors) or the packer's error: line of its last [RED] line (JobErrors.Watch), null for
+     *  none; set by step(), read by the loop */
     private volatile String[] failCode;
 
     /** Reads the step's log as it grows: progress lines into the job, the last [RED] line for a failure's message and the error: line right before it */

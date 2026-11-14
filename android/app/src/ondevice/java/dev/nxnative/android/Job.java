@@ -22,7 +22,7 @@ import java.nio.file.StandardCopyOption;
  * { "format": 1, "title_id", "name", "version", "dump", "work", "pack": the pack folder the job writes,
  *   "apk": { "engine", "dmsh_chain", "dmsh_vk_chain", "xlate_source", "version_code" }: what the outputs depend on (a change restarts the translation),
  *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, timeout) or "", "error": why failed (English),
- *   "error_code": the packer's error code of that failure (JobErrors) or "", "error_args": its arguments (strings),
+ *   "error_code": the code of that failure, Prepare's own (PrepareErrors) or the packer's (JobErrors), or "", "error_args": its arguments (strings),
  *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
  * </pre>
  * A "running" job whose service is gone (the process was killed, the phone rebooted) is resumed by the service (START_STICKY) or the launcher's Resume.
@@ -32,9 +32,6 @@ final class Job {
     static final String[] STEPS = {"identify", "rewrite", "split", "shaders", "pack"};
     /** The steps in words (strings_prepare.xml), by STEPS' index */
     static final String[] STEP_KEYS = {"prepare_step_identify", "prepare_step_rewrite", "prepare_step_split", "prepare_step_shaders", "prepare_step_pack"};
-    /** The same inside a sentence ("Stopped at checking the dump: …"): resources of their own, never a translation lower-cased */
-    static final String[] STEP_IN_SENTENCE_KEYS = {"prepare_step_identify_in_sentence", "prepare_step_rewrite_in_sentence", "prepare_step_split_in_sentence",
-            "prepare_step_shaders_in_sentence", "prepare_step_pack_in_sentence"};
     /** Each step's share of the progress bar, roughly its time on the phone (ONDEVICE.md "Time and power"); the shaders' share is counted by shader */
     private static final int[] WEIGHT = {1, 5, 12, 78, 4};
     static final int SHADERS = 3;
@@ -195,7 +192,8 @@ final class Job {
 
     synchronized void state(String state, String reason, String error) { state(state, reason, error, null); }
 
-    /** coded: {code, argument...} of the packer's error: line that goes with error (JobErrors.Watch), null for none; every other state change clears it */
+    /** coded: {code, argument...} that goes with error: Prepare's own (PrepareErrors.coded) or the packer's error: line (JobErrors.Watch), null for none; every
+     *  other state change clears it */
     synchronized void state(String state, String reason, String error, String[] coded) {
         try {
             JSONArray args = new JSONArray();
@@ -207,7 +205,7 @@ final class Job {
         }
     }
 
-    /** The packer's error code of the failure, "" for none (a job.json of an older app has none) */
+    /** The failure's code, Prepare's own or the packer's, "" for none (a job.json of an older app has none) */
     synchronized String errorCode() { return o.optString("error_code", ""); }
 
     synchronized String[] errorArgs() {
@@ -217,8 +215,12 @@ final class Job {
         return out;
     }
 
-    /** The failure as the code's text (JobErrors.message), null when it has no code this app knows: then the English error() is all there is */
-    synchronized Msg errorMsg() { return errorCode().isEmpty() ? null : JobErrors.message(errorCode(), errorArgs()); }
+    /** The failure as the code's text (PrepareErrors.message, else JobErrors.message), null when it has no code this app knows: then the English error() is all there is */
+    synchronized Msg errorMsg() {
+        if (errorCode().isEmpty()) return null;
+        Msg own = PrepareErrors.message(errorCode(), errorArgs());
+        return own != null ? own : JobErrors.message(errorCode(), errorArgs());
+    }
 
     /** The failure for the screen: the code's text in the user's language, else the English error */
     synchronized String errorText() {
@@ -318,7 +320,7 @@ final class Job {
     static Msg stepName(int i) { return new Msg(STEP_KEYS[i]); }
 
     /** Step i in words inside a sentence ("checking the dump") */
-    static Msg stepInSentence(int i) { return new Msg(STEP_IN_SENTENCE_KEYS[i]); }
+    static Msg stepInSentence(int i) { return PrepareErrors.stepInSentence(STEPS[i]); }
 
     /** "Translating shaders: 12,345 of 22,852" during the shaders step ("Writing the shader library" at its end), else the step and its count when it has one */
     synchronized Msg stepMsg() {
@@ -335,14 +337,19 @@ final class Job {
     }
 
     /**
-     * One line for the screen and the notification: what the job is doing or why it stopped. A failure shows the text of the packer's error code when it has
-     * one this app knows (errorMsg, docs/i18n.md "Errors of the packer"), else its English error (job.json) as an argument
+     * One line for the screen and the notification: what the job is doing or why it stopped. A failure shows the text of its code when it has one this app
+     * knows: Prepare's own (PrepareErrors, docs/i18n.md "Errors of Prepare") inside "Stopped at …: …", the packer's (JobErrors, "Errors of the packer") as a
+     * sentence of its own; else its English error (job.json) as an argument
      */
     synchronized Msg statusMsg(boolean serviceAlive) {
         String s = state();
         switch (s) {
             case "done": return new Msg("prepare_status_done");
             case "failed": {
+                Msg own = errorCode().isEmpty() ? null : PrepareErrors.message(errorCode(), errorArgs());
+                if (own != null) return PrepareErrors.sentence(errorCode())
+                        ? new Msg("prepare_status_failed_sentence", stepInSentence(current()), own, new Msg("prepare_button_retry"))
+                        : new Msg("prepare_status_failed", stepInSentence(current()), own, new Msg("prepare_button_retry"));
                 Msg coded = errorMsg();
                 if (coded != null) return new Msg("prepare_status_failed_coded", stepInSentence(current()), coded, new Msg("prepare_button_retry"));
                 return new Msg("prepare_status_failed", stepInSentence(current()), error().replaceAll("[.\\s]+$", ""), new Msg("prepare_button_retry"));

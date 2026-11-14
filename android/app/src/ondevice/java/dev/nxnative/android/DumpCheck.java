@@ -23,9 +23,11 @@ final class DumpCheck {
     static final class Result {
         File dump, work;
         String titleId;
-        /** Why the dump cannot be prepared, in English (job.json's error, logs), null when it can; errorMsg: the same for the screen */
+        /** Why the dump cannot be prepared, in English (job.json's error, logs), null when it can; errorMsg: the same for the screen; code: DumpCheck's own
+         *  refusal as PrepareErrors stores it in job.json ({code, argument...}), null for DumpLayout's */
         String error;
         Msg errorMsg;
+        String[] code;
         long version;               // the update's version (updates/<version>)
         long build = -1;            // the profile's build (its build row's version) the version's code is: another number when the dump keeps that build under another version
         Map<String, String> buildIds = new LinkedHashMap<>();   // module → its NSO build ID (32 hex digits)
@@ -67,28 +69,30 @@ final class DumpCheck {
         r.build = f.build;
         for (Map.Entry<String, String> e : f.buildIds.entrySet()) r.buildIds.put(e.getKey(), e.getValue());
         r.dlc = f.dlc;
-        r.errorMsg = space(r, needFree);
+        r.code = space(r, needFree);
+        r.errorMsg = PrepareErrors.message(r.code);
         r.error = r.errorMsg == null ? null : r.errorMsg.english();
         return r;
     }
 
     /**
-     * The work folder beside the dump, its free space and its ondevice/ folder (a folder dump and a .nup alike); null when they fit, else why not. The dump's
+     * The work folder beside the dump, its free space and its ondevice/ folder (a folder dump and a .nup alike); null when they fit, else why not (PrepareErrors'
+     * {code, argument...}). The dump's
      * layout and builds were checked before (DumpLayout.find: the base, an update, or both; the version whose modules are a profile build)
      */
-    private static Msg space(Result r, boolean needFree) {
+    private static String[] space(Result r, boolean needFree) {
         File dump = r.dump;
         r.work = workOf(dump, r.titleId);
         File probe = r.work.isDirectory() ? r.work : r.work.getParentFile();
         try {
             r.free = new StatFs(probe.getPath()).getAvailableBytes();
         } catch (IllegalArgumentException e) {
-            return new Msg("prepare_dump_free_unknown", probe);
+            return PrepareErrors.coded("dump_free_unknown", probe);
         }
         if (needFree && r.free < NEED_BYTES)
-            return new Msg("prepare_dump_space", NEED_BYTES / 1073741824.0, probe, r.free / 1073741824.0);
+            return PrepareErrors.coded("dump_space", NEED_BYTES / 1073741824.0, probe, r.free / 1073741824.0);
         File od = new File(r.work, "ondevice");
-        if (!od.isDirectory() && !od.mkdirs()) return new Msg("prepare_dump_not_writable", od);
+        if (!od.isDirectory() && !od.mkdirs()) return PrepareErrors.coded("dump_not_writable", od);
         return null;
     }
 

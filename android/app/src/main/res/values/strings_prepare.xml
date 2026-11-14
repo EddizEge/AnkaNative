@@ -102,7 +102,7 @@
     <string name="prepare_deleting">Deleting…</string>
     <string name="prepare_deleted_toast">Deleted. Your dump and saves are untouched.</string>
 
-    <!-- Job: the steps (Job.STEP_KEYS), and the same inside a sentence (Job.STEP_IN_SENTENCE_KEYS: "Stopped at checking the dump: …") -->
+    <!-- Job: the steps (Job.STEP_KEYS), and the same inside a sentence (PrepareErrors.stepInSentence: "Stopped at checking the dump: …") -->
     <string name="prepare_step_identify">Checking the dump</string>
     <string name="prepare_step_rewrite">Rewriting the game code</string>
     <string name="prepare_step_split">Finding the shaders</string>
@@ -119,7 +119,8 @@
     <string name="prepare_step_shaders_progress">Translating shaders: %1$,d of %2$,d</string>
     <string name="prepare_step_progress">%1$s %2$,d / %3$,d</string>
     <string name="prepare_step_count">%1$s %2$,d</string>
-    <!-- Job.statusMsg: the job's status line; %1$s: a step (prepare_step_*), %2$s in failed: why it failed, in English (job.json's error); Tap %3$s: the button's label -->
+    <!-- Job.statusMsg: the job's status line; %1$s: a step (prepare_step_*), %2$s in failed: why it failed (a prepare_error_* phrase, in the user's language
+         when job.json has its code, else job.json's English error); Tap %3$s: the button's label -->
     <string name="prepare_status_done">Ready to play.</string>
     <string name="prepare_status_failed">Stopped at %1$s: %2$s. Tap %3$s to go on.</string>
     <string name="prepare_status_pending">Not started yet.</string>
@@ -157,22 +158,27 @@
     <string name="prepare_note_progress">%1$s · %2$d %%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
 
-    <!-- PackService: why a step failed, written in English to job.json's error (the status line shows it inside prepare_status_failed); %1$s: prepare_step_*_in_sentence, tap %4$s: the button's label -->
+    <!-- PackService: why a step failed (PrepareErrors): English in job.json's error, with its code and arguments beside it, so the status line
+         (prepare_status_failed) and the notification show it in the user's language; %1$s: prepare_step_*_in_sentence, tap %4$s: the button's label -->
     <string name="prepare_error_step_killed">%1$s was stopped by Android %2$d times before it finished, most likely for memory (it needs up to %3$s GB). Close other apps, then tap %4$s</string>
     <!-- %1$s: the title ID, %2$s: the version number -->
     <string name="prepare_error_dump_changed">the dump changed: it is now %1$s %2$s</string>
-    <!-- %1$s: the step's code (rewrite, split, shaders, pack), %3$s: the tool's last [RED] line -->
+    <!-- %1$s: the step's code (rewrite, split, shaders, pack: the tools' word, not translated), %3$s: the tool's last [RED] line (English, as the tool wrote it) -->
     <string name="prepare_error_tool_exit">%1$s stopped with code %2$d (log: %3$s)</string>
     <string name="prepare_error_tool_exit_red">%1$s stopped with code %2$d: %3$s (log: %4$s)</string>
     <string name="prepare_error_compare">cannot compare the dump\'s shaders with the app\'s list: %1$s</string>
     <!-- %2$s: the game's version, %3$s: a file name, then %4$s: the button's label -->
     <string name="prepare_error_shader_map">the dump\'s shaders are not the ones this app knows for %1$s (%2$s, %3$s differs). The dump may be incomplete or modified: dump the game again, then %4$s</string>
 
-    <!-- DumpCheck: why a dump cannot be prepared (also in job.json's error, in English) -->
+    <!-- DumpCheck: why a dump cannot be prepared (PrepareErrors; English in job.json's error, with its code beside it). Whole sentences: the status line takes
+         them through prepare_status_failed_sentence -->
     <string name="prepare_dump_free_unknown">Cannot read the free space of %1$s.</string>
     <string name="prepare_dump_space">Preparing needs %1$.1f GB free beside the dump; %2$s has %3$.2f GB free.</string>
     <string name="prepare_dump_not_writable">Cannot make %1$s: the folder beside the dump is not writable.</string>
     <!-- Job.statusMsg: a failure the packer gave an error code (JobErrors); %1$s: a step (prepare_step_*_in_sentence), %2$s: the code's text (errors_*, whole
          sentences ending in a full stop), Tap %3$s: the button's label -->
     <string name="prepare_status_failed_coded">Stopped at %1$s. %2$s Tap %3$s to go on.</string>
+    <!-- Job.statusMsg: a failure of Prepare's own that is a whole sentence (DumpCheck's prepare_dump_*, which end in a full stop); %1$s: a step
+         (prepare_step_*_in_sentence), Tap %3$s: the button's label. The phrases (prepare_error_*) go into prepare_status_failed -->
+    <string name="prepare_status_failed_sentence">Stopped at %1$s: %2$s Tap %3$s to go on.</string>
 </resources>
