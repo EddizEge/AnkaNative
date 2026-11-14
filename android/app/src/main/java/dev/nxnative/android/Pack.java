@@ -138,7 +138,7 @@ final class Pack {
 
     static Pack read(File dir) throws IOException {
         File f = new File(dir, "pack.tsv");
-        if (!f.isFile()) throw new IOException(dir + " has no pack.tsv");
+        if (!f.isFile()) throw new LocalizedIOException("packs_no_pack_tsv", dir);
         Map<String, List<String>> rows = new LinkedHashMap<>();
         for (String line : Files.readAllLines(f.toPath(), StandardCharsets.UTF_8)) {
             int t = line.indexOf('\t');

@@ -4,4 +4,8 @@
     <string name="settings_language">Dil</string>
     <string name="settings_language_system">Sistem varsayılanı</string>
     <string name="settings_language_failed">Dil değiştirilemedi: %1$s</string>
+    <string name="settings_profile_base_game">temel oyun</string>
+    <string name="settings_profile_base_game_v0">temel oyun, sürüm 0</string>
+    <string name="settings_profile_update">güncelleme %1$d</string>
+    <string name="settings_profile_supported">Bu uygulama yalnızca şu sürümü destekler: %1$s (%2$s) %3$s.</string>
 </resources>

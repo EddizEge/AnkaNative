@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Brasil): the home area (MainActivity, Ui, Prefs, FrontendLaunch). docs/i18n.md: keys start with home_, one file per area, translations keep the English file's name -->
 <resources>
+    <string name="home_access_title">Permitir acesso aos arquivos</string>
+    <string name="home_access_body">Necessário para ler o dump do seu jogo.</string>
 </resources>

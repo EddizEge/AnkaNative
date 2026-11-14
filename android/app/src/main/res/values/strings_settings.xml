@@ -8,4 +8,8 @@
     <string name="settings_language_pt_br" translatable="false">Português (Brasil)</string>
     <string name="settings_language_es_419" translatable="false">Español (Latinoamérica)</string>
     <string name="settings_language_failed">The language could not be changed: %1$s</string>
+    <string name="settings_profile_base_game">the base game</string>
+    <string name="settings_profile_base_game_v0">the base game, version 0</string>
+    <string name="settings_profile_update">update %1$d</string>
+    <string name="settings_profile_supported">This app supports %1$s (%2$s) %3$s only.</string>
 </resources>

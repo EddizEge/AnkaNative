@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Brasil): the prepare area (Ondevice, Job, PackService, DumpCheck). docs/i18n.md: keys start with prepare_, one file per area, translations keep the English file's name -->
 <resources>
+    <string name="prepare_cannot_use">Não é possível usar %1$s: %2$s</string>
 </resources>

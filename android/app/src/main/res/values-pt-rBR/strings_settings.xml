@@ -4,4 +4,8 @@
     <string name="settings_language">Idioma</string>
     <string name="settings_language_system">Padrão do sistema</string>
     <string name="settings_language_failed">Não foi possível mudar o idioma: %1$s</string>
+    <string name="settings_profile_base_game">o jogo base</string>
+    <string name="settings_profile_base_game_v0">o jogo base, versão 0</string>
+    <string name="settings_profile_update">atualização %1$d</string>
+    <string name="settings_profile_supported">Este app só é compatível com %1$s (%2$s) %3$s.</string>
 </resources>

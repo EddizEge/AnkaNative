@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Türkçe: the home area (MainActivity, Ui, Prefs, FrontendLaunch). docs/i18n.md: keys start with home_, one file per area, translations keep the English file's name -->
 <resources>
+    <string name="home_access_title">Dosya erişimine izin ver</string>
+    <string name="home_access_body">Oyun dökümünüzü okumak için gerekli.</string>
 </resources>

@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Türkçe: the readiness area (Readiness, ReadinessActivity, GameActivity readinessDialog/details). docs/i18n.md: keys start with readiness_, one file per area, translations keep the English file's name -->
 <resources>
+    <plurals name="readiness_summary_limited">
+        <item quantity="one">%1$d oyun burada kısıtlı çalışıyor.</item>
+        <item quantity="other">%1$d oyun burada kısıtlı çalışıyor.</item>
+    </plurals>
 </resources>

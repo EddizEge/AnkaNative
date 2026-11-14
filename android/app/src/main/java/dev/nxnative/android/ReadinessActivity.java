@@ -199,7 +199,7 @@ public final class ReadinessActivity extends Activity {
         r.verdict = r.level == 2 ? "Not ready" : r.level == 1 ? "Ready, with limits" : "Ready";
         r.summary = r.level == 2 ? (fails > 0 ? fails + (fails == 1 ? " game lacks" : " games lack") + " what it needs" : "") + (fails > 0 && phoneFails > 0 ? "; " : "")
                 + (phoneFails > 0 ? phoneFails + " phone problem" + (phoneFails == 1 ? "" : "s") : "") + "."
-                : r.level == 1 ? warns + (warns == 1 ? " game runs" : " games run") + " with less here." : phoneWarns > 0 ? "Every game's needs are met; see the warnings below." : "Every game's needs are met.";
+                : r.level == 1 ? c.getResources().getQuantityString(R.plurals.readiness_summary_limited, warns, warns) : phoneWarns > 0 ? "Every game's needs are met; see the warnings below." : "Every game's needs are met.";
         return r;
     }
 

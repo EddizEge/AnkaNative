@@ -131,9 +131,9 @@ public final class MainActivity extends Activity {
     private View accessCard() {
         LinearLayout c = Ui.card(this);
         c.setBackground(Ui.round(Ui.col(this, R.color.bn_warn_tint), dp(20), Ui.col(this, R.color.bn_banana_deep), dp(1)));
-        c.addView(Ui.heading(this, "Allow file access"));
-        Ui.add(c, Ui.body(this, "Needed to read your game dump."), 4);
-        Ui.add(c, Ui.button(this, "Allow", Ui.Kind.PRIMARY, v -> openAccessSettings()), 14, Ui.wrap());
+        c.addView(Ui.heading(this, getString(R.string.home_access_title)));
+        Ui.add(c, Ui.body(this, getString(R.string.home_access_body)), 4);
+        Ui.add(c, Ui.button(this, getString(R.string.common_allow), Ui.Kind.PRIMARY, v -> openAccessSettings()), 14, Ui.wrap());
         return c;
     }
 

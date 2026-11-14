@@ -481,7 +481,7 @@ final class Ondevice {
                 show();
                 new AlertDialog.Builder(a).setTitle("Ready to play").setMessage("Its pack fits: nothing needs preparing.\n\nPack: " + packDir).setPositiveButton("OK", null).show();
             } catch (Exception e) {
-                a.error("Cannot use " + packDir + ": " + e.getMessage());
+                a.error(a.getString(R.string.prepare_cannot_use, packDir, e.getLocalizedMessage()));
             }
         }
 

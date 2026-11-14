@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Brasil): the common area (shared words; closed in phase 1 (docs/i18n.md)). docs/i18n.md: keys start with common_, one file per area, translations keep the English file's name -->
 <resources>
+    <string name="common_allow">Permitir</string>
+    <string name="common_back">Voltar</string>
+    <string name="common_close">Fechar</string>
+    <string name="common_details">Detalhes</string>
+    <string name="common_settings">Configurações</string>
+    <string name="common_or">%1$s ou %2$s</string>
 </resources>

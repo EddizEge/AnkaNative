@@ -137,20 +137,20 @@ final class Profile {
     }
 
     /** A version of a dump in words: 0 is the base game itself (no update installed; Mario Kart World 1.8.0's supported build), any other an update */
-    static String versionName(long version) { return version == 0 ? "the base game" : "update " + version; }
+    static String versionName(long version) { return version == 0 ? Tr.s("settings_profile_base_game") : Tr.s("settings_profile_update", version); }
 
     /** Which versions of this game the APK supports, as a sentence for a dump it refuses (DumpCheck): its builds, by display version when game.tsv names one */
     String supported() {
-        List<String> all = new ArrayList<>();
-        for (Long v : buildMap().keySet()) all.add(buildName(v));
-        return "This app supports " + name + " (" + titleId + ") " + String.join(" or ", all) + " only.";
+        String all = null;
+        for (Long v : buildMap().keySet()) all = all == null ? buildName(v) : Tr.s("common_or", all, buildName(v));
+        return Tr.s("settings_profile_supported", name, titleId, all == null ? "" : all);
     }
 
     /** One of the profile's builds in words: "1.8.0 (the base game, version 0, main d00e4f399e411d06…)", "update 458752 (main e25c90c1c1366388…)" */
     String buildName(long v) {
         String d = display(v), main = buildMap().getOrDefault(v, Map.of()).get("main");
         String ids = main == null ? "" : "main " + main.substring(0, Math.min(16, main.length())) + "…";
-        if (d != null) return d + " (" + (v == 0 ? "the base game, version 0" : "update " + v) + (ids.isEmpty() ? "" : ", " + ids) + ")";
+        if (d != null) return d + " (" + (v == 0 ? Tr.s("settings_profile_base_game_v0") : Tr.s("settings_profile_update", v)) + (ids.isEmpty() ? "" : ", " + ids) + ")";
         return versionName(v) + (ids.isEmpty() ? "" : " (" + ids + ")");
     }
 
