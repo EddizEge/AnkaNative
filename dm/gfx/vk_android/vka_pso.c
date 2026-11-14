@@ -342,6 +342,29 @@ static void fout_masks(const vka_shader *fs, const vka_gkey *k, uint32_t *um, ui
         if (c && (fs->e->fout_mask >> i & 1) && (fs->e->fout_types >> (2 * i) & 3) == DMSH_VK_TYPE_FLOAT) { if (c == 1) *um |= 1u << i; else *sm |= 1u << i; }
     }
 }
+// DM_VK_BLEND_ZERO=1 (restart; default 0 = as before): NVIDIA's float blender takes a blend term whose weight is 0 as 0 whatever the colour ("zero times anything is zero",
+// SET_BLEND_FLOAT_OPTION, which NVN's driver turns on at start); Vulkan's blending follows IEEE, 0 x NaN = 0 x Inf = NaN, as Apple's does. nxnative found Ocarina of Time's
+// half-resolution mist shader writing NaN at alpha 0 into an RGBA16F target blended SRC_ALPHA / ONE_MINUS_SRC_ALPHA, which the bloom spread into white blotches over the
+// foliage at the Kokiri Forest exit (their 0662f9d8, issue #2187); what Adreno's blender does with it is not known. With the switch, a pipeline whose colour output i
+// blends into a floating-point attachment by a sum or difference with a source colour factor of SRC_ALPHA (zero where alpha is 0: mode 1) or ONE_MINUS_SRC_ALPHA (zero where
+// alpha is 1: mode 2), and whose destination factor does not read the source colour, gets the pixel module whose output i returns a NaN or Inf rgb component as 0 there
+// (vka_shader_bz_module). The modes come from the key's blend state, so the pipeline key needs nothing more. Only for the base pixel module: a pipeline that already takes
+// another variant (integer targets, the library's variants) is left as it is
+static int bz_on(void) { static int v = -1; if (v < 0) v = VKA_ENV("DM_VK_BLEND_ZERO", 0) != 0; return v; }
+static int vkf_float(uint32_t f) { return (f >= VK_FORMAT_R16_SFLOAT && f <= VK_FORMAT_R16G16B16A16_SFLOAT && (f - VK_FORMAT_R16_SFLOAT) % 7 == 0) || f == VK_FORMAT_R32_SFLOAT || f == VK_FORMAT_R32G32_SFLOAT
+                                          || f == VK_FORMAT_R32G32B32_SFLOAT || f == VK_FORMAT_R32G32B32A32_SFLOAT || f == VK_FORMAT_B10G11R11_UFLOAT_PACK32; }
+static uint32_t bz_modes(const vka_gkey *k) {
+    uint32_t w = 0;
+    for (uint32_t i = 0; i < k->ncolor && i < 8; i++) {
+        if (!k->att[i].en || !vkf_float(k->cfmt[i]) || k->logic_en) continue;
+        if (k->att[i].op > VK_BLEND_OP_REVERSE_SUBTRACT) continue;   // (MIN / MAX: no weights)
+        uint8_t d = k->att[i].dst;
+        if (d == VK_BLEND_FACTOR_SRC_COLOR || d == VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR || (d >= VK_BLEND_FACTOR_SRC1_COLOR && d <= VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA)) continue;
+        uint32_t m = k->att[i].src == VK_BLEND_FACTOR_SRC_ALPHA ? 1 : k->att[i].src == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ? 2 : 0;
+        w |= m << (2 * i);
+    }
+    return w;
+}
 static int spec_has(const VkSpecializationInfo *si, uint32_t id) { for (uint32_t i = 0; si && i < si->mapEntryCount; i++) if (si->pMapEntries[i].constantID == id) return 1; return 0; }
 // 0 = a stage's module is missing (logged by vka_shader_module)
 static int pstate_fill(pstate *P, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k) {
@@ -358,8 +381,10 @@ static int pstate_fill(pstate *P, vka_shader *const sh[VKA_NSTAGE], const vka_la
         vka_shader *s = sh[order[i]]; if (!s) continue;
         int fs = order[i] == 1, gl = k->gl_depth && order[i] == last_pre && (s->e->flags & DMSH_VK_F_GL_DEPTH);
         uint32_t fu = 0, fsm = 0; if (fs && k->fs_variant == VKA_FS_RETYPE) fout_masks(s, k, &fu, &fsm);
+        uint32_t bz = fs && k->fs_variant == DMSH_VK_MOD_BASE && bz_on() ? bz_modes(k) : 0;   // DM_VK_BLEND_ZERO (above)
         VkShaderModule mod = order[i] == 0 && (k->vin_u | k->vin_s) ? vka_shader_vin_module(s, k->vin_u, k->vin_s) : order[i] == 2 && k->gs_fx ? vka_shader_gs_module(s)
                            : fs && k->fs_variant == VKA_FS_RETYPE ? (fu | fsm ? vka_shader_fout_module(s, fu, fsm) : vka_shader_module(s, DMSH_VK_MOD_BASE))
+                           : bz ? vka_shader_bz_module(s, bz)
                            : vka_shader_module(s, fs ? k->fs_variant : DMSH_VK_MOD_BASE);
         if (!mod && order[i] == 2 && k->gs_fx) mod = vka_shader_module(s, DMSH_VK_MOD_BASE);   // no module with the claim (logged): the shader as it is
         if (!mod) return 0;

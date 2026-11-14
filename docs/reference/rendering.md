@@ -593,6 +593,15 @@ The replay on Metal (`dm/gfx/nvn/nvn_mtl.m`) and the Vulkan and OpenGL layers. E
 - **Fix:** **Open.** Neither setter has been implemented. The opening indoor scene renders and accepts input, but the visual contribution of the missing coverage state has not been isolated. The diagnostic remains visible.
 - **Found on:** Pokémon Scarlet (1.0.0, the first playable bedroom).
 
+### A NaN colour under a zero blend weight (Android)
+
+- **Symptom:** (expected, not yet seen on our phones) white blotches or clouds spreading from bloom where a game draws a NaN or infinite colour with alpha 0 under `SRC_ALPHA` blending into a floating-point target: nxnative found them over Ocarina of Time's foliage at the Kokiri Forest exit (their issue #2187).
+- **Cause:** NVN's driver turns on the float blender's "zero times anything is zero" option (`SET_BLEND_FLOAT_OPTION`), so a blend term whose weight is 0 adds nothing whatever the colour. Vulkan blends as IEEE does: 0 x NaN and 0 x Inf are NaN, and the NaN reaches the target. The game's half-resolution mist shader divides by zero where its layer is empty and writes the result with alpha 0 into an RGBA16F target blended `SRC_ALPHA` / `ONE_MINUS_SRC_ALPHA` (nxnative 0662f9d8). What Adreno's blender does with it is not known.
+- **Fix (test switch, off by default):** `DM_VK_BLEND_ZERO=1` (restart). A pipeline whose colour output blends into a floating-point attachment by a sum or difference with a source colour factor of `SRC_ALPHA` (zero at alpha 0) or `ONE_MINUS_SRC_ALPHA` (zero at alpha 1), and whose destination factor does not read the source colour, takes a pixel module with a guard before each return of its entry point: a NaN or Inf rgb component of that output is written as 0 where its alpha makes the weight zero (`vka_spv_blend_zero`, `vka_shader_bz_module`, `vka_pso.c bz_modes`). A finite colour and the alpha are never changed. Only the base pixel module gets it: a pipeline that already takes another variant is left as it is. The rule and the cases are nxnative's (`dmsh_rewrite.py blend_zero`, for Metal); this is a SPIR-V form of it, and the shader library is unchanged.
+- **Check:** `t_android_spvpatch` guards a glslc-built shader with two outputs and two returns (structure, and spirv-val accepts it). The rewrite was also run once over every 50th pixel shader of an older Ocarina of Time library on the computer (447 shaders, both modes, 150 validated with spirv-val, none refused or invalid), and a small shader's guarded and original modules were evaluated with a SPIR-V interpreter: NaN, +Inf and -Inf became 0 at alpha 0 (mode 1) and alpha 1 (mode 2), and stayed at alpha 0.5. Not run on a phone.
+- **Open:** a NaN or Inf already in the target under a zero destination weight, a non-finite weight on a colour of 0, and the alpha channel's own weights (as in nxnative).
+- **Found on:** [Ocarina of Time (Switch 2)](../../dm/games/0400486024DEC000/README.md), by nxnative on the Mac.
+
 ## Vertex input and draws
 
 ### Integer vertex inputs

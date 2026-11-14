@@ -348,6 +348,36 @@ VkShaderModule vka_shader_fout_module(vka_shader *s, uint32_t umask, uint32_t sm
     pthread_mutex_unlock(&g_mu);
     return mod;
 }
+// The base pixel module with the zero blend weight guard (vka_spvpatch.c vka_spv_blend_zero; vka_pso.c DM_VK_BLEND_ZERO), made once per modes word: the base module when
+// no output of those locations is a vec4 of floats, or when the rewrite fails (logged)
+VkShaderModule vka_shader_bz_module(vka_shader *s, uint32_t modes) {
+    pthread_mutex_lock(&g_mu);
+    for (struct vka_vinmod *v = s->bz; v; v = v->next) if (v->u == modes) { VkShaderModule m = v->mod; pthread_mutex_unlock(&g_mu); return m; }
+    pthread_mutex_unlock(&g_mu);
+    VkShaderModule mod = VK_NULL_HANDLE; char err[256] = ""; int own = 0;
+    const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
+    size_t nb = 0; uint32_t *w = m ? vka_shlib_spirv(s->lib, m, &nb, err, sizeof err) : NULL;
+    if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, s->e->stage, &w, &nb);
+    if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, nb);
+    size_t on = 0; uint32_t *o = w ? vka_spv_blend_zero(w, nb / 4, modes, &on, err, sizeof err) : NULL;
+    if (o) { VkShaderModuleCreateInfo ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = on * 4, .pCode = o};
+             VkResult r = vk.vkCreateShaderModule(V.dev, &ci, NULL, &mod); if (r) { snprintf(err, sizeof err, "vkCreateShaderModule %d", r); mod = VK_NULL_HANDLE; } else own = 1; }
+    free(w); free(o);
+    if (!mod) {
+        if (err[0]) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("pixel shader %016llx: zero blend weight guard (outputs %#x) not made: %s; the base module", (unsigned long long)s->key, modes, err); }
+        mod = vka_shader_module(s, DMSH_VK_MOD_BASE);
+    } else { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VLOG("pixel shader %016llx: a NaN or Inf colour under a zero blend weight written as 0 (outputs %#x, DM_VK_BLEND_ZERO)", (unsigned long long)s->key, modes); }
+    if (!mod) return VK_NULL_HANDLE;
+    pthread_mutex_lock(&g_mu);
+    for (struct vka_vinmod *x = s->bz; x; x = x->next) if (x->u == modes) {
+        VkShaderModule had = x->mod; pthread_mutex_unlock(&g_mu);
+        if (own && mod != had) vk.vkDestroyShaderModule(V.dev, mod, NULL);
+        return had; }
+    struct vka_vinmod *v = malloc(sizeof *v);
+    if (v) { *v = (struct vka_vinmod){s->bz, modes, 0, mod}; s->bz = v; }
+    pthread_mutex_unlock(&g_mu);
+    return mod;
+}
 int vka_shader_fout_retyped(vka_shader *s, uint32_t umask, uint32_t smask) {
     VkShaderModule m = vka_shader_fout_module(s, umask, smask);
     return m && m != vka_shader_module(s, DMSH_VK_MOD_BASE);

@@ -511,3 +511,88 @@ int vka_spv_move_set(uint32_t *w, size_t nw, uint32_t set, uint32_t binding, uin
     free(hit);
     return n;
 }
+
+// NVIDIA's float blender with "zero times anything is zero" (SET_BLEND_FLOAT_OPTION, which NVN's driver turns on), for a pixel module (vka_pso.c DM_VK_BLEND_ZERO): before
+// every return of the entry point, each vec4 float Output at a location whose 2 bits in `modes` are 1 (its source colour factor is SRC_ALPHA: zero where alpha is 0) or 2
+// (ONE_MINUS_SRC_ALPHA: zero where alpha is 1) is loaded, its non-finite rgb components (exponent bits all ones: NaN or Inf) are replaced by 0 where its alpha makes that
+// weight zero, and it is stored back. A finite colour and the alpha are never changed. The idea and the rule are nxnative's 0662f9d8 (dmsh_rewrite.py blend_zero, for
+// Metal); this is a SPIR-V form of it. A malloc'd copy (*out_nw words), or NULL with the reason in err (err empty: no output of those locations to guard)
+uint32_t *vka_spv_blend_zero(const uint32_t *w, size_t nw, uint32_t modes, size_t *out_nw, char *err, size_t errn) {
+    enum { OpCompositeExtract = 81, OpLogicalAnd = 167, OpFOrdEqual = 180, OpBitwiseAnd = 199, DecIndex = 32 };
+    err[0] = 0;
+    if (nw < 5 || w[0] != 0x07230203) { snprintf(err, errn, "not SPIR-V"); return NULL; }
+    uint32_t bound = w[3], entry = 0, t_f32 = 0, t_u32 = 0, t_bool = 0, t_v4 = 0;
+    uint32_t *loc = calloc(bound, 4), *idx = calloc(bound, 4), *ptee = calloc(bound, 4);
+    if (!loc || !idx || !ptee) { free(loc); free(idx); free(ptee); snprintf(err, errn, "out of memory"); return NULL; }
+    for (uint32_t i = 0; i < bound; i++) loc[i] = ~0u;
+    size_t first_fn = nw; int nentry = 0;
+    for (size_t i = 5; i < nw;) {
+        uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
+        if (!len || i + len > nw) { snprintf(err, errn, "bad instruction at word %zu", i); goto fail; }
+        if (op == OpEntryPoint && len >= 3) { if (w[i + 1] == 4) { entry = w[i + 2]; nentry++; } else nentry += 2; }   // (ExecutionModel 4: Fragment)
+        else if (op == OpDecorate && len >= 4 && w[i + 1] < bound) { if (w[i + 2] == DecLocation) loc[w[i + 1]] = w[i + 3]; else if (w[i + 2] == DecIndex) idx[w[i + 1]] = w[i + 3]; }
+        else if (op == OpTypeFloat && len >= 3 && w[i + 2] == 32 && !t_f32) t_f32 = w[i + 1];
+        else if (op == OpTypeInt && len >= 4 && w[i + 2] == 32 && !w[i + 3] && !t_u32) t_u32 = w[i + 1];
+        else if (op == OpTypeBool && len >= 2 && !t_bool) t_bool = w[i + 1];
+        else if (op == OpTypeVector && len >= 4 && t_f32 && w[i + 2] == t_f32 && w[i + 3] == 4 && !t_v4) t_v4 = w[i + 1];
+        else if (op == OpTypePointer && len >= 4 && w[i + 2] == SCOutput && w[i + 1] < bound) ptee[w[i + 1]] = w[i + 3];
+        else if (op == OpFunction && first_fn == nw) first_fn = i;
+        i += len;
+    }
+    if (nentry != 1 || !entry) { snprintf(err, errn, "not one fragment entry point"); goto fail; }
+    // The outputs to guard: Location in modes, index 0 (not a second blend source), a vec4 of 32-bit floats
+    uint32_t gv[8], gm[8]; int ng = 0;
+    for (size_t i = 5; i < first_fn; i += w[i] >> 16) {
+        uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
+        if (op != OpVariable || len < 4 || w[i + 3] != SCOutput || w[i + 2] >= bound || w[i + 1] >= bound) continue;
+        uint32_t id = w[i + 2], l = loc[id], m = l < 8 ? modes >> (2 * l) & 3 : 0;
+        if (!m || m == 3 || idx[id] || !t_v4 || ptee[w[i + 1]] != t_v4 || ng == 8) continue;
+        gv[ng] = id; gm[ng++] = m;
+    }
+    free(loc); free(idx); free(ptee); loc = idx = ptee = NULL;
+    if (!ng) { *out_nw = 0; return NULL; }   // (err empty: nothing to guard)
+    // New ids: the types the module lacks, the constants 0.0, 1.0 and 0x7f800000
+    uint32_t nb = bound, mk_u32 = 0, mk_bool = 0;
+    if (!t_u32) t_u32 = mk_u32 = nb++;
+    if (!t_bool) t_bool = mk_bool = nb++;
+    uint32_t c0 = nb++, c1 = nb++, cexp = nb++;
+    vec_t o = {0};
+    if (!put_n(&o, w, 5)) goto oom;
+    int in_entry = 0, nret = 0;
+    for (size_t i = 5; i < nw;) {
+        uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
+        if (i == first_fn) {
+            if (mk_u32) { uint32_t x[4] = {4u << 16 | OpTypeInt, mk_u32, 32, 0}; if (!put_n(&o, x, 4)) goto oom; }
+            if (mk_bool) { uint32_t x[2] = {2u << 16 | OpTypeBool, mk_bool}; if (!put_n(&o, x, 2)) goto oom; }
+            uint32_t x[12] = {4u << 16 | OpConstant, t_f32, c0, 0x00000000u, 4u << 16 | OpConstant, t_f32, c1, 0x3f800000u, 4u << 16 | OpConstant, t_u32, cexp, 0x7f800000u};
+            if (!put_n(&o, x, 12)) goto oom;
+        }
+        if (op == OpFunction && len >= 3) in_entry = w[i + 2] == entry;
+        if (in_entry && op == OpReturn) {
+            nret++;
+            for (int g = 0; g < ng; g++) {
+                uint32_t v = nb++, a = nb++, z = nb++, comp[3];
+                uint32_t x[4 + 5 + 5] = {4u << 16 | OpLoad, t_v4, v, gv[g], 5u << 16 | OpCompositeExtract, t_f32, a, v, 3, 5u << 16 | OpFOrdEqual, t_bool, z, a, gm[g] == 1 ? c0 : c1};
+                if (!put_n(&o, x, 14)) goto oom;
+                for (uint32_t k = 0; k < 3; k++) {
+                    uint32_t e = nb++, b = nb++, m = nb++, nf = nb++, s = nb++; comp[k] = nb++;
+                    uint32_t y[5 + 4 + 5 + 5 + 5 + 6] = {5u << 16 | OpCompositeExtract, t_f32, e, v, k, 4u << 16 | OpBitcast, t_u32, b, e, 5u << 16 | OpBitwiseAnd, t_u32, m, b, cexp,
+                                                        5u << 16 | OpIEqual, t_bool, nf, m, cexp, 5u << 16 | OpLogicalAnd, t_bool, s, z, nf, 6u << 16 | OpSelect, t_f32, comp[k], s, c0, e};
+                    if (!put_n(&o, y, 30)) goto oom;
+                }
+                uint32_t r = nb++;
+                uint32_t q[7 + 3] = {7u << 16 | OpCompositeConstruct, t_v4, r, comp[0], comp[1], comp[2], a, 3u << 16 | OpStore, gv[g], r};
+                if (!put_n(&o, q, 10)) goto oom;
+            }
+        }
+        if (op == OpFunctionEnd) in_entry = 0;
+        if (!put_n(&o, w + i, len)) goto oom;
+        i += len;
+    }
+    if (!nret) { free(o.w); snprintf(err, errn, "the entry point has no OpReturn"); return NULL; }
+    o.w[3] = nb; *out_nw = o.n; return o.w;
+oom:
+    free(o.w); snprintf(err, errn, "out of memory"); return NULL;
+fail:
+    free(loc); free(idx); free(ptee); return NULL;
+}

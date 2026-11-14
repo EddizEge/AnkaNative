@@ -386,6 +386,7 @@ typedef struct vka_shader {
     VkShaderModule mods[5];             // by DMSH_VK_MOD_* variant, made when a pipeline first asks (the base when the shader is made)
     struct vka_vinmod *vin;             // vertex modules with integer-fed inputs retyped, by masks (vka_shader_vin_module)
     struct vka_vinmod *fout;            // pixel modules with float outputs retyped for integer targets, by masks (vka_shader_fout_module)
+    struct vka_vinmod *bz;              // pixel modules with the zero blend weight guard, by modes word (vka_shader_bz_module; u = the modes)
     vka_span c1; VkDeviceSize c1_len;   // the c1 bytes in static memory (none when c1_len is 0)
     int bad;                            // refused: no module, an unknown binding, an NV-only capability (logged once with its key)
     int gs_fx;                          // a geometry shader's memory writes (vka_spv_gs_claim): above 0, its draws bind a claim buffer at VKA_GS_CLAIM_BINDING
@@ -404,6 +405,7 @@ VkShaderModule vka_shader_cs_module(vka_shader *s);  // a compute shader's modul
 VkShaderModule vka_shader_gs_module(vka_shader *s);   // a geometry shader's module with its memory writes made once per primitive (vka_spv_gs_claim)
 #define VKA_GS_CLAIM_BINDING (DMSH_VK_STAGE_GS * DMSH_VK_STAGE_BINDINGS + DMSH_VK_STAGE_BINDINGS - 1)   // set 0: the claim words of such a shader (the stage's last binding)
 VkShaderModule vka_shader_fout_module(vka_shader *s, uint32_t umask, uint32_t smask);
+VkShaderModule vka_shader_bz_module(vka_shader *s, uint32_t modes);   // the base pixel module with NaN / Inf under a zero blend weight written as 0 (vka_spv_blend_zero), made once per modes word
 int vka_shader_fout_retyped(vka_shader *s, uint32_t umask, uint32_t smask);   // 1 when that module is a rewritten one (not the base module it falls back to)   // the base pixel module with those float outputs as uint / int vectors of their bits (vka_spv_fout_retype), made once per masks
 #define VKA_FS_RETYPE 4                  // vka_gkey.fs_variant beyond the library's pixel DMSH_VK_MOD_* (4 is DMSH_VK_MOD_SHUFFLE_LDS of compute modules, never a pixel variant): the base pixel module with its float outputs at integer attachments retyped (vka_pso.c fout_masks)
 VkShaderModule vka_shader_vin_module(vka_shader *s, uint32_t umask, uint32_t smask);   // the base module with those float inputs as uvec4 / ivec4 (vka_spv_vin_retype), made once per masks   // the module of that variant (DMSH_VK_MOD_*), made on first use; VK_NULL_HANDLE = the entry has none   // the shader of key in library L (the game's, or the selftest's own); NULL = not there or refused
