@@ -19,7 +19,8 @@ Anka Native is built on other people's work. This file is where they are credite
   b39bf8b5); SDK 22's `IsOunceVibrationDeviceMounted` (`hle_hid.c`, b39bf8b5); the audio focus asked for again
   after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish); one prewarm build at a time
   on Turnip (`vka_pso.c`, d393736c and 84d1b9df by wraphs); the asynchronous pipeline queue's cheapest-first
-  order, fitted to Anka Native's need order (`vka_aspick.h`, after 49fa341d).
+  order, fitted to Anka Native's need order (`vka_aspick.h`, after 49fa341d); the texture-use feedback bitmap in a
+  set of its own (their finding of v0.2.9, ad509ad8, re-implemented as a SPIR-V set rewrite at module creation).
 
 ## Code and findings from other projects
 

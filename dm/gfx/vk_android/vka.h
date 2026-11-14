@@ -330,6 +330,10 @@ int vka_tex_pool_lazy(void);                                  // vka_tex.c: lazy
 int vka_tex_pool_mark(const uint32_t *w, size_t n, uint64_t range, int fb);   // vka_tex.c: texture IDs a pool-reading draw may index (its storage buffers' words, from a binding range of that size: 0 unknown): the deferred ones queued; returns how many. fb: the draw reports the IDs it indexes (DM_VK_TEXFB gate)
 // GPU texture-use feedback (vka_tex.c "Texture-use feedback", DM_VK_TEXFB; dmsh_abi_vk.h DMSH_VK_POOL_FB_BINDING)
 int vka_tex_fb_spec(void);                                    // 1: pipelines of DMSH_VK_F_TEXFB modules get DMSH_VK_SPEC_TEXFB true (fixed for the process)
+#define VKA_FB_OWN_SET 2                                  // DM_VK_TEXFB_SET: the feedback bitmap's set of its own (vka_tex.c)
+int vka_tex_fb_own_set(void);                                 // DM_VK_TEXFB_SET on (restart)
+VkDescriptorSetLayout vka_tex_fb_layout(void);                // its layout (VK_NULL_HANDLE: off, or not made)
+VkDescriptorSet vka_tex_fb_set(void);                         // its set, bound with the pool set
 void vka_tex_fb_draw(int reporting);                          // a draw or dispatch reads the texture pool: its shaders report (1) or not (0: a blind one, the release rule waits)
 void vka_tex_fb_commit(VkCommandBuffer cb, uint64_t fence);   // the submission's end (vka_exec.c): its bitmap copied out and cleared when it had a reporting draw
 int vka_shader_texfb(int *complete);                          // vka_shader.c: the library has DMSH_VK_F_TEXFB entries; *complete: every entry with a texture pool binding has it
@@ -416,7 +420,7 @@ typedef struct {   // what a graphics pipeline is made from beyond its shaders a
     struct { uint32_t fmt, offset; uint8_t binding, used, pad[2]; } va[32];   // by location
     struct { uint32_t stride, divisor; uint8_t used, pad[3]; } vb[33];         // by binding (stream; 32 = the zero buffer of inputs no attribute feeds)
 } vka_gkey;
-typedef struct { VkPipelineLayout layout; VkDescriptorSetLayout set0; int push; uint32_t ndesc; } vka_layout;
+typedef struct { VkPipelineLayout layout; VkDescriptorSetLayout set0; int push; uint32_t ndesc; int fbset; } vka_layout;   // fbset: set 2 is the feedback bitmap's (DM_VK_TEXFB_SET)
 int vka_layout_of(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout *out);   // the set-0 layout of these stages' records with the pools' set 1
 VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k);
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);

@@ -21,6 +21,51 @@ static int validate(const uint32_t *w, size_t n, const char *tag) {
     if (r) printf("  spirv-val failed on %s\n", tag);
     return r == 0;
 }
+// A pixel shader with the texture-use feedback bitmap at set 1 binding 3, a texture and a sampler at set 1 bindings 0 and 1, a storage buffer at set 0 binding 3:
+// glslc --target-env=vulkan1.3 -O of
+//   layout(set = 1, binding = 3) buffer FB { uint bits[]; } fb; layout(set = 1, binding = 0) uniform texture2D t0; layout(set = 1, binding = 1) uniform sampler s0;
+//   layout(set = 0, binding = 3) buffer B0 { uint x; } b0; layout(location = 0) out vec4 o;
+//   void main() { atomicOr(fb.bits[0], 1u); o = texture(sampler2D(t0, s0), vec2(0.5)) + vec4(float(b0.x)); }
+static const uint32_t SPV_FB_FRAG[] = {
+    0x07230203, 0x00010600, 0x000d000b, 0x0000002c, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
+    0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
+    0x000a000f, 0x00000004, 0x00000004, 0x6e69616d, 0x00000000, 0x0000000a, 0x00000015, 0x00000018,
+    0x0000001c, 0x00000026, 0x00030010, 0x00000004, 0x00000007, 0x00040047, 0x00000007, 0x00000006,
+    0x00000004, 0x00030047, 0x00000008, 0x00000002, 0x00050048, 0x00000008, 0x00000000, 0x00000023,
+    0x00000000, 0x00040047, 0x0000000a, 0x00000021, 0x00000003, 0x00040047, 0x0000000a, 0x00000022,
+    0x00000001, 0x00040047, 0x00000015, 0x0000001e, 0x00000000, 0x00040047, 0x00000018, 0x00000021,
+    0x00000000, 0x00040047, 0x00000018, 0x00000022, 0x00000001, 0x00040047, 0x0000001c, 0x00000021,
+    0x00000001, 0x00040047, 0x0000001c, 0x00000022, 0x00000001, 0x00030047, 0x00000024, 0x00000002,
+    0x00050048, 0x00000024, 0x00000000, 0x00000023, 0x00000000, 0x00040047, 0x00000026, 0x00000021,
+    0x00000003, 0x00040047, 0x00000026, 0x00000022, 0x00000000, 0x00020013, 0x00000002, 0x00030021,
+    0x00000003, 0x00000002, 0x00040015, 0x00000006, 0x00000020, 0x00000000, 0x0003001d, 0x00000007,
+    0x00000006, 0x0003001e, 0x00000008, 0x00000007, 0x00040020, 0x00000009, 0x0000000c, 0x00000008,
+    0x0004003b, 0x00000009, 0x0000000a, 0x0000000c, 0x00040015, 0x0000000b, 0x00000020, 0x00000001,
+    0x0004002b, 0x0000000b, 0x0000000c, 0x00000000, 0x00040020, 0x0000000d, 0x0000000c, 0x00000006,
+    0x0004002b, 0x00000006, 0x0000000f, 0x00000001, 0x0004002b, 0x00000006, 0x00000010, 0x00000000,
+    0x00030016, 0x00000012, 0x00000020, 0x00040017, 0x00000013, 0x00000012, 0x00000004, 0x00040020,
+    0x00000014, 0x00000003, 0x00000013, 0x0004003b, 0x00000014, 0x00000015, 0x00000003, 0x00090019,
+    0x00000016, 0x00000012, 0x00000001, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0x00000000,
+    0x00040020, 0x00000017, 0x00000000, 0x00000016, 0x0004003b, 0x00000017, 0x00000018, 0x00000000,
+    0x0002001a, 0x0000001a, 0x00040020, 0x0000001b, 0x00000000, 0x0000001a, 0x0004003b, 0x0000001b,
+    0x0000001c, 0x00000000, 0x0003001b, 0x0000001e, 0x00000016, 0x00040017, 0x00000020, 0x00000012,
+    0x00000002, 0x0004002b, 0x00000012, 0x00000021, 0x3f000000, 0x0005002c, 0x00000020, 0x00000022,
+    0x00000021, 0x00000021, 0x0003001e, 0x00000024, 0x00000006, 0x00040020, 0x00000025, 0x0000000c,
+    0x00000024, 0x0004003b, 0x00000025, 0x00000026, 0x0000000c, 0x00050036, 0x00000002, 0x00000004,
+    0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x00060041, 0x0000000d, 0x0000000e, 0x0000000a,
+    0x0000000c, 0x0000000c, 0x000700f1, 0x00000006, 0x00000011, 0x0000000e, 0x0000000f, 0x00000010,
+    0x0000000f, 0x0004003d, 0x00000016, 0x00000019, 0x00000018, 0x0004003d, 0x0000001a, 0x0000001d,
+    0x0000001c, 0x00050056, 0x0000001e, 0x0000001f, 0x00000019, 0x0000001d, 0x00050057, 0x00000013,
+    0x00000023, 0x0000001f, 0x00000022, 0x00050041, 0x0000000d, 0x00000027, 0x00000026, 0x0000000c,
+    0x0004003d, 0x00000006, 0x00000028, 0x00000027, 0x00040070, 0x00000012, 0x00000029, 0x00000028,
+    0x00070050, 0x00000013, 0x0000002a, 0x00000029, 0x00000029, 0x00000029, 0x00000029, 0x00050081,
+    0x00000013, 0x0000002b, 0x00000023, 0x0000002a, 0x0003003e, 0x00000015, 0x0000002b, 0x000100fd,
+    0x00010038
+};
+static int decoration(const uint32_t *w, size_t n, uint32_t id, uint32_t dec) {   // the literal of OpDecorate id dec, -1 when absent
+    for (size_t i = 5; i < n && (w[i] >> 16); i += w[i] >> 16) if ((w[i] & 0xffff) == 71 && (w[i] >> 16) >= 4 && w[i + 1] == id && w[i + 2] == dec) return (int)w[i + 3];
+    return -1;
+}
 static int count_op(const uint32_t *w, size_t n, uint32_t op) { int k = 0; for (size_t i = 5; i < n; i += w[i] >> 16) { if (!(w[i] >> 16)) break; k += (w[i] & 0xffff) == op; } return k; }
 int main(void) {
     int val = have_val();
@@ -88,6 +133,17 @@ int main(void) {
             }
             printf("t_android_spvpatch: %s: %d memory writes claimed\n", gs, found);
             free(w); }
+    }
+    {   // the feedback bitmap moved to a set of its own (DM_VK_TEXFB_SET): only the variable at set 1 binding 3, not set 1's other bindings or set 0's binding 3
+        size_t fn = sizeof SPV_FB_FRAG / 4; uint32_t *w = malloc(sizeof SPV_FB_FRAG); memcpy(w, SPV_FB_FRAG, sizeof SPV_FB_FRAG);
+        CHECK(vka_spv_move_set(w, fn, 1, 3, 2) == 1, "one variable moved");
+        CHECK(decoration(w, fn, 10, 34) == 2 && decoration(w, fn, 10, 33) == 3, "the bitmap at set 2 binding 3");
+        CHECK(decoration(w, fn, 24, 34) == 1 && decoration(w, fn, 28, 34) == 1 && decoration(w, fn, 38, 34) == 0, "the other bindings keep their sets");
+        CHECK(vka_spv_move_set(w, fn, 1, 3, 2) == 0, "nothing left at set 1 binding 3");
+        if (val) CHECK(validate(w, fn, "feedback bitmap at set 2"), "valid SPIR-V");
+        uint32_t bad[6] = {0x12345678, 0, 0, 1, 0, 0};
+        CHECK(vka_spv_move_set(bad, 6, 1, 3, 2) == -1, "not SPIR-V");
+        free(w);
     }
     printf("t_android_spvpatch: %s%s\n", g_fail ? "FAILED" : "ok", val ? "" : " (no spirv-val: structure only)");
     return g_fail != 0;

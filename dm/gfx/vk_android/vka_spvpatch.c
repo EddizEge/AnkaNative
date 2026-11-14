@@ -488,3 +488,26 @@ fail:
     return NULL;
 #undef FAIL
 }
+
+// The variables decorated DescriptorSet `set` and Binding `binding` moved to DescriptorSet `to`, in place: returns how many (0: none, -1: not a SPIR-V module). Used for
+// the texture-use feedback bitmap in a set of its own (vka_tex.c DM_VK_TEXFB_SET)
+int vka_spv_move_set(uint32_t *w, size_t nw, uint32_t set, uint32_t binding, uint32_t to) {
+    enum { OpDecorate = 71, DecBinding = 33, DecDescriptorSet = 34 };
+    if (nw < 5 || w[0] != 0x07230203u) return -1;
+    uint32_t bound = w[3];
+    uint8_t *hit = calloc(bound ? bound : 1, 1);   // ids decorated with the binding
+    if (!hit) return -1;
+    for (size_t i = 5; i < nw;) {
+        uint32_t len = w[i] >> 16, op = w[i] & 0xffff;
+        if (!len || i + len > nw) { free(hit); return -1; }
+        if (op == OpDecorate && len >= 4 && w[i + 2] == DecBinding && w[i + 3] == binding && w[i + 1] < bound) hit[w[i + 1]] = 1;
+        i += len;
+    }
+    int n = 0;
+    for (size_t i = 5; i < nw; i += w[i] >> 16) {
+        uint32_t len = w[i] >> 16, op = w[i] & 0xffff;
+        if (op == OpDecorate && len >= 4 && w[i + 2] == DecDescriptorSet && w[i + 3] == set && w[i + 1] < bound && hit[w[i + 1]]) { w[i + 3] = to; n++; }
+    }
+    free(hit);
+    return n;
+}

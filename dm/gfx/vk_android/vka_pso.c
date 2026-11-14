@@ -117,8 +117,9 @@ static int layout_slow(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout
     VkResult r = vk.vkCreateDescriptorSetLayout(V.dev, &li, NULL, &L->set0);
     free(lb);
     if (!r) {
-        VkDescriptorSetLayout sets[2] = {L->set0, vka_bindless_layout()};
-        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = sets[1] ? 2 : 1, .pSetLayouts = sets};
+        VkDescriptorSetLayout sets[3] = {L->set0, vka_bindless_layout(), vka_tex_fb_layout()};   // set 2: the feedback bitmap's own (DM_VK_TEXFB_SET), only beside the pool set
+        L->fbset = sets[1] && sets[2];
+        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = L->fbset ? 3 : sets[1] ? 2 : 1, .pSetLayouts = sets};
         r = vk.vkCreatePipelineLayout(V.dev, &pi, NULL, &L->layout);
     }
     if (r) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("pipeline layout of %u bindings (%u descriptors): %d", k.n, ndesc, r); L->layout = VK_NULL_HANDLE; }
@@ -596,8 +597,8 @@ static unsigned pre_probe(const VkGraphicsPipelineCreateInfo *ci0, const pstate 
     if (pinned) { VkResult r = try_lib(c, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT, g_pc, 0); NOTE("no subgroup size pins", r); }
     if (npre > 1) { c = *ci0; c.stageCount = 1; c.pStages = pre; c.pTessellationState = NULL; VkResult r = try_lib(c, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT, g_pc, 0); NOTE("first stage only", r); }
     {   // The pipeline layout with independent sets (diagnostic: a pipeline of such a layout binds only with it, not adopted)
-        VkDescriptorSetLayout sets[2] = {P->set0, vka_bindless_layout()}; VkPipelineLayout il = VK_NULL_HANDLE;
-        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT, .setLayoutCount = sets[1] ? 2 : 1, .pSetLayouts = sets};
+        VkDescriptorSetLayout sets[3] = {P->set0, vka_bindless_layout(), vka_tex_fb_layout()}; VkPipelineLayout il = VK_NULL_HANDLE;
+        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT, .setLayoutCount = sets[1] && sets[2] ? 3 : sets[1] ? 2 : 1, .pSetLayouts = sets};
         if (P->set0 && !vk.vkCreatePipelineLayout(V.dev, &pi, NULL, &il)) { c = *ci0; c.layout = il; VkResult r = try_lib(c, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT, g_pc, 0); NOTE("independent-sets layout", r); vk.vkDestroyPipelineLayout(V.dev, il, NULL); }
     }
     VkResult r_comb = VK_ERROR_UNKNOWN;
