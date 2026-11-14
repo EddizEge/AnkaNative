@@ -353,7 +353,8 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         try { Files.write(new File(getExternalFilesDir(null), "readiness-" + id + ".txt").toPath(), report.getBytes(StandardCharsets.UTF_8)); } catch (IOException ignored) { /* the screen's report leaves it out */ }
         readinessDone = true;
         List<Readiness.Check> fails = Readiness.of(l, Readiness.Status.FAIL), warns = Readiness.of(l, Readiness.Status.WARNING);
-        String gpu = getString(R.string.game_details_gpu, Readiness.gpuMsg(f).text(), f.get("ram_gib"));
+        // the memory as a number, so the resource writes it in the app's language (docs/i18n.md "Numbers on screen"); merge always sets ram_gib, ROOT "%.1f"
+        String gpu = getString(R.string.game_details_gpu, Readiness.gpuMsg(f).text(), Double.parseDouble(f.get("ram_gib")));
         // The notice is short (what is missing, by name); Details has each item's sentence, the GPU and Copy report
         if (!fails.isEmpty()) {
             List<String> names = new ArrayList<>();
