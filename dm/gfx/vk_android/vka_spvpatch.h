@@ -17,3 +17,7 @@ uint32_t *vka_spv_fout_retype(const uint32_t *w, size_t nw, uint32_t umask, uint
 // A compute-like module's specialization constants made plain constants, SpecId spec_id taking value, when it reads a subgroup lane built-in (Qualcomm's driver reads the
 // lane as 0 in such a module that has any specialization constant): malloc'd (*out_nw words), NULL when there is nothing to do or it cannot (vka_spvpatch.c; Banana Native)
 uint32_t *vka_spv_spec_freeze(const uint32_t *w, size_t nw, uint32_t spec_id, uint32_t value, size_t *out_nw);
+// The same fold for any module with a SpecId, lane built-ins or not: a module made into another stage's form whose specialization constant the pipeline will not set
+// (a mesh shader's compute form, vka_memu.c: its GL depth constant). → 1 folded (*out malloc'd, *out_nw words), 0 no SpecId (nothing to do), -1 not foldable here
+// (a specialization constant composite or operation)
+int vka_spv_spec_fold(const uint32_t *w, size_t nw, uint32_t spec_id, uint32_t value, uint32_t **out, size_t *out_nw);

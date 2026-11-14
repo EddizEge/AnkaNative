@@ -67,7 +67,8 @@ static void dump(const char *tag, const char *kind, const uint32_t *w, size_t n)
     FILE *f = fopen(p, "wb"); if (f) { fwrite(w, 4, n, f); fclose(f); }
 }
 static int convert(const uint32_t *w, size_t nw, int gl, const char *tag, vka_memu_layout *L) {
-    char err[256]; size_t fn = 0; uint32_t *fz = vka_spv_spec_freeze(w, nw, 0, (uint32_t)gl, &fn);
+    char err[256]; size_t fn = 0; uint32_t *fz = NULL;
+    if (vka_spv_spec_fold(w, nw, 0, (uint32_t)gl, &fz, &fn) < 0) { printf("  %s: specialization constants not foldable\n", tag); CHECK(0, "%s: folded", tag); return 0; }
     const uint32_t *src = fz ? fz : w; size_t sn = fz ? fn : nw;
     if (!vka_memu_layout_of(src, sn, L, err, sizeof err)) { printf("  %s: layout refused: %s\n", tag, err); free(fz); return 0; }
     size_t on = 0; uint32_t *o = vka_memu_cs(src, sn, &on, err, sizeof err);
@@ -176,6 +177,19 @@ int main(void) {
         size_t ln = 0; int nl = 0; uint32_t *x = vka_memu_ladders(MEMU_MESH_TRI, sizeof MEMU_MESH_TRI / 4, &ln, &nl);
         CHECK(!x && !nl, "a module without a ladder is left as it is");
         free(x);
+    }
+    {   // a GL depth specialization constant in a module without lane built-ins: vka_spv_spec_freeze leaves it, vka_spv_spec_fold (the compute form's) folds it
+        size_t fn = 0; uint32_t *fz = vka_spv_spec_freeze(MEMU_MESH_SPEC, sizeof MEMU_MESH_SPEC / 4, 0, 1, &fn);
+        CHECK(!fz, "no lane built-in: the freeze leaves the module");
+        free(fz);
+        for (int gl = 0; gl < 2; gl++) {
+            uint32_t *f = NULL; int r = vka_spv_spec_fold(MEMU_MESH_SPEC, sizeof MEMU_MESH_SPEC / 4, 0, (uint32_t)gl, &f, &fn);
+            CHECK(r == 1 && f && count_dec(f, fn, 1) == 0 && count_op(f, fn, 48) + count_op(f, fn, 49) == 0 && count_op(f, fn, gl ? 41 : 42) >= 1,
+                  "GL depth %d folded: no SpecId, no specialization constant, the constant %s (%d)", gl, gl ? "true" : "false", r);
+            vka_memu_layout Ls; if (f) convert(f, fn, gl, gl ? "mesh_spec_gl1" : "mesh_spec_gl0", &Ls);
+            free(f);
+        }
+        uint32_t *f = NULL; CHECK(vka_spv_spec_fold(MEMU_MESH_TRI, sizeof MEMU_MESH_TRI / 4, 0, 1, &f, &fn) == 0 && !f, "no SpecId: nothing to fold");
     }
     {   // the pixel shader made flat
         uint32_t *o = vka_memu_fs_flat(MEMU_FS_PRIM, sizeof MEMU_FS_PRIM / 4, &on, err, sizeof err);

@@ -68,8 +68,11 @@ vka_shader *vka_memu_cs_of(vka_shader *s, int gl) {
     if (have) return have;
     char err[256] = ""; size_t nb = 0, fn = 0, on = 0;
     uint32_t *w = vka_shader_memu_words(s, &nb, err, sizeof err);
-    uint32_t *fz = w ? vka_spv_spec_freeze(w, nb / 4, DMSH_VK_SPEC_GL_DEPTH, (uint32_t)gl, &fn) : NULL;   // (folded: Qualcomm's lanes read 0 in a compute module with a specialization constant)
-    uint32_t *o = w ? vka_memu_cs(fz ? fz : w, fz ? fn : nb / 4, &on, err, sizeof err) : NULL;
+    // Its specialization constants folded, always: the compute form's pipeline sets none (cs_build) and its key and flags say the GL depth convention is in the module
+    // (also Qualcomm's lanes read 0 in a compute module with a specialization constant, vka_spv_spec_freeze)
+    uint32_t *fz = NULL; int fr = w ? vka_spv_spec_fold(w, nb / 4, DMSH_VK_SPEC_GL_DEPTH, (uint32_t)gl, &fz, &fn) : 0;
+    if (fr < 0) snprintf(err, sizeof err, "a specialization constant composite or operation: its constants (GL depth %d) cannot be folded", gl);
+    uint32_t *o = w && fr >= 0 ? vka_memu_cs(fz ? fz : w, fz ? fn : nb / 4, &on, err, sizeof err) : NULL;
     VkShaderModule mod = o ? make_module(o, on) : VK_NULL_HANDLE;
     free(w); free(fz); free(o);
     if (!mod) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 16) VRED("%s shader %016llx: its compute form not made (%s); its draws are skipped", stage_name(s->e->stage), (unsigned long long)s->key, err[0] ? err : "vkCreateShaderModule failed"); return NULL; }

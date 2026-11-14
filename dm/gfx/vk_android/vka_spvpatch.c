@@ -497,19 +497,23 @@ enum { OpConstantFalse = 42, OpSpecConstantTrue = 48, OpSpecConstantFalse = 49, 
 // specialization constants made plain constants reads its lanes right: SpecId spec_id takes value (a bool one: nonzero is true), the others keep their defaults, and the SpecId
 // decorations are dropped. A malloc'd copy (*out_nw words); NULL when the module reads no lane built-in or has no SpecId (nothing to do), or has a specialization constant
 // composite or operation (not folded here)
-uint32_t *vka_spv_spec_freeze(const uint32_t *w, size_t nw, uint32_t spec_id, uint32_t value, size_t *out_nw) {
-    if (nw < 5 || w[0] != 0x07230203) return NULL;
-    enum { MAXSPEC = 16 }; uint32_t sid[MAXSPEC], sval[MAXSPEC]; int ns = 0, lane = 0;
+// The fold itself: lane = 1 only for a module that reads a lane built-in (vka_spv_spec_freeze's rule), 0 for any module with a SpecId. → 1 folded (*out, *out_nw), 0
+// nothing to do, -1 a specialization constant composite or operation (not folded here)
+static int spec_fold(const uint32_t *w, size_t nw, uint32_t spec_id, uint32_t value, int need_lane, uint32_t **out, size_t *out_nw) {
+    *out = NULL;
+    if (nw < 5 || w[0] != 0x07230203) return 0;
+    enum { MAXSPEC = 16 }; uint32_t sid[MAXSPEC], sval[MAXSPEC]; int ns = 0, lane = 0, cop = 0;
     for (size_t i = 5; i < nw;) {
         uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
-        if (!len || i + len > nw) return NULL;
-        if (op == OpDecorate && len >= 4 && w[i + 2] == DecSpecId) { if (ns == MAXSPEC) return NULL; sid[ns] = w[i + 1]; sval[ns++] = w[i + 3]; }
+        if (!len || i + len > nw) return 0;
+        if (op == OpDecorate && len >= 4 && w[i + 2] == DecSpecId) { if (ns == MAXSPEC) return -1; sid[ns] = w[i + 1]; sval[ns++] = w[i + 3]; }
         else if (op == OpDecorate && len >= 4 && w[i + 2] == DecBuiltIn && (w[i + 3] == BISubgroupLocalInvocationId || (w[i + 3] >= BIEq && w[i + 3] <= BILt))) lane = 1;
-        else if (op == OpSpecConstantComposite || op == OpSpecConstantOp) return NULL;
+        else if (op == OpSpecConstantComposite || op == OpSpecConstantOp) cop = 1;
         i += len;
     }
-    if (!lane || !ns) return NULL;
-    uint32_t *o = malloc(nw * 4); if (!o) return NULL;
+    if ((need_lane && !lane) || !ns) return 0;
+    if (cop) return -1;
+    uint32_t *o = malloc(nw * 4); if (!o) return -1;
     size_t n = 0; memcpy(o, w, 5 * 4); n = 5;
     for (size_t i = 5; i < nw;) {
         uint32_t op = w[i] & 0xffff, len = w[i] >> 16;
@@ -523,5 +527,9 @@ uint32_t *vka_spv_spec_freeze(const uint32_t *w, size_t nw, uint32_t spec_id, ui
         }
         n += len; i += len;
     }
-    *out_nw = n; return o;
+    *out = o; *out_nw = n; return 1;
 }
+uint32_t *vka_spv_spec_freeze(const uint32_t *w, size_t nw, uint32_t spec_id, uint32_t value, size_t *out_nw) {
+    uint32_t *o; return spec_fold(w, nw, spec_id, value, 1, &o, out_nw) > 0 ? o : NULL;
+}
+int vka_spv_spec_fold(const uint32_t *w, size_t nw, uint32_t spec_id, uint32_t value, uint32_t **out, size_t *out_nw) { return spec_fold(w, nw, spec_id, value, 0, out, out_nw); }
