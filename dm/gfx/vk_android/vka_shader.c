@@ -453,12 +453,14 @@ int vka_shader_memu_key(uint64_t key) {
     return 0;
 }
 // A task / mesh shader's base words for its compute form: the library's module, with the one-invocation subgroup rewrite where the device's compute stage needs it
-// (sg_plan's compute row, not the mesh stage's). malloc'd
+// (sg_plan's compute row, not the mesh stage's), and the texture-use feedback bitmap moved to its own set with DM_VK_TEXFB_SET as every other module of the entry
+// (fb_own_set: the compute form's layout then has no bitmap in set 1, vka_tex.c). malloc'd
 uint32_t *vka_shader_memu_words(vka_shader *s, size_t *nb, char *err, size_t errn) {
     const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
     uint32_t *w = m ? lib_words(s->lib, s->e, m, nb, err, errn) : NULL;
     if (!m) snprintf(err, errn, "no base module");
     if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, DMSH_VK_STAGE_CS, &w, nb);
+    if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, *nb);
     return w;
 }
 
