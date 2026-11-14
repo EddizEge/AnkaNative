@@ -14,7 +14,7 @@
     <string name="readiness_req_feature_dynamic_rendering">Renderizado dinámico: cada pase de renderizado se graba con él</string>
     <string name="readiness_req_ext_vk_khr_swapchain">Cadena de intercambio (swapchain): sin ella, ninguna imagen llega a la pantalla</string>
     <string name="readiness_req_ext_vk_khr_map_memory2">Mapeo de memoria 2: los mapeos de memoria ubicados lo necesitan</string>
-    <string name="readiness_req_ext_vk_ext_map_memory_placed">Mapeos de memoria ubicados: la memoria de GPU del juego se mapea en las direcciones propias del juego; sin ellos no se dibuja nada</string>
+    <string name="readiness_req_ext_vk_ext_map_memory_placed">Mapeos de memoria ubicados: la memoria de GPU del juego se mapea en las direcciones propias del juego; sin ellos no se muestra ninguna imagen</string>
     <string name="readiness_req_feature_descriptor_binding_sampled_image_update_after_bind">Tablas de texturas (actualización tras el enlace): los grupos de texturas del juego están en ellas</string>
     <string name="readiness_req_feature_descriptor_binding_partially_bound">Tablas de texturas (enlace parcial): los grupos de texturas del juego están en ellas</string>
     <string name="readiness_req_feature_runtime_descriptor_array">Tablas de texturas (arreglos en tiempo de ejecución): los grupos de texturas del juego están en ellas</string>
@@ -33,7 +33,7 @@
     <string name="readiness_gpu_error">No se pudo usar el controlador de GPU (%1$s): el juego necesita Vulkan 1.3.</string>
     <string name="readiness_gpu_unchecked">Sin verificar (%1$s): no se sabe si esta GPU tiene lo que el juego necesita.</string>
     <string name="readiness_check_status">Estado en Android</string>
-    <string name="readiness_status_bring_up">Este juego todavía se está adaptando a Android: puede detenerse o dibujar mal en cualquier teléfono, incluido este.</string>
+    <string name="readiness_status_bring_up">Este juego todavía se está adaptando a Android: puede detenerse o mostrar gráficos incorrectos en cualquier teléfono, incluido este.</string>
     <string name="readiness_gpu_not_reported">GPU no reportada</string>
     <string name="readiness_gpu_not_reported_why">GPU no reportada (%1$s)</string>
     <string name="readiness_gpu_system">%1$s, Vulkan %2$s; controlador %3$s, ID del controlador %4$s, versión %5$s, controlador del sistema</string>
@@ -81,7 +81,7 @@
     <string name="readiness_own_driver_same">%1$s, el que verificó esta pantalla.</string>
     <string name="readiness_own_driver_other">Este juego usa su propio controlador de GPU, %1$s; esta pantalla verificó %2$s. La verificación previa al inicio del juego usa el controlador del juego, y su resultado puede ser distinto de este.</string>
     <string name="readiness_check_files">Archivos del juego</string>
-    <string name="readiness_files_nup">%1$s: un .nup que se puede leer y verificar (%2$s).</string>
+    <string name="readiness_files_nup">%1$s: un .nup que se lee y se verifica sin problemas (%2$s).</string>
     <string name="readiness_files_unusable">No se puede usar %1$s: %2$s</string>
     <string name="readiness_files_unreadable">%1$s no es una carpeta que esta app pueda leer.</string>
     <string name="readiness_files_no_npdm">%1$s no contiene main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ o exefs/).</string>
@@ -99,7 +99,7 @@
     <string name="readiness_storage_ok">%1$.1f GB libres.</string>
     <string name="readiness_storage_low">%1$.1f GB libres: el paquete de un juego ocupa varios GB.</string>
     <string name="readiness_check_battery">Batería</string>
-    <string name="readiness_battery_restricted">El uso de batería está en Restringido: Android puede detener la app en segundo plano.</string>
+    <string name="readiness_battery_restricted">El uso de batería está configurado como Restringido: Android puede detener la app en segundo plano.</string>
     <string name="readiness_battery_standby">La app está en el grupo de espera restringido de Android: puede detenerse en segundo plano.</string>
     <string name="readiness_battery_ok">Sin restricciones.</string>
     <string name="readiness_check_last_exit">Último cierre de un juego</string>
@@ -121,8 +121,8 @@
     <string name="readiness_exit_reason_code">motivo %1$d</string>
     <string name="readiness_check_kills">Cierres por falta de memoria</string>
     <plurals name="readiness_kills">
-        <item quantity="one">Android detuvo %1$d juego por falta de memoria en los últimos 7 días, el último %2$s. Cierra otras apps antes de jugar.</item>
-        <item quantity="other">Android detuvo %1$d juegos por falta de memoria en los últimos 7 días, el último %2$s. Cierra otras apps antes de jugar.</item>
+        <item quantity="one">Android detuvo %1$d juego por falta de memoria en los últimos 7 días (%2$s). Cierra otras apps antes de jugar.</item>
+        <item quantity="other">Android detuvo %1$d juegos por falta de memoria en los últimos 7 días (el último, %2$s). Cierra otras apps antes de jugar.</item>
     </plurals>
     <string name="readiness_kills_none">Ninguno en los últimos 7 días.</string>
     <string name="readiness_ago_now">justo ahora</string>
@@ -144,5 +144,5 @@
     <string name="readiness_switches_on">Activados en env.txt: %1$s.</string>
     <string name="readiness_switches_unreadable">Activados en env.txt: (no se puede leer env.txt).</string>
     <string name="readiness_clip_label">Reporte de compatibilidad</string>
-    <string name="readiness_req_android_sdk_33">Android 13 o posterior: Android 12 y 12L no están probados; ahí el juego puede no iniciarse o dibujar mal</string>
+    <string name="readiness_req_android_sdk_33">Android 13 o posterior: Android 12 y 12L no están probados; ahí el juego puede no iniciarse o mostrar gráficos incorrectos</string>
 </resources>
