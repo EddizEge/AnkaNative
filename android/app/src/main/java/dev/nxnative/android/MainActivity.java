@@ -108,7 +108,7 @@ public final class MainActivity extends Activity {
 
     private void buildHome(LinearLayout content) {
         overlayRow = null;
-        content.addView(Ui.header(this, Ui.badge(this, 44), "Anka Native", Prefs.buildId(), Ui.iconButton(this, R.drawable.ic_settings, "Settings", Ui.Kind.TONAL, v -> page(true))));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag
+        content.addView(Ui.header(this, Ui.badge(this, 44), "Anka Native", Prefs.buildId(), Ui.iconButton(this, R.drawable.ic_settings, getString(R.string.home_settings), Ui.Kind.TONAL, v -> page(true))));   // i18n-keep: the product name (glossary), whatever the build's app_name. The build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag
         accessCard = accessCard();
         Ui.add(content, accessCard, 16);
         Ondevice.attach(this, content, content.getChildCount());   // a game being prepared and its progress (hidden when there is none)
@@ -142,64 +142,63 @@ public final class MainActivity extends Activity {
     private void buildSettings(LinearLayout content) {
         accessCard = null;
         gameBox = null;
-        content.addView(Ui.header(this, Ui.back(this, v -> page(false)), "Settings", null));
+        content.addView(Ui.header(this, Ui.back(this, v -> page(false)), getString(R.string.home_settings), null));
 
         // Updates first, so the version and the check are easy to find (Updater: the release app also checks at every fresh start)
-        Ui.add(content, Ui.section(this, "Updates"), 16);
+        Ui.add(content, Ui.section(this, getString(R.string.home_section_updates)), 16);
         LinearLayout upd = settingsCard(content);
-        updateRow = new Ui.Setting(this, "🔄", "Check for updates", v -> Updater.checkNow(this)).chevron(this);
+        updateRow = new Ui.Setting(this, "🔄", getString(R.string.home_check_updates), v -> Updater.checkNow(this)).chevron(this);
         upd.addView(updateRow.view);
 
-        Ui.add(content, Ui.section(this, "Game defaults"), Ui.SECTION_GAP);
+        Ui.add(content, Ui.section(this, getString(R.string.home_section_game_defaults)), Ui.SECTION_GAP);
         LinearLayout play = settingsCard(content);
-        overlayRow = new Ui.Setting(this, "👀", "Overlay", v -> overlayItems())
+        overlayRow = new Ui.Setting(this, "👀", getString(R.string.home_overlay), v -> overlayItems())
                 .toggle(this, Prefs.overlay(this), (b, on) -> { Prefs.overlay(this, on); refreshSettings(); });
         play.addView(overlayRow.view);
-        resRow = new Ui.Setting(this, "🖼️", "Resolution", v -> gameRes()).chevron(this);
+        resRow = new Ui.Setting(this, "🖼️", getString(R.string.home_resolution), v -> gameRes()).chevron(this);
         play.addView(resRow.view);
         if (!Profile.anyResolution()) resRow.view.setVisibility(View.GONE);   // no game of this APK has a window_fn or graphics_scale lever: the default would do nothing
-        capRow = new Ui.Setting(this, "⏱️", "Frame rate cap", v -> fpsCap()).chevron(this);
+        capRow = new Ui.Setting(this, "⏱️", getString(R.string.home_fps_cap), v -> fpsCap()).chevron(this);
         play.addView(capRow.view);
-        lsfgRow = new Ui.Setting(this, "✨", "Frame generation", v -> frameGen()).chevron(this);
+        lsfgRow = new Ui.Setting(this, "✨", getString(R.string.home_frame_gen), v -> frameGen()).chevron(this);
         play.addView(lsfgRow.view);
-        TextView hint = Ui.small(this, "A game's own settings (⋯ on its card) override these.");
+        TextView hint = Ui.small(this, getString(R.string.home_defaults_hint));
         hint.setPadding(dp(4), 0, dp(4), 0);
         Ui.add(content, hint, 8);
 
-        Ui.add(content, Ui.section(this, "System"), Ui.SECTION_GAP);
+        Ui.add(content, Ui.section(this, getString(R.string.home_section_system)), Ui.SECTION_GAP);
         LinearLayout sys = settingsCard(content);
-        gpuRow = new Ui.Setting(this, "🎮", "GPU driver", v -> GpuDriver.dialog(this, PICK_DRIVER)).chevron(this);   // custom GPU drivers (GpuDriver.java)
+        gpuRow = new Ui.Setting(this, "🎮", getString(R.string.home_gpu_driver), v -> GpuDriver.dialog(this, PICK_DRIVER)).chevron(this);   // custom GPU drivers (GpuDriver.java)
         sys.addView(gpuRow.view);
-        sys.addView(new Ui.Setting(this, "📁", "Folders", v -> Folders.dialog(this)).value("Game, pack and save folders").chevron(this).view);   // the game, pack and save folders, kept across updates (Folders.java)
+        sys.addView(new Ui.Setting(this, "📁", getString(R.string.home_folders), v -> Folders.dialog(this)).value(getString(R.string.home_folders_value)).chevron(this).view);   // the game, pack and save folders, kept across updates (Folders.java)
         sys.addView(new Ui.Setting(this, "🌐", getString(R.string.settings_language), v -> Lang.dialog(this)).value(Lang.label(this)).chevron(this).view);   // the app's language (Lang.java)
 
-        Ui.add(content, Ui.section(this, "Help"), Ui.SECTION_GAP);
+        Ui.add(content, Ui.section(this, getString(R.string.home_section_help)), Ui.SECTION_GAP);
         LinearLayout help = settingsCard(content);
-        help.addView(new Ui.Setting(this, "📋", "Readiness check", v -> startActivityForResult(new Intent(this, ReadinessActivity.class), ReadinessActivity.REQUEST))
-                .value("Can this phone run your games?").chevron(this).view);   // (ReadinessActivity.java)
-        help.addView(new Ui.Setting(this, "🧪", "Graphics self-test", v -> startActivity(new Intent(this, SelftestActivity.class))).value("Needs no game").chevron(this).view);
-        help.addView(new Ui.Setting(this, "📨", "Share log", v -> shareLog()).value("The newest log").chevron(this).view);
+        help.addView(new Ui.Setting(this, "📋", getString(R.string.home_readiness), v -> startActivityForResult(new Intent(this, ReadinessActivity.class), ReadinessActivity.REQUEST))
+                .value(getString(R.string.home_readiness_value)).chevron(this).view);   // (ReadinessActivity.java)
+        help.addView(new Ui.Setting(this, "🧪", getString(R.string.home_selftest), v -> startActivity(new Intent(this, SelftestActivity.class))).value(getString(R.string.home_selftest_value)).chevron(this).view);
+        help.addView(new Ui.Setting(this, "📨", getString(R.string.home_share_log), v -> shareLog()).value(getString(R.string.home_share_log_value)).chevron(this).view);
         if (BuildConfig.NX_PLAY) {   // a test build always takes adb commands (Prefs.adbControl)
-            Ui.Setting adb = new Ui.Setting(this, "🛠", "ADB control (debug)", null).value("Lets adb commands add games, start Prepare and install GPU drivers. Off: only you, in the app");
+            Ui.Setting adb = new Ui.Setting(this, "🛠", getString(R.string.home_adb), null).value(getString(R.string.home_adb_value));
             adb.toggle(this, Prefs.adbControl(this), (b, on) -> {
                 if (on == Prefs.adbControl(this)) return;   // the switch set to what is stored (below): nothing to do
                 if (!on) { Prefs.adbControl(this, false); return; }
                 b.setChecked(false);   // stays off until confirmed
-                Ui.confirmDanger(this, "Turn ADB control on?", "While it is on, adb, and any other app on this phone, can add games, start Prepare and install or pick a GPU "
-                        + "driver through Anka Native's launcher, without asking you. A GPU driver is code that runs inside the game. Turn it on only while you use adb, then off again.",
-                        "Turn on", () -> { Prefs.adbControl(this, true); b.setChecked(true); });
+                Ui.confirmDanger(this, getString(R.string.home_adb_confirm_title), getString(R.string.home_adb_confirm_body),
+                        getString(R.string.home_adb_turn_on), () -> { Prefs.adbControl(this, true); b.setChecked(true); });
             });
             help.addView(adb.view);
         }
 
-        Ui.add(content, Ui.section(this, "About"), Ui.SECTION_GAP);
+        Ui.add(content, Ui.section(this, getString(R.string.home_section_about)), Ui.SECTION_GAP);
         LinearLayout about = Ui.add(content, Ui.card(this), 8);
         TextView tag = Ui.chip(this, Prefs.buildTag(this));   // which build this is (also the first line of every log)
         tag.setTextIsSelectable(true);
         about.addView(tag, Ui.wrap());
         StringBuilder ids = new StringBuilder();
         for (Profile p : Profile.all()) ids.append(ids.length() == 0 ? "" : ", ").append(p.titleId);
-        TextView t = Ui.small(this, "Title IDs: " + ids + "\n" + aboutLicense() + " Credits and the licenses of its parts: NOTICE.md in the source, github.com/" + Updater.REPO + ".");
+        TextView t = Ui.small(this, getString(R.string.home_about, ids, aboutLicense(), Updater.REPO));
         t.setTextIsSelectable(true);
         Ui.add(about, t, 10);
         refreshSettings();
@@ -210,9 +209,11 @@ public final class MainActivity extends Activity {
      * (dm/gfx/vk_android/lsfg, unless built with -PnxLsfg=false) and, with the on-phone packer, the shader translator (libdmsh_xlate.so, InstEmitAmpereMesh.cs)
      */
     static String aboutLicense() {
-        String gpl = BuildConfig.NX_LSFG && "native".equals(BuildConfig.NX_PACK_ENGINE) ? "LSFG frame generation and the shader translator"
-                : BuildConfig.NX_LSFG ? "LSFG frame generation" : "native".equals(BuildConfig.NX_PACK_ENGINE) ? "the shader translator" : null;
-        return "License: GPL-3.0-or-later as a whole" + (gpl == null ? "." : " (this build includes GPL-3.0-or-later code: " + gpl + ").");
+        boolean xlate = "native".equals(BuildConfig.NX_PACK_ENGINE);
+        if (BuildConfig.NX_LSFG && xlate) return Tr.s("home_license_gpl", Tr.s("home_license_lsfg_xlate"));
+        if (BuildConfig.NX_LSFG) return Tr.s("home_license_gpl", Tr.s("home_license_lsfg"));
+        if (xlate) return Tr.s("home_license_gpl", Tr.s("home_license_xlate"));
+        return Tr.s("home_license");
     }
 
     /** A settings group's card of rows, under its section label */
@@ -221,17 +222,18 @@ public final class MainActivity extends Activity {
     /** The settings rows' current values (after a dialog, on resume) */
     private void refreshSettings() {
         if (overlayRow == null) return;
-        updateRow.value("Anka Native " + Updater.version(this) + (Updater.available(this) ? "" : " · release app only"));
+        updateRow.value(Updater.available(this) ? getString(R.string.home_update_version, Updater.version(this)) : getString(R.string.home_update_version_release_only, Updater.version(this)));
         boolean ov = Prefs.overlay(this);
         if (overlayRow.toggle.isChecked() != ov) overlayRow.toggle.setChecked(ov);
         int n = 0;
         for (String[] it : Overlay.ITEMS) if (Prefs.overlayItem(this, it[0])) n++;
-        overlayRow.value(ov ? "On · " + n + " of " + Overlay.ITEMS.length + " items" : "Off");
+        overlayRow.value(ov ? getString(R.string.home_overlay_on, n, Overlay.ITEMS.length) : getString(R.string.home_off));
         resRow.value(resLabel());
         capRow.value(capLabel(Prefs.fpsCap(this)));
-        lsfgRow.value(!BuildConfig.NX_LSFG ? "Not in this build" : Lsfg.on(this) ? "On · " + Lsfg.multiplier(this) + "x" + (Lsfg.find(this) == null ? " · Lossless.dll missing" : "") : "Off");
+        lsfgRow.value(!BuildConfig.NX_LSFG ? getString(R.string.home_lsfg_not_built) : !Lsfg.on(this) ? getString(R.string.home_off)
+                : Lsfg.find(this) == null ? getString(R.string.home_lsfg_on_no_dll, Lsfg.multiplier(this)) : getString(R.string.home_lsfg_on, Lsfg.multiplier(this)));
         GpuDriver.Info d = GpuDriver.selected(this);
-        gpuRow.value(d == null ? "System" : d.label());
+        gpuRow.value(d == null ? getString(R.string.home_gpu_system) : d.label());
     }
 
     @Override public void onWindowFocusChanged(boolean focus) {
@@ -256,7 +258,7 @@ public final class MainActivity extends Activity {
             for (String k : CONTROL_EXTRAS) if (i.hasExtra(k)) asked.add(k);
             if (!asked.isEmpty()) {   // another app (or adb) asked for a control command: never acted on while ADB control is off (issue #7)
                 android.util.Log.w("nxnative", "launcher intent from " + getReferrer() + " with " + asked + " ignored: ADB control is off (Settings › ADB control)");
-                Toast.makeText(this, "A command from another app was ignored (Settings › ADB control is off)", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, getString(R.string.home_control_ignored), Toast.LENGTH_LONG).show();
                 i = new Intent(i);
                 for (String k : asked) i.removeExtra(k);
             }
@@ -273,10 +275,10 @@ public final class MainActivity extends Activity {
         if (game == null) return;
         File dir = new File(game);   // a game folder or a .nup (NUP.md)
         String id;
-        try { id = Pack.titleIdOf(dir); } catch (IOException e) { error(e.getMessage()); return; }
+        try { id = Pack.titleIdOf(dir); } catch (IOException e) { error(e.getLocalizedMessage()); return; }
         String p = i.getStringExtra("pack");
         File pack = p != null ? new File(p) : Folders.packFor(this, dir, id);
-        if (pack == null) { error("No pack found for " + id + " next to " + game + "."); return; }
+        if (pack == null) { error(getString(R.string.home_no_pack_next_to, id, game)); return; }
         if (!addWithPack(dir, id, pack)) return;
         String save = i.getStringExtra("save");
         if (save != null) Prefs.folder(this, "save_" + id, new File(save).getPath());
@@ -297,12 +299,12 @@ public final class MainActivity extends Activity {
         if (card && g == null) return;   // the card went in the meantime
         Game fg = g;
         AlertDialog d = new AlertDialog.Builder(this)
-                .setTitle(fg != null ? "Start " + fg.name + "?" : "Add this game?")
+                .setTitle(fg != null ? getString(R.string.home_frontend_start_title, fg.name) : getString(R.string.home_frontend_add_title))
                 .setMessage(fg != null
-                        ? "Another app asked to start " + fg.name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything."
-                        : "Another app asked " + getString(R.string.app_name) + " to open\n\n" + game.getPath() + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add.")
-                .setPositiveButton(fg != null ? "Play" : "Add", (x, w) -> { if (fg != null) launch(fg); else gamePicked(game); })
-                .setNegativeButton("Cancel", null).create();
+                        ? getString(R.string.home_frontend_start_body, fg.name)
+                        : getString(R.string.home_frontend_add_body, getString(R.string.app_name), game.getPath(), getString(R.string.home_add)))
+                .setPositiveButton(fg != null ? getString(R.string.home_play) : getString(R.string.home_add), (x, w) -> { if (fg != null) launch(fg); else gamePicked(game); })
+                .setNegativeButton(android.R.string.cancel, null).create();
         d.setOnShowListener(x -> {
             for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
             Button n = d.getButton(AlertDialog.BUTTON_NEGATIVE);
@@ -349,9 +351,9 @@ public final class MainActivity extends Activity {
         if (games.isEmpty() && !Ondevice.showing()) { gameBox.addView(emptyCard()); return; }
         // while a game is being prepared its card says what happens (the steps card would only repeat it), and the heading's Add game still adds another game
         LinearLayout top = Ui.row(this);
-        TextView h = Ui.section(this, "Your games");
+        TextView h = Ui.section(this, getString(R.string.home_your_games));
         top.addView(h, Ui.weight());
-        Button add = Ui.button(this, "Add game", Ui.Kind.QUIET, v -> addGame());
+        Button add = Ui.button(this, getString(R.string.home_add_game), Ui.Kind.QUIET, v -> addGame());
         add.setCompoundDrawablesRelativeWithIntrinsicBounds(Ui.icon(this, R.drawable.ic_add, R.color.bn_accent), null, null, null);
         add.setCompoundDrawablePadding(dp(6));
         top.addView(add);
@@ -368,25 +370,25 @@ public final class MainActivity extends Activity {
         im.setImageResource(R.drawable.anka_mark);
         im.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         c.addView(im, new LinearLayout.LayoutParams(dp(80), dp(80)));
-        TextView h = Ui.heading(this, "Add your game");
+        TextView h = Ui.heading(this, getString(R.string.home_empty_title));
         h.setGravity(Gravity.CENTER);
         Ui.add(c, h, 12, Ui.wrap());
-        TextView t = Ui.small(this, Ondevice.available() ? "Pick your dump folder, the one with base/ (and updates/), or your game's .nup file."
-                : "Prepare the game once on a computer (the README's Install steps), copy the pack next to the dump, then pick your dump folder or .nup file.");
+        TextView t = Ui.small(this, Ondevice.available() ? getString(R.string.home_empty_body) : getString(R.string.home_empty_body_pc));
         t.setGravity(Gravity.CENTER);
         Ui.add(c, t, 6, Ui.wrap());
         LinearLayout steps = Ui.row(this);
         steps.setGravity(Gravity.CENTER);
-        String[] s = Ondevice.available() ? new String[] {"1  Pick dump", "2  Prepare", "3  Play"} : new String[] {"1  Prepare on PC", "2  Pick dump", "3  Play"};
+        String[] s = Ondevice.available() ? new String[] {getString(R.string.home_step_pick_dump), getString(R.string.home_step_prepare), getString(R.string.home_step_play)}
+                : new String[] {getString(R.string.home_step_prepare_pc), getString(R.string.home_step_pick_dump), getString(R.string.home_step_play)};
         for (int k = 0; k < s.length; k++) {
             LinearLayout.LayoutParams lp = Ui.wrap();
             if (k > 0) lp.leftMargin = dp(6);
-            TextView chip = Ui.chip(this, s[k]);
+            TextView chip = Ui.chip(this, (k + 1) + "  " + s[k]);   // the step's number, two spaces, its label
             chip.setSingleLine(true);
             steps.addView(chip, lp);
         }
         Ui.add(c, steps, 16, Ui.wrap());
-        Ui.add(c, Ui.action(this, R.drawable.ic_add, "Add game", Ui.Kind.PRIMARY, v -> addGame()), 20);
+        Ui.add(c, Ui.action(this, R.drawable.ic_add, getString(R.string.home_add_game), Ui.Kind.PRIMARY, v -> addGame()), 20);
         return c;
     }
 
@@ -404,14 +406,14 @@ public final class MainActivity extends Activity {
         name.setEllipsize(TextUtils.TruncateAt.END);
         info.addView(name);
         boolean other = Profile.of(g.titleId) == null;   // no profile in this APK: it cannot run here (Profile.missing says why)
-        TextView st = other ? Ui.status(this, "Not supported", R.color.bn_danger) : Ui.status(this, "Checking…", R.color.bn_text_2);
+        TextView st = other ? Ui.status(this, getString(R.string.home_state_unsupported), R.color.bn_danger) : Ui.status(this, getString(R.string.home_state_checking), R.color.bn_text_2);
         LinearLayout.LayoutParams sp = Ui.wrap();
         sp.topMargin = dp(2);
         info.addView(st, sp);
         top.addView(info, Ui.weight());
-        top.addView(Ui.more(this, "Manage " + g.name, v -> manage(g)));
+        top.addView(Ui.more(this, getString(R.string.home_manage_game, g.name), v -> manage(g)));
         c.addView(top);
-        Ui.Action play = Ui.action(this, R.drawable.ic_play, "Play", Ui.Kind.PRIMARY, v -> launch(g));
+        Ui.Action play = Ui.action(this, R.drawable.ic_play, getString(R.string.home_play), Ui.Kind.PRIMARY, v -> launch(g));
         Ui.add(c, play, 16);
         if (!other) check(g, st, play, info);
         c.setOnLongClickListener(v -> { manage(g); return true; });
@@ -435,10 +437,11 @@ public final class MainActivity extends Activity {
         File pd = new File(g.packDir), gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
         Pack p;
-        try { p = Pack.read(pd); } catch (IOException e) { return new Problem(dump ? "Needs preparing" : "No pack", dump); }
-        if (p.simulated) return new Problem(dump ? "Needs preparing" : "No pack", dump);   // a simulated engine's placeholder (0.1.0's Prepare made one): never started
-        if (p.unfinishedModule() != null) return new Problem(dump ? "Needs preparing" : "Pack unfinished", dump);
-        if (PackCheck.rewriting(this, pd, gd, p.titleId) != null) return new Problem("Preparing…", false);
+        String needsPrepare = getString(R.string.home_state_needs_prepare), noPack = getString(R.string.home_state_no_pack);
+        try { p = Pack.read(pd); } catch (IOException e) { return new Problem(dump ? needsPrepare : noPack, dump); }
+        if (p.simulated) return new Problem(dump ? needsPrepare : noPack, dump);   // a simulated engine's placeholder (0.1.0's Prepare made one): never started
+        if (p.unfinishedModule() != null) return new Problem(dump ? needsPrepare : getString(R.string.home_state_pack_unfinished), dump);
+        if (PackCheck.rewriting(this, pd, gd, p.titleId) != null) return new Problem(getString(R.string.home_state_preparing), false);
         BuildCheck.Result b = BuildCheck.build(p, gd);
         if (!b.ok()) {
             android.util.Log.w("nxnative", g.titleId + " " + g.gameDir + " with pack " + g.packDir + ": " + b.label() + ": " + b.detail);
@@ -447,7 +450,7 @@ public final class MainActivity extends Activity {
             return s;
         }
         if (Pack.libraryProblem(pd, g.titleId) != null) {
-            Problem s = new Problem("Shaders needed", dump);
+            Problem s = new Problem(getString(R.string.home_state_shaders_needed), dump);
             s.shadersOnly = true;
             s.playable = Pack.playableLibrary(pd, g.titleId) != null;
             s.legacy = !s.playable && Pack.legacyLibrary(pd, g.titleId) != null;
@@ -470,9 +473,9 @@ public final class MainActivity extends Activity {
                 if (info.getParent() == null) return;
                 // An APK update's new shaders: made in the background with no question when the pack's older library is one the delta manifest knows (Ondevice.autoUpdate)
                 if (problem != null && problem.shadersOnly && problem.prepare) Ondevice.autoUpdate(this, new File(g.gameDir), new File(g.packDir), g.titleId);
-                if (problem == null) Ui.status(st, "Ready", R.color.bn_leaf);
-                else if (problem.playable) Ui.status(st, "Ready · updating shaders", R.color.bn_leaf);
-                else if (problem.legacy) Ui.status(st, "Ready · shaders need one update", R.color.bn_accent);
+                if (problem == null) Ui.status(st, getString(R.string.home_state_ready), R.color.bn_leaf);
+                else if (problem.playable) Ui.status(st, getString(R.string.home_state_ready_updating), R.color.bn_leaf);
+                else if (problem.legacy) Ui.status(st, getString(R.string.home_state_ready_legacy), R.color.bn_accent);
                 else Ui.status(st, problem.label, problem.prepare ? R.color.bn_accent : R.color.bn_danger);
                 if (problem != null && !problem.detail.isEmpty()) {   // which build IDs (or which file) the state is about
                     TextView d = Ui.small(this, problem.detail);
@@ -483,20 +486,20 @@ public final class MainActivity extends Activity {
                     info.addView(d, dl);
                 }
                 if (problem != null && problem.legacy) {   // Play stays Play; a chip says why the shaders want one more update
-                    TextView n = Ui.warnChip(this, "Shaders need one update", "Shaders need one update", ShaderLibs.LEGACY_WARNING);
+                    TextView n = Ui.warnChip(this, getString(R.string.home_legacy_chip), getString(R.string.home_legacy_chip), ShaderLibs.LEGACY_WARNING);
                     LinearLayout.LayoutParams wl = Ui.wrap();
                     wl.topMargin = dp(6);
                     info.addView(n, wl);
                 }
                 if (problem != null && problem.prepare && !problem.playable && !problem.legacy) {   // the big button prepares (Ondevice asks first and says what it will make)
-                    play.setText(problem.shadersOnly ? "Prepare shaders" : "Prepare");
+                    play.setText(problem.shadersOnly ? getString(R.string.home_prepare_shaders) : getString(R.string.home_prepare));
                     play.setIcon(R.drawable.ic_build);
                     play.setOnClickListener(v -> { if (!needAccess()) Ondevice.prepare(this, new File(g.gameDir), false); });
                 }
                 if (!Boolean.FALSE.equals(code)) return;
                 // A pack whose code other tools made: a small chip; its tap says what that means
-                TextView n = Ui.warnChip(this, "Pack from other tools", "Pack from other tools",
-                        "This game's pack was made by other tools than this app's. It usually still runs. If the game misbehaves, ⋯ › Prepare again remakes it from your dump.");
+                TextView n = Ui.warnChip(this, getString(R.string.home_foreign_pack), getString(R.string.home_foreign_pack),
+                        getString(R.string.home_foreign_pack_body, getString(R.string.home_prepare_again)));
                 LinearLayout.LayoutParams lp = Ui.wrap();
                 lp.topMargin = dp(6);
                 info.addView(n, lp);
@@ -517,27 +520,27 @@ public final class MainActivity extends Activity {
         AlertDialog[] d = new AlertDialog[1];
         if (noProfile != null) Ui.add(box, Ui.small(this, noProfile), 0);
         // Saves: backups in <Switch2>/save-backups/<id>/, verified; a restore backs up the current save first (SaveUi, SaveStore)
-        if (noProfile == null) Ui.add(box, new Ui.Setting(this, "⚙️", "Game settings", v -> { d[0].dismiss(); GameSettings.dialog(this, g); }).chevron(this).view, 0);
-        Ui.add(box, new Ui.Setting(this, "📁", "Folders", v -> { d[0].dismiss(); Folders.dialog(this, g); }).chevron(this).view, 0);
-        Ui.add(box, new Ui.Setting(this, "💾", "Back up saves", v -> { d[0].dismiss(); SaveUi.backup(this, g); }).value("To " + SaveUi.backups(g)).chevron(this).view, 0);
-        Ui.add(box, new Ui.Setting(this, "↩️", "Restore saves", v -> { d[0].dismiss(); SaveUi.restoreList(this, g); }).chevron(this).view, 0);
-        Ui.add(box, new Ui.Setting(this, "📥", "Import save", v -> { d[0].dismiss(); SaveUi.importPick(this, g); }).chevron(this).view, 0);
+        if (noProfile == null) Ui.add(box, new Ui.Setting(this, "⚙️", getString(R.string.home_game_settings), v -> { d[0].dismiss(); GameSettings.dialog(this, g); }).chevron(this).view, 0);
+        Ui.add(box, new Ui.Setting(this, "📁", getString(R.string.home_folders), v -> { d[0].dismiss(); Folders.dialog(this, g); }).chevron(this).view, 0);
+        Ui.add(box, new Ui.Setting(this, "💾", getString(R.string.home_backup_saves), v -> { d[0].dismiss(); SaveUi.backup(this, g); }).value(getString(R.string.home_backup_to, SaveUi.backups(g))).chevron(this).view, 0);
+        Ui.add(box, new Ui.Setting(this, "↩️", getString(R.string.home_restore_saves), v -> { d[0].dismiss(); SaveUi.restoreList(this, g); }).chevron(this).view, 0);
+        Ui.add(box, new Ui.Setting(this, "📥", getString(R.string.home_import_save), v -> { d[0].dismiss(); SaveUi.importPick(this, g); }).chevron(this).view, 0);
         if (Ondevice.isDump(new File(g.gameDir)) && noProfile == null)
-            Ui.add(box, new Ui.Setting(this, "🔁", "Prepare again", v -> { d[0].dismiss(); Ondevice.prepare(this, new File(g.gameDir), true); }).value("Remakes what does not fit").chevron(this).view, 0);
+            Ui.add(box, new Ui.Setting(this, "🔁", getString(R.string.home_prepare_again), v -> { d[0].dismiss(); Ondevice.prepare(this, new File(g.gameDir), true); }).value(getString(R.string.home_prepare_again_value)).chevron(this).view, 0);
         // The pack as one .zip, out and in (PackUi, PackZip): an import goes into the app's packs/<id> and is checked before it replaces anything
-        Ui.add(box, new Ui.Setting(this, "📦", "Export pack…", v -> { d[0].dismiss(); PackUi.exportPick(this, g); }).value("One .zip, into a folder you pick").chevron(this).view, 0);
+        Ui.add(box, new Ui.Setting(this, "📦", getString(R.string.home_export_pack), v -> { d[0].dismiss(); PackUi.exportPick(this, g); }).value(getString(R.string.home_export_pack_value)).chevron(this).view, 0);
         if (noProfile == null)
-            Ui.add(box, new Ui.Setting(this, "📲", "Import pack…", v -> { d[0].dismiss(); PackUi.importPick(this, g); }).value("A .zip or a pack folder").chevron(this).view, 0);
-        Ui.add(box, new Ui.Setting(this, "📨", "Share log", v -> { d[0].dismiss(); shareLog(g.titleId); }).chevron(this).view, 0);
-        TextView info = Ui.small(this, "Title ID: " + g.titleId + "\nGame: " + g.gameDir + (Nup.isNup(new File(g.gameDir)) ? " (.nup)" : "") + "\nPack: " + g.packDir
-                + "\nShaders: " + (lp == null ? "present (" + BuildConfig.NX_DMSH_VK_CHAIN + ")" : lp) + "\nSaves: " + (save != null ? save.getPath() : "not set"));
+            Ui.add(box, new Ui.Setting(this, "📲", getString(R.string.home_import_pack), v -> { d[0].dismiss(); PackUi.importPick(this, g); }).value(getString(R.string.home_import_pack_value)).chevron(this).view, 0);
+        Ui.add(box, new Ui.Setting(this, "📨", getString(R.string.home_share_log), v -> { d[0].dismiss(); shareLog(g.titleId); }).chevron(this).view, 0);
+        TextView info = Ui.small(this, getString(R.string.home_manage_facts, g.titleId, Nup.isNup(new File(g.gameDir)) ? getString(R.string.home_manage_game_nup, g.gameDir) : g.gameDir,
+                g.packDir, lp == null ? getString(R.string.home_manage_shaders_present, BuildConfig.NX_DMSH_VK_CHAIN) : lp, save != null ? save.getPath() : getString(R.string.home_manage_saves_not_set)));
         info.setTextIsSelectable(true);
         info.setTextSize(12);
         info.setPadding(dp(4), 0, dp(4), 0);
         Ui.add(box, info, 16);
         Ui.add(box, Ui.divider(this), 16, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
-        Ui.add(box, Ui.button(this, "Remove from list", Ui.Kind.DANGER, v -> { d[0].dismiss(); confirmRemove(g); }), 16);
-        d[0] = Ui.sheet(this, g.name, box).setPositiveButton("Done", null).show();
+        Ui.add(box, Ui.button(this, getString(R.string.home_remove), Ui.Kind.DANGER, v -> { d[0].dismiss(); confirmRemove(g); }), 16);
+        d[0] = Ui.sheet(this, g.name, box).setPositiveButton(R.string.home_done, null).show();
     }
 
     private void openAccessSettings() {
@@ -550,8 +553,8 @@ public final class MainActivity extends Activity {
 
     boolean needAccess() {
         if (Environment.isExternalStorageManager()) return false;
-        new AlertDialog.Builder(this).setTitle("Allow file access").setMessage("The app needs All files access to read your game dump. Allow it, then come back.")
-                .setPositiveButton("Open settings", (d, w) -> openAccessSettings()).setNegativeButton("Cancel", null).show();
+        new AlertDialog.Builder(this).setTitle(R.string.home_access_title).setMessage(R.string.home_access_needed)
+                .setPositiveButton(R.string.home_open_settings, (d, w) -> openAccessSettings()).setNegativeButton(android.R.string.cancel, null).show();
         return true;
     }
 
@@ -565,17 +568,17 @@ public final class MainActivity extends Activity {
     /** Add game: the dump is a folder (base/, updates/) or one .nup file (NUP.md); the user says which, then the system picker opens for it */
     void addGame() {
         if (needAccess()) return;
-        new AlertDialog.Builder(this).setTitle("Add game: your dump is…")
-                .setItems(new String[] {"A folder (with base/, and updates/ if any)", "A .nup file"}, (d, w) -> {
-                    if (w == 0) pickFolder(PICK_GAME, "Pick your dump folder (with base/, and updates/ if any)");
+        new AlertDialog.Builder(this).setTitle(R.string.home_add_game_kind)
+                .setItems(new String[] {getString(R.string.home_add_game_folder), getString(R.string.home_add_game_nup)}, (d, w) -> {
+                    if (w == 0) pickFolder(PICK_GAME, getString(R.string.home_pick_dump_folder));
                     else pickNup();
                 })
-                .setNegativeButton("Cancel", null).show();
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     /** The system file picker for a .nup; its document is turned into its /storage path (PathUtil.documentToPath), as a picked folder is */
     private void pickNup() {
-        Toast.makeText(this, "Pick your game's .nup file", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, getString(R.string.home_pick_nup), Toast.LENGTH_LONG).show();
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
         i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse("content://com.android.externalstorage.documents/document/primary%3A"));
         startActivityForResult(i, PICK_NUP);
@@ -590,17 +593,17 @@ public final class MainActivity extends Activity {
         if (PackUi.documentResult(this, request, data.getData())) return;
         if (request == PICK_NUP) {
             String p = PathUtil.documentToPath(data.getData());
-            if (p == null) { error("That file is not on this phone's storage by a path the app can read (" + data.getData() + "). Pick it from the phone's storage (☰ › the phone's name), not from Recent or Downloads."); return; }
+            if (p == null) { error(getString(R.string.home_nup_not_on_storage, data.getData())); return; }
             gamePicked(new File(p));
             return;
         }
         if (request == PICK_DLL) {
             String err = Lsfg.install(this, data.getData());
-            Toast.makeText(this, err == null ? "Lossless.dll installed" : "Lossless.dll not installed: " + err, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, err == null ? getString(R.string.home_dll_installed) : getString(R.string.home_dll_not_installed, err), Toast.LENGTH_LONG).show();
             return;
         }
         String path = PathUtil.treeToPath(data.getData());
-        if (path == null) { error("That folder is not on this phone's storage (" + data.getData() + ")."); return; }
+        if (path == null) { error(getString(R.string.home_folder_not_on_storage, data.getData())); return; }
         File dir = new File(path);
         if (Folders.activityResult(this, request, dir)) return;
         if (SaveUi.activityResult(this, request, dir)) return;
@@ -619,7 +622,7 @@ public final class MainActivity extends Activity {
         List<File> found = PackFind.gamesIn(game);
         if (found.size() == 1) { gamePicked(found.get(0)); return; }
         if (found.isEmpty()) {
-            error(game + " has no main.npdm (base/exefs/, updates/<version>/exefs/ or exefs/), no .nup file and no game folder in it. Pick the game's own folder, its .nup file, or the folder that holds your games.");
+            error(getString(R.string.home_no_game_in_folder, game));
             return;
         }
         addAll(found, false);
@@ -627,15 +630,16 @@ public final class MainActivity extends Activity {
 
     /** A single .nup (NUP.md): its name and access checked here, the rest as every game (addAll) */
     private void nupPicked(File nup) {
-        if (Nup.wrongCase(nup)) { error(nup.getName() + ": rename it so that its name ends in \".nup\" (lower case); the game and the tools read only that name."); return; }
-        if (!nup.canRead()) { error(nup + " cannot be read. Check that All files access is on."); return; }
+        if (Nup.wrongCase(nup)) { error(getString(R.string.home_nup_wrong_case, nup.getName())); return; }
+        if (!nup.canRead()) { error(getString(R.string.home_file_unreadable, nup)); return; }
         addAll(List.of(nup), true);
     }
 
     /** What the background check of Add game found for one game */
     private static final class Pick {
         final File game;
-        String id, name, error;   // error: why it cannot be added (unreadable, no profile in this APK), in a sentence
+        String id, name;
+        Object error;             // why it cannot be added (unreadable, no profile in this APK), in a sentence: a Msg, or an English String of another area (why, shown)
         boolean unsupported;      // no profile in this APK
         boolean dump;             // a dump Prepare starts from (Pack.isDump)
         PackFind.Found pack;      // a pack that plays now or after the automatic shader update (Folders.find), null: none
@@ -657,15 +661,16 @@ public final class MainActivity extends Activity {
      * replace it or keep both) or kept beside it (several, said in the summary)
      */
     private void addAll(List<File> picked, boolean single) {
-        Toast.makeText(this, single ? "Checking " + picked.get(0).getName() + "…" : "Checking " + picked.size() + " games…", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, single ? getString(R.string.home_checking_game, picked.get(0).getName())
+                : getResources().getQuantityString(R.plurals.home_checking_games, picked.size(), picked.size()), Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             List<Pick> out = new ArrayList<>();
             for (File g : picked) {
                 Pick k = new Pick(g);
                 out.add(k);
-                if (Nup.wrongCase(g)) { k.error = g.getName() + ": rename it so that its name ends in \".nup\" (lower case)."; continue; }
-                try { k.id = Pack.titleIdOf(g); } catch (IOException e) { k.error = e.getMessage(); continue; }
-                String why = Profile.missing(k.id, single ? "This game" : g.getName());
+                if (Nup.wrongCase(g)) { k.error = new Msg("home_nup_wrong_case_short", g.getName()); continue; }
+                try { k.id = Pack.titleIdOf(g); } catch (IOException e) { k.error = why(e); continue; }
+                String why = Profile.missing(k.id, single ? Tr.english("home_this_game") : g.getName());   // English, as Profile.missing is (the integrator switches to missingMsg)
                 if (why != null) { k.unsupported = true; k.error = why; continue; }
                 k.name = Profile.of(k.id).name;
                 k.dump = Ondevice.isDump(g);   // false when this APK has no packer: then it is added like any folder without a pack
@@ -689,7 +694,7 @@ public final class MainActivity extends Activity {
     private void added(List<Pick> picks, boolean single) {
         if (single) {
             Pick k = picks.get(0);
-            if (k.error != null) { error(k.error); return; }
+            if (k.error != null) { error(shown(k.error)); return; }
             askReplace(k.name, k.game, k.others, replace -> {
                 if (k.pack != null) { addWithPack(k.game, k.id, k.pack.dir, replace); return; }
                 if (replace != null) removeEntries(replace);   // the user chose this dump: the other's card goes now (nothing is deleted), this one's comes with its pack
@@ -701,27 +706,28 @@ public final class MainActivity extends Activity {
                 }   // a dump of a supported build: Prepare makes its pack
                 pendingGame = k.game;
                 pendingId = k.id;
-                String what = Nup.isNup(k.game) ? ".nup" : "folder";
+                boolean nup = Nup.isNup(k.game);
                 // Why Prepare cannot start from it (another build than this app's, an incomplete dump), plainly; a pack made elsewhere can still be picked
                 String why = k.found != null && k.found.error != null ? k.found.error
-                        : !Ondevice.available() ? "No pack found for this " + what + ". " + Ondevice.UNAVAILABLE
-                        : "No pack found for this " + what + ", and it is not a dump Prepare can start from.";
+                        : !Ondevice.available() ? (nup ? getString(R.string.home_no_pack_nup_unavailable, Ondevice.UNAVAILABLE) : getString(R.string.home_no_pack_folder_unavailable, Ondevice.UNAVAILABLE))
+                        : nup ? getString(R.string.home_no_pack_nup_no_dump) : getString(R.string.home_no_pack_folder_no_dump);
                 new AlertDialog.Builder(this).setTitle(k.found != null && k.found.version < 0 && k.found.titleId != null && Profile.of(k.found.titleId) != null && !DumpLayout.versions(k.game).isEmpty()
-                                ? "Another version of " + k.name : "No pack for this " + what)
-                        .setMessage(why + "\n\nIf you have a pack folder made for exactly this " + what + " (with pack.tsv), you can pick it.")
-                        .setPositiveButton("OK", null)
-                        .setNeutralButton("Pick a pack folder", (d, w) -> pickFolder(PICK_PACK, "Pick the pack folder (android-pack, with pack.tsv)")).show();
+                                ? getString(R.string.home_other_version_title, k.name) : nup ? getString(R.string.home_no_pack_nup_title) : getString(R.string.home_no_pack_folder_title))
+                        .setMessage(nup ? getString(R.string.home_no_pack_nup_body, why) : getString(R.string.home_no_pack_folder_body, why))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .setNeutralButton(R.string.home_pick_a_pack_folder, (d, w) -> pickFolder(PICK_PACK, getString(R.string.home_pick_android_pack))).show();
             });
             return;
         }
-        List<String> ok = new ArrayList<>(), unsupported = new ArrayList<>(), prepare = new ArrayList<>(), noPack = new ArrayList<>(), failed = new ArrayList<>(), twice = new ArrayList<>();
+        List<String> ok = new ArrayList<>(), unsupported = new ArrayList<>(), prepare = new ArrayList<>(), noPack = new ArrayList<>(), twice = new ArrayList<>();
+        List<Object> failed = new ArrayList<>();   // Msgs, or English Strings of another area: rendered for the dialog and, in English, for the log
         for (Pick k : picks) {
             if (k.unsupported) { unsupported.add(k.game.getName() + " (" + k.id + ")"); continue; }
             if (k.error != null) { failed.add(k.error); continue; }
             if (k.pack != null) {
-                String err = add(k.game, k.id, k.pack.dir, null);
+                Object err = add(k.game, k.id, k.pack.dir, null);
                 if (err == null) ok.add(k.pack.pack.name.isEmpty() ? k.name : k.pack.pack.name);
-                else failed.add(k.game.getName() + ": " + err);
+                else failed.add(new Msg("home_added_failed_item", k.game.getName(), err));
             } else if (k.dump) {
                 cardFor(k.game, k.id);
                 prepare.add(k.name);
@@ -729,19 +735,28 @@ public final class MainActivity extends Activity {
             if (!k.others.isEmpty() && (k.pack != null || k.dump)) twice.add(k.game.getName());
         }
         refresh();
-        StringBuilder m = new StringBuilder();
-        if (!ok.isEmpty()) m.append("Added: ").append(TextUtils.join(", ", ok)).append(".");
-        if (!prepare.isEmpty()) m.append(m.length() > 0 ? "\n\n" : "").append("Needs Prepare: ").append(TextUtils.join(", ", prepare))
-                .append(". No pack that fits was found: its card's Prepare makes one on this phone (one game at a time).");
-        if (!unsupported.isEmpty()) m.append(m.length() > 0 ? "\n\n" : "").append("Not supported by this app: ").append(TextUtils.join(", ", unsupported))
-                .append(". This app runs: ").append(TextUtils.join(", ", profileIds())).append(".");
-        if (!noPack.isEmpty()) m.append(m.length() > 0 ? "\n\n" : "").append("No pack found: ").append(TextUtils.join(", ", noPack))
-                .append(". Add it on its own to pick its pack folder.");
-        if (!failed.isEmpty()) m.append(m.length() > 0 ? "\n\n" : "").append("Not added: ").append(TextUtils.join(" ", failed));
-        if (!twice.isEmpty()) m.append(m.length() > 0 ? "\n\n" : "").append("Another dump of the same game was on the list already, so both cards are kept: ")
-                .append(TextUtils.join(", ", twice)).append(". ⋯ › Remove from list takes one away (nothing is deleted).");
-        android.util.Log.i("nxnative", "Add game: " + m.toString().replace("\n\n", " | "));
-        new AlertDialog.Builder(this).setTitle(ok.isEmpty() && prepare.isEmpty() ? "No game added" : "Games added").setMessage(m).setPositiveButton("OK", null).show();
+        // The summary's paragraphs: the dialog shows them in the user's language, the log line keeps them English
+        List<Msg> m = new ArrayList<>();
+        if (!ok.isEmpty()) m.add(new Msg("home_added_ok", TextUtils.join(", ", ok)));
+        if (!prepare.isEmpty()) m.add(new Msg("home_added_prepare", TextUtils.join(", ", prepare), new Msg("home_prepare")));
+        if (!unsupported.isEmpty()) m.add(new Msg("home_added_unsupported", TextUtils.join(", ", unsupported), TextUtils.join(", ", profileIds())));
+        if (!noPack.isEmpty()) m.add(new Msg("home_added_no_pack", TextUtils.join(", ", noPack)));
+        List<String> shownM = new ArrayList<>(), englishM = new ArrayList<>();
+        for (Msg x : m) { shownM.add(x.text()); englishM.add(x.english()); }
+        if (!failed.isEmpty()) {   // each why rendered on its own (a Msg, or another area's English), then joined in each language
+            List<String> shownFailed = new ArrayList<>(), englishFailed = new ArrayList<>();
+            for (Object f : failed) { shownFailed.add(shown(f)); englishFailed.add(english(f)); }
+            shownM.add(getString(R.string.home_added_failed, TextUtils.join(" ", shownFailed)));
+            englishM.add(Tr.english("home_added_failed", TextUtils.join(" ", englishFailed)));
+        }
+        if (!twice.isEmpty()) {
+            Msg t = new Msg("home_added_twice", TextUtils.join(", ", twice), new Msg("home_remove"));
+            shownM.add(t.text());
+            englishM.add(t.english());
+        }
+        android.util.Log.i("nxnative", "Add game: " + TextUtils.join("\n\n", englishM).replace("\n\n", " | "));
+        new AlertDialog.Builder(this).setTitle(ok.isEmpty() && prepare.isEmpty() ? R.string.home_added_none_title : R.string.home_added_title)
+                .setMessage(TextUtils.join("\n\n", shownM)).setPositiveButton(android.R.string.ok, null).show();
     }
 
     /**
@@ -752,12 +767,12 @@ public final class MainActivity extends Activity {
         if (others.isEmpty()) { then.accept(null); return; }
         List<String> dirs = new ArrayList<>();
         StringBuilder s = new StringBuilder();
-        for (Game o : others) { dirs.add(o.gameDir); s.append("\n• ").append(o.gameDir); }
-        new AlertDialog.Builder(this).setTitle("Replace " + name + "?")
-                .setMessage("Another dump of " + name + " is on your list:" + s + "\n\nUse " + game.getName() + " instead? Only the list entry changes: no dump, pack or save is deleted.")
-                .setPositiveButton("Replace", (d, w) -> then.accept(dirs))
-                .setNeutralButton("Keep both", (d, w) -> then.accept(null))
-                .setNegativeButton("Cancel", null).show();
+        for (Game o : others) { dirs.add(o.gameDir); s.append("\n• ").append(o.gameDir); }   // i18n-keep: a list of paths, one a line
+        new AlertDialog.Builder(this).setTitle(getString(R.string.home_replace_title, name))
+                .setMessage(getString(R.string.home_replace_body, name, s, game.getName()))
+                .setPositiveButton(R.string.home_replace, (d, w) -> then.accept(dirs))
+                .setNeutralButton(R.string.home_keep_both, (d, w) -> then.accept(null))
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     /** These game paths' list entries go (exact paths, as the list keeps them); nothing on the storage changes */
@@ -795,50 +810,60 @@ public final class MainActivity extends Activity {
     void pickPackFor(File game, String id) {
         pendingGame = game;
         pendingId = id;
-        pickFolder(PICK_PACK, "Pick the pack folder (the one with pack.tsv and shaders/)");
+        pickFolder(PICK_PACK, getString(R.string.home_pick_pack_folder));
     }
 
     private boolean addWithPack(File game, String id, File packDir) { return addWithPack(game, id, packDir, null); }
 
     private boolean addWithPack(File game, String id, File packDir, List<String> replace) {
-        String err = add(game, id, packDir, replace);
-        if (err != null) { error(err); return false; }
+        Object err = add(game, id, packDir, replace);
+        if (err != null) { error(shown(err)); return false; }
         refresh();
         if (packDir.equals(pendingPackPick)) Folders.pickedPack(this, id, packDir.getPath());   // a pack folder the user picked is remembered for this game's next pick and updates
-        String note = "";
         String lp = Pack.libraryProblem(packDir, id);
-        if (lp != null) note += " " + lp;
         String name;
         try { name = Pack.read(packDir).name; } catch (IOException e) { name = id; }
-        Toast.makeText(this, "Added " + (name.isEmpty() ? id : name) + "." + note, Toast.LENGTH_LONG).show();
+        if (name.isEmpty()) name = id;
+        Toast.makeText(this, lp == null ? getString(R.string.home_added_game, name) : getString(R.string.home_added_game_note, name, lp), Toast.LENGTH_LONG).show();
         return true;
     }
 
     /**
      * The game into the list with this pack folder (Game.put: replacing the entries of the same file or the same title and build, and those in replace, which
-     * the user chose to replace); null when added, else why not in a sentence
+     * the user chose to replace); null when added, else why not in a sentence: a Msg, or an English String of another area (shown, english)
      */
-    private String add(File game, String id, File packDir, List<String> replace) {
+    private Object add(File game, String id, File packDir, List<String> replace) {
         Pack pack;
-        try { pack = Pack.read(packDir); } catch (IOException e) { return e.getMessage(); }
-        if (!pack.titleId.equals(id)) return "The pack is for " + pack.titleId + ", the game " + (Nup.isNup(game) ? ".nup" : "folder") + " holds " + id + ".";
+        try { pack = Pack.read(packDir); } catch (IOException e) { return why(e); }
+        if (!pack.titleId.equals(id)) return Nup.isNup(game) ? new Msg("home_pack_other_title_nup", pack.titleId, id) : new Msg("home_pack_other_title_folder", pack.titleId, id);
         String why = Profile.missing(id, pack.name.isEmpty() ? null : pack.name);
         if (why != null) return why;
         if (Nup.isNup(game)) {
             String romfs;
-            try { romfs = pack.romfsPath(game); } catch (IOException e) { return game.getName() + " cannot be used: " + e.getMessage(); }
-            if (romfs == null) return game.getName() + " has no " + pack.romfsSelector() + " with a RomFS (the pack is for version " + pack.version + ").";
-        } else if (pack.romfs(game) == null) return "No RomFS in " + game + " (looked for " + pack.romfsRel + ", romfs/ and updates/<version>/romfs).";
+            try { romfs = pack.romfsPath(game); } catch (IOException e) { return new Msg("home_game_unusable", game.getName(), why(e)); }
+            if (romfs == null) return new Msg("home_nup_no_romfs", game.getName(), pack.romfsSelector(), pack.version);
+        } else if (pack.romfs(game) == null) return new Msg("home_folder_no_romfs", game, pack.romfsRel);
         Game.put(this, new Game(id, pack.name.isEmpty() ? id : pack.name, game.getPath(), packDir.getPath()), replace);
         return null;
     }
 
+    /** An exception's message as add() and Pick keep it: a LocalizedIOException's Msg, else its (English) message */
+    private static Object why(Exception e) {
+        return e instanceof LocalizedIOException && ((LocalizedIOException) e).msg != null ? ((LocalizedIOException) e).msg : e.getMessage();
+    }
+
+    /** A why of add() or Pick for the screen: a Msg in the user's language, a String as it is */
+    private static String shown(Object why) { return why instanceof Msg ? ((Msg) why).text() : String.valueOf(why); }
+
+    /** The same for a log line: English */
+    private static String english(Object why) { return why instanceof Msg ? ((Msg) why).english() : String.valueOf(why); }
+
     /** Remove from the list (the Manage sheet): says exactly what goes (the list entry) and what stays (the folders and the saves) */
     private void confirmRemove(Game g) {
         File save = Folders.save(this, g);
-        Ui.confirmDanger(this, "Remove " + g.name + "?",
-                "Only the list entry goes. Your dump, its pack and your saves" + (save != null ? " (" + save.getPath() + ")" : "") + " stay on the phone; Add game brings it back.",
-                "Remove", () -> {
+        Ui.confirmDanger(this, getString(R.string.home_remove_title, g.name),
+                save != null ? getString(R.string.home_remove_body_save, save.getPath(), getString(R.string.home_add_game)) : getString(R.string.home_remove_body, getString(R.string.home_add_game)),
+                getString(R.string.home_remove_yes), () -> {
                     List<Game> list = Game.load(this);
                     list.removeIf(x -> x.gameDir.equals(g.gameDir));
                     Game.save(this, list);
@@ -850,23 +875,23 @@ public final class MainActivity extends Activity {
         if (needAccess()) return;
         String why = Profile.missing(g.titleId, g.name);
         if (why != null) { error(why); return; }
-        if (SaveUi.busy(g.titleId)) { error("A save backup or restore of " + g.name + " is still working: Play waits for it."); return; }
-        if (PackUi.busy(g.titleId)) { error("An export or import of " + g.name + "'s pack is still working: Play waits for it."); return; }
+        if (SaveUi.busy(g.titleId)) { error(getString(R.string.home_busy_save, g.name)); return; }
+        if (PackUi.busy(g.titleId)) { error(getString(R.string.home_busy_pack, g.name)); return; }
         File gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
-        Runnable pickPack = () -> { pendingGame = gd; pendingId = g.titleId; pickFolder(PICK_PACK, "Pick the pack folder (the one with pack.tsv and shaders/)"); };
+        Runnable pickPack = () -> { pendingGame = gd; pendingId = g.titleId; pickFolder(PICK_PACK, getString(R.string.home_pick_pack_folder)); };
         Pack p;
         try {
             p = Pack.read(new File(g.packDir));
         } catch (IOException e) {
-            if (dump) packProblem(g, "The pack cannot be used: " + e.getMessage(), pickPack);
-            else error(e.getMessage());
+            if (dump) packProblem(g, getString(R.string.home_pack_unusable, e.getLocalizedMessage()), pickPack);
+            else error(e.getLocalizedMessage());
             return;
         }
         if (p.simulated) {   // a placeholder of the simulated engine (Anka Native 0.1.0's Prepare made one): it has no game code and no shaders, so it never starts
-            if (dump) packProblem(g, "This pack is a placeholder, not a pack to play.", pickPack);
-            else new AlertDialog.Builder(this).setTitle("No pack for " + g.name).setMessage(Ondevice.UNAVAILABLE + "\n\nPack: " + g.packDir)
-                    .setNegativeButton("Cancel", null).setPositiveButton("Pick pack folder", (d, w) -> pickPack.run()).show();
+            if (dump) packProblem(g, getString(R.string.home_pack_placeholder), pickPack);
+            else new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.UNAVAILABLE, g.packDir))
+                    .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).show();
             return;
         }
         // The pack's code must be of the game build in the folder (else the game crashes at once), and of a build this app supports: a plain message, and Prepare
@@ -888,12 +913,13 @@ public final class MainActivity extends Activity {
             return;
         }
         if (lp != null) {
-            AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("Shaders missing")
-                    .setMessage((dump ? "Prepare " + Ondevice.shadersText(new File(g.packDir), g.titleId).replaceFirst("^Updates", "updates").replaceFirst("^Makes", "makes") : "Without them the game draws nothing.")
-                            + "\n\n" + lp)
-                    .setNeutralButton("Pick pack folder", (d, w) -> pickPack.run()).setNegativeButton("Cancel", null);
-            if (dump) b.setPositiveButton("Prepare", (d, w) -> Ondevice.prepare(this, gd, false));
-            else b.setPositiveButton("Start anyway", (d, w) -> start(g));
+            // Ondevice.shadersText (prepare) lower-cased inside "Prepare …": left as it is; the integrator switches it to Ondevice.prepareShadersMsg (docs/i18n.md)
+            AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(R.string.home_shaders_missing)
+                    .setMessage(dump ? getString(R.string.home_shaders_missing_prepare, Ondevice.shadersText(new File(g.packDir), g.titleId).replaceFirst("^Updates", "updates").replaceFirst("^Makes", "makes"), lp)
+                            : getString(R.string.home_shaders_missing_body, lp))
+                    .setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).setNegativeButton(android.R.string.cancel, null);
+            if (dump) b.setPositiveButton(R.string.home_prepare, (d, w) -> Ondevice.prepare(this, gd, false));
+            else b.setPositiveButton(R.string.home_start_anyway, (d, w) -> start(g));
             b.show();
             return;
         }
@@ -904,10 +930,10 @@ public final class MainActivity extends Activity {
     private void packProblem(Game g, String why, Runnable pickPack) {
         File gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("The pack cannot start this game")
-                .setMessage((dump ? "Prepare again fixes it from your dump, on this phone.\n\n" : "") + why + "\n\nPack: " + g.packDir)
-                .setNegativeButton("Cancel", null).setNeutralButton("Pick pack folder", (d, w) -> pickPack.run());
-        if (dump) b.setPositiveButton("Prepare again", (d, w) -> Ondevice.prepare(this, gd, false));
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(R.string.home_pack_cannot_start)
+                .setMessage(dump ? getString(R.string.home_pack_problem_dump, getString(R.string.home_prepare_again), why, g.packDir) : getString(R.string.home_pack_problem, why, g.packDir))
+                .setNegativeButton(android.R.string.cancel, null).setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run());
+        if (dump) b.setPositiveButton(R.string.home_prepare_again, (d, w) -> Ondevice.prepare(this, gd, false));
         b.show();
     }
 
@@ -921,7 +947,7 @@ public final class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         Overlay.rows(this, box, null);
-        Ui.sheet(this, "Overlay", box).setPositiveButton("Done", null).setOnDismissListener(d -> refreshSettings()).show();
+        Ui.sheet(this, getString(R.string.home_overlay), box).setPositiveButton(R.string.home_done, null).setOnDismissListener(d -> refreshSettings()).show();
     }
 
     private String resLabel() { return Prefs.windowName(Prefs.window(this), true); }
@@ -929,11 +955,12 @@ public final class MainActivity extends Activity {
     /** Game resolution: the window size the host gives the game (DM_WINDOW), from the next start */
     private void gameRes() {
         int i = Math.max(0, java.util.Arrays.asList(Prefs.WINDOWS).indexOf(Prefs.window(this)));
-        new AlertDialog.Builder(this).setTitle("Game resolution").setSingleChoiceItems(Prefs.WINDOW_NAMES, i, (d, w) -> { Prefs.window(this, Prefs.WINDOWS[w]); refreshSettings(); d.dismiss(); })
-                .setNegativeButton("Cancel", null).show();
+        new AlertDialog.Builder(this).setTitle(R.string.home_game_resolution).setSingleChoiceItems(Prefs.windowNames(), i, (d, w) -> { Prefs.window(this, Prefs.WINDOWS[w]); refreshSettings(); d.dismiss(); })
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
-    static String capLabel(int v) { return v < 0 ? "Default" : v == 0 ? "The game's own" : v + " fps"; }
+    /** A frame rate cap's label, in the user's language (screen only: this list, the settings row, GameSettings) */
+    static String capLabel(int v) { return v < 0 ? Tr.s("home_cap_default") : v == 0 ? Tr.s("home_cap_own") : Tr.s("home_cap_fps", v); }
 
     /** The frame rate cap the next start uses (Prefs.fpsCap, DM_FPS_TARGET); the in-game panel changes it while the game runs */
     private void fpsCap() {
@@ -946,9 +973,9 @@ public final class MainActivity extends Activity {
             labels[k + 1] = capLabel(v);
             if (v == cur) checked = k + 1;
         }
-        new AlertDialog.Builder(this).setTitle("Frame rate cap")
+        new AlertDialog.Builder(this).setTitle(R.string.home_fps_cap)
                 .setSingleChoiceItems(labels, checked, (d, w) -> { Prefs.fpsCap(this, w == 0 ? -1 : Prefs.FPS_CAPS[w - 1]); refreshSettings(); d.dismiss(); })
-                .setNegativeButton("Cancel", null).show();
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     /** Frame generation's settings and the Lossless.dll found (or a manual pick when it is in none of the known places) */
@@ -956,10 +983,10 @@ public final class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         File dll = Lsfg.find(this);
-        Lsfg.rows(this, box, Lsfg.note + (dll != null ? "" : ". Put it in Documents/Emulation/bios or Switch2, or pick it."), () -> {});
-        Ui.add(box, Ui.small(this, "Ported from Eden (GPL-3.0-or-later). Lossless.dll is yours; it is never part of the app."), 10);
-        Ui.sheet(this, "Frame generation", box).setPositiveButton("Done", null).setOnDismissListener(d -> refreshSettings())
-                .setNeutralButton("Pick Lossless.dll", (d, w) -> {
+        Lsfg.rows(this, box, dll != null ? Lsfg.note : getString(R.string.home_lsfg_no_dll, Lsfg.note), () -> {});
+        Ui.add(box, Ui.small(this, getString(R.string.home_lsfg_credit)), 10);
+        Ui.sheet(this, getString(R.string.home_frame_gen), box).setPositiveButton(R.string.home_done, null).setOnDismissListener(d -> refreshSettings())
+                .setNeutralButton(R.string.home_pick_dll, (d, w) -> {
                     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
                     startActivityForResult(i, PICK_DLL);
                 }).show();
@@ -970,13 +997,13 @@ public final class MainActivity extends Activity {
     /** The newest log of a game (titleId), or of any run (null) */
     private void shareLog(String titleId) {
         File log = LogProvider.newest(this, titleId);
-        if (log == null) { error(titleId == null ? "No log yet." : "No log of this game yet."); return; }
+        if (log == null) { error(titleId == null ? getString(R.string.home_no_log) : getString(R.string.home_no_game_log)); return; }
         Uri uri = LogProvider.uri(log);
-        Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_SUBJECT, "Anka Native log " + log.getName());
+        Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_SUBJECT, getString(R.string.home_log_subject, log.getName()));
         send.setClipData(ClipData.newRawUri(log.getName(), uri));
         send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        startActivity(Intent.createChooser(send, "Share " + log.getName()));
+        startActivity(Intent.createChooser(send, getString(R.string.home_share_file, log.getName())));
     }
 
-    void error(String msg) { new AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show(); }
+    void error(String msg) { new AlertDialog.Builder(this).setMessage(msg).setPositiveButton(android.R.string.ok, null).show(); }
 }
