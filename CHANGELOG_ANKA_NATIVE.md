@@ -22,6 +22,17 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   say "a game is running: it goes on when the game ends". A Prepare you paused yourself stays paused, and the game can always be started. The game card
   says "Ready · updating shaders" only while its update runs; otherwise it says that the update is paused, paused while a game runs, or that the shaders
   are older. Checked on the JVM and in a build; not yet on a phone.
+- **A Prepare that Android ends comes back by itself, or says it stopped.** When the phone ended a Prepare's process (for memory, or a kill), Android
+  was to start it again, but HyperOS never did: the notification went and the Prepare stood still until the app was opened and Resume tapped. Now the
+  app starts it again itself where Android lets it: while the app's own process lives (Android allows this while the app is on screen or was just
+  left), when the app is opened (unless you ended it with Force stop), and when a game that it waited for ends. Where Android does not let it, a
+  notification says "Interrupted: …, Prepare stopped. Tap to go on", and a tap opens the app and goes on. A Prepare you paused stays paused. Allowing
+  the app's Autostart in HyperOS's app settings may let the phone restart it too (not tried). Checked on the JVM and in a build; not yet on a phone.
+- **Prepare's numbers read right.** The collapsed notification shows the time left first in its title ("45 min left · Preparing …"), where Android
+  shows a notification with a progress bar on one line with no text under it. After a resume the time left comes back at once from the speed measured
+  before, instead of nothing for over 2 minutes. A shader update's card no longer says "shader 0 / 42,854" at its start: the shader count shows once
+  the update says how many it translates (584 for a 0.2.2 pack). A paused shader scan that resumes no longer drops the bar (it fell from 17 % to 6 % for
+  the 39 s the scan's start took again). English writes the percent sign as "32%". Checked on the JVM; not yet on a phone.
 - **Preparing a game on a computer has a terminal interface:** `python scripts/prepare.py` (with the Python of the environment in android/README.md, nothing
   else to install) checks what the packer needs and says how to fix what is missing on this system, and how to get Homebrew, micromamba or curl first
   when a fix needs one the computer lacks (it builds and loads the ZBIC decoder below, so a computer without a C compiler is told so before anything
