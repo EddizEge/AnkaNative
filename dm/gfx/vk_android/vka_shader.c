@@ -370,7 +370,7 @@ VkShaderModule vka_shader_bz_module(vka_shader *s, uint32_t modes) {
     pthread_mutex_unlock(&g_mu);
     VkShaderModule mod = VK_NULL_HANDLE; char err[256] = ""; int own = 0;
     const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
-    size_t nb = 0; uint32_t *w = m ? vka_shlib_spirv(s->lib, m, &nb, err, sizeof err) : NULL;
+    size_t nb = 0; uint32_t *w = m ? lib_words(s->lib, s->e, m, &nb, err, sizeof err) : NULL;   // (lib_words: per-primitive inputs flat behind mesh draws through compute)
     if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, s->e->stage, &w, &nb);
     if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, nb);
     size_t on = 0; uint32_t *o = w ? vka_spv_blend_zero(w, nb / 4, modes, &on, err, sizeof err) : NULL;
