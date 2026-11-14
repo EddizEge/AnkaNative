@@ -125,28 +125,46 @@ For the play app, use `dev.ankanative.android.play` in both places of each `-n`.
 
 ## iiSU
 
-iiSU keeps its emulators in a JSON file, `emuladores.json`, in `iiSULauncher/Emuladores/` of its storage folder; each console has an `"emulators"` list, and each emulator has commands in the form `<package>/<activity> <am start arguments>`, with `%ROM_PATH%` (the file's path) and `%ROM_URI%` (a URI). Copy the file somewhere you can edit it, add this entry to the end of the Switch console's `"emulators"` list (a comma after the entry before it), and import it in iiSU (Settings › iiSU Settings › Updates › Import emuladores.json):
+iiSU takes its consoles and their emulators from one file, `emuladores.json`, which you import in iiSU's own settings: Settings › Updates › **Import emuladores.json**. You never need to put files into iiSU's folders yourself. Each console has an `"emulators"` list, and each emulator has commands in the form `<package>/<activity> <am start arguments>`, in which iiSU fills in the game's file.
+
+Anka Native gets a console of its own, Nintendo Switch 2, not an entry in iiSU's `"switch"` console. Add this object to the `"consoles"` array of your `emuladores.json`. Its place in the array does not matter (put a comma between it and its neighbours); its `shortName` must be one no other console has, as iiSU keeps only the first console of a `shortName`. Leave the rest of your list as it is: iiSU takes the imported file as its whole list, so it must still hold every console you use.
 
 ```json
 {
-  "id": "ANKA-NATIVE",
-  "name": "Anka Native (Standalone)",
-  "routeType": "uri",
-  "commands": [
+  "shortName": "switch2",
+  "longName": "Nintendo Switch 2",
+  "alternativeNames": ["Switch 2", "NS2"],
+  "releaseYear": "2025",
+  "releaseDate": "2025-06-05",
+  "manufacturer": "Nintendo",
+  "retroAchievementsId": "NA",
+  "romExtensions": [".nup", ".NUP"],
+  "emulators": [
     {
-      "description": "Anka Native Path",
-      "command": "dev.ankanative.android/.Launch -e game %ROM_PATH%"
-    },
-    {
-      "description": "Anka Native",
-      "command": "dev.ankanative.android/.Launch -a android.intent.action.VIEW -d %ROM_URI%"
+      "id": "ANKA-NATIVE",
+      "name": "Anka Native",
+      "routeType": "path",
+      "commands": [
+        {
+          "description": "Anka Native",
+          "command": "dev.ankanative.android/.Launch -e game %ROM_PATH%"
+        }
+      ],
+      "packages": ["dev.ankanative.android"]
     }
-  ],
-  "packages": ["dev.ankanative.android"]
+  ]
 }
 ```
 
-Optionally add `{"name": "Anka Native", "packages": ["dev.ankanative.android"]}` to the end of `supported_emulators.json` in the same folder. Then, for each `.nup` game, open its details (−) › Settings › Launch options › Override emulator › Anka Native (Standalone), or pick it for the whole Switch console. Use the Path command first: what `%ROM_URI%` holds was not checked, and a URI that carries no path is refused with a message. iiSU replaces its list when it downloads an update; add the entry again then. The file format comes from a third-party guide for iiSU 0.0.7.3, not from iiSU's own documentation.
+For the play app, write `dev.ankanative.android.play` in both places. Import the file, then add the console: in iiSU's Add console, Nintendo Switch 2 is not on the first page, because that page's quick groups (Nintendo among them) are fixed lists inside iiSU. Find it with the search box (`switch`, `Switch 2`) or under Sort by › Alphabetical, or Sort by › Manufacturer › Nintendo. Pick Anka Native as its emulator and the folder that holds your `.nup` files as its game folder.
+
+iiSU sends the file's path in the extra `game` (`routeType` `"path"` with `%ROM_PATH%`). It splits the command into its arguments before it fills in the path, so a path with spaces and brackets reaches the app whole; `%ROM%` gives the same value under `"path"`. When an iiSU update or iiSU's own online list update brings a newer list, it replaces yours: import your file again then.
+
+The console's icon, title and background are your own choice in iiSU's screens (Console Options › Manage Media › Local, or a Platform Pack); Anka Native ships no artwork. iiSU 0.1.6.1 has no screen that gives a new console a border, so its games show without one.
+
+What iiSU's request then does in Anka Native is the same as for every frontend ([What happens](#what-happens)): a game whose card Play would start straight away starts at once, with no "Start …?" question, and iiSU comes back when it stops; a game that needs a step first opens Home with Play's own dialog for it, and a file that is not on Home asks "Add this game?".
+
+Tested on the owner's phone (Android 16, iiSU 0.1.6.1, with the test app's package name in place of `dev.ankanative.android`): the import in iiSU's settings, this console with `routeType` `"path"` and `-e game %ROM_PATH%` starting the game from iiSU, a path with spaces and brackets arriving whole, and `%ROM%` giving the same value. Read in iiSU 0.1.6.1's code, not tried on a phone: that `shortName` decides which of two consoles is kept, that the first page of Add console lists only its fixed groups and where else a new console is listed, that iiSU's own list updates replace the imported one, and that no screen adds a border for a new console.
 
 ## Pegasus
 
@@ -202,3 +220,4 @@ On Android 15, an explicit intent reaches an exported component that has intent 
 - 2026-11-04, Honor phone, test app: over adb, the extra `game` (with `/sdcard`), `ACTION_VIEW` of a `file://` URI and of a SAF document URI, and the extra `title_id` each start the game straight away; a missing file shows its dialog. From Daijisho, on its Switch platform imported with the Anka Native players, both players (`-e game {file.path}` and `-a VIEW -d {file.uri}`) start the game.
 - 2026-11-14 (play only; new files ask first; Pegasus's provider; URI strings in `game`): built and checked on the JVM, not yet on a phone. Every frontend entry above is untested with it: Daijisho's worked with the earlier version; ES-DE, iiSU, Pegasus, LaunchBox, Beacon and Cocoon were never tried. Review fixes of the same day (a frontend's file of the same title and build as a card is that card and is never added in its place; another dump of the title is named in Home's question; a folder of several games is refused; a path compared through its links; repeated `.` steps and other users' `Android/data` refused; the extra `game` shown at most 200 characters, without control characters, in the error): checked on the JVM and in a build, not on a phone.
 - 2026-11-14, owner's phone, iiSU 0.1.6.1, test app of `work/big` 7a33169: iiSU's `-e game <path>` reached `Launch` and found the card, but the start asked "Start …?" because the pack had this version's library made from older shader inputs, which Play starts without asking and the frontend's own check did not; the game started only after Play was tapped, from Home, so without the extra that brings the frontend back when it stops. Changed the same day: the request takes Play's own decision (`PlayRule`), starts such a game at once, and a card that needs Play's steps gets them with no question in front. Checked on the JVM and in a build, not yet on a phone.
+- 2026-11-14, owner's phone (Android 16), iiSU 0.1.6.1, test app (`dev.ankanative.android.oot`): the form of the [iiSU](#iisu) entry, a console of its own (`switch2`) imported in iiSU's settings, with `routeType` `"path"` and `-e game %ROM_PATH%`, started the game from iiSU; a path with spaces and brackets arrived whole, and `%ROM%` gave the same value. The earlier entry (an emulator inside iiSU's `"switch"` console, a URI command, `supported_emulators.json`) is gone. The start with no question of the same day's change is not yet tried with iiSU on a phone.
