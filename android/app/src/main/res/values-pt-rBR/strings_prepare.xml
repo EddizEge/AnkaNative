@@ -25,8 +25,8 @@
     <!-- %1$s: the update's version number -->
     <string name="prepare_card_update">Atualização %1$s</string>
     <!-- a test build's simulated engine; %1$s: the line above -->
-    <string name="prepare_card_simulated">%1$s  (motor simulado)</string>
-    <string name="prepare_card_progress">%1$d %%  ·  shaders %2$,d de %3$,d</string>
+    <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
+    <string name="prepare_card_progress">%1$d%%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
     <string name="prepare_button_pause">Pausar</string>
     <string name="prepare_button_prepare_again">Preparar de novo</string>
     <string name="prepare_button_retry">Tentar novamente</string>
@@ -38,7 +38,7 @@
     <!-- Ondevice: a picked dump -->
     <string name="prepare_resume_title">Retomar a preparação?</string>
     <!-- %1$s: the job's status line -->
-    <string name="prepare_resume_body">%1$s\n\nEla continua de onde parou.</string>
+    <string name="prepare_resume_body">%1$s\n\nA preparação continua de onde parou.</string>
     <!-- the Manage sheet's button (prepare_manage_delete_work shows it with …), also named inside a sentence -->
     <string name="prepare_label_delete_work">Excluir arquivos de trabalho</string>
     <!-- The Preparing card's ⋯ button, named inside other areas' sentences -->
@@ -68,13 +68,13 @@
     <string name="prepare_import">Importar pacote…</string>
     <string name="prepare_ask_title">Preparar %1$s?</string>
     <string name="prepare_ready_title">Pronto para jogar</string>
-    <string name="prepare_ready_body">O pacote dele serve: não há nada para preparar.\n\nPacote: %1$s</string>
+    <string name="prepare_ready_body">O pacote é compatível: não há nada para preparar.\n\nPacote: %1$s</string>
     <!-- %1$s: prepare_button_play -->
-    <string name="prepare_simulated_pack">Este pacote foi feito pelo motor simulado: ele é só um marcador de posição, então o jogo não é iniciado. O botão %1$s está ativado porque o pacote e a biblioteca dele estão completos.</string>
+    <string name="prepare_simulated_pack">Este pacote foi feito pelo motor simulado: ele é só provisório (placeholder), então o jogo não é iniciado. O botão %1$s está ativado porque o pacote e a biblioteca dele estão completos.</string>
 
     <!-- Ondevice: the job's Manage sheet (⋯) -->
     <string name="prepare_manage_info">%1$s\n\nDump: %2$s\nArquivos de trabalho: %3$s\nPacote: %4$s\nLogs: %5$s</string>
-    <string name="prepare_manage_running">Pause primeiro para esquecer ou excluir.</string>
+    <string name="prepare_manage_running">Pause primeiro para poder esquecer ou excluir.</string>
     <string name="prepare_manage_forget">Esquecer esta tarefa…</string>
     <string name="prepare_manage_delete_pack">Excluir também o pacote preparado…</string>
     <string name="prepare_manage_title">Preparando %1$s</string>
@@ -147,7 +147,7 @@
     <string name="prepare_note_waiting">Aguardando: %1$s</string>
     <string name="prepare_note_failed">Não foi possível preparar %1$s</string>
     <string name="prepare_note_paused">Pausado: %1$s</string>
-    <string name="prepare_note_step">Etapa %1$d de %2$d · %3$d %%</string>
+    <string name="prepare_note_step">Etapa %1$d de %2$d · %3$d%%</string>
 
     <!-- PackService: why a step failed (PrepareErrors); %1$s: prepare_step_*_in_sentence (the object of "interrompeu"), %2$d: how many times (2 or more), %3$.1f: the step's memory in GB, tap %4$s: the button's label -->
     <string name="prepare_error_step_killed">o Android interrompeu %1$s %2$d vezes antes de terminar, provavelmente por falta de memória (precisa de até %3$.1f GB). Feche outros apps e toque em %4$s</string>
