@@ -6,6 +6,7 @@
 // so the next start builds from it. Layouts follow dmsh_abi_vk.h: set 0 the per-draw records of every stage (push descriptors when they fit), set 1 the pools (vka_tex.c)
 #if defined(__ANDROID__)
 #include "vka.h"
+#include "vka_aspick.h"
 #include "../nvn/nvn_mtl.h"
 #include <stdlib.h>
 #include <string.h>
@@ -291,7 +292,7 @@ void mtl_pso_line(char *out, size_t n) {
     int k = snprintf(out, n, "%llu graphics + %llu compute pipelines (%llu failed, %llu compute (program, layout) pairs not made for shared memory, %llu on the frame path), %llu set layouts, %.0f ms creating", (unsigned long long)g_ngfx, (unsigned long long)g_ncs,
                      (unsigned long long)g_nfail, (unsigned long long)g_ncs_over, (unsigned long long)g_frame_made, (unsigned long long)g_nlayouts, g_create_ms);
     if (V.gpl && k > 0 && (size_t)k + 3 < n) { memcpy(out + k, "; ", 3); vka_gpl_line(out + k + 2, n - (size_t)k - 2); }
-    size_t o = strlen(out); char a[200]; vka_pso_async_line(a, sizeof a);
+    size_t o = strlen(out); char a[400]; vka_pso_async_line(a, sizeof a);
     if (a[0] && o + 2 < n) snprintf(out + o, n - o, "; %s", a);
 }
 
@@ -1001,7 +1002,19 @@ static void busy_wait(gval *g) {
 // The queue is taken by need (DM_VK_PSO_ASYNC_NEED, default on; 0: in queue order): the job whose pipeline a draw was last skipped for (gval need, the frame), the oldest
 // of those first, so at a load the pipelines the current frame draws come before those of frames already gone (a cold Ocarina of Time run queued 57 deep, 745 ms a
 // fragment shader library, and waited up to 40 s). The prewarm threads take jobs too while they run (pw_main, DM_VK_PREWARM_HELP)
-typedef struct as_job { struct as_job *next; gval *g; size_t len; vka_shader *sh[VKA_NSTAGE]; vka_layout lay; vka_gkey k; uint64_t t0; } as_job;
+typedef struct as_job { struct as_job *next; gval *g; size_t len; vka_shader *sh[VKA_NSTAGE]; vka_layout lay; vka_gkey k; uint64_t t0, cost; } as_job;
+// DM_VK_PSO_CHEAP=1 (live; default 0 = the order above, as before): among the jobs of the newest need frame the cheapest goes first, and the oldest of them takes its turn
+// once it has waited DM_VK_PSO_FAIR_MS (live, 2000) (vka_aspick.h; after Banana Native 49fa341d). A job's predicted cost: the SPIR-V bytes of its stages' base modules
+static uint64_t as_cost(vka_shader *const sh[VKA_NSTAGE]) {
+    uint64_t c = 0;
+    for (int i = 0; i < VKA_NSTAGE; i++) {
+        const vka_shader *x = sh[i]; if (!x) continue;
+        const dmsh_vk_module *m = x->lib && x->e ? vka_shlib_module(x->lib, x->e, DMSH_VK_MOD_BASE) : NULL;
+        c += m ? m->size : 65536;
+    }
+    return c;
+}
+static _Atomic uint64_t g_as_cheap_n;   // jobs taken ahead of an older one of the same need frame by DM_VK_PSO_CHEAP
 static as_job *g_as_head, **g_as_tail = &g_as_head; static pthread_mutex_t g_as_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_as_cv = PTHREAD_COND_INITIALIZER;
 static _Atomic uint64_t g_as_queued, g_as_made, g_as_skips, g_as_ns, g_as_lat_max_ns, g_as_ahead, g_as_helped; static _Atomic int g_as_depth, g_as_depth_max;
 static void gfx_build(gval *g, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int async, uint64_t t_make);
@@ -1011,7 +1024,13 @@ static int as_run(int wait) {
     if (!wait && !g_as_head) { pthread_mutex_unlock(&g_as_mu); return 0; }
     while (!g_as_head) pthread_cond_wait(&g_as_cv, &g_as_mu);
     as_job **best = &g_as_head;
-    if (VKA_ENV("DM_VK_PSO_ASYNC_NEED", 1))
+    if (VKA_ENV("DM_VK_PSO_CHEAP", 0)) {   // (vka_aspick.h; the first CAND jobs of the queue are the candidates)
+        enum { CAND = 512 }; vka_as_cand c[CAND]; as_job **at[CAND]; int n = 0;
+        for (as_job **q = &g_as_head; *q && n < CAND; q = &(*q)->next, n++) { c[n] = (vka_as_cand){__atomic_load_n(&(*q)->g->need, __ATOMIC_RELAXED), (*q)->t0, (*q)->cost}; at[n] = q; }
+        int need = VKA_ENV("DM_VK_PSO_ASYNC_NEED", 1), fair = VKA_ENV("DM_VK_PSO_FAIR_MS", 2000);
+        int i = vka_as_pick(c, n, need, 1, now_ns(), fair > 0 ? (uint64_t)fair * 1000000ull : UINT64_MAX), o = vka_as_pick(c, n, need, 0, 0, 0);
+        best = at[i]; if (i != o) atomic_fetch_add(&g_as_cheap_n, 1);
+    } else if (VKA_ENV("DM_VK_PSO_ASYNC_NEED", 1))
         for (as_job **q = &g_as_head->next; *q; q = &(*q)->next)
             if ((int32_t)(__atomic_load_n(&(*q)->g->need, __ATOMIC_RELAXED) - __atomic_load_n(&(*best)->g->need, __ATOMIC_RELAXED)) > 0) best = q;
     as_job *j = *best; *best = j->next; if (!j->next) g_as_tail = best;
@@ -1051,7 +1070,7 @@ static int pc_burst(uint64_t t) {
 static void as_queue(gval *g, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, uint64_t t0) {
     as_job *j = malloc(sizeof *j);
     if (!j) { gfx_build(g, len, sh, lay, k, 0, 0, t0); return; }
-    j->next = NULL; j->g = g; j->len = len; memcpy(j->sh, sh, sizeof j->sh); j->lay = *lay; j->k = *k; j->t0 = t0;
+    j->next = NULL; j->g = g; j->len = len; memcpy(j->sh, sh, sizeof j->sh); j->lay = *lay; j->k = *k; j->t0 = t0; j->cost = as_cost(sh);
     int d = atomic_fetch_add(&g_as_depth, 1) + 1, m = atomic_load(&g_as_depth_max);
     while (d > m && !atomic_compare_exchange_weak(&g_as_depth_max, &m, d)) {}
     atomic_fetch_add(&g_as_queued, 1);
@@ -1062,9 +1081,10 @@ void vka_pso_async_line(char *out, size_t n) {
     out[0] = 0;
     if (as_threads() <= 0) return;
     snprintf(out, n, "asynchronous: %llu queued, %llu made (%.0f ms in all, longest wait from the miss %.0f ms), deepest queue %d, draws skipped waiting %llu; "
-             "made ahead of older jobs (needed by a later frame) %llu, made by prewarm threads %llu",
+             "made ahead of older jobs (needed by a later frame) %llu, made by prewarm threads %llu, taken as the cheapest (DM_VK_PSO_CHEAP) %llu",
              (unsigned long long)atomic_load(&g_as_queued), (unsigned long long)atomic_load(&g_as_made), atomic_load(&g_as_ns) / 1e6, atomic_load(&g_as_lat_max_ns) / 1e6,
-             atomic_load(&g_as_depth_max), (unsigned long long)atomic_load(&g_as_skips), (unsigned long long)atomic_load(&g_as_ahead), (unsigned long long)atomic_load(&g_as_helped));
+             atomic_load(&g_as_depth_max), (unsigned long long)atomic_load(&g_as_skips), (unsigned long long)atomic_load(&g_as_ahead), (unsigned long long)atomic_load(&g_as_helped),
+             (unsigned long long)atomic_load(&g_as_cheap_n));
 }
 static gval *gfx_obtain(const gkey_full *fk, uint64_t h, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int *made) {
     *made = 0;
