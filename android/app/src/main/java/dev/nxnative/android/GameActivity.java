@@ -377,10 +377,12 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         return m.append(gpu).toString();
     }
 
-    /** What the notice was about (the warnings, the GPU and driver): "Don't show again" holds until one of them changes */
+    /** What the notice was about (the warnings, the GPU and driver): "Don't show again" holds until one of them changes. Built from fact keys and values only, never
+     *  from shown texts, so a change of the app's language does not show the notice again */
     private static String warnKey(Map<String, String> f, List<Readiness.Check> warns) {
-        StringBuilder s = new StringBuilder(Readiness.gpu(f));
-        for (Readiness.Check c : warns) s.append('|').append(c.title);
+        StringBuilder s = new StringBuilder();
+        for (String k : new String[] {"gpu.name", "vk.api", "driver.name", "driver.info", "driver.id", "driver.version", "driver.custom"}) s.append(k).append('=').append(f.getOrDefault(k, "")).append('|');
+        for (Readiness.Check c : warns) s.append('|').append(c.fact != null ? c.fact : c.title);
         return Integer.toHexString(s.toString().hashCode());
     }
 

@@ -40,7 +40,8 @@ final class Readiness {
 
         Check(String title, Status status, String message, String fix) { this(title, status, message, fix, null); }
 
-        /** fact: the requirement's fact key (Req.fact) when the check is one, so a caller can tell what failed without matching titles */
+        /** fact: the requirement's fact key (Req.fact) when the check is one, else a fixed key of what it is about ("error", "unchecked", "status"), so a caller can
+         *  tell what failed without matching titles (titles are translated); null for the screen's own cards */
         Check(String title, Status status, String message, String fix, String fact) {
             this.fact = fact;
             this.title = title;
@@ -134,8 +135,8 @@ final class Readiness {
             if (have == null && vulkan && (err != null || unchecked != null)) {   // nothing to compare with: said once
                 if (!seen.contains("error")) {
                     seen.add("error");
-                    out.add(err != null ? new Check("GPU features", Status.FAIL, "The GPU driver could not be used (" + err + "): the game needs Vulkan 1.3.", "driver")
-                            : new Check("GPU features", Status.WARNING, "Not checked (" + unchecked + "): whether this GPU has what the game needs is not known.", null));
+                    out.add(err != null ? new Check("GPU features", Status.FAIL, "The GPU driver could not be used (" + err + "): the game needs Vulkan 1.3.", "driver", "error")
+                            : new Check("GPU features", Status.WARNING, "Not checked (" + unchecked + "): whether this GPU has what the game needs is not known.", null, "unchecked"));
                 }
                 continue;
             }
@@ -161,8 +162,8 @@ final class Readiness {
     static Check status(String status) {
         if (status == null || status.isEmpty() || status.equals("playable")) return null;
         if (status.equals("bring-up"))
-            return new Check("Status on Android", Status.WARNING, "This game is still being brought up on Android: it may stop or draw wrongly on any phone, this one included.", null);
-        return new Check("Status on Android", Status.INFO, status, null);
+            return new Check("Status on Android", Status.WARNING, "This game is still being brought up on Android: it may stop or draw wrongly on any phone, this one included.", null, "status");
+        return new Check("Status on Android", Status.INFO, status, null, "status");
     }
 
     /** Of a game's environment (KEY=VALUE, in start's order), the lines that pick its GPU driver: what the readiness facts must be read on */
