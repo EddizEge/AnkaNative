@@ -22,7 +22,8 @@ Anka Native is built on other people's work. This file is where they are credite
   after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish); one prewarm build at a time
   on Turnip (`vka_pso.c`, d393736c and 84d1b9df by wraphs); the asynchronous pipeline queue's cheapest-first
   order, fitted to Anka Native's need order (`vka_aspick.h`, after 49fa341d); the texture-use feedback bitmap in a
-  set of its own (their finding of v0.2.9, ad509ad8, re-implemented as a SPIR-V set rewrite at module creation).
+  set of its own (their finding of v0.2.9, ad509ad8, re-implemented as a SPIR-V set rewrite at module creation); the ZBIC decoder libzbicdec
+  (`dm/third_party/zstd-zbic`, f86575b0: its MIT files in `zbic/` and its build script, around Zstandard's BSD decoder).
 
 ## Code and findings from other projects
 

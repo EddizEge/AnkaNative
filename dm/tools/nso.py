@@ -78,7 +78,7 @@ def zbic_build():
     name = 'zbicdec.dll' if sys.platform == 'win32' else 'libzbicdec.dylib' if sys.platform == 'darwin' else 'libzbicdec.so'
     out = os.path.join(ZBIC_SRC, 'build', f'{h.hexdigest()[:16]}-{platform.machine().lower() or "cpu"}', name)
     if os.path.isfile(out): return out
-    cc = shlex.split(os.environ.get('CC', '')) or next(([c] for c in ('cc', 'clang', 'gcc') if shutil.which(c)), None)
+    cc = cc_words(os.environ.get('CC', '')) or next(([c] for c in ('cc', 'clang', 'gcc') if shutil.which(c)), None)
     if not cc:
         raise Error(f'libzbicdec (the ZBIC decoder) is not built here, and there is no C compiler to build it ($CC, cc, clang or gcc: the Mac\'s command line '
                     f'tools, Linux\'s gcc or clang, on Windows LLVM-MinGW or MSYS2\'s gcc); or set {ZBIC_LIB_ENV} to a build of dm/third_party/zstd-zbic')
@@ -88,12 +88,23 @@ def zbic_build():
         lib = os.path.join(tmp, name)
         if sys.platform == 'win32': cmd = cc + ['-shared', '-static-libgcc'] + ZBIC_FLAGS + ['-o', lib] + [os.path.join(ZBIC_SRC, *s.split('/')) for s in ZBIC_SOURCES]
         else: cmd = ['sh', os.path.join(ZBIC_SRC, 'build.sh'), lib] + cc
-        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
+        try: r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
+        except OSError as e: raise Error(f'libzbicdec does not build: {shlex.join(cc)} does not run ({e}); set CC to a C compiler, or {ZBIC_LIB_ENV} to a build') from None
         if r.returncode or not os.path.isfile(lib):
             raise Error(f'libzbicdec does not build with {shlex.join(cc)} (exit code {r.returncode}): ' + ' | '.join(r.stdout.strip().splitlines()[-6:]))
-        os.replace(lib, out)
+        try: os.replace(lib, out)
+        except OSError:   # Windows: another process built it at the same time and has it loaded, so it cannot be replaced; that library is whole
+            if not os.path.isfile(out): raise
     finally: shutil.rmtree(tmp, ignore_errors=True)
     return out
+
+
+def cc_words(s):
+    """$CC as a command's words. On Windows its path has backslashes, which POSIX splitting would drop (C:\\llvm-mingw\\bin\\clang.exe → C:llvm-mingwbinclang.exe),
+    so it is split as Windows writes it, double quotes taken off"""
+    import shlex
+    if sys.platform != 'win32': return shlex.split(s)
+    return [w[1:-1] if len(w) > 1 and w[0] == w[-1] == '"' else w for w in shlex.split(s, posix=False)]
 
 
 # build.sh's compile line without its shell (Windows: no sh, and no -Bsymbolic or soname for a DLL; zbic.c exports its two entry points with dllexport).

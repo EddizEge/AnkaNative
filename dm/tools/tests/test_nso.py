@@ -443,6 +443,22 @@ class ZbicLibrary(unittest.TestCase):
                 with self.assertRaises(nso.Error) as c: nso.zbic_decoder()
             self.assertIn('does not build', str(c.exception)); self.assertFalse(list((src / 'build').glob('*/*zbicdec*')))   # nothing half-built left as the library
 
+    def test_compiler_that_does_not_run(self):   # $CC names no program: an Error naming it, not an OSError from subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / 'zstd-zbic'; shutil.copytree(nso.ZBIC_SRC, src, ignore=shutil.ignore_patterns('build'))
+            env = {k: v for k, v in os.environ.items() if k != nso.ZBIC_LIB_ENV}
+            with mock.patch.dict(os.environ, dict(env, CC=str(Path(tmp) / 'no-such-cc')), clear=True), mock.patch.object(nso, 'ZBIC_SRC', str(src)), \
+                 mock.patch.object(nso.sys, 'platform', 'win32'):
+                with self.assertRaises(nso.Error) as c: nso.zbic_decoder()
+            for w in ('does not run', 'no-such-cc', nso.ZBIC_LIB_ENV): self.assertIn(w, str(c.exception))
+
+    def test_cc_on_windows_keeps_backslashes(self):   # CC=C:\llvm-mingw\bin\clang.exe is one word with its backslashes; quotes group a path with spaces
+        with mock.patch.object(nso.sys, 'platform', 'win32'):
+            self.assertEqual(nso.cc_words(r'C:\llvm-mingw\bin\clang.exe'), [r'C:\llvm-mingw\bin\clang.exe'])
+            self.assertEqual(nso.cc_words(r'"C:\Program Files\LLVM\bin\clang.exe" --target=x86_64-w64-mingw32'),
+                             [r'C:\Program Files\LLVM\bin\clang.exe', '--target=x86_64-w64-mingw32'])
+        with mock.patch.object(nso.sys, 'platform', 'linux'): self.assertEqual(nso.cc_words("ccache 'my cc'"), ['ccache', 'my cc'])
+
     def test_windows_line_is_build_sh(self):   # nso.py's compile line for Windows (no sh) has build.sh's flags and files
         sh = (Path(nso.ZBIC_SRC) / 'build.sh').read_text()
         self.assertEqual([f for f in nso.ZBIC_FLAGS if f.startswith('-D')], re.findall(r'(-D\w+(?:=\w*)?)', sh))

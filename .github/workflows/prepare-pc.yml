@@ -1,7 +1,7 @@
 # Preparing a game on a computer (android/README.md) on Windows and Linux, without game files: the checkout has LF line ends (.gitattributes), so the
 # shader chain versions are the committed ones; the translator launcher for each system starts the committed dmsh_xlate.dll and reports the source the lock
-# names; text files the tools write on Windows have LF line ends (scripts/lf_newlines.py); and the packer's unit tests pass. The Mac runs the same tools
-# with its own apphost (tests.yml).
+# names; text files the tools write on Windows have LF line ends (scripts/lf_newlines.py); the ZBIC decoder (dm/third_party/zstd-zbic) builds with the
+# runner's C compiler; and the packer's unit tests pass. The Mac runs the same tools with its own apphost (tests.yml).
 name: prepare-pc
 
 on:
@@ -77,9 +77,11 @@ jobs:
           printf 'import pathlib, sys\nopen(sys.argv[1], "w").write("a\\nb\\n")\npathlib.Path(sys.argv[2]).write_text("c\\n")\n' > lf_probe.py
           python scripts/lf_newlines.py lf_probe.py lf_a.txt lf_b.txt
           python -c "import sys; a = open('lf_a.txt', 'rb').read(); b = open('lf_b.txt', 'rb').read(); print(a, b); sys.exit(a != b'a\nb\n' or b != b'c\n')"
+      - name: The ZBIC decoder builds with the runner's C compiler (nso.zbic_build; on Windows its own compile line, without build.sh)
+        run: python -c "import sys; sys.path.insert(0, 'dm/tools'); import nso; print(nso.zbic_build())"
       - name: Packer unit tests
         run: |
-          for t in dm/tools/tests/test_pack_android.py dm/tools/tests/test_split_*.py; do
+          for t in dm/tools/tests/test_pack_android.py dm/tools/tests/test_nso.py dm/tools/tests/test_split_*.py; do
             echo "== $t"
             if python -m unittest "$t" > test.log 2>&1; then tail -2 test.log; else cat test.log; fails="$fails $t"; fi
           done
