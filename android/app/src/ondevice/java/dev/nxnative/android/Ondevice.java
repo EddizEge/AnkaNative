@@ -23,8 +23,8 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Preparing a game on the phone. "+ Add game" (MainActivity) on a dump without a usable pack calls {@link #prepare}: the dump is checked (DumpCheck), a pack
@@ -58,14 +58,15 @@ final class Ondevice {
      */
     static boolean available() { return "native".equals(BuildConfig.NX_PACK_ENGINE) || !BuildConfig.NX_PLAY; }
 
-    /** What to do instead when this APK cannot prepare a game (available() is false) */
-    static final String UNAVAILABLE = "This version of Anka Native cannot prepare a game on the phone. Prepare it once on a computer (Linux or Mac), as the README's "
-            + "\"Install\" steps say (github.com/EddizEge/AnkaNative), copy the pack next to the dump as <title ID>-work/android-pack, then add the game again or pick "
-            + "that pack folder.";
+    /** What to do instead when this APK cannot prepare a game (available() is false), in English: the home screen still reads it (MainActivity) until it takes unavailableText() */
+    static final String UNAVAILABLE = Tr.english("prepare_unavailable");
+
+    /** What to do instead when this APK cannot prepare a game (available() is false), for the screen */
+    static String unavailableText() { return Tr.s("prepare_unavailable"); }
 
     /** Prepare the dump (MainActivity's Add game, a game card's Prepare again): checked off the main thread, then asked before anything is written */
     static void prepare(MainActivity a, File dump, boolean again) {
-        if (!available()) { a.error(UNAVAILABLE); return; }
+        if (!available()) { a.error(unavailableText()); return; }
         if (panel != null && panel.a == a) panel.picked(dump, false, null, again);
     }
 
@@ -74,11 +75,19 @@ final class Ondevice {
 
     /** What making a pack's shaders does and takes, for Prepare's dialogs: an update of the changed ones when the manifest knows the pack's older library, else all of them */
     static String shadersText(File packDir, String titleId) {
+        // ShaderLibs.minutesText (the packs area's, English): the integrator switches these calls to minutesMsg after both packages merge
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
-        if (n >= 0 && p != null) return String.format(Locale.getDefault(), "Updates the shaders from your dump: %,d of the %,d changed in this app version (%s, in the background).",
-                n, p.shaderTotal, ShaderLibs.minutesText(n));
-        return "Makes the shaders from your dump (" + (p != null ? ShaderLibs.minutesText(p.shaderTotal) : "about 20-35 minutes") + ", in the background).";
+        if (n >= 0 && p != null) return Tr.s("prepare_shaders_update", n, p.shaderTotal, ShaderLibs.minutesText(n));
+        return p != null ? Tr.s("prepare_shaders_make", ShaderLibs.minutesText(p.shaderTotal)) : Tr.s("prepare_shaders_make_default");
+    }
+
+    /** "Prepare updates the shaders …" / "Prepare makes the shaders …": shadersText as one sentence after the word Prepare (the home screen's shader dialog) */
+    static Msg prepareShadersMsg(File packDir, String titleId) {
+        int n = deltaShaders(packDir, titleId);
+        Profile p = Profile.of(titleId);
+        if (n >= 0 && p != null) return new Msg("prepare_shaders_update_step", n, p.shaderTotal, ShaderLibs.minutesText(n));
+        return p != null ? new Msg("prepare_shaders_make_step", ShaderLibs.minutesText(p.shaderTotal)) : new Msg("prepare_shaders_make_step_default");
     }
 
     private static final java.util.Set<String> autoTried = new java.util.HashSet<>();
@@ -108,7 +117,7 @@ final class Ondevice {
         if (request != PICK_DUMP) return false;
         if (result != MainActivity.RESULT_OK || data == null || data.getData() == null || panel == null || panel.a != a) return true;
         String path = PathUtil.treeToPath(data.getData());
-        if (path == null) a.error("That folder is not on this phone's storage (" + data.getData() + ").");
+        if (path == null) a.error(a.getString(R.string.prepare_not_on_storage, String.valueOf(data.getData())));
         else panel.picked(new File(path), false, null);
         return true;
     }
@@ -155,7 +164,7 @@ final class Ondevice {
             card = view;   // one card: the heading and ⋯ Manage, the state, the progress, the buttons
             LinearLayout top = Ui.row(a);
             top.setGravity(android.view.Gravity.TOP);
-            head = Ui.heading(a, "Preparing");
+            head = Ui.heading(a, a.getString(R.string.prepare_card_heading));
             head.setAccessibilityHeading(true);
             title = Ui.small(a, "");
             LinearLayout tc = new LinearLayout(a);   // in a column of its own, as the game cards: a bare TextView with weight kept its first (one-line) height
@@ -163,7 +172,7 @@ final class Ondevice {
             tc.addView(head);
             tc.addView(title);
             top.addView(tc, Ui.weight());
-            more = Ui.more(a, "Manage the preparing job", v -> manage());
+            more = Ui.more(a, a.getString(R.string.prepare_card_manage), v -> manage());
             LinearLayout.LayoutParams mp = (LinearLayout.LayoutParams) more.getLayoutParams();
             mp.leftMargin = dp(8);
             top.addView(more, mp);
@@ -180,7 +189,7 @@ final class Ondevice {
             go.setPadding(dp(12), 0, dp(12), 0);   // "Prepare again" fits half a narrow card
             go.setMinHeight(dp(56));
             go.setMinimumHeight(dp(56));
-            play = Ui.action(a, R.drawable.ic_play, "Play", Ui.Kind.PRIMARY, v -> play());
+            play = Ui.action(a, R.drawable.ic_play, a.getString(R.string.prepare_button_play), Ui.Kind.PRIMARY, v -> play());
             Ui.add(card, Ui.pair(a, go, play), 16);
             load();
             show();
@@ -276,15 +285,17 @@ final class Ondevice {
             view.setVisibility(View.VISIBLE);
             if (!was) a.refresh();   // the games' empty card hides while this one shows
             String st = job.state();
-            String sim = "fake".equals(BuildConfig.NX_PACK_ENGINE) ? "  (simulated engine)" : "";
-            head.setText(("done".equals(st) ? "" : "pending".equals(st) ? "Ready to prepare: " : "failed".equals(st) ? "Could not prepare " : "Preparing ") + job.name());
-            title.setText("Update " + job.version() + sim);
-            status.setText(job.statusText(alive));
+            head.setText("done".equals(st) ? job.name() : a.getString("pending".equals(st) ? R.string.prepare_head_pending : "failed".equals(st) ? R.string.prepare_head_failed
+                    : R.string.prepare_head_running, job.name()));
+            String update = a.getString(R.string.prepare_card_update, String.valueOf(job.version()));
+            title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
+            status.setText(job.statusMsg(alive).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
-            detail.setText(String.format(Locale.getDefault(), "%d %%  ·  shaders %,d of %,d", Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal()));
+            detail.setText(a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal()));
             boolean running = alive && ("running".equals(st) || "paused".equals(st) && !"user".equals(job.reason()) && !"timeout".equals(job.reason()));
             goPauses = running;
-            go.setText(running ? "Pause" : "done".equals(st) && !job.apkChanged() ? "Prepare again" : "failed".equals(st) ? "Retry" : "pending".equals(st) ? "Start" : "Resume");
+            go.setText(running ? R.string.prepare_button_pause : "done".equals(st) && !job.apkChanged() ? R.string.prepare_button_prepare_again
+                    : "failed".equals(st) ? R.string.prepare_button_retry : "pending".equals(st) ? R.string.prepare_button_start : R.string.prepare_button_resume);
             go.setEnabled(!"done".equals(st) || job.apkChanged());
             play.setEnabled(ready && !running);
         }
@@ -307,7 +318,7 @@ final class Ondevice {
             String picked = Folders.pickedPack(a, g.titleId);
             if (picked != null && !picked.equals(g.packDir)) Folders.pickedPack(a, g.titleId, g.packDir);
             a.refresh();
-            android.widget.Toast.makeText(a, g.name + " is ready to play.", android.widget.Toast.LENGTH_LONG).show();
+            android.widget.Toast.makeText(a, a.getString(R.string.prepare_game_ready_toast, g.name), android.widget.Toast.LENGTH_LONG).show();
         }
 
         /** Play needs the pack (Pack.read: pack.tsv and its modules) and its shader library of this APK's version */
@@ -342,9 +353,9 @@ final class Ondevice {
 
         /** card: an automatic update of a game card's pack (autoUpdate): packOverride is that pack, checked as the pack to keep; nothing else is started or asked */
         void picked(File dump, boolean start, File packOverride, boolean again, boolean card) {
-            if (!available()) { if (!card) a.error(UNAVAILABLE); return; }
+            if (!available()) { if (!card) a.error(unavailableText()); return; }
             if (a.needAccess()) return;
-            android.widget.Toast.makeText(a, "Checking " + dump + "…", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(a, a.getString(R.string.prepare_checking, dump), android.widget.Toast.LENGTH_SHORT).show();
             new Thread(() -> {
                 Found f = new Found();
                 try {
@@ -374,7 +385,7 @@ final class Ondevice {
 
         void checked(Found f, boolean start, File packOverride, boolean again, boolean card) {
             DumpCheck.Result r = f.r;
-            if (!r.ok()) { if (!card) { a.error(r.error); show(); } return; }
+            if (!r.ok()) { if (!card) { a.error(r.errorText()); show(); } return; }
             // A job in progress for this dump is resumed
             if (f.existing != null) {
                 try {
@@ -386,13 +397,13 @@ final class Ondevice {
                         job = j;
                         show();
                         if (start) startService(j);
-                        else confirm("Resume preparing?", j.statusText(false) + "\n\nIt goes on from where it stopped.", "Resume", () -> startService(j));
+                        else confirm(a.getString(R.string.prepare_resume_title), a.getString(R.string.prepare_resume_body, j.statusMsg(false).text()),
+                                a.getString(R.string.prepare_button_resume), () -> startService(j));
                         return;
                     }
                     if (!s.equals("done") && !s.isEmpty()) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
                         if (card) return;   // an automatic update leaves it to the user
-                        a.error("An unfinished job for this dump writes to " + j.pack() + ": " + j.statusText(false) + "\n\nResume it from the card, or delete its working files "
-                                + "(⋯ › Delete working files) before preparing into another folder.");
+                        a.error(a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(), a.getString(R.string.prepare_label_delete_work)));
                         Job.remember(a, f.existing);
                         job = j;
                         show();
@@ -404,7 +415,7 @@ final class Ondevice {
             }
             // One job at a time: the service runs only the job it has, so a new one is not written or remembered while it runs
             if (alive() && job != null && !"done".equals(job.state())) {
-                a.error(job.name() + " is being prepared now (" + job.statusText(true) + "). Pause it first, then try again.");
+                a.error(a.getString(R.string.prepare_busy, job.name(), job.statusMsg(true).text()));
                 return;
             }
             if (card && (f.pack == null || f.build != null)) return;   // an automatic update only updates the shaders of the card's own pack, when its code fits
@@ -417,21 +428,33 @@ final class Ondevice {
                 Runnable redo = () -> adopt(r, pd, code, shaders);
                 if (start) { redo.run(); return; }
                 int delta = shaders ? deltaShaders(pd, r.titleId) : -1;
-                String what = code && shaders ? (delta >= 0 ? "Rewrites the game code (a few minutes). " + shadersText(pd, r.titleId)
-                                : "Makes the game code and the shaders again from your dump (" + ShaderLibs.jobMinutesText(Profile.of(r.titleId).shaderTotal) + ", in the background).")
-                        : code ? "Rewrites the game code from your dump (a few minutes, in the background). The shaders are kept."
+                // ShaderLibs.jobMinutesText, PackCheck.blocking (f.build) and PackCheck.shaders (lp) are the packs area's English: the integrator switches them to
+                // jobMinutesMsg, blockingMsg and shadersMsg after both packages merge
+                String what = code && shaders ? (delta >= 0 ? a.getString(R.string.prepare_redo_code_update, shadersText(pd, r.titleId))
+                                : a.getString(R.string.prepare_redo_both, ShaderLibs.jobMinutesText(Profile.of(r.titleId).shaderTotal)))
+                        : code ? a.getString(R.string.prepare_redo_code)
                         : shadersText(pd, r.titleId);
-                String why = (f.build != null ? f.build + "\n\n" : again && code ? "The pack's game code was made by other tools than this app's.\n\n" : "") + (lp != null ? lp + "\n\n" : "");
-                new AlertDialog.Builder(a).setTitle(code ? "Update the pack?" : "Prepare shaders?").setMessage(what + "\n\n" + why + "Pack: " + pd)
-                        .setPositiveButton(code ? "Prepare again" : "Prepare", (d, w) -> redo.run())
-                        .setNeutralButton("Pick another pack folder", (d, w) -> Folders.pickPack(a))
-                        .setNegativeButton("Cancel", null).show();
+                // the dialog's paragraphs: what is redone, why, the pack folder
+                List<String> message = new ArrayList<>();
+                message.add(what);
+                if (f.build != null) message.add(f.build);
+                else if (again && code) message.add(a.getString(R.string.prepare_redo_other_tools));
+                if (lp != null) message.add(lp);
+                message.add(a.getString(R.string.prepare_pack_line, pd));
+                new AlertDialog.Builder(a).setTitle(code ? R.string.prepare_redo_title_code : R.string.prepare_redo_title_shaders).setMessage(String.join("\n\n", message))
+                        .setPositiveButton(code ? R.string.prepare_button_prepare_again : R.string.prepare_button_prepare, (d, w) -> redo.run())
+                        .setNeutralButton(R.string.prepare_pick_other_pack, (d, w) -> Folders.pickPack(a))
+                        .setNegativeButton(android.R.string.cancel, null).show();
                 return;
             }
             Profile prof = Profile.of(r.titleId);   // DumpCheck refused a dump without one
-            String text = String.format(Locale.getDefault(), "%s, %d DLC.\n\nThe app builds the game's pack and %,d shaders from your dump, once: %s "
-                    + "in the background, best on the charger. You can pause any time.\n\nNeeds about 1.5 GB (%.1f GB free): working files in %s, the pack in the app's storage (%s).",
-                    (r.version == 0 ? "Base game" : "Update " + r.version) + (r.build >= 0 && r.build != r.version ? " (the code of " + prof.buildName(r.build) + ")" : ""), r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesText(prof.shaderTotal), r.free / 1073741824.0, r.work, AppStorage.pack(a, r.titleId));
+            boolean other = r.build >= 0 && r.build != r.version;   // the dump keeps a profile build under another version: its code is that build's
+            String version = String.valueOf(r.version);
+            String which = r.version == 0 ? (other ? a.getString(R.string.prepare_what_base_code, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_base))
+                    : other ? a.getString(R.string.prepare_what_update_code, version, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_update, version);
+            // ShaderLibs.jobMinutesText (the packs area's, English): the integrator switches it to jobMinutesMsg after both packages merge
+            String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesText(prof.shaderTotal), r.free / 1073741824.0, r.work,
+                    AppStorage.pack(a, r.titleId));
             Runnable go = () -> {
                 try {
                     Job j = Job.create(r, AppStorage.pack(a, r.titleId));
@@ -442,7 +465,7 @@ final class Ondevice {
                     show();
                     startService(j);
                 } catch (Exception e) {
-                    a.error("Cannot start: " + e.getMessage());
+                    a.error(a.getString(R.string.prepare_cannot_start, e.getLocalizedMessage()));
                 }
             };
             if (start) go.run();
@@ -458,11 +481,12 @@ final class Ondevice {
             LinearLayout box = new LinearLayout(a);
             box.setOrientation(LinearLayout.VERTICAL);
             Ui.add(box, Ui.body(a, text), 0);
-            Ui.add(box, Ui.small(a, "Have a pack made elsewhere (on a computer, or exported from another phone)?"), 16);
+            Ui.add(box, Ui.small(a, a.getString(R.string.prepare_ask_elsewhere)), 16);
             AlertDialog[] d = new AlertDialog[1];
-            Ui.add(box, Ui.button(a, "Use an existing pack…", Ui.Kind.SOFT, v -> { d[0].dismiss(); a.pickPackFor(r.dump, r.titleId); }), 8);
-            Ui.add(box, Ui.button(a, "Import pack…", Ui.Kind.SOFT, v -> { d[0].dismiss(); PackUi.importPick(a, a.cardFor(r.dump, r.titleId)); }), 8);
-            d[0] = Ui.sheet(a, "Prepare " + prof.name + "?", box).setPositiveButton("Prepare", (x, w) -> go.run()).setNegativeButton("Cancel", null).show();
+            Ui.add(box, Ui.button(a, a.getString(R.string.prepare_use_existing), Ui.Kind.SOFT, v -> { d[0].dismiss(); a.pickPackFor(r.dump, r.titleId); }), 8);
+            Ui.add(box, Ui.button(a, a.getString(R.string.prepare_import), Ui.Kind.SOFT, v -> { d[0].dismiss(); PackUi.importPick(a, a.cardFor(r.dump, r.titleId)); }), 8);
+            d[0] = Ui.sheet(a, a.getString(R.string.prepare_ask_title, prof.name), box).setPositiveButton(R.string.prepare_button_prepare, (x, w) -> go.run())
+                    .setNegativeButton(android.R.string.cancel, null).show();
         }
 
         /** A pack that is already there (PackCheck): ready (a done job pointing at it, the game added to the list), or a job that redoes its code, its shaders or both */
@@ -479,14 +503,14 @@ final class Ondevice {
                 Game.put(a, g);   // one card per game (GameList)
                 a.refresh();
                 show();
-                new AlertDialog.Builder(a).setTitle("Ready to play").setMessage("Its pack fits: nothing needs preparing.\n\nPack: " + packDir).setPositiveButton("OK", null).show();
+                new AlertDialog.Builder(a).setTitle(R.string.prepare_ready_title).setMessage(a.getString(R.string.prepare_ready_body, packDir)).setPositiveButton(android.R.string.ok, null).show();
             } catch (Exception e) {
                 a.error(a.getString(R.string.prepare_cannot_use, packDir, e.getLocalizedMessage()));
             }
         }
 
         void confirm(String t, String msg, String yes, Runnable r) {
-            new AlertDialog.Builder(a).setTitle(t).setMessage(msg).setPositiveButton(yes, (d, w) -> r.run()).setNegativeButton("Cancel", null).show();
+            new AlertDialog.Builder(a).setTitle(t).setMessage(msg).setPositiveButton(yes, (d, w) -> r.run()).setNegativeButton(android.R.string.cancel, null).show();
         }
 
         void startService(Job j) {
@@ -514,9 +538,9 @@ final class Ondevice {
         void play() {
             if (job == null || !ready(job)) return;
             Pack p;
-            try { p = Pack.read(job.pack()); } catch (IOException e) { a.error(e.getMessage()); return; }
+            try { p = Pack.read(job.pack()); } catch (IOException e) { a.error(e.getLocalizedMessage()); return; }
             if (p.simulated) {
-                a.error("This pack was made by the simulated engine: it is a placeholder, so the game is not started. Play is enabled because the pack and its library are complete.");
+                a.error(a.getString(R.string.prepare_simulated_pack, a.getString(R.string.prepare_button_play)));
                 return;
             }
             Game g = new Game(job.titleId(), p.name.isEmpty() ? job.name() : p.name, job.dump().getPath(), job.pack().getPath());
@@ -535,33 +559,31 @@ final class Ondevice {
             boolean running = alive() && ("running".equals(j.state()) || "paused".equals(j.state()) && !"user".equals(j.reason()) && !"timeout".equals(j.reason()));
             LinearLayout box = new LinearLayout(a);
             box.setOrientation(LinearLayout.VERTICAL);
-            TextView info = Ui.small(a, j.statusText(alive()) + "\n\nDump: " + j.dump() + "\nWorking files: " + j.dir() + "\nPack: " + j.pack() + "\nLogs: " + new File(j.dir(), "logs"));
+            TextView info = Ui.small(a, a.getString(R.string.prepare_manage_info, j.statusMsg(alive()).text(), j.dump(), j.dir(), j.pack(), new File(j.dir(), "logs")));
             info.setTextIsSelectable(true);
             box.addView(info);
             android.app.AlertDialog[] d = new android.app.AlertDialog[1];
             View line = new View(a);
             line.setBackgroundColor(Ui.col(a, R.color.bn_card_stroke));
             Ui.add(box, line, 20, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
-            if (running) Ui.add(box, Ui.small(a, "Pause first to forget or delete."), 14);
-            Button f = Ui.button(a, "Forget this job…", Ui.Kind.QUIET, v -> { d[0].dismiss(); forget(); });
+            if (running) Ui.add(box, Ui.small(a, a.getString(R.string.prepare_manage_running)), 14);
+            Button f = Ui.button(a, a.getString(R.string.prepare_manage_forget), Ui.Kind.QUIET, v -> { d[0].dismiss(); forget(); });
             f.setEnabled(!running);
             Ui.add(box, f, 10, Ui.wrap());
-            Button w = Ui.button(a, "Delete working files…", Ui.Kind.DANGER, v -> { d[0].dismiss(); deleteWork(j, false); });
+            Button w = Ui.button(a, a.getString(R.string.prepare_manage_delete_work), Ui.Kind.DANGER, v -> { d[0].dismiss(); deleteWork(j, false); });
             w.setEnabled(!running);
             Ui.add(box, w, 8, Ui.wrap());
             if (ownPack(j) != null) {
-                Button pk = Ui.button(a, "Delete the prepared pack too…", Ui.Kind.DANGER, v -> { d[0].dismiss(); deleteWork(j, true); });
+                Button pk = Ui.button(a, a.getString(R.string.prepare_manage_delete_pack), Ui.Kind.DANGER, v -> { d[0].dismiss(); deleteWork(j, true); });
                 pk.setEnabled(!running);
                 Ui.add(box, pk, 8, Ui.wrap());
             }
-            d[0] = Ui.sheet(a, "Preparing " + j.name(), box).setPositiveButton("Done", null).show();
+            d[0] = Ui.sheet(a, a.getString(R.string.prepare_manage_title, j.name()), box).setPositiveButton(R.string.prepare_button_done, null).show();
         }
 
         void forget() {
             if (job == null) return;
-            Ui.confirmDanger(a, "Forget this job?", "Deleted: nothing. The screen stops showing the job.\n\nKept: its files in " + job.dir()
-                    + ", the pack, your dump and your saves. Picking the same dump again finds the job.\n\nThe split's kept progress (a copy in the app's own storage) "
-                    + "is deleted when a job of another game starts; until then an unfinished split resumes from it.", "Forget", () -> {
+            Ui.confirmDanger(a, a.getString(R.string.prepare_forget_title), a.getString(R.string.prepare_forget_body, job.dir()), a.getString(R.string.prepare_button_forget), () -> {
                 Job.remember(a, null);
                 job = null;
                 show();
@@ -590,18 +612,18 @@ final class Ondevice {
             if (pk != null && !inside(pk, dir)) gone.add(pk);
             for (File g : gone) {
                 if (inside(g, j.dump()) || save != null && inside(g, save)) {
-                    a.error("Not deleted: " + g + " holds or is inside " + (inside(g, j.dump()) ? "your dump" : "your save folder") + ".");
+                    a.error(a.getString(inside(g, j.dump()) ? R.string.prepare_not_deleted_dump : R.string.prepare_not_deleted_save, g));
                     return;
                 }
             }
-            StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split and translated shaders, the job's progress)"
-                    + "\n· the split's kept progress, a copy in the app's own storage");
-            if (pk != null) m.append(inside(pk, dir) ? " with the pack inside it" : "\n· the prepared pack and its shader library in " + pk);
-            m.append("\n\nKept: your dump (" + j.dump() + ") and your saves").append(save != null ? " (" + save + ")" : "")
-                    .append(pk == null ? ", and the pack (" + j.pack() + ")" : "").append(". Saves are never deleted here.");
-            m.append(pk != null ? "\n\nThe game will not start until it is prepared again (about 30-45 minutes)." : "\n\nA new Prepare starts from the beginning.");
-            Ui.confirmDanger(a, pk != null ? "Delete the prepared pack?" : "Delete working files?", m, "Delete", () -> {
-                android.app.AlertDialog wait = new android.app.AlertDialog.Builder(a).setMessage("Deleting…").setCancelable(false).show();
+            // the question's paragraphs: what goes, what stays, what follows
+            String deleted = pk == null ? a.getString(R.string.prepare_deleted_work, dir)
+                    : inside(pk, dir) ? a.getString(R.string.prepare_deleted_work_pack_inside, dir) : a.getString(R.string.prepare_deleted_work_and_pack, dir, pk);
+            String kept = pk == null ? (save != null ? a.getString(R.string.prepare_kept_pack_save, j.dump(), save, j.pack()) : a.getString(R.string.prepare_kept_pack, j.dump(), j.pack()))
+                    : save != null ? a.getString(R.string.prepare_kept_save, j.dump(), save) : a.getString(R.string.prepare_kept, j.dump());
+            String m = deleted + "\n\n" + kept + "\n\n" + a.getString(pk != null ? R.string.prepare_deleted_pack_end : R.string.prepare_deleted_work_end);
+            Ui.confirmDanger(a, a.getString(pk != null ? R.string.prepare_delete_pack_title : R.string.prepare_delete_work_title), m, a.getString(R.string.prepare_button_delete), () -> {
+                android.app.AlertDialog wait = new android.app.AlertDialog.Builder(a).setMessage(R.string.prepare_deleting).setCancelable(false).show();
                 new Thread(() -> {
                     for (File g : gone) Job.deleteTree(g);
                     Job.deleteTree(j.splitScan(a));   // the split's kept scan results, in the app's own storage
@@ -611,7 +633,7 @@ final class Ondevice {
                         job = null;
                         show();
                         a.refresh();
-                        android.widget.Toast.makeText(a, "Deleted. Your dump and saves are untouched.", android.widget.Toast.LENGTH_LONG).show();
+                        android.widget.Toast.makeText(a, R.string.prepare_deleted_toast, android.widget.Toast.LENGTH_LONG).show();
                     });
                 }, "nxpack-delete").start();
             });

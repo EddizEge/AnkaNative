@@ -2,4 +2,171 @@
 <!-- English (the source): the prepare area (Ondevice, Job, PackService, DumpCheck). docs/i18n.md: keys start with prepare_, one file per area, translations keep the English file's name -->
 <resources>
     <string name="prepare_cannot_use">Cannot use %1$s: %2$s</string>
+
+    <!-- Ondevice: a build without the packer (also shown by the home screen) -->
+    <string name="prepare_unavailable">This version of Anka Native cannot prepare a game on the phone. Prepare it once on a computer (Linux or Mac), as the README\'s \"Install\" steps say (github.com/EddizEge/AnkaNative), copy the pack next to the dump as &lt;title ID&gt;-work/android-pack, then add the game again or pick that pack folder.</string>
+    <!-- Ondevice.shadersText: what making a pack's shaders does; %3$s / %1$s: the time it takes ("about 20-35 minutes") -->
+    <string name="prepare_shaders_update">Updates the shaders from your dump: %1$,d of the %2$,d changed in this app version (%3$s, in the background).</string>
+    <string name="prepare_shaders_make">Makes the shaders from your dump (%1$s, in the background).</string>
+    <string name="prepare_shaders_make_default">Makes the shaders from your dump (about 20-35 minutes, in the background).</string>
+    <!-- Ondevice.prepareShadersMsg: the same as one sentence after the word Prepare (the home screen's shader dialog) -->
+    <string name="prepare_shaders_update_step">Prepare updates the shaders from your dump: %1$,d of the %2$,d changed in this app version (%3$s, in the background).</string>
+    <string name="prepare_shaders_make_step">Prepare makes the shaders from your dump (%1$s, in the background).</string>
+    <string name="prepare_shaders_make_step_default">Prepare makes the shaders from your dump (about 20-35 minutes, in the background).</string>
+    <string name="prepare_not_on_storage">That folder is not on this phone\'s storage (%1$s).</string>
+
+    <!-- Ondevice: the Preparing card on the main screen -->
+    <string name="prepare_card_heading">Preparing</string>
+    <string name="prepare_card_manage">Manage the preparing job</string>
+    <string name="prepare_button_play">Play</string>
+    <string name="prepare_head_pending">Ready to prepare: %1$s</string>
+    <string name="prepare_head_failed">Could not prepare %1$s</string>
+    <string name="prepare_head_running">Preparing %1$s</string>
+    <!-- %1$s: the update's version number -->
+    <string name="prepare_card_update">Update %1$s</string>
+    <!-- a test build's simulated engine; %1$s: the line above. \u0020: the two spaces stay (aapt2 joins runs of spaces) -->
+    <string name="prepare_card_simulated">%1$s\u0020\u0020(simulated engine)</string>
+    <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d of %3$,d</string>
+    <string name="prepare_button_pause">Pause</string>
+    <string name="prepare_button_prepare_again">Prepare again</string>
+    <string name="prepare_button_retry">Retry</string>
+    <string name="prepare_button_start">Start</string>
+    <string name="prepare_button_resume">Resume</string>
+    <string name="prepare_game_ready_toast">%1$s is ready to play.</string>
+    <string name="prepare_checking">Checking %1$s…</string>
+
+    <!-- Ondevice: a picked dump -->
+    <string name="prepare_resume_title">Resume preparing?</string>
+    <!-- %1$s: the job's status line -->
+    <string name="prepare_resume_body">%1$s\n\nIt goes on from where it stopped.</string>
+    <!-- the Manage sheet's button prepare_manage_delete_work, named inside a sentence -->
+    <string name="prepare_label_delete_work">Delete working files</string>
+    <string name="prepare_other_folder_job">An unfinished job for this dump writes to %1$s: %2$s\n\nResume it from the card, or delete its working files (⋯ › %3$s) before preparing into another folder.</string>
+    <string name="prepare_busy">%1$s is being prepared now (%2$s). Pause it first, then try again.</string>
+    <!-- %1$s: prepare_shaders_update -->
+    <string name="prepare_redo_code_update">Rewrites the game code (a few minutes). %1$s</string>
+    <string name="prepare_redo_both">Makes the game code and the shaders again from your dump (%1$s, in the background).</string>
+    <string name="prepare_redo_code">Rewrites the game code from your dump (a few minutes, in the background). The shaders are kept.</string>
+    <string name="prepare_redo_other_tools">The pack\'s game code was made by other tools than this app\'s.</string>
+    <string name="prepare_pack_line">Pack: %1$s</string>
+    <string name="prepare_redo_title_code">Update the pack?</string>
+    <string name="prepare_redo_title_shaders">Prepare shaders?</string>
+    <string name="prepare_button_prepare">Prepare</string>
+    <string name="prepare_pick_other_pack">Pick another pack folder</string>
+    <!-- Prepare's question: the dump's version; %1$s: the update's version number, %2$s / %1$s: a build of the game in words -->
+    <string name="prepare_what_base">Base game</string>
+    <string name="prepare_what_update">Update %1$s</string>
+    <string name="prepare_what_base_code">Base game (the code of %1$s)</string>
+    <string name="prepare_what_update_code">Update %1$s (the code of %2$s)</string>
+    <!-- %1$s: prepare_what_*, %4$s: the time it takes ("about 22-40 minutes"), %6$s, %7$s: folders -->
+    <string name="prepare_ask_text">%1$s, %2$d DLC.\n\nThe app builds the game\'s pack and %3$,d shaders from your dump, once: %4$s in the background, best on the charger. You can pause any time.\n\nNeeds about 1.5 GB (%5$.1f GB free): working files in %6$s, the pack in the app\'s storage (%7$s).</string>
+    <string name="prepare_cannot_start">Cannot start: %1$s</string>
+    <string name="prepare_ask_elsewhere">Have a pack made elsewhere (on a computer, or exported from another phone)?</string>
+    <string name="prepare_use_existing">Use an existing pack…</string>
+    <string name="prepare_import">Import pack…</string>
+    <string name="prepare_ask_title">Prepare %1$s?</string>
+    <string name="prepare_ready_title">Ready to play</string>
+    <string name="prepare_ready_body">Its pack fits: nothing needs preparing.\n\nPack: %1$s</string>
+    <!-- %1$s: prepare_button_play -->
+    <string name="prepare_simulated_pack">This pack was made by the simulated engine: it is a placeholder, so the game is not started. %1$s is enabled because the pack and its library are complete.</string>
+
+    <!-- Ondevice: the job's Manage sheet (⋯) -->
+    <string name="prepare_manage_info">%1$s\n\nDump: %2$s\nWorking files: %3$s\nPack: %4$s\nLogs: %5$s</string>
+    <string name="prepare_manage_running">Pause first to forget or delete.</string>
+    <string name="prepare_manage_forget">Forget this job…</string>
+    <string name="prepare_manage_delete_work">Delete working files…</string>
+    <string name="prepare_manage_delete_pack">Delete the prepared pack too…</string>
+    <string name="prepare_manage_title">Preparing %1$s</string>
+    <string name="prepare_button_done">Done</string>
+    <string name="prepare_forget_title">Forget this job?</string>
+    <string name="prepare_forget_body">Deleted: nothing. The screen stops showing the job.\n\nKept: its files in %1$s, the pack, your dump and your saves. Picking the same dump again finds the job.\n\nThe split\'s kept progress (a copy in the app\'s own storage) is deleted when a job of another game starts; until then an unfinished split resumes from it.</string>
+    <string name="prepare_button_forget">Forget</string>
+    <string name="prepare_not_deleted_dump">Not deleted: %1$s holds or is inside your dump.</string>
+    <string name="prepare_not_deleted_save">Not deleted: %1$s holds or is inside your save folder.</string>
+    <!-- Delete working files: the question's paragraphs (what goes, what stays, what follows) -->
+    <string name="prepare_deleted_work">Deleted:\n· the working files in %1$s (rewritten code, split and translated shaders, the job\'s progress)\n· the split\'s kept progress, a copy in the app\'s own storage</string>
+    <string name="prepare_deleted_work_pack_inside">Deleted:\n· the working files in %1$s (rewritten code, split and translated shaders, the job\'s progress)\n· the split\'s kept progress, a copy in the app\'s own storage with the pack inside it</string>
+    <string name="prepare_deleted_work_and_pack">Deleted:\n· the working files in %1$s (rewritten code, split and translated shaders, the job\'s progress)\n· the split\'s kept progress, a copy in the app\'s own storage\n· the prepared pack and its shader library in %2$s</string>
+    <string name="prepare_kept">Kept: your dump (%1$s) and your saves. Saves are never deleted here.</string>
+    <string name="prepare_kept_save">Kept: your dump (%1$s) and your saves (%2$s). Saves are never deleted here.</string>
+    <string name="prepare_kept_pack">Kept: your dump (%1$s) and your saves, and the pack (%2$s). Saves are never deleted here.</string>
+    <string name="prepare_kept_pack_save">Kept: your dump (%1$s) and your saves (%2$s), and the pack (%3$s). Saves are never deleted here.</string>
+    <string name="prepare_deleted_pack_end">The game will not start until it is prepared again (about 30-45 minutes).</string>
+    <string name="prepare_deleted_work_end">A new Prepare starts from the beginning.</string>
+    <string name="prepare_delete_pack_title">Delete the prepared pack?</string>
+    <string name="prepare_delete_work_title">Delete working files?</string>
+    <string name="prepare_button_delete">Delete</string>
+    <string name="prepare_deleting">Deleting…</string>
+    <string name="prepare_deleted_toast">Deleted. Your dump and saves are untouched.</string>
+
+    <!-- Job: the steps (Job.STEP_KEYS), and the same inside a sentence (Job.STEP_IN_SENTENCE_KEYS: "Stopped at checking the dump: …") -->
+    <string name="prepare_step_identify">Checking the dump</string>
+    <string name="prepare_step_rewrite">Rewriting the game code</string>
+    <string name="prepare_step_split">Finding the shaders</string>
+    <string name="prepare_step_shaders">Translating shaders</string>
+    <string name="prepare_step_pack">Finishing the pack</string>
+    <string name="prepare_step_identify_in_sentence">checking the dump</string>
+    <string name="prepare_step_rewrite_in_sentence">rewriting the game code</string>
+    <string name="prepare_step_split_in_sentence">finding the shaders</string>
+    <string name="prepare_step_shaders_in_sentence">translating shaders</string>
+    <string name="prepare_step_pack_in_sentence">finishing the pack</string>
+    <!-- Job.stepMsg: the shaders step's end, and a step with its count; %1$s: a step above -->
+    <string name="prepare_stage_library">Writing the shader library</string>
+    <string name="prepare_stage_check">Checking the shader library</string>
+    <string name="prepare_step_shaders_progress">Translating shaders: %1$,d of %2$,d</string>
+    <string name="prepare_step_progress">%1$s %2$,d / %3$,d</string>
+    <string name="prepare_step_count">%1$s %2$,d</string>
+    <!-- Job.statusMsg: the job's status line; %1$s: a step (prepare_step_*), %2$s in failed: why it failed, in English (job.json's error); Tap %3$s: the button's label -->
+    <string name="prepare_status_done">Ready to play.</string>
+    <string name="prepare_status_failed">Stopped at %1$s: %2$s. Tap %3$s to go on.</string>
+    <string name="prepare_status_pending">Not started yet.</string>
+    <string name="prepare_status_paused">Paused: %1$s. %2$s.</string>
+    <string name="prepare_status_running">%1$s (step %2$d of %3$d).</string>
+    <string name="prepare_status_interrupted">Interrupted at %1$s. Tap %2$s to go on.</string>
+    <!-- a state or reason this app version does not know, as job.json has it -->
+    <string name="prepare_status_raw">%1$s</string>
+    <!-- Job.reasonMsg: why a job is paused; tap %1$s: the button's label -->
+    <string name="prepare_reason_user">by you</string>
+    <string name="prepare_reason_battery">battery below 20 %: plug in the charger to go on</string>
+    <string name="prepare_reason_thermal">the phone is too hot: it goes on when it has cooled</string>
+    <string name="prepare_reason_timeout">Android\'s daily limit for background work: open the app and tap %1$s</string>
+    <string name="prepare_reason_refused">Android did not let it start in the background: open the app and tap %1$s</string>
+    <string name="prepare_reason_apk">the app was updated with other shader tools: the shaders are translated again</string>
+    <string name="prepare_reason_none">stopped</string>
+    <string name="prepare_cannot_make_folder">cannot make %1$s</string>
+
+    <!-- PackService: the notification -->
+    <string name="prepare_channel_name">Preparing a game</string>
+    <string name="prepare_channel_description">Progress while the app prepares a game from your dump</string>
+    <string name="prepare_note_none">Preparing a game</string>
+    <!-- a test build's simulated engine; %1$s: the notification's title -->
+    <string name="prepare_note_simulated">%1$s (simulated)</string>
+    <string name="prepare_note_starting">Starting…</string>
+    <string name="prepare_note_done">%1$s is ready to play</string>
+    <!-- %1$s: prepare_button_play -->
+    <string name="prepare_note_done_text">Open Anka Native and tap %1$s.</string>
+    <string name="prepare_note_running">Preparing %1$s</string>
+    <string name="prepare_note_waiting">Waiting: %1$s</string>
+    <string name="prepare_note_failed">Could not prepare %1$s</string>
+    <string name="prepare_note_paused">Paused: %1$s</string>
+    <string name="prepare_note_step">Step %1$d of %2$d · %3$d %%</string>
+    <!-- %1$s: the step (Job.stepMsg), %3$s: why it waits or stopped -->
+    <string name="prepare_note_progress">%1$s · %2$d %%</string>
+    <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
+
+    <!-- PackService: why a step failed, written in English to job.json's error (the status line shows it inside prepare_status_failed); %1$s: prepare_step_*_in_sentence, tap %4$s: the button's label -->
+    <string name="prepare_error_step_killed">%1$s was stopped by Android %2$d times before it finished, most likely for memory (it needs up to %3$s GB). Close other apps, then tap %4$s</string>
+    <!-- %1$s: the title ID, %2$s: the version number -->
+    <string name="prepare_error_dump_changed">the dump changed: it is now %1$s %2$s</string>
+    <!-- %1$s: the step's code (rewrite, split, shaders, pack), %3$s: the tool's last [RED] line -->
+    <string name="prepare_error_tool_exit">%1$s stopped with code %2$d (log: %3$s)</string>
+    <string name="prepare_error_tool_exit_red">%1$s stopped with code %2$d: %3$s (log: %4$s)</string>
+    <string name="prepare_error_compare">cannot compare the dump\'s shaders with the app\'s list: %1$s</string>
+    <!-- %2$s: the game's version, %3$s: a file name, then %4$s: the button's label -->
+    <string name="prepare_error_shader_map">the dump\'s shaders are not the ones this app knows for %1$s (%2$s, %3$s differs). The dump may be incomplete or modified: dump the game again, then %4$s</string>
+
+    <!-- DumpCheck: why a dump cannot be prepared (also in job.json's error, in English) -->
+    <string name="prepare_dump_free_unknown">Cannot read the free space of %1$s.</string>
+    <string name="prepare_dump_space">Preparing needs %1$.1f GB free beside the dump; %2$s has %3$.2f GB free.</string>
+    <string name="prepare_dump_not_writable">Cannot make %1$s: the folder beside the dump is not writable.</string>
 </resources>

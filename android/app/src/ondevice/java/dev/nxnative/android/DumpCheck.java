@@ -8,7 +8,6 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -23,7 +22,10 @@ final class DumpCheck {
 
     static final class Result {
         File dump, work;
-        String titleId, error;
+        String titleId;
+        /** Why the dump cannot be prepared, in English (job.json's error, logs), null when it can; errorMsg: the same for the screen when DumpCheck made it */
+        String error;
+        Msg errorMsg;
         long version;               // the update's version (updates/<version>)
         long build = -1;            // the profile's build (its build row's version) the version's code is: another number when the dump keeps that build under another version
         Map<String, String> buildIds = new LinkedHashMap<>();   // module → its NSO build ID (32 hex digits)
@@ -31,6 +33,9 @@ final class DumpCheck {
         long free;
 
         boolean ok() { return error == null; }
+
+        /** error for the screen: in the user's language when it is DumpCheck's own; DumpLayout's refusals (the packs area) are still English Strings */
+        String errorText() { return errorMsg != null ? errorMsg.text() : error; }
     }
 
     private DumpCheck() {}
@@ -51,36 +56,38 @@ final class DumpCheck {
     static Result check(File dump, boolean needFree) {
         Result r = new Result();
         r.dump = dump;
-        r.error = check(r, needFree);
-        return r;
-    }
-
-    /** The dump's layout and builds (DumpLayout.find: the base, an update, or both; the version whose modules are a profile build), then the free space */
-    private static String check(Result r, boolean needFree) {
-        DumpLayout.Found f = DumpLayout.find(r.dump);
+        DumpLayout.Found f = DumpLayout.find(dump);
         r.titleId = f.titleId;
-        if (f.error != null) return f.error;
+        if (f.error != null) {
+            r.error = f.error;
+            return r;
+        }
         r.version = f.version;
         r.build = f.build;
         for (Map.Entry<String, String> e : f.buildIds.entrySet()) r.buildIds.put(e.getKey(), e.getValue());
         r.dlc = f.dlc;
-        return space(r, needFree);
+        r.errorMsg = space(r, needFree);
+        r.error = r.errorMsg == null ? null : r.errorMsg.english();
+        return r;
     }
 
-    /** The work folder beside the dump, its free space and its ondevice/ folder (a folder dump and a .nup alike) */
-    private static String space(Result r, boolean needFree) {
+    /**
+     * The work folder beside the dump, its free space and its ondevice/ folder (a folder dump and a .nup alike); null when they fit, else why not. The dump's
+     * layout and builds were checked before (DumpLayout.find: the base, an update, or both; the version whose modules are a profile build)
+     */
+    private static Msg space(Result r, boolean needFree) {
         File dump = r.dump;
         r.work = workOf(dump, r.titleId);
         File probe = r.work.isDirectory() ? r.work : r.work.getParentFile();
         try {
             r.free = new StatFs(probe.getPath()).getAvailableBytes();
         } catch (IllegalArgumentException e) {
-            return "Cannot read the free space of " + probe + ".";
+            return new Msg("prepare_dump_free_unknown", probe);
         }
         if (needFree && r.free < NEED_BYTES)
-            return String.format(Locale.ROOT, "Preparing needs %.1f GB free beside the dump; %s has %.2f GB free.", NEED_BYTES / 1073741824.0, probe, r.free / 1073741824.0);
+            return new Msg("prepare_dump_space", NEED_BYTES / 1073741824.0, probe, r.free / 1073741824.0);
         File od = new File(r.work, "ondevice");
-        if (!od.isDirectory() && !od.mkdirs()) return "Cannot make " + od + ": the folder beside the dump is not writable.";
+        if (!od.isDirectory() && !od.mkdirs()) return new Msg("prepare_dump_not_writable", od);
         return null;
     }
 
