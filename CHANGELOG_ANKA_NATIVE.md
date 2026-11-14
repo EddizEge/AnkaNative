@@ -7,6 +7,13 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 
 ## Unreleased
 
+- **Pause stops a Prepare within seconds, and the notification says paused.** Pausing while the shaders were being translated did not stop the
+  translation: it went on until the app ended its own process 20 s later, and the notification it left said "Waiting" for the battery or the heat, with a
+  Pause button and no Resume, for the whole pause (that notification was already wrong in 0.2.2, after Android's daily limit too). For those 20 s the card
+  and the notification still said it was running, with the time left. Now the translation stops at the shader in hand and the split at the file in hand
+  (on a computer 0.1-4 s, from 4-11 s in the translation and up to 7 s at the start of the split), every finished shader is kept for the resume, and
+  the library is the same. While it stops, the card and the notification say "Pausing" with no time left; then the job is paused with Resume, also when
+  the app had to end its process. Measured on a computer in the phone's form; not yet on a phone.
 - **Preparing a game on a computer has a terminal interface:** `python scripts/prepare.py` (with the Python of the environment in android/README.md, nothing
   else to install) checks what the packer needs and says how to fix what is missing on this system, and how to get Homebrew, micromamba or curl first
   when a fix needs one the computer lacks (it builds and loads the ZBIC decoder below, so a computer without a C compiler is told so before anything
