@@ -57,7 +57,7 @@ final class SaveStore {
     static final String[] SWAP_SOURCES = {".new", ".re", RESTORE_SUFFIX};
     /** The working folders beside a save (the host's transaction, the journal, the launcher's copy): never a source to restore from */
     private static final String[] SIBLINGS = {".new", ".re", ".work", ".old", RESTORE_SUFFIX};
-    private static final String HEAD = "# nxnative save backup 1";
+    private static final String HEAD = "# nxnative save backup 1";   // i18n-keep: the manifest's header, machine data
     /** A .partial-* folder or a manifest without its folder this old is left over from a stopped backup */
     static final long STALE_MS = 24L * 3600 * 1000;
 
@@ -109,7 +109,7 @@ final class SaveStore {
             FileChannel c = CHANNELS.get(key);
             if (c == null || !c.isOpen()) {
                 File p = f.getParentFile();
-                if (p != null && !p.isDirectory() && !p.mkdirs()) throw new IOException("cannot create " + p);
+                if (p != null && !p.isDirectory() && !p.mkdirs()) throw new LocalizedIOException("saves_cannot_create", p);
                 c = new RandomAccessFile(f, "rw").getChannel();
                 CHANNELS.put(key, c);
             }
@@ -128,7 +128,7 @@ final class SaveStore {
     /** The lock, or IOException with a sentence when the save is in use */
     static Lock lock(File save) throws IOException {
         Lock l = tryLock(save);
-        if (l == null) throw new IOException("the save " + save + " is in use: its game is running (stop it first) or a backup or restore of it is working");
+        if (l == null) throw new LocalizedIOException("saves_in_use", save);
         return l;
     }
 
@@ -150,18 +150,26 @@ final class SaveStore {
         String source = "";
         int layout = 2;   // 2: main/ and device/ inside; 1 (the first backups): the main save's files themselves
 
-        /** null when the two hold the same paths, kinds, sizes and hashes; else the first difference, in a sentence */
+        /** null when the two hold the same paths, kinds, sizes and hashes; else the first difference, in an English sentence (diffMsg: the screen's) */
         String diff(Manifest o) { return diff(o, false); }
 
         /** ignoreCase: paths compared without case (shared storage is case-insensitive: a rename onto another case may keep the old name) */
         String diff(Manifest o, boolean ignoreCase) {
+            Msg m = diffMsg(o, ignoreCase);
+            return m == null ? null : m.english();
+        }
+
+        Msg diffMsg(Manifest o) { return diffMsg(o, false); }
+
+        /** diff as a Msg: null when the two are the same, else the first difference */
+        Msg diffMsg(Manifest o, boolean ignoreCase) {
             Map<String, String> a = keyed(ignoreCase), b = o.keyed(ignoreCase);
             for (Map.Entry<String, String> e : a.entrySet()) {
                 String v = b.get(e.getKey());
-                if (v == null) return e.getKey() + " is missing";
-                if (!v.equals(e.getValue())) return e.getKey() + " differs";
+                if (v == null) return new Msg("saves_diff_missing", e.getKey());
+                if (!v.equals(e.getValue())) return new Msg("saves_diff_differs", e.getKey());
             }
-            for (String k : b.keySet()) if (!a.containsKey(k)) return k + " is extra";
+            for (String k : b.keySet()) if (!a.containsKey(k)) return new Msg("saves_diff_extra", k);
             return null;
         }
 
@@ -194,7 +202,7 @@ final class SaveStore {
 
     static Manifest scan(File root) throws IOException {
         Manifest m = new Manifest();
-        if (!root.isDirectory()) throw new IOException(root + " is not a folder");
+        if (!root.isDirectory()) throw new LocalizedIOException("saves_not_a_folder", root);
         scan(root, "", m);
         return m;
     }
@@ -208,12 +216,12 @@ final class SaveStore {
 
     private static void scan(File dir, String rel, Manifest m) throws IOException {
         String[] names = dir.list();
-        if (names == null) throw new IOException("cannot list " + dir);
+        if (names == null) throw new LocalizedIOException("saves_cannot_list", dir);
         Arrays.sort(names);
         for (String n : names) {
             File f = new File(dir, n);
             String r = rel.isEmpty() ? n : rel + "/" + n;
-            if (Files.isSymbolicLink(f.toPath())) throw new IOException(r + " is a link: a save folder holds files and folders only");
+            if (Files.isSymbolicLink(f.toPath())) throw new LocalizedIOException("saves_link_in_save", r);
             if (Files.isDirectory(f.toPath(), LinkOption.NOFOLLOW_LINKS)) {
                 m.entries.put(r, "d");
                 scan(f, r, m);
@@ -222,7 +230,7 @@ final class SaveStore {
                 m.entries.put(r, "f " + sha256(f) + " " + size);
                 m.bytes += size;
                 m.files++;
-            } else throw new IOException(r + " is neither a file nor a folder");
+            } else throw new LocalizedIOException("saves_not_file_or_folder", r);
         }
     }
 
@@ -246,12 +254,12 @@ final class SaveStore {
         for (Map.Entry<String, String> e : m.entries.entrySet()) s.append(e.getValue().replace(' ', '\t')).append('\t').append(e.getKey()).append('\n');
         File tmp = new File(to.getPath() + ".tmp");
         writeSynced(tmp, s.toString().getBytes(StandardCharsets.UTF_8));
-        if (!tmp.renameTo(to)) throw new IOException("cannot write " + to);
+        if (!tmp.renameTo(to)) throw new LocalizedIOException("saves_cannot_write", to);
     }
 
     static Manifest readManifest(File f) throws IOException {
         List<String> lines = Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
-        if (lines.isEmpty() || !lines.get(0).equals(HEAD)) throw new IOException(f + " is not a save backup manifest");
+        if (lines.isEmpty() || !lines.get(0).equals(HEAD)) throw new LocalizedIOException("saves_not_a_manifest", f);
         Manifest m = new Manifest();
         m.layout = 1;
         for (String l : lines.subList(1, lines.size())) {
@@ -348,25 +356,25 @@ final class SaveStore {
     private static Backup backupLocked(File save, File backups, String name) throws IOException {
         recoverLocked(save);
         Map<String, File> parts = parts(save);
-        if (!save.isDirectory() && !parts.containsKey(DEVICE)) throw new IOException("there is no save folder at " + save);
+        if (!save.isDirectory() && !parts.containsKey(DEVICE)) throw new LocalizedIOException("saves_no_save_folder", save);
         if (!save.isDirectory()) parts.remove(MAIN);
-        if (!backups.isDirectory() && !backups.mkdirs()) throw new IOException("cannot create " + backups);
-        for (File p : parts.values()) if (inside(backups, p) || inside(p, backups)) throw new IOException("the backups folder " + backups + " and the save folder " + p + " overlap");
+        if (!backups.isDirectory() && !backups.mkdirs()) throw new LocalizedIOException("saves_cannot_create", backups);
+        for (File p : parts.values()) if (inside(backups, p) || inside(p, backups)) throw new LocalizedIOException("saves_backups_overlap", backups, p);
         cleanStale(backups, System.currentTimeMillis());
         String n = freeName(backups, name);
         File tmp = new File(backups, PARTIAL + n), dir = new File(backups, n);
         Manifest want = scanParts(parts);
         want.source = save.getAbsolutePath();
         try {
-            if (!tmp.mkdirs()) throw new IOException("cannot create " + tmp);
+            if (!tmp.mkdirs()) throw new LocalizedIOException("saves_cannot_create", tmp);
             for (Map.Entry<String, File> e : parts.entrySet()) copyTree(e.getValue(), new File(tmp, e.getKey()));
-            String d = want.diff(scan(tmp));
-            if (d != null) throw new IOException("the copy does not match the save (" + d + ")");
+            Msg d = want.diffMsg(scan(tmp));
+            if (d != null) throw new LocalizedIOException("saves_copy_mismatch", d);
             Manifest again = scanParts(parts);
-            String changed = want.diff(again);
-            if (changed != null) throw new IOException("the save changed while it was copied (" + changed + "): is the game running?");
+            Msg changed = want.diffMsg(again);
+            if (changed != null) throw new LocalizedIOException("saves_changed_running", changed);
             writeManifest(want, new File(backups, n + MANIFEST));
-            if (!tmp.renameTo(dir)) { new File(backups, n + MANIFEST).delete(); throw new IOException("cannot name the backup " + dir); }
+            if (!tmp.renameTo(dir)) { new File(backups, n + MANIFEST).delete(); throw new LocalizedIOException("saves_cannot_name_backup", dir); }
         } finally {
             if (tmp.exists()) deleteTree(tmp);   // a partial copy (never a finished backup: it has its own name by now)
         }
@@ -384,8 +392,8 @@ final class SaveStore {
         File mf = new File(from.getParentFile(), from.getName() + MANIFEST);
         if (mf.isFile()) {
             Manifest want = readManifest(mf);
-            String d = want.diff(scan(from));
-            if (d != null) throw new IOException("the backup " + from + " does not match its manifest (" + d + "): it is damaged, so it is not restored");
+            Msg d = want.diffMsg(scan(from));
+            if (d != null) throw new LocalizedIOException("saves_backup_damaged", from, d);
             if (want.layout >= 2) {
                 for (String p : new String[] {MAIN, DEVICE}) if (want.entries.containsKey(p)) s.parts.put(p, new File(from, p));
                 s.manifest = want;
@@ -409,13 +417,28 @@ final class SaveStore {
         Manifest now;
     }
 
-    /** Why a folder may not be restored from into this save (it is the save, inside it, holds it, or is one of the working folders beside it); null when it may */
+    /** Why a folder may not be restored from into this save (it is the save, inside it, holds it, or is one of the working folders beside it), in English; null when it may */
     static String refuseSource(File from, File save) {
-        for (File t : new File[] {save, device(save)}) {
-            if (inside(from, t) || inside(t, from)) return "the folder to restore from (" + from + ") and the save folder (" + t + ") overlap";
-            for (String x : SIBLINGS) if (same(from, new File(t.getPath() + x))) return from + " is a working folder of the save (" + x + "), not a save to restore";
+        Msg m = refuseSourceMsg(from, save);
+        return m == null ? null : m.english();
+    }
+
+    /** refuseSource as a Msg (the screen's) */
+    static Msg refuseSourceMsg(File from, File save) {
+        try {
+            checkSource(from, save);
+            return null;
+        } catch (LocalizedIOException e) {
+            return e.msg;
         }
-        return null;
+    }
+
+    /** Throws why a folder may not be restored from into this save (refuseSource) */
+    private static void checkSource(File from, File save) throws LocalizedIOException {
+        for (File t : new File[] {save, device(save)}) {
+            if (inside(from, t) || inside(t, from)) throw new LocalizedIOException("saves_source_overlap", from, t);
+            for (String x : SIBLINGS) if (same(from, new File(t.getPath() + x))) throw new LocalizedIOException("saves_source_working_folder", from, x);
+        }
     }
 
     /**
@@ -423,14 +446,12 @@ final class SaveStore {
      * (backups/<stamp>-before-restore). Verified at each step; see the class comment for the journal. Takes the save's lock: refused while its game runs
      */
     static Restored restore(File from, File save, File backups, String stamp) throws IOException {
-        String why = refuseSource(from, save);
-        if (why != null) throw new IOException(why);
+        checkSource(from, save);
         try (Lock l = lock(save)) {
             recoverLocked(save);
             Source src = source(from);
             if (!src.parts.containsKey(DEVICE) && hasFiles(device(save)))
-                throw new IOException(from + " has no device save, but " + device(save) + " has one: restoring only the main save would pair it with another device save, so it is not "
-                        + "restored. A backup made by this app holds both");
+                throw new LocalizedIOException("saves_no_device_save", from, device(save));
             Restored r = new Restored();
             boolean any = false;
             for (File p : parts(save).values()) { String[] c = p.list(); if (c != null && c.length > 0) any = true; }
@@ -441,12 +462,12 @@ final class SaveStore {
                     File target = e.getKey().equals(MAIN) ? save : device(save);
                     File a = new File(target.getAbsoluteFile().getParentFile(), target.getName() + RESTORE_SUFFIX);
                     if (a.exists()) deleteTree(a);   // left by a restore stopped before its set file: nothing names it (recover ran)
-                    if (a.exists()) throw new IOException("cannot clear " + a);
+                    if (a.exists()) throw new LocalizedIOException("saves_cannot_clear", a);
                     copyTree(e.getValue(), a);
                     pairs.put(target, a);
-                    String d = src.manifest.sub(e.getKey()).diff(scan(a));
-                    if (d != null) throw new IOException("the copy beside the save does not match the backup (" + d + "): the save was not changed");
-                    if (!target.isDirectory() && !target.mkdirs()) throw new IOException("cannot create " + target);
+                    Msg d = src.manifest.sub(e.getKey()).diffMsg(scan(a));
+                    if (d != null) throw new LocalizedIOException("saves_restore_copy_mismatch", d);
+                    if (!target.isDirectory() && !target.mkdirs()) throw new LocalizedIOException("saves_cannot_create", target);
                     r.parts.add(e.getKey());
                 }
             } catch (IOException | RuntimeException e) {
@@ -459,15 +480,15 @@ final class SaveStore {
             for (Map.Entry<File, File> e : pairs.entrySet()) set.append(e.getKey().getAbsolutePath()).append('\t').append(e.getValue().getAbsolutePath()).append('\n');
             writeSynced(setFile(save), set.toString().getBytes(StandardCharsets.UTF_8));
             for (Map.Entry<File, File> e : pairs.entrySet()) writeSynced(marker(e.getKey(), 1), e.getValue().getAbsolutePath().getBytes(StandardCharsets.UTF_8));
-            if (!setFile(save).delete()) throw new IOException("cannot remove " + setFile(save));
+            if (!setFile(save).delete()) throw new LocalizedIOException("saves_cannot_remove", setFile(save));
             for (Map.Entry<File, File> e : pairs.entrySet()) { apply(e.getValue(), e.getKey(), true); deleteTree(e.getValue()); }
             Map<String, File> now = new LinkedHashMap<>();
             for (String p : r.parts) now.put(p, p.equals(MAIN) ? save : device(save));
             r.now = scanParts(now);
             Manifest want = new Manifest();
             for (String p : r.parts) want.add(p, src.manifest.sub(p));
-            String d = want.diff(r.now, true);
-            if (d != null) throw new IOException("the save does not match the backup after the restore (" + d + ")");
+            Msg d = want.diffMsg(r.now, true);
+            if (d != null) throw new LocalizedIOException("saves_restore_mismatch_after", d);
             return r;
         }
     }
@@ -501,10 +522,10 @@ final class SaveStore {
             stage1(a, b);
             writeSynced(marker(b, 2), a.getAbsolutePath().getBytes(StandardCharsets.UTF_8));
         }
-        if (!marker(b, 1).delete() && marker(b, 1).exists()) throw new IOException("cannot remove " + marker(b, 1));
+        if (!marker(b, 1).delete() && marker(b, 1).exists()) throw new LocalizedIOException("saves_cannot_remove", marker(b, 1));
         dirSync(b);
         stage2(a, b);
-        if (!marker(b, 2).delete() && marker(b, 2).exists()) throw new IOException("cannot remove " + marker(b, 2));
+        if (!marker(b, 2).delete() && marker(b, 2).exists()) throw new LocalizedIOException("saves_cannot_remove", marker(b, 2));
     }
 
     /** Whether a marker of b may name a: one of b's own siblings b.new / b.re / b.restore (plat_android.c swap_marker_ok) */
@@ -532,11 +553,11 @@ final class SaveStore {
                 if (c.length != 2) continue;
                 File b = new File(c[0]), a = new File(c[1]);
                 if (!(same(b, save) || same(b, device(save))) || !a.getName().equals(b.getName() + RESTORE_SUFFIX) || !markerOk(a, b))
-                    throw new IOException(set + " names " + line.replace('\t', ' ') + ", not this save's parts: the save is left as it is; move that file away to use the save");
+                    throw new LocalizedIOException("saves_set_foreign", set, line.replace('\t', ' '));
                 // no swap has started while the set file is there: a part whose .pend1 is missing, empty or names anything but this pair's copy gets it written again
                 if (a.isDirectory() && !marker(b, 2).exists() && !names(marker(b, 1), a, b)) writeSynced(marker(b, 1), a.getAbsolutePath().getBytes(StandardCharsets.UTF_8));
             }
-            if (!set.delete()) throw new IOException("cannot remove " + set);
+            if (!set.delete()) throw new LocalizedIOException("saves_cannot_remove", set);
             did = true;
         }
         for (File b : new File[] {save, device(save)}) did |= recoverPart(b);
@@ -576,7 +597,7 @@ final class SaveStore {
         boolean did = false;
         File old = new File(b.getPath() + ".old");   // the host's earlier three-directory-rename scheme (b -> b.old, a -> b), as plat_swap_recover handles it
         if (Files.exists(old.toPath(), LinkOption.NOFOLLOW_LINKS)) {
-            if (!Files.exists(b.toPath(), LinkOption.NOFOLLOW_LINKS)) { if (!old.renameTo(b)) throw new IOException("cannot move " + old + " back to " + b); }
+            if (!Files.exists(b.toPath(), LinkOption.NOFOLLOW_LINKS)) { if (!old.renameTo(b)) throw new LocalizedIOException("saves_cannot_move_back", old, b); }
             else deleteTree(old);
             did = true;
         }
@@ -586,16 +607,16 @@ final class SaveStore {
             String a = new String(Files.readAllBytes(m.toPath()), StandardCharsets.UTF_8).trim();
             if (a.isEmpty()) { m.delete(); did = true; continue; }   // written but empty: that stage had not started; the other marker may hold the swap
             File af = new File(a);
-            if (!markerOk(af, b)) throw new IOException(m + " names " + a + ", not " + b.getName() + ".new / .re / .restore: the save is left as it is; move that marker away to use the save");
+            if (!markerOk(af, b)) throw new LocalizedIOException("saves_marker_foreign", m, a, b.getName());
             // stage 1 deletes from b whatever a lacks: with a gone it would empty b, so it is never run then
-            if (k == 1 && !af.isDirectory()) throw new IOException(m + " names " + a + ", which is gone: the save is left as it is; move that marker away to use the save");
+            if (k == 1 && !af.isDirectory()) throw new LocalizedIOException("saves_marker_gone", m, a);
             if (k == 1 && !hasFiles(af) && hasFiles(b)) {   // a .pend1 left by an older recovery after its stage 2 emptied a: the swap was done, b is the new version
-                if (!m.delete()) throw new IOException("cannot remove " + m);
+                if (!m.delete()) throw new LocalizedIOException("saves_cannot_remove", m);
                 dirSync(b);
                 deleteTree(af);
                 return true;
             }
-            if (!b.isDirectory() && !b.mkdirs()) throw new IOException("cannot create " + b);
+            if (!b.isDirectory() && !b.mkdirs()) throw new LocalizedIOException("saves_cannot_create", b);
             apply(af, b, k == 1);
             if (af.exists()) deleteTree(af);
             return true;
@@ -620,10 +641,10 @@ final class SaveStore {
         for (String n : names) {
             File pa = new File(a, n), pb = new File(b, n);
             if (Files.isDirectory(pa.toPath(), LinkOption.NOFOLLOW_LINKS)) {
-                if (!pb.isDirectory() && !pb.mkdir()) throw new IOException("cannot create " + pb);
+                if (!pb.isDirectory() && !pb.mkdir()) throw new LocalizedIOException("saves_cannot_create", pb);
                 stage2(pa, pb);
                 pa.delete();
-            } else if (!pa.renameTo(pb)) throw new IOException("cannot move " + pa + " to " + pb);
+            } else if (!pa.renameTo(pb)) throw new LocalizedIOException("saves_cannot_move", pa, pb);
         }
     }
 
@@ -631,11 +652,11 @@ final class SaveStore {
 
     /** Copies a folder (files and folders only; no attributes: shared storage keeps none), each file synced */
     static void copyTree(File from, File to) throws IOException {
-        if (Files.isSymbolicLink(from.toPath())) throw new IOException(from + " is a link");
+        if (Files.isSymbolicLink(from.toPath())) throw new LocalizedIOException("saves_is_link", from);
         if (from.isDirectory()) {
-            if (!to.isDirectory() && !to.mkdirs()) throw new IOException("cannot create " + to);
+            if (!to.isDirectory() && !to.mkdirs()) throw new LocalizedIOException("saves_cannot_create", to);
             String[] l = from.list();
-            if (l == null) throw new IOException("cannot list " + from);
+            if (l == null) throw new LocalizedIOException("saves_cannot_list", from);
             for (String n : l) copyTree(new File(from, n), new File(to, n));
             return;
         }
@@ -675,18 +696,18 @@ final class SaveStore {
         return fp.startsWith(dp);
     }
 
-    /** "1.2 MB" */
+    /** "1.2 MB" (English units, Locale.ROOT: packs and game embed it too; unchanged in phase 1, docs/i18n.md "Texts that cross areas") */
     static String size(long b) {
-        if (b < 1024) return b + " bytes";
-        if (b < 1 << 20) return String.format(Locale.ROOT, "%.1f KB", b / 1024.0);
-        if (b < 1L << 30) return String.format(Locale.ROOT, "%.1f MB", b / 1048576.0);
-        return String.format(Locale.ROOT, "%.2f GB", b / 1073741824.0);
+        if (b < 1024) return b + " bytes";   // i18n-keep: byte sizes stay English in phase 1 (read by packs and game)
+        if (b < 1 << 20) return String.format(Locale.ROOT, "%.1f KB", b / 1024.0);   // i18n-keep: as above
+        if (b < 1L << 30) return String.format(Locale.ROOT, "%.1f MB", b / 1048576.0);   // i18n-keep: as above
+        return String.format(Locale.ROOT, "%.2f GB", b / 1073741824.0);   // i18n-keep: as above
     }
 
-    /** "2026-11-03 14:05:09" from a backup's name (yyyyMMdd-HHmmss…), else the name */
+    /** "2026-11-03 14:05:09" from a backup's name (yyyyMMdd-HHmmss…), else the name; in the user's language (only shown, by SaveUi) */
     static String when(String name) {
         if (!name.matches("\\d{8}-\\d{6}.*")) return name;
         String d = name.substring(0, 4) + "-" + name.substring(4, 6) + "-" + name.substring(6, 8) + " " + name.substring(9, 11) + ":" + name.substring(11, 13) + ":" + name.substring(13, 15);
-        return d + (name.contains(BEFORE_RESTORE) ? " (automatic, before a restore)" : "");
+        return name.contains(BEFORE_RESTORE) ? Tr.s("saves_when_before_restore", d) : d;
     }
 }

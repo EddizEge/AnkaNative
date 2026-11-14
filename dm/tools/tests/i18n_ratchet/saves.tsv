@@ -1,5 +1,5 @@
 # The saves area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
 # "python3 dm/tools/tests/test_android_i18n.py --ratchet saves" writes the current counts. A file in no area may have none.
-SaveUi.java	48
-SaveStore.java	65
-SaveMigrate.java	15
+SaveUi.java	0
+SaveStore.java	0
+SaveMigrate.java	0

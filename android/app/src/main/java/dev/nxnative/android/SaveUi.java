@@ -43,10 +43,11 @@ final class SaveUi {
 
     static File backups(Game g) { return Prefs.backupsDir(new File(g.gameDir), g.titleId); }
 
-    private static boolean ready(MainActivity a, Game g, String what) {
+    /** running: the sentence that the game is running, with the step it names (saves_running_backup, _restore, _import) */
+    private static boolean ready(MainActivity a, Game g, int running) {
         if (a.needAccess()) return false;
-        if (busy(g.titleId)) { a.error("A save backup or restore of " + g.name + " is still working."); return false; }
-        if (gameRunning(a, g)) { a.error(g.name + " is running (it holds its save): stop it first (its in-game panel › Stop the game), then " + what + ". The game may be writing its save."); return false; }
+        if (busy(g.titleId)) { a.error(a.getString(R.string.saves_busy, g.name)); return false; }
+        if (gameRunning(a, g)) { a.error(a.getString(running, g.name)); return false; }
         return true;
     }
 
@@ -57,7 +58,7 @@ final class SaveUi {
         new Thread(() -> {
             String err = null;
             Object r = null;
-            try { r = work.run(); } catch (IOException | RuntimeException e) { err = e.getMessage(); }
+            try { r = work.run(); } catch (IOException | RuntimeException e) { err = e.getLocalizedMessage(); }
             String fe = err;
             Object fr = r;
             a.runOnUiThread(() -> {
@@ -72,40 +73,42 @@ final class SaveUi {
     interface Done { void done(Object result, String error); }
 
     static void backup(MainActivity a, Game g) {
-        if (!ready(a, g, "back up")) return;
+        if (!ready(a, g, R.string.saves_running_backup)) return;
         File save = Folders.save(a, g);
         boolean any = false;
         for (File p : SaveStore.parts(save).values()) { String[] l = p.list(); if (l != null && l.length > 0) any = true; }
-        if (!any) { a.error(g.name + " has no save yet in " + save + ": nothing to back up."); return; }
+        if (!any) { a.error(a.getString(R.string.saves_backup_nothing, g.name, save)); return; }
         File to = backups(g);
-        run(a, g, "Backing up " + g.name + "'s save…", () -> SaveStore.backup(save, to, stamp()), (r, err) -> {
-            if (err != null) { a.error("No backup was made: " + err + "\n\nThe save in " + save + " was only read, never changed."); return; }
+        run(a, g, a.getString(R.string.saves_backup_wait, g.name), () -> SaveStore.backup(save, to, stamp()), (r, err) -> {
+            if (err != null) { a.error(a.getString(R.string.saves_backup_failed, err, save)); return; }
             SaveStore.Backup b = (SaveStore.Backup) r;
-            new AlertDialog.Builder(a).setTitle("Saves backed up").setMessage(b.files + " files, " + SaveStore.size(b.bytes) + (b.device ? ", with the device save" : "")
-                    + ", checked file by file (SHA-256) against the save.\n\n"
-                    + b.dir + "\n\nThe save itself was not changed. Backups are never deleted by the app.").setPositiveButton("OK", null).show();
+            String body = a.getResources().getQuantityString(b.device ? R.plurals.saves_backup_done_body_device : R.plurals.saves_backup_done_body, b.files, b.files,
+                    SaveStore.size(b.bytes), b.dir);
+            new AlertDialog.Builder(a).setTitle(R.string.saves_backup_done_title).setMessage(body).setPositiveButton(android.R.string.ok, null).show();
         });
     }
 
     static void restoreList(MainActivity a, Game g) {
-        if (!ready(a, g, "restore")) return;
+        if (!ready(a, g, R.string.saves_running_restore)) return;
         File to = backups(g);
         List<SaveStore.Backup> l = SaveStore.list(to);
-        if (l.isEmpty()) { a.error("No backups of " + g.name + " yet in " + to + ". Back up saves makes one."); return; }
+        if (l.isEmpty()) { a.error(a.getString(R.string.saves_restore_none, g.name, to)); return; }
         String[] labels = new String[l.size()];
         for (int i = 0; i < labels.length; i++) {
             SaveStore.Backup b = l.get(i);
-            String from = b.source.isEmpty() ? "" : "\nfrom " + new File(b.source).getParentFile().getName() + "/" + new File(b.source).getName();
-            labels[i] = SaveStore.when(b.name) + "\n" + b.files + " files, " + SaveStore.size(b.bytes) + (b.device ? " (with the device save)" : "") + from;
+            String label = a.getResources().getQuantityString(b.device ? R.plurals.saves_restore_item_device : R.plurals.saves_restore_item, b.files, SaveStore.when(b.name),
+                    b.files, SaveStore.size(b.bytes));
+            labels[i] = b.source.isEmpty() ? label
+                    : a.getString(R.string.saves_restore_item_from, label, new File(b.source).getParentFile().getName() + "/" + new File(b.source).getName());
         }
-        new AlertDialog.Builder(a).setTitle("Restore " + g.name + "'s save from").setItems(labels, (d, w) -> confirm(a, g, l.get(w).dir, SaveStore.when(l.get(w).name)))
-                .setNegativeButton("Cancel", null).show();
+        new AlertDialog.Builder(a).setTitle(a.getString(R.string.saves_restore_list_title, g.name)).setItems(labels, (d, w) -> confirm(a, g, l.get(w).dir, SaveStore.when(l.get(w).name)))
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     static void importPick(MainActivity a, Game g) {
-        if (!ready(a, g, "import")) return;
+        if (!ready(a, g, R.string.saves_running_import)) return;
         importFor = g;
-        a.pickFolder(PICK_IMPORT, "Pick the save folder to import (the folder that holds the save's files, like saves/" + g.titleId + ")");
+        a.pickFolder(PICK_IMPORT, a.getString(R.string.saves_import_pick, g.titleId));
     }
 
     /** MainActivity.onActivityResult: the folder picked for Import save… */
@@ -113,29 +116,33 @@ final class SaveUi {
         if (request != PICK_IMPORT) return false;
         Game g = importFor;
         importFor = null;
-        if (g != null) confirm(a, g, dir, "the folder " + dir);
+        if (g != null) confirm(a, g, dir, a.getString(R.string.saves_import_source, dir));
         return true;
     }
 
+    /** what: the source in words (a backup's time, or "the folder …"), in the user's language */
     private static void confirm(MainActivity a, Game g, File from, String what) {
         File save = Folders.save(a, g);
-        String why = SaveStore.refuseSource(from, save);
-        if (why != null) { a.error("Not restored: " + why + "."); return; }
+        Msg why = SaveStore.refuseSourceMsg(from, save);
+        if (why != null) { a.error(a.getString(R.string.saves_not_restored_refused, why.text())); return; }
         String st = stamp();
-        Ui.confirmDanger(a, "Restore " + g.name + "'s save?", "Replaced: the save in " + save + ", with " + what + ".\n\nFirst, the current save is backed up to "
-                + new File(backups(g), st + SaveStore.BEFORE_RESTORE) + " (checked), so this can be undone with Restore saves…. Nothing is deleted from the backups.",
-                "Restore", () -> {
-                    if (!ready(a, g, "restore")) return;
-                    run(a, g, "Restoring " + g.name + "'s save…", () -> SaveStore.restore(from, save, backups(g), st), (r, err) -> {
+        Ui.confirmDanger(a, a.getString(R.string.saves_restore_confirm_title, g.name),
+                a.getString(R.string.saves_restore_confirm_body, save, what, new File(backups(g), st + SaveStore.BEFORE_RESTORE)),
+                a.getString(R.string.saves_restore_button), () -> {
+                    if (!ready(a, g, R.string.saves_running_restore)) return;
+                    run(a, g, a.getString(R.string.saves_restore_wait, g.name), () -> SaveStore.restore(from, save, backups(g), st), (r, err) -> {
                         if (err != null) {
-                            a.error("Not restored: " + err + "\n\nThe save in " + save + " is as it was" + (SaveStore.pending(save) ? ", except for an unfinished swap that is finished at the next "
-                                    + "backup, restore or game start" : "") + ".");
+                            a.error(a.getString(SaveStore.pending(save) ? R.string.saves_restore_failed_pending : R.string.saves_restore_failed, err, save));
                             return;
                         }
                         SaveStore.Restored x = (SaveStore.Restored) r;
-                        Toast.makeText(a, "Restored " + x.now.files + " files (" + SaveStore.size(x.now.bytes) + (x.parts.contains(SaveStore.DEVICE) ? ", with the device save" : "") + ")"
-                                + (x.before != null ? "; the old save is in " + x.before.dir : ""),
-                                Toast.LENGTH_LONG).show();
+                        boolean dev = x.parts.contains(SaveStore.DEVICE);
+                        int n = x.now.files;
+                        String size = SaveStore.size(x.now.bytes);
+                        String text = x.before == null
+                                ? a.getResources().getQuantityString(dev ? R.plurals.saves_restored_device : R.plurals.saves_restored, n, n, size)
+                                : a.getResources().getQuantityString(dev ? R.plurals.saves_restored_device_before : R.plurals.saves_restored_before, n, n, size, x.before.dir);
+                        Toast.makeText(a, text, Toast.LENGTH_LONG).show();
                     });
                 });
     }
