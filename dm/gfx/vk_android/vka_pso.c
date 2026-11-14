@@ -771,7 +771,7 @@ static pthread_mutex_t g_pw_mu = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t *g_pw_buf; static size_t g_pw_len, g_pw_cap; static uint32_t g_pw_n; static int g_pw_dirty;   // every record (loaded, then new), under g_pw_mu
 static uint64_t *g_pw_set; static size_t g_pw_setcap, g_pw_setn;   // their hashes
 static uint8_t *g_pw_load; static size_t g_pw_load_len; static uint32_t g_pw_load_n;   // the loaded records, read by the prewarm threads (not changed after pw_load)
-static _Atomic uint32_t g_pw_next, g_pw_done, g_pw_made, g_pw_had, g_pw_bad; static int g_pw_threads; static uint64_t g_pw_t0;
+static _Atomic uint32_t g_pw_next, g_pw_done, g_pw_made, g_pw_had, g_pw_bad, g_pw_memu; static int g_pw_threads; static uint64_t g_pw_t0;
 static size_t pw_size(const pwrec *r) { return sizeof *r + ((r->klen + 7) & ~(size_t)7); }
 static int pw_set_add(uint64_t h) {   // 1 = new
     if (!h) h = 1;
@@ -916,6 +916,7 @@ static void pw_explain(vka_shader *const sh[5], const vka_gkey *k, uint32_t klen
 static gval *gfx_obtain(const gkey_full *fk, uint64_t h, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int *made);
 static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, int prewarm, int *made);
 static int as_run(int wait);
+static int mj_up(void);
 // A record of a run that drew mesh draws through compute (vka_memu.c): a compute form or a vertex shader of a task / mesh shader, whose keys are no library keys
 static int pw_memu_rec(const pwrec *r) {
     for (int s = 0; s < (r->kind == 1 ? 1 : 5); s++) if (r->key[s] && vka_shader_memu_key(r->key[s])) return 1;
@@ -955,6 +956,14 @@ static void *pw_main(void *a) {
         int made = 0;
         if (bad) { atomic_fetch_add(&g_pw_bad, 1); pw_mark_bad(offs[i]); }
         else if (r.kind == 1 && vka_ndve_replaced(r.key[0])) {}   // a network a host path replaces (NDVE direct, NDSR stand-in; vka_draw.c): never made, on Turnip an NDVE one spoils later pipelines
+        else if (r.kind == 1 && sh[5]->memu == 1) {
+            // A mesh draw through compute's compute form: queued for the one background thread that makes them one at a time (vka_memu_pipeline), never compiled here.
+            // Turnip's compiler took up to 776 MB for one of these: the prewarm threads beside that thread would make it three at a time. With DM_VK_MEMU_ASYNC=0 (no
+            // such thread) they are left to their first draw, which makes them on the frame path, one at a time as well
+            int pending = 0; VkPipeline p = mj_up() ? vka_memu_pipeline(sh[5], &lay, &pending) : VK_NULL_HANDLE;
+            if (pending) atomic_fetch_add(&g_pw_memu, 1); else if (p) atomic_fetch_add(&g_pw_had, 1);
+            continue;
+        }
         else if (r.kind == 1) { cs_obtain(sh[5], &lay, 1, &made); }
         else {
             vka_gkey k; memset(&k, 0, sizeof k); memcpy(&k, kb, r.klen < sizeof k ? r.klen : sizeof k);
@@ -971,10 +980,11 @@ static void *pw_main(void *a) {
     free(offs);
     if (atomic_fetch_add(&g_pw_done, 1) + 1 == (uint32_t)g_pw_threads) {
         uint32_t fh = atomic_load(&g_pw_fb_hit), fm = atomic_load(&g_pw_fb_miss);
-        VLOG("prewarm: %u of %u pipeline keys in %.1f s on %d threads: %u made, %u already there, %u dropped (shaders no longer in the library, another device's keys); the frame path waited %.0f ms for them; "
+        VLOG("prewarm: %u of %u pipeline keys in %.1f s on %d threads: %u made, %u already there, %u dropped (shaders no longer in the library, another device's keys), "
+             "%u mesh-through-compute forms queued for their one background thread; the frame path waited %.0f ms for them; "
              "the driver reported %u pipeline cache hits and %u misses among those made",
-             (unsigned)(atomic_load(&g_pw_made) + atomic_load(&g_pw_had) + atomic_load(&g_pw_bad)), n, (now_ns() - g_pw_t0) / 1e9, g_pw_threads, (unsigned)atomic_load(&g_pw_made),
-             (unsigned)atomic_load(&g_pw_had), (unsigned)atomic_load(&g_pw_bad), atomic_load(&g_pw_wait_ns) / 1e6, fh, fm);
+             (unsigned)(atomic_load(&g_pw_made) + atomic_load(&g_pw_had) + atomic_load(&g_pw_bad) + atomic_load(&g_pw_memu)), n, (now_ns() - g_pw_t0) / 1e9, g_pw_threads,
+             (unsigned)atomic_load(&g_pw_made), (unsigned)atomic_load(&g_pw_had), (unsigned)atomic_load(&g_pw_bad), (unsigned)atomic_load(&g_pw_memu), atomic_load(&g_pw_wait_ns) / 1e6, fh, fm);
         // Every key of the list was made by an earlier run, whose cache file this run read: misses there mean the driver did not take the file's entries (play run
         // 2026-11-08: 149.6 MB read, 86 s of prewarm instead of fb13's 0.5 s; the file's entries were not found, cause open: PLAY.md section 1)
         if (g_pc_read > (1u << 20) && fm > 32 && fm > fh)
