@@ -31,20 +31,24 @@ Preparing a game on a computer works on Windows, Linux and the Mac. It needs:
 
 Keep the environment on the dump drive, not in the home folder.
 
-Windows (PowerShell; Python from python.org, .NET from https://dotnet.microsoft.com/download/dotnet/10.0, spirv-val from the Vulkan SDK at
+Windows (PowerShell; Python 3.14 with the Python install manager, python.org's default download at https://www.python.org/downloads/windows/, which
+brings `py` and installs a version only when asked, so `py install 3.14` even when it already holds a newer one; .NET from https://dotnet.microsoft.com/download/dotnet/10.0, spirv-val from the Vulkan SDK at
 https://vulkan.lunarg.com, whose installer puts its `Bin` folder on the `PATH`, and the C compiler from LLVM-MinGW's releases: the `ucrt` zip for the
 PC's CPU, unpacked, its `bin` folder put on the `PATH`):
 
 ```powershell
+py install 3.14
 py -3.14 -m venv D:\Switch2\.venv-anka
 D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4
 ```
 
-Linux: the distribution's `dotnet-runtime-10.0` (Arch: `dotnet-runtime-10.0`, not `dotnet-runtime`, which moves on to .NET 11), `spirv-tools` and `gcc`
+Linux: the distribution's `dotnet-runtime-10.0` (on Arch too: the versioned package stays .NET 10 when `dotnet-runtime` takes the next .NET), `spirv-tools` and `gcc`
 packages (`build-essential` instead of `gcc` on Debian and Ubuntu), with `sudo apt install …`, `sudo dnf install …`, `sudo pacman -S …` or
-`sudo zypper install …` (without `sudo`, as on a Debian installed with a root password: `su -c '…'`). Debian, Ubuntu before 24.04 and openSUSE Leap do
-not carry `dotnet-runtime-10.0` themselves: add the package source that [Microsoft's page for the distribution](https://learn.microsoft.com/dotnet/core/install/linux)
-names first (Microsoft's on Debian and openSUSE, `ppa:dotnet/backports` on Ubuntu 22.04), or install the runtime from https://dotnet.microsoft.com/download/dotnet/10.0.
+`sudo zypper install …` (without `sudo`, as on a Debian installed with a root password: `su -c '…'`). Debian 12 and 13, Ubuntu before 24.04, openSUSE
+Leap and SLES do not carry `dotnet-runtime-10.0` themselves: add the package source that [Microsoft's page for the distribution](https://learn.microsoft.com/dotnet/core/install/linux)
+names first (Microsoft's on Debian, openSUSE Leap and SLES, `ppa:dotnet/backports` on Ubuntu 22.04). openSUSE Tumbleweed has no .NET package at all:
+there, and on a distribution with no package for it, install the runtime with Microsoft's script or by hand as
+https://learn.microsoft.com/dotnet/core/install/linux-scripted-manual says, with the lines that put it on the `PATH`.
 Python 3.14 is the distribution's where it has one (`python3.14` and `python3.14-venv` on Ubuntu 26.04 and Debian testing, `python3.14` on Fedora, `python`
 on Arch, `python314` on openSUSE Tumbleweed):
 
@@ -53,7 +57,7 @@ python3.14 -m venv <dump folder>/.venv-anka
 <dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
 
-Where it has none (Debian 13, Ubuntu 24.04), micromamba brings it, with no root rights. Its installer
+Where it has none (Debian 12 and 13, Ubuntu before 26.04, openSUSE Leap), micromamba brings it, with no root rights. Its installer
 ([micromamba's page](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)) needs `curl` (`sudo apt install curl` on Debian),
 asks where to put micromamba and whether to set up the shell; then, in a new terminal:
 
@@ -65,20 +69,22 @@ micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge
 
 The Mac: the .NET 10 Runtime from https://dotnet.microsoft.com/download/dotnet/10.0 (the installer, Arm64 on Apple silicon or x64 on an Intel Mac;
 Homebrew's `dotnet-sdk` cask is .NET 11 now, whose runtime does not start the translator, built for .NET 10), `xcode-select --install` for the command line
-tools' C compiler, and `brew install spirv-tools`. Without Homebrew, install it first with the command that https://brew.sh gives
+tools' C compiler, and `brew install spirv-tools` (on an Intel Mac Homebrew has no ready-made spirv-tools and builds it from source, which
+takes a while; Homebrew plans to stop running on Intel Macs in or after September 2027). Without Homebrew, install it first with the command that https://brew.sh gives
 (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`) and run the lines it prints at its end, which put
 `brew` on the `PATH` (`eval "$(/opt/homebrew/bin/brew shellenv)"` in `~/.zprofile` on Apple silicon). Python 3.14 from https://www.python.org/downloads/macos/
-(its installer adds `python3.14`), or micromamba (installed as on Linux above, or with `brew install micromamba`):
+(the newest 3.14 release there, not 3.15: its installer adds `python3.14`), or micromamba (installed as on Linux above, or with `brew install micromamba`):
 
 ```sh
 python3.14 -m venv <dump folder>/.venv-anka   # or: micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge
 <dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
 
-The interface's first screen gives these fixes for the system it runs on, and for a tool a fix needs that is not on the `PATH` (Homebrew, micromamba,
-`python3.14`, `sudo`, `curl`) how to get it first.
+The interface's first screen gives these fixes for the system it runs on (on Linux for its release, from `/etc/os-release`), and for a tool a fix
+needs that is not on the `PATH` (Homebrew, micromamba, `python3.14`, `py`, `sudo`, `curl`) how to get it first. A command too long for the screen goes on
+over more lines, each but the last ending in the shell's line continuation (`\`, a backtick in PowerShell), so its lines copied together run as one.
 
-Capstone comes from pip: conda-forge's Capstone 5 finds its library only through `CONDA_PREFIX`, so it fails when the environment's Python is run without activating it.
+Capstone comes from pip, also in a micromamba environment: conda-forge's Capstone 5 finds its library only through `CONDA_PREFIX`, so it fails when the environment's Python is run without activating it.
 On Windows `pack_android.py` runs the tools in UTF-8 mode (`PYTHONUTF8=1`; set it yourself to run one of them directly), writes every text file with LF line ends (`scripts/lf_newlines.py`), as the phone reads them, and rewrites the code in one process
 (Windows has no `fork`); the checkout itself must have LF line ends too (the shader versions and the code's rewrite key hash the repository's files), which `.gitattributes`
 asks of git: a copy cloned on Windows before that rule, or downloaded as a zip and unpacked by a tool that changes line ends, should be cloned again.

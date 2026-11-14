@@ -41,13 +41,13 @@ You need a Mac with macOS 26.6 or later, [Xcode](https://developer.apple.com/dow
 
 The shaders are built with Xcode 27.2's Metal compiler. Select it before step 1: `sudo xcode-select -s /Applications/Xcode.app`. With several Xcode versions installed, name this one `Xcode-27.2.app` and select it with `sudo xcode-select -s /Applications/Xcode-27.2.app`.
 
-**1. Install the tools** (only once), in Terminal:
+**1. Install the tools** (only once), in Terminal. `dotnet-sdk@10` is the .NET 10 SDK: Homebrew's plain `dotnet-sdk` is .NET 11 now, whose runtime starts neither the shader translator nor `nx_extract`, both built for .NET 10 (the `@10` cask installs `dotnet-sdk` beside it, which is harmless).
 
 ```
 xcodebuild -downloadComponent MetalToolchain
 git clone https://github.com/seedds/nxnative.git && cd nxnative
 brew install xcodegen zstd glslang
-brew install --cask dotnet-sdk
+brew install --cask dotnet-sdk@10
 python3 -m pip install lz4 "capstone>=5,<6" fonttools nsz "backports.zstd; python_version < '3.14'"
 ```
 
