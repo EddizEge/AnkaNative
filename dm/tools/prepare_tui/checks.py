@@ -41,7 +41,13 @@ def system():
     return 'linux'
 
 
-def in_venv(): return sys.prefix != sys.base_prefix or bool(os.environ.get('CONDA_PREFIX'))
+def in_venv():
+    """Whether this Python is an environment's of its own: a venv, or a conda / micromamba environment, activated (CONDA_PREFIX) or not (its conda-meta
+    folder: its prefix is its base prefix)"""
+    return sys.prefix != sys.base_prefix or bool(os.environ.get('CONDA_PREFIX')) or (Path(sys.prefix) / 'conda-meta').is_dir()
+
+
+def old_python(): return sys.version_info < (3, 14)
 
 
 def py_cmd():   # this Python as it is typed
@@ -142,6 +148,8 @@ def venv_fix(sysname):
 
 
 def pkg_fix(sysname):
+    """Capstone's and lz4's fix: pip in this Python's environment; in a Python older than 3.14 the environment's fix, the same as the Python check's (shown once)"""
+    if old_python(): return venv_fix(sysname)
     if in_venv(): return [f'{py_cmd()} {PIP}']
     return [T('fix.not_venv')] + venv_fix(sysname)
 
@@ -172,7 +180,7 @@ def install(sysname, what):
 
 def check_python(sysname):
     v = sys.version_info
-    ok = v >= (3, 14)
+    ok = not old_python()
     return Check(T('check.python'), ok, f'{v.major}.{v.minor}.{v.micro} ({sys.executable})', [] if ok else venv_fix(sysname))
 
 

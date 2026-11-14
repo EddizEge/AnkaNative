@@ -717,7 +717,7 @@ class Prereq(unittest.TestCase):
     def fixes(self, sysname, arm=True):
         """Every fix of the checks on sysname: the environment's (also as pkg_fix outside an environment), and each install (arm: an Apple silicon Mac)"""
         from unittest import mock
-        with mock.patch.object(self.checks, 'mac_arm', return_value=arm):
+        with mock.patch.object(self.checks, 'mac_arm', return_value=arm), mock.patch.object(self.checks, 'old_python', return_value=False):
             with mock.patch.object(self.checks, 'in_venv', return_value=False): out = {'venv': self.checks.venv_fix(sysname), 'pkg': self.checks.pkg_fix(sysname)}
             with mock.patch.object(self.checks, 'in_venv', return_value=True): out['pkg_in_venv'] = self.checks.pkg_fix(sysname)
             for w in ('dotnet', 'spirv', 'cc'): out[w] = self.checks.install(sysname, w)
@@ -793,6 +793,30 @@ class Prereq(unittest.TestCase):
         self.assertEqual(f['venv'][1], 'sudo zypper install python314')
         rel('fedora', '44', 'Fedora Linux 44'); self.assertEqual(self.fixes('fedora')['dotnet'], ['sudo dnf install dotnet-runtime-10.0'])
         self.assertIn(c.DOTNET_SCRIPTED, self.fixes('linux')['dotnet'][0])
+
+    def test_old_python_one_fix(self):
+        """A Python older than 3.14 outside an environment, Capstone and lz4 missing: the environment's steps once (the Python check's), then 'the same steps'"""
+        from unittest import mock
+        from prepare_tui.checks import Check
+        self.path()
+        with mock.patch.object(self.checks, 'old_python', return_value=True), mock.patch.object(self.checks, 'in_venv', return_value=False):
+            for s in SYSTEMS:
+                self.assertEqual(self.checks.pkg_fix(s), self.checks.venv_fix(s), s)
+            with mock.patch.object(self.checks, 'in_venv', return_value=True): self.assertEqual(self.checks.pkg_fix('debian'), self.checks.venv_fix('debian'))
+            res = [Check('Python 3.14', False, '3.9.6', self.checks.venv_fix('debian'))] + [Check(n, False, 'missing', self.checks.pkg_fix('debian')) for n in ('Capstone 5', 'lz4')]
+        sc = scr.Screen(80, 60)
+        app.draw_checks(sc, res)
+        txt = sc.text()
+        self.assertEqual(txt.count('micromamba create'), 1, txt); self.assertEqual(txt.count('Fixed by the same steps as above.'), 2, txt)
+
+    def test_conda_environment_not_activated(self):
+        """A micromamba environment's Python run by its path (no CONDA_PREFIX; its prefix is its base prefix) is an environment of its own: pip, not a new one"""
+        from unittest import mock
+        env = self.d / 'env'; (env / 'conda-meta').mkdir(parents=True)
+        with mock.patch.object(sys, 'prefix', str(env)), mock.patch.object(sys, 'base_prefix', str(env)), mock.patch.dict(os.environ, {'CONDA_PREFIX': ''}):
+            self.assertTrue(self.checks.in_venv())
+            with mock.patch.object(self.checks, 'old_python', return_value=False): self.assertEqual(self.checks.pkg_fix('arch'), [f'{self.checks.py_cmd()} {self.checks.PIP}'])
+            (env / 'conda-meta').rmdir(); self.assertFalse(self.checks.in_venv())
 
     def test_windows(self):
         self.path()
