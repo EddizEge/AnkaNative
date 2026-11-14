@@ -129,7 +129,7 @@
     <string name="packs_missing_what_dump">This dump</string>
     <string name="packs_dump_unsupported">%1$s holds %2$s %3$s, not a build this app supports. %4$s A pack is made for one exact build: another version\'s code and shaders differ and it has not been tested here, so Prepare does not start from it. Dump that version, or use a pack made for this version elsewhere (scripts/build_ipa_from_nsp.py on a Mac makes one from a profile derived for it).</string>
     <string name="packs_dump_no_npdm">%1$s has no exefs/main.npdm: the dump is incomplete.</string>
-    <string name="packs_dump_no_romfs">%1$s of %2$s has no RomFS with files (neither its own nor the base\'s): the dump is incomplete.</string>
+    <string name="packs_dump_no_romfs">In %2$s, %1$s has no RomFS with files (neither its own nor the base\'s): the dump is incomplete.</string>
     <string name="packs_dump_other_title">%1$s is of %2$s, the game is %3$s.</string>
     <string name="packs_dump_no_npdm_short">no exefs/main.npdm</string>
     <!-- ShaderLibs -->
