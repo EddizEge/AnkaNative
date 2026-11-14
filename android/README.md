@@ -72,6 +72,32 @@ It also puts the game's shader library in the pack ([SHADERS.md](SHADERS.md)): t
 
 Packs are made from the user's own dumps for the user's own phone: they never go into the repository or anywhere public.
 
+### Error codes
+
+For a failure the user can fix, `scripts/pack_android.py` and `scripts/pack_dump.py` print one line just before the failure's `[RED]` line (on stderr, after stdout is flushed):
+
+```
+error: <code>\t<argument>\t<argument>...
+```
+
+A code is lower-case words joined by `_`; each argument is a path, a title ID or a count, never a sentence, with no tab or newline in it (`-` for an empty one). The `[RED]` line stays the English sentence for logs and issues. `dm/tools/pack_errors.py` holds the list and writes the lines; the launcher's `JobErrors` (*ondevice*) reads them, and `test_android_joberrors.py` checks that both lists match.
+
+| Code | Arguments | When |
+|---|---|---|
+| `dump_incomplete` | folder | the dump lacks its code (`exefs` with `main` and `main.npdm`) or its RomFS |
+| `module_missing` | exefs folder, names | a code module of the game's profile is not in the dump (names: space-separated) |
+| `version_missing` | version | the update version asked for is not in the dump |
+| `wrong_title` | folder, found, base | a version's program ID is not the base game's (16 hex digits each) |
+| `not_base_title` | where, title ID | the dump's program ID is not a base game's title ID |
+| `no_profile` | title ID | there is no profile for the game |
+| `shaders_other_build` | missing, total | the dump's shaders lack some of the profile's `shader_map.tsv`: another game build, or incomplete |
+| `unreadable_file` | path | a file of the dump cannot be read or is not what its name says (NPDM, NSO, NUP) |
+| `no_space` | path (or the tool) | no space left on the device |
+| `out_of_memory` | tool | a tool stopped for want of memory (a `MemoryError`, or killed with SIGKILL by the out-of-memory killer) |
+| `translator_crashed` | none | the shader translator crashed. Nothing prints it yet: on the phone `vk_android_build.py` runs as its own step, and changing it moves `DMSH_VK_CHAIN` |
+
+On the phone, Prepare (`PackService`) reads each step's log as it grows. When a tool step fails, the `error:` line right before the step's last `[RED]` line goes into the job's `job.json` as `error_code` (a string, `""` for none) and `error_args` (an array of strings), beside the English `error` (`JobErrors.Watch`, `Job.state`). The Preparing card's status line and the notification then show that code's text (`errors_<code>` in `strings_errors.xml`) in the app's language; a failure without a code, or with a code this APK does not know (a packer of another version), shows the English `error` inside the status sentence. Not covered yet: the split and shaders steps run `shader_split.py` and `vk_android_build.py` directly, so their failures (out of space or memory among them) have no code, and Prepare's own refusals (`DumpCheck`, the shader map check after the split) are stored in English only.
+
 ## Build the APK
 
 ```sh
