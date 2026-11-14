@@ -136,24 +136,38 @@ final class Profile {
         return (what == null ? titleId : what + " (" + titleId + ")") + " has no game profile in this app, so it cannot run here. This app runs: " + String.join(", ", ids) + ".";
     }
 
-    /** A version of a dump in words: 0 is the base game itself (no update installed; Mario Kart World 1.8.0's supported build), any other an update.
-     *  English (Tr.english), as are supported() and buildName(): every caller still puts them into an English sentence, a log line or job.json (BuildCheck,
-     *  DumpLayout, PackService, MainActivity's log); they move to the user's language with those sentences (docs/i18n.md) */
-    static String versionName(long version) { return version == 0 ? Tr.english("settings_profile_base_game") : Tr.english("settings_profile_update", version); }
+    /** A version of a dump in words: 0 is the base game itself (no update installed; Mario Kart World 1.8.0's supported build), any other an update. English,
+     *  for a log line, job.json or an English sentence; a screen sentence of another area takes {@link #versionMsg} as an argument (docs/i18n.md) */
+    static String versionName(long version) { return versionMsg(version).english(); }
 
-    /** Which versions of this game the APK supports, as a sentence for a dump it refuses (DumpCheck): its builds, by display version when game.tsv names one */
-    String supported() {
-        String all = null;
-        for (Long v : buildMap().keySet()) all = all == null ? buildName(v) : Tr.english("common_or", all, buildName(v));
-        return Tr.english("settings_profile_supported", name, titleId, all == null ? "" : all);
+    /** versionName as a Msg: the settings area's text that another area's sentence (BuildCheck, DumpLayout, PackService, Ondevice) passes as an argument, so it
+     *  renders in the sentence's language, English in a report and the user's on screen */
+    static Msg versionMsg(long version) { return version == 0 ? new Msg("settings_profile_base_game") : new Msg("settings_profile_update", version); }
+
+    /** Which versions of this game the APK supports, as a sentence for a dump it refuses (DumpCheck): its builds, by display version when game.tsv names one.
+     *  English; a screen takes {@link #supportedMsg} */
+    String supported() { return supportedMsg().english(); }
+
+    /** supported() as a Msg */
+    Msg supportedMsg() {
+        Msg all = null;
+        for (Long v : buildMap().keySet()) all = all == null ? buildMsg(v) : new Msg("common_or", all, buildMsg(v));
+        return new Msg("settings_profile_supported", name, titleId, all == null ? "" : all);
     }
 
-    /** One of the profile's builds in words: "1.8.0 (the base game, version 0, main d00e4f399e411d06…)", "update 458752 (main e25c90c1c1366388…)" */
-    String buildName(long v) {
+    /** One of the profile's builds in words: "1.8.0 (the base game, version 0, main d00e4f399e411d06…)", "update 458752 (main e25c90c1c1366388…)". English (a log
+     *  line); a screen takes {@link #buildMsg} */
+    String buildName(long v) { return buildMsg(v).english(); }
+
+    /** buildName as a Msg; the module name and build ID ("main d00e…") stay as they are in every language */
+    Msg buildMsg(long v) {
         String d = display(v), main = buildMap().getOrDefault(v, Map.of()).get("main");
         String ids = main == null ? "" : "main " + main.substring(0, Math.min(16, main.length())) + "…";
-        if (d != null) return d + " (" + (v == 0 ? Tr.english("settings_profile_base_game_v0") : Tr.english("settings_profile_update", v)) + (ids.isEmpty() ? "" : ", " + ids) + ")";
-        return versionName(v) + (ids.isEmpty() ? "" : " (" + ids + ")");
+        if (d != null) {
+            Msg which = v == 0 ? new Msg("settings_profile_base_game_v0") : new Msg("settings_profile_update", v);
+            return ids.isEmpty() ? new Msg("settings_profile_build_shown", d, which) : new Msg("settings_profile_build_shown_ids", d, which, ids);
+        }
+        return ids.isEmpty() ? versionMsg(v) : new Msg("settings_profile_build_ids", versionMsg(v), ids);
     }
 
     /** The display version game.tsv's build row gives a build ("1.8.0"), null when it gives none */

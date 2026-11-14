@@ -12,4 +12,9 @@
     <string name="settings_profile_base_game_v0">the base game, version 0</string>
     <string name="settings_profile_update">update %1$d</string>
     <string name="settings_profile_supported">This app supports %1$s (%2$s) %3$s only.</string>
+    <!-- A build with its display version: "1.8.0 (the base game, version 0)", then with its module and build ID: "1.8.0 (update 458752, main d00e4f39…)" -->
+    <string name="settings_profile_build_shown">%1$s (%2$s)</string>
+    <string name="settings_profile_build_shown_ids">%1$s (%2$s, %3$s)</string>
+    <!-- A build without a display version, with its module and build ID: "update 458752 (main e25c90c1…)" -->
+    <string name="settings_profile_build_ids">%1$s (%2$s)</string>
 </resources>
