@@ -19,7 +19,7 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 - **Less work per shader in the translation step:** each shader's code is read once instead of once per variant and pass; on a PC the
   work after the translator per shader went down by about a fifth. The library stays the same bytes (`v-0dd4341ae6ce`).
 - **The shader scan starts its workers sooner:** it no longer opens the dump file again for each of its 186,583 files, walks the game files once
-  instead of twice, and reads the files' first bytes on several threads (on a PC 2 minutes became 40 seconds). Its outputs are the same bytes.
+  instead of twice, and reads the files' first bytes on several threads (on a PC about 70 seconds became 36, measured old and new in turn). Its outputs are the same bytes.
 - **A Prepare in progress translates its shaders again after this update:** the shaders already translated are stamped with the tools that made them, so
   a job in the middle of the shaders step when the APK is updated starts that step over (hours on a phone). Finish a running Prepare first, or let it
   start over. Finished packs are not affected.
