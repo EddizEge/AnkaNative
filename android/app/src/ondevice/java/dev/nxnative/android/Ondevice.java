@@ -623,7 +623,8 @@ final class Ondevice {
                 android.app.AlertDialog wait = new android.app.AlertDialog.Builder(a).setMessage(R.string.prepare_deleting).setCancelable(false).show();
                 new Thread(() -> {
                     for (File g : gone) Job.deleteTree(g);
-                    Job.deleteTree(j.splitScan(a));   // the split's kept scan results, in the app's own storage
+                    Job.deleteTree(j.splitScan(a));   // the split's kept scan results and the translated shaders' results, in the app's own storage
+                    Job.deleteTree(j.xlate(a));
                     h.post(() -> {
                         wait.dismiss();
                         Job.remember(a, null);

@@ -23,7 +23,9 @@
 #   translator's libdmsh_xlate (dmsh_xlate_android, export dmsh_xlate_main), SPIRV_VAL SPIRV-Tools' libSPIRV-Tools-shared (spvValidateWithOptions, Vulkan 1.3 environment)
 #   DMSH_VK_RESULTS the result folder (default <output>/v-<V>/results), DMSH_VK_BATCH shaders per translator call (default 64), DMSH_VK_PROGRESS a file the progress is also
 #   written to (JSON, replaced by rename), DMSH_VK_KEEP=0 deletes the result folder once the library is written, DMSH_VK_XLATE_J translator calls at once (default 1
-#   for the library form, J for the program), DMSH_VK_REQUIRE_ALL=1 writes no library unless every shader built (exit 1) but
+#   for the library form, J for the program; with subinterpreter workers, over all of them), DMSH_VK_INTERPS subinterpreter workers (default 1: J threads of this
+#   interpreter; more needs the translator and the validator as libraries: the phone, whose process may not fork; run_batches_interps; where no worker can be set up,
+#   a line 'subinterpreters: not usable here' and the threads), DMSH_VK_REQUIRE_ALL=1 writes no library unless every shader built (exit 1) but
 #   those the profile's manifest of this version (vk_delta.tsv, a full Mac build) has as "-": every shader the Mac's build holds
 # Resumable: each shader's result (its modules, compressed, and its reflection) is one file <results>/<key>.r, written to a temporary name and renamed, stamped with
 #   the tools digest, the profile inputs digest, the validator's version and the key; a rerun skips every key with a valid result (a killed build resumes; a later build of the same version is a cache hit)
@@ -336,6 +338,9 @@ if argv[:1] == ['--publish-delta'] and len(argv) >= 2:
     sys.exit(0)
 if len(argv) < 4 or argv[0] != '--target' or argv[1] not in ('vulkan', 'android'): sys.exit(__doc__ or 'usage: vk_android_build.py --target vulkan <package dir> <output cache dir> [key...] | --header | --version')
 dm_dir, cache_root, want = argv[2], argv[3], set(argv[4:])
+# Set when this script runs as a translation worker in a subinterpreter (run_batches_interps, DMSH_VK_INTERPS): what the parent gives it (its work folder, the
+# shaders' places, the package's record offsets, the pixel shaders' inputs, the translator gate). A worker runs the set-up below up to WorkerReady, then the batches
+WORKER = globals().get('_DMSH_VK_WORKER')
 
 CHAIN = dmsh_chain.version(); VKV = vk_version(); TOOLS = tools_digest()
 if f'"{CHAIN}"' not in open(dmsh_chain.HEADER).read(): sys.exit(f'[RED] {dmsh_chain.HEADER} does not hold the current chain version {CHAIN}: run dmsh_chain.py --header first')
@@ -347,7 +352,7 @@ if not SPIRV_VAL: sys.exit('[RED] no spirv-val (SPIRV-Tools: brew install spirv-
 VALIDATE = spirv_validator(SPIRV_VAL); VAL_ID = VALIDATE.version   # in each result's stamp: another validator builds the results again
 XLATE = os.environ.get('XLATE', os.path.join(dmsh_chain.XLATE_DIR, 'dmsh_xlate'))
 XLATE_LIB = XlateLib(XLATE) if is_lib(XLATE) else None
-_bad = check_translator(XLATE_LIB)
+_bad = check_translator(XLATE_LIB) if not WORKER else []   # (a worker's parent checked it)
 if _bad: sys.exit('\n'.join('[RED] translator does not match the lock file: ' + b for b in _bad))
 GAME = dmsh_chain.load_game(); INPUTS = dmsh_chain.inputs(GAME)
 import dmsh_facts
@@ -384,10 +389,10 @@ for _k, _f in FACTS.items():
         _s = {(c - 4) // 4 for c in _l[_l.index(-1, 3) + 1:_e] if c >= 4}
     for _p in _f.get('pair', ()): MESH_PRIM[_p] |= _s; _prim_of[_p][_k] = _s
 for _p, _m in _prim_of.items():   # every mesh program drawn with one pixel shader must write the same inputs per primitive, or one of them mismatches its decorations
-    if len({frozenset(s) for s in _m.values()}) > 1: print(f'[RED] pixel shader {_p}: its mesh programs write different inputs per primitive ' + ', '.join(f'{k} {sorted(s)}' for k, s in sorted(_m.items())), flush=True)
+    if len({frozenset(s) for s in _m.values()}) > 1 and not WORKER: print(f'[RED] pixel shader {_p}: its mesh programs write different inputs per primitive ' + ', '.join(f'{k} {sorted(s)}' for k, s in sorted(_m.items())), flush=True)
 MESH_PRIM = collections.defaultdict(set, {p: s for p, s in MESH_PRIM.items() if s})
 for _p in [p for p in MESH_PRIM if VS_OF.get(p)]:
-    print(f'[RED] pixel shader {_p} is drawn with mesh programs (per-primitive inputs {sorted(MESH_PRIM[_p])}) and with vertex shaders {sorted(VS_OF[_p])[:3]}: its inputs are left per vertex', flush=True)
+    if not WORKER: print(f'[RED] pixel shader {_p} is drawn with mesh programs (per-primitive inputs {sorted(MESH_PRIM[_p])}) and with vertex shaders {sorted(VS_OF[_p])[:3]}: its inputs are left per vertex', flush=True)
     del MESH_PRIM[_p]
 KIND = {abi.KIND_CBUF: 'CBUF', abi.KIND_C1: 'C1', abi.KIND_DRVCB: 'DRVCB', abi.KIND_SUPPORT: 'SUPPORT', abi.KIND_SBUF: 'SBUF', abi.KIND_SBUF_UBO: 'SBUF_UBO', abi.KIND_UBO_PTR: 'UBO_PTR',
         abi.KIND_TEX: 'TEX', abi.KIND_TBUF: 'TBUF', abi.KIND_IMG: 'IMG', abi.KIND_SAMP: 'SAMP', abi.KIND_SAMP_TEX: 'SAMP_TEX', abi.KIND_SAMP_ID: 'SAMP_ID', abi.KIND_TEX_UBO: 'TEX_UBO',
@@ -494,6 +499,7 @@ def dim_byte(d):
 def place(stage, binds, m):
     """Set and binding of each record in the Vulkan ABI, written into the module"""
     base = BIND_RANGE[stage] * VK['STAGE_BINDINGS']; n = 0
+    decorations = m.decorations()   # (one scan of the module for all its bindings, not one each)
     for e in sorted(binds, key=lambda e: e['tbind']):
         if e['kind'] in (abi.KIND_TEX_POOL, abi.KIND_SAMP_POOL):
             e['set'] = VK['SET_POOL']
@@ -502,7 +508,7 @@ def place(stage, binds, m):
         else:
             if n >= VK['STAGE_BINDINGS']: raise ValueError(f'more than {VK["STAGE_BINDINGS"]} bindings in one stage')
             e['set'], e['binding'] = VK['SET_DRAW'], base + n; n += 1
-        m.set_binding(e['id'], e['set'], e['binding'])
+        m.set_binding(e['id'], e['set'], e['binding'], decorations)
         if e['kind'] in SLOT_KINDS and e.get('reg') is None: e['flags'] |= VK['BF_NOSLOT']
         if e['kind'] == abi.KIND_IMG and m_atomic(m, e['id']): e['flags'] |= VK['BF_ATOMIC']
         if e['kind'] == abi.KIND_IMG and m_writes(m, e['id']): e['flags'] |= VK['BF_RW']
@@ -562,7 +568,8 @@ def validate(data, w, tag):
 
 # Translator calls at once: DMSH_VK_XLATE_J, default 1 for the library form (on the phone threads of one process made the translator slower, not faster:
 # android/ONDEVICE.md, The translator on the phone; the other J threads still validate, compress and run the Python half), J for the program form
-XLATE_GATE = threading.Semaphore(max(1, int(os.environ.get('DMSH_VK_XLATE_J') or (1 if XLATE_LIB else int(os.environ.get('J', '8'))))))
+XLATE_J = max(1, int(os.environ.get('DMSH_VK_XLATE_J') or (1 if XLATE_LIB else int(os.environ.get('J', '8')))))
+XLATE_GATE = threading.Semaphore(XLATE_J)   # (a subinterpreter worker's is PipeGate: one gate for all the workers)
 
 
 def translate(jobs_list, w, tag):
@@ -614,16 +621,24 @@ def finish(key, w, job, c1):
     mods = [(VK['MOD_BASE'], m.data())]
     uint_mask = 0
     iout = spv.int_outputs(m) if stage == 'ps' else set()   # (once: ps_variants and facts_of read the same module)
+    src = [None]   # each module's Module, for the passes below (each pass takes a module as Module(data) parses it: Module.copy / reparsed)
     if stage == 'ps':   # the variants of the same module (dmsh_abi_vk.h DMSH_VK_MOD_*)
         mods_, uint_mask = ps_variants(key, m, iout)
-        mods += mods_
+        mods += [(v, d) for v, d, _ in mods_]; src += [u for _, _, u in mods_]
     if stage == 'cs':   # its subgroup shuffles through workgroup memory, for drivers without an arbitrary-index shuffle instruction (vk_android_spv.py shuffle_lds)
-        x = spv.Module(m.data())
-        if spv.shuffle_lds(x, VK['SHARED_MAX']): mods.append((VK['MOD_SHUFFLE_LDS'], x.data()))
+        x = m.copy()
+        if spv.shuffle_lds(x, VK['SHARED_MAX']): mods.append((VK['MOD_SHUFFLE_LDS'], x.data())); src.append(x)
+    # What the reflection reads of the base module as it is here (facts_of, drv_reads below), taken now: the passes below then run on m itself instead of a copy.
+    # An error of either is raised where they were read, after the modules are checked, as before
+    try: fa_now, fa_err = facts_of(key, stage, m, job, res, iout), None
+    except Exception as e: fa_now, fa_err = None, e
+    try: drv_now, drv_err = drv_reads(binds, m), None
+    except Exception as e: drv_now, drv_err = None, e
+    src[0] = m
     nfwd = gloop = gcache = gpidx = gleft = 0
     plain, texfb, fb_err = list(mods), (0, 0), None   # (the modules without texture-use feedback: kept when the pass fails for any of them)
     for i, (variant, data) in enumerate(mods):   # the translator's temporaries forwarded within each block (vk_android_spv.py local_forward), in every module
-        x = spv.Module(data); n = spv.local_forward(x)
+        x = src[i].reparsed(index=False); src[i] = None; n = spv.local_forward(x, stale=True)
         # then the pool searches as loops NIR keeps (vk_android_spv.py gmem_loop: no spills, Turnip's private memory BOs stay small) in compute (GMEM_LOOP_STAGES), and
         # in the other stages replaced by the page index (gmem_pidx, GMEM_PIDX: every module of the entry) or behind the invocation's cached entry (gmem_cache; both off:
         # the base module only counts them); all match only forwarded code (each step's select read directly, not through the translator's temporaries)
@@ -661,7 +676,8 @@ def finish(key, w, job, c1):
     if gpidx:   # the host binds the table with the page index after it (dmsh_abi_vk.h DMSH_VK_BF_PIDX, vka_draw.c gmem_map)
         for e in binds:
             if e['kind'] == abi.KIND_GMEM_MAP: e['flags'] |= VK['BF_PIDX']
-    fa = facts_of(key, stage, m, job, res, iout)
+    if fa_err is not None: raise fa_err
+    fa = fa_now
     if texfb[1]:
         fa['flags'] |= VK['F_TEXFB']
         fa['caps'] = sorted(set(fa['caps']) | {'GroupNonUniform', 'GroupNonUniformBallot'})   # (F_SUBGROUP stays the translator's own subgroup operations')
@@ -680,7 +696,7 @@ def finish(key, w, job, c1):
             if not sp: e['kind'] = abi.KIND_UNKNOWN; continue   # (the replay then refuses the shader)
             e['bytes'] = sp['bytes']; shared = sp['workgroup']
     refl = {'key': key, 'stage': stage, 'source': f'{name}#{k}', 'pc_paired': pc_of[key], 'c1': c1.hex(), 'local': job.get('local') or [1, 1, 1], 'shared': shared,
-            'notes': res['notes'], 'vs_pad': pad, 'mesh': res.get('mesh'), 'ps_prim': prim, 'caps_dropped': dropped, 'caps_added': added, 'precise': n_precise, **({'fetch_offset': n_fetch_off} if n_fetch_off else {}), 'hmma_lds': hmma, 'gmem_flat': gflat, 'gmem_loop': gloop, **({'gmem_cache': gcache} if spv.GMEM_CACHE and not spv.GMEM_PIDX else {}), **({'gmem_pidx': gpidx} if spv.GMEM_PIDX else {}), 'gmem_loop_left': gleft, 'ssbo_base': sbase, 'fwd_loads': nfwd, 'texfb_sites': texfb[0], 'texfb_pool_sites': texfb[1], 'texfb_failed': fb_err, 'drv_reads': drv_reads(binds, m), 'tf': job.get('tf'), **fa,
+            'notes': res['notes'], 'vs_pad': pad, 'mesh': res.get('mesh'), 'ps_prim': prim, 'caps_dropped': dropped, 'caps_added': added, 'precise': n_precise, **({'fetch_offset': n_fetch_off} if n_fetch_off else {}), 'hmma_lds': hmma, 'gmem_flat': gflat, 'gmem_loop': gloop, **({'gmem_cache': gcache} if spv.GMEM_CACHE and not spv.GMEM_PIDX else {}), **({'gmem_pidx': gpidx} if spv.GMEM_PIDX else {}), 'gmem_loop_left': gleft, 'ssbo_base': sbase, 'fwd_loads': nfwd, 'texfb_sites': texfb[0], 'texfb_pool_sites': texfb[1], 'texfb_failed': fb_err, 'drv_reads': drv_rows(drv_now, drv_err), 'tf': job.get('tf'), **fa,
             'bindings': [{kk: v for kk, v in e.items() if kk not in ('id', 'tbind', 'index')} for e in binds]}
     loose = os.environ.get('DMSH_VK_LOOSE') == '1'
     out_mods = []
@@ -692,22 +708,27 @@ def finish(key, w, job, c1):
     return 'ok', '', (refl, out_mods)
 
 
+def drv_rows(rows, err):   # drv_reads as finish() took it before its passes: raised here, where finish read it before
+    if err is not None: raise err
+    return rows
+
+
 def ps_variants(key, m, iout=None):
     """A pixel shader's extra modules (dmsh_build.py fs_uint / fs_dual on SPIR-V): MOD_UINT when it writes an output from integer bits or only constants (a clear into an
     integer target), MOD_UINT_MIXED when it also writes float outputs (uint_mask: the integer ones), MOD_DUAL for the profile's dual_want.tsv shaders writing exactly
-    colours 0 and 1. → ([(variant, SPIR-V)], uint_mask)"""
+    colours 0 and 1. (m.data() was taken: Module.copy.) → ([(variant, SPIR-V, its Module)], uint_mask)"""
     out, mask = [], 0
     fl = {l for l, (_, t) in m.io(spv.SC_OUTPUT).items() if not m.int_type(m.scalar_of(t))}
     from_int = (spv.int_outputs(m) if iout is None else iout) & fl
     if from_int or spv.const_written_outputs(m):
-        u = spv.Module(m.data())
-        if spv.retype_outputs(u, fl): out.append((VK['MOD_UINT'], u.data()))
+        u = m.copy()
+        if spv.retype_outputs(u, fl): out.append((VK['MOD_UINT'], u.data(), u))
         if from_int and fl - from_int:
-            u = spv.Module(m.data()); done = spv.retype_outputs(u, from_int)
-            if done: out.append((VK['MOD_UINT_MIXED'], u.data())); mask = sum(1 << l for l in done if l < 8)
+            u = m.copy(); done = spv.retype_outputs(u, from_int)
+            if done: out.append((VK['MOD_UINT_MIXED'], u.data(), u)); mask = sum(1 << l for l in done if l < 8)
     if key in DUAL_WANT:
-        d = spv.Module(m.data())
-        if spv.dual_source(d): out.append((VK['MOD_DUAL'], d.data()))
+        d = m.copy()
+        if spv.dual_source(d): out.append((VK['MOD_DUAL'], d.data(), d))
     return out, mask
 
 
@@ -743,33 +764,73 @@ def entry_parts(key, refl, nmods):
     return entry, bytes(binds), c1
 
 
-def write_library(results):
-    """dmsh_vk.lib: header, entries sorted by key, binding records, module records, blob (dmsh_abi_vk.h)"""
-    ok = sorted(((k, r) for k, st, _, r in results if st == 'ok'), key=lambda x: key_int(x[0]))
-    entries, binds, mods = bytearray(), bytearray(), bytearray(); blob = bytearray()
-    nb = nm = 0
-    def put(b):
+def result_parts(key):
+    """(the JSON head of a result file, where its first module's stored bytes start in it): the modules themselves are not read"""
+    with open(result_path(key), 'rb') as f:
+        d = f.read(12); n = struct.unpack_from('<I', d, 8)[0]
+        return json.loads(f.read(n)), 12 + n
+
+
+def write_library(keys_ok):
+    """dmsh_vk.lib: header, entries sorted by key, binding records, module records, blob (dmsh_abi_vk.h), from the result files of the shaders that built. The tables
+    first (each entry from its result's head; the blob's layout from the modules' sizes), then the blob as it is read, one module at a time. Every result read in and
+    the whole library made in memory (twice, when joined) peaked at 4.1 GB for Ocarina of Time (818 MB library; 1.2 GB now), and Android stopped the app there on 8 GB
+    phones (GitHub issue 13).
+    DMSH_VK_LOOSE=1: each module also as spv/<key>[_<variant>].spv. → (path, size)"""
+    entries, binds, mods = bytearray(), bytearray(), bytearray()
+    nb = nm = blob = 0; parts = []   # blob: its length so far; parts: per shader, (key, its c1 bytes, where its modules start in its result file, their records)
+    def put(n):   # a blob item of n bytes, after the padding to 16: its offset
         nonlocal blob
-        blob += b'\0' * (-len(blob) % 16); off = len(blob); blob += b; return off
-    for key, (refl, modules) in ok:
-        entry, bb, c1 = entry_parts(key, refl, len(modules))
-        c1_off = put(c1) if c1 else 0
+        blob += -blob % 16; off = blob; blob += n; return off
+    ok = sorted(keys_ok, key=key_int)
+    for key in ok:
+        h, at = result_parts(key)
+        if os.path.getsize(result_path(key)) < at + sum(m[2] for m in h['modules']):   # before anything is written (the result files were all checked before the library, as read_result did)
+            sys.exit(f'[RED] {result_path(key)} is cut short: delete it and run again')
+        entry, bb, c1 = entry_parts(key, h['refl'], len(h['modules']))
+        c1_off = put(len(c1)) if c1 else 0
         b0, m0 = nb, nm
-        for variant, size, stored, codec, _ in modules:
-            mods += struct.pack('<IIIBBH', put(stored), size, len(stored), variant, codec, 0); nm += 1
+        for variant, size, ln, codec in h['modules']:
+            mods += struct.pack('<IIIBBH', put(ln), size, ln, variant, codec, 0); nm += 1
         binds += bb; nb += len(bb) // VK['BIND_SIZE']
         e = bytearray(entry)
         for o, v in zip(delta.POS, (m0, b0, c1_off)): struct.pack_into('<I', e, o, v)
         entries += e
+        parts.append((key, c1, at, h['modules']))
     hs = VK['HEADER_SIZE']; eo = hs; bo = eo + len(entries); mo = bo + len(binds); blob_off = (mo + len(mods) + 15) // 16 * 16
     pad = lambda s: s.encode()[:16].ljust(16, b'\0')   # NUL padded; a 16-character value (a title ID) has no terminator
     head = delta.HEAD.pack(VK['LIB_MAGIC'], VK['LIB_VERSION'], pad(CHAIN), pad(VKV), pad(GAME.id), pad(INPUTS),
-                           len(ok), eo, nb, bo, nm, mo, blob_off, len(blob), ANSWERS['subgroup_size'], ANSWERS['ssbo_align'], ABI.encode())
+                           len(ok), eo, nb, bo, nm, mo, blob_off, blob, ANSWERS['subgroup_size'], ANSWERS['ssbo_align'], ABI.encode())
     assert len(head) == hs and len(entries) == len(ok) * VK['ENTRY_SIZE'] and len(binds) == nb * VK['BIND_SIZE'] and len(mods) == nm * VK['MOD_SIZE']
-    data = head + entries + binds + mods; data += b'\0' * (blob_off - len(data)) + blob
+    loose = os.environ.get('DMSH_VK_LOOSE') == '1'
+    if loose: os.makedirs(os.path.join(out, 'spv'), exist_ok=True)
     path = os.path.join(out, VK['LIB_FILE']); tmp = path + '.tmp'
-    open(tmp, 'wb').write(data); os.replace(tmp, path)
-    return path, len(data)
+    try: _write_library(tmp, head, entries, binds, mods, blob_off - mo - len(mods), blob, parts, loose)
+    except BaseException:   # (a result file changed since, a full disk, an interrupt: no 800 MB half library left beside the outputs)
+        try: os.unlink(tmp)
+        except OSError: pass
+        raise
+    os.replace(tmp, path)
+    return path, blob_off + blob
+
+
+def _write_library(tmp, head, entries, binds, mods, gap, blob, parts, loose):   # write_library's file: the tables, then the blob copied from the result files
+    with open(tmp, 'wb') as f:
+        f.write(head); f.write(entries); f.write(binds); f.write(mods); f.write(b'\0' * gap)
+        at_blob = 0
+        def item(b):   # the next blob item, after the padding put() gave it
+            nonlocal at_blob
+            f.write(b'\0' * (-at_blob % 16)); at_blob += -at_blob % 16 + len(b); f.write(b)
+        for key, c1, at, modules in parts:
+            if c1: item(c1)
+            with open(result_path(key), 'rb') as r:
+                r.seek(at)
+                for variant, size, ln, codec in modules:
+                    stored = r.read(ln)
+                    if len(stored) != ln: sys.exit(f'[RED] {result_path(key)} is cut short: delete it and run again')
+                    item(stored)
+                    if loose: open(os.path.join(out, 'spv', key + (f'_{variant}' if variant else '') + '.spv'), 'wb').write(zstd.decompress(stored) if codec == VK['CODEC_ZSTD'] else stored)
+        assert at_blob == blob
 
 
 # ---- the build
@@ -923,67 +984,10 @@ def older_libraries():
     return sorted(libs, key=lambda L: -os.stat(L.path).st_mtime)
 
 
-T_START = time.time()
-for _n in os.listdir(RES):   # what a killed build left: unfinished result files
-    if _n.endswith('.tmp'): os.unlink(os.path.join(RES, _n))
-heads = {k: h for k in keys if (h := result_head(result_path(k)))}
-MANIFEST, _why = (None, 'a key list') if want else (None, 'DMSH_VK_RAW') if RAW else load_manifest()
-REUSED = {k for k, h in heads.items() if h.get('reused')}
-if MANIFEST:
-    _cand = [k for k in keys if k not in heads and MANIFEST['hashes'].get(k, '-') != '-']
-    _libs = older_libraries() if _cand else []
-    _have = collections.defaultdict(list)   # key → [(library, entry number)], newest library first
-    for L in _libs:
-        for k in _cand:
-            if k in L.index: _have[k].append((L, L.index[k]))
-    def _reuse(k):
-        errs = []
-        for L, i in _have[k]:
-            try: _, hh, (_, e, b, c1, mods) = L.hash_of(i, zstd)
-            except Exception as ex: errs.append(f'{L.version}: {type(ex).__name__}: {ex}'); continue   # any entry that cannot be read is translated instead
-            if hh != MANIFEST['hashes'][k]: continue
-            refl = {'stage': STAGE_OF[k], 'reused': L.version, 'lib': {'entry': delta.zeroed(e).hex(), 'binds': b.hex(), 'c1': c1.hex()}}
-            write_result(k, 'ok', '', (refl, [(v, size, bytes(st), codec, None) for v, size, st, codec in mods]), None)
-            return k, L.version, None
-        return k, None, '; '.join(errs) or None
-    _from = collections.Counter()
-    with cf.ThreadPoolExecutor(NJ) as ex:
-        for k, v, err in ex.map(_reuse, [k for k in _cand if k in _have]):
-            if err: print(f'[RED] delta: {k}: the older library\'s entry cannot be read ({err}): translated', flush=True)
-            if v:
-                _from[v] += 1; REUSED.add(k)
-                heads[k] = {'reused': v, 'ps_inputs': None}
-    for L in _libs: L.close()
-    if not _libs and not REUSED: print('delta: no older library of this game: a full build', flush=True)
-    else: print(f'delta: {len(REUSED)} of {len(keys)} shaders kept (' + (', '.join(f'from v-{v}: {n}' for v, n in _from.most_common()) or 'by an earlier run of this build')
-                + f'); {len(keys) - len(REUSED)} to translate, {sum(1 for k in keys if k not in heads)} of them left', flush=True)
-else: print(f'delta: none ({_why}): a full build', flush=True)
-todo = [k for k in ORDER if k not in heads]
-TOTAL[0] = len(keys) - len(REUSED); DONE[0] = TOTAL[0] - len(todo)
-print(f'translating {len(todo)} shaders of {len(keys)} ({len(keys) - len(todo)} already in {RES}' + (f', {len(REUSED)} of them kept from an older library' if REUSED else '')
-      + f'; {NJ} at a time, {BATCH} a translator call)', flush=True)
-progress('translate')
-_wk = os.environ.get('WORK')
-if _wk: w = tempfile.mkdtemp(prefix='dmshvk_', dir=_wk)
-else:   # in the result folder: a killed build's leftovers go with the next run
-    w = os.path.join(RES, '.work'); shutil.rmtree(w, ignore_errors=True); os.makedirs(w)
 packs = {}
 def _rec(name, k):
     fd, offs = packs[name]
     return os.pread(fd, offs[k + 1] - offs[k], offs[k])
-if todo:   # each record checked against its key, and found by it when the package is not the one the map was made from (locate)
-    try: _bins = sorted(n for n in os.listdir(dm_dir) if n.endswith('.bin'))
-    except OSError as e: sys.exit(f'[RED] shader package {dm_dir}: {e}')
-    for _name in _bins: packs[_name] = NS['record_index'](os.path.join(dm_dir, _name))   # (descriptor, record offsets): each record is read when its job is made, no package kept in memory (dmsh_build.py record_index)
-    _files = {n: [(lambda n=n, j=j: _rec(n, j)) for j in range(len(offs) - 1)] for n, (_, offs) in packs.items()}
-    _found, _bad = locate(todo, loc, _files, borrow_key(tuple(int(x, 0) for x in GAME.get('shader_key_skip', '0+0').split('+'))))
-    if _bad:
-        for _fd, _ in packs.values(): os.close(_fd)
-        sys.exit(f'[RED] {len(_bad)} of the {len(todo)} shaders to build are not in the package {dm_dir}: it is not a split of the game version the profile\'s shader_map.tsv was made from '
-                 '(split the dump again: pack_android.py does it when the package is missing). ' + '; '.join(_bad[:5]))
-    _moved = sum(1 for k in todo if _found[k] != loc[k])
-    if _moved: print(f'{_moved} of the {len(todo)} shaders are at other places in this package than in the profile\'s shader_map.tsv (another split of the game): each is read from where its key is', flush=True)
-    loc.update(_found)
 
 
 def fin(key, bd, job, c1, xerr):
@@ -1026,7 +1030,11 @@ PROCS = max(1, int(os.environ.get('DMSH_VK_PROCS') or (NJ if XLATE_LIB is None a
 
 
 def run_batches(batches):
+    global INTERPS
     if not batches: return
+    if INTERPS > 1:
+        if run_batches_interps(batches): return
+        INTERPS = 1   # no worker could be set up here: the threads, for this phase and the next
     if PROCS > 1:
         import multiprocessing
         ex = cf.ProcessPoolExecutor(min(PROCS, len(batches)), mp_context=multiprocessing.get_context('fork'))
@@ -1037,6 +1045,188 @@ def run_batches(batches):
     except BaseException:
         ex.shutdown(wait=True, cancel_futures=True); raise
     ex.shutdown()
+
+
+# Subinterpreter workers: DMSH_VK_INTERPS (default 1: J threads of this interpreter, as before). The phone runs this tool in the app's process, which must not fork
+# (android/README.md, Build the APK), so DMSH_VK_PROCS is not for it, and its J threads share one GIL: the Python half (the passes and reflection, about 60 % of a shader's time;
+# android/SHADERS.md#build-speed) ran on one core. Python 3.14's subinterpreters each have their own GIL, so N of them run it on N cores in one process. Each worker
+# runs this script with WORKER set up to WorkerReady (the set-up: tables, profile, borrowed functions; its own descriptors of the package files), then whole batches
+# as run_batch does. The translator and the validator must be the libraries (a subinterpreter cannot start programs). DMSH_VK_XLATE_J translator calls at once over
+# all the workers (PipeGate). A shader's result depends only on its own inputs, so the results and the library are the same as with threads. When no worker can be
+# set up (no concurrent.interpreters, a module of the set-up that cannot load in a subinterpreter), one line says so and the J threads do the work, as before
+INTERPS = max(1, int(os.environ.get('DMSH_VK_INTERPS') or 1))
+if INTERPS > 1 and (PROCS > 1 or not XLATE_LIB or not isinstance(VALIDATE, SpirvValLib)):
+    if not WORKER: print(f'DMSH_VK_INTERPS={INTERPS} ignored: subinterpreter workers need the translator and the validator as libraries (XLATE, SPIRV_VAL) and DMSH_VK_PROCS=1', flush=True)
+    INTERPS = 1
+
+
+class WorkerReady(Exception):
+    """Where a subinterpreter worker's set-up ends: the rest of this script is the parent's"""
+
+
+class PipeGate:
+    """XLATE_GATE shared by the subinterpreter workers: a pipe holding one byte for each translator call allowed at once. A worker waiting for one blocks in the
+    kernel (os.read); a concurrent.interpreters queue's get polls every 10 ms in Python 3.14, so 4-6 workers waiting for the one translator call woke the phone's
+    cores hundreds of times a second for the whole step"""
+    def __init__(self, r, w): self.r, self.w = r, w
+    def __enter__(self):
+        if os.read(self.r, 1) != b'x': raise RuntimeError('the translator gate was closed')
+    def __exit__(self, *exc): os.write(self.w, b'x')
+
+
+def run_batch_json(batch):   # run_batch for the parent of a subinterpreter worker: its result as JSON text (a string crosses interpreters as it is)
+    n, c = run_batch(batch)
+    return json.dumps([n, dict(c)])
+
+
+# What a worker runs first, in its __main__: this script with WORKER (_cfg, JSON) set, up to WorkerReady. Its functions stay in _ns
+WORKER_BOOT = '''
+import json, sys
+_w = json.loads(_cfg)
+sys.argv = _w['argv']; sys.path.insert(0, _w['here'])
+_ns = {'__name__': '__main__', '__file__': _w['file'], '__builtins__': __builtins__, '_DMSH_VK_WORKER': _w}
+try: exec(compile(open(_w['file']).read(), _w['file'], 'exec'), _ns)
+except BaseException as _e:
+    if type(_e).__name__ != 'WorkerReady': raise
+'''
+
+
+def run_batches_interps(batches):
+    """run_batches with INTERPS subinterpreter workers, made for these batches (a phase) and closed after them: the vertex phase's workers get the pixel shaders'
+    inputs the parent has read by then. Progress and the cache counters come back from each batch, as from a worker process. The first worker is set up before
+    any batch: when that fails (no concurrent.interpreters, a module the set-up imports that cannot load in a subinterpreter), one line says so and this returns
+    False, and the caller runs the batches in threads. → True when the batches ran here"""
+    try:
+        from concurrent import interpreters
+    except ImportError as e: return interps_unusable(e)
+    import queue
+    need = {k for b in batches for k in b}
+    ps = set().union(*[PAIRS.get(k, ()) for k in need if STAGE_OF[k] == 'vs'])
+    gate = os.pipe(); os.write(gate[1], b'x' * XLATE_J)
+    cfg = json.dumps({'work': w, 'file': os.path.abspath(__file__), 'here': HERE, 'argv': sys.argv, 'loc': {k: loc[k] for k in need}, 'gate': gate,
+                      'packs': {n: offs for n, (_, offs) in packs.items()}, 'ps_inputs': {k: sorted(PS_INPUTS[k]) for k in ps if k in PS_INPUTS}})
+    idle, made, ready = queue.SimpleQueue(), [], set()   # workers not running a batch: (interpreter, its result queue); every worker; the ids of those whose set-up ran
+
+    def new():
+        it = interpreters.create(); made.append(it); res = interpreters.create_queue()
+        it.prepare_main(_cfg=cfg, _out=res)
+        try: it.exec(WORKER_BOOT)
+        except interpreters.ExecutionFailed as e: raise RuntimeError(f'translation worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        ready.add(it.id)
+        return it, res   # (not put in idle by new(): another thread could take it before the caller)
+
+    def one(batch):
+        try: it, res = idle.get_nowait()
+        except queue.Empty: it, res = new()
+        try:
+            it.exec(f'_out.put(_ns["run_batch_json"]({list(batch)!r}))')
+            n, c = json.loads(res.get())   # (exec has returned: the result is in the queue, no wait)
+        except interpreters.ExecutionFailed as e:   # run_batch raised (a translator that died): as from a thread, the build stops
+            raise RuntimeError(f'translation worker, batch from {batch[0]}: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        finally: idle.put((it, res))
+        return n, collections.Counter(c)
+
+    ex = None
+    try:
+        try: idle.put(new())
+        except Exception as e: return interps_unusable(e)
+        if not INTERPS_SAID: print(f'subinterpreters: {INTERPS} translation workers', flush=True); INTERPS_SAID.append(1)
+        ex = cf.ThreadPoolExecutor(min(INTERPS, len(batches)))
+        for f in cf.as_completed([ex.submit(one, b) for b in batches]):
+            n, c = f.result(); STATS.update(c); progress('translate', n)
+    except BaseException:
+        if ex: ex.shutdown(wait=True, cancel_futures=True)
+        raise
+    finally:
+        if ex: ex.shutdown()
+        left = 0
+        for it in made:   # each worker on its own, so one that cannot be closed (still running, after a second interrupt) leaves the others closed
+            try:
+                if it.is_running(): raise RuntimeError('it is still running a batch')
+                if it.id in ready: it.exec('[__import__("os").close(_fd) for _fd, _ in _ns["packs"].values()]')   # its package descriptors
+                it.close()
+            except Exception as e:
+                left += 1; print(f'[RED] a translation worker could not be closed ({type(e).__name__}: {e}): it stays in this process', flush=True)
+        if not left: os.close(gate[0]); os.close(gate[1])   # (a worker left running may still use the gate)
+    return True
+
+
+INTERPS_SAID = []   # the line naming the workers, once a run
+
+
+def interps_unusable(e):
+    """No subinterpreter worker here: the one line saying so (the phone's shaders.log; android/SHADERS.md), and the caller's threads instead. → False"""
+    why = (str(e).split('\n') or [''])[0]
+    print(f'subinterpreters: not usable here ({type(e).__name__}: {why}): DMSH_VK_INTERPS={INTERPS} ignored, the shaders run in {NJ} threads of one interpreter as before', flush=True)
+    return False
+
+
+if WORKER:   # a subinterpreter worker: the parent's work folder, the shaders' places (locate may have moved them), its own descriptors of the package files, the pixel
+    # shaders' inputs for the vertex phase and the translator gate; the parent's preparation below is not run
+    w = WORKER['work']
+    loc.update({k: tuple(v) for k, v in WORKER['loc'].items()})
+    for _name, _offs in WORKER['packs'].items(): packs[_name] = (os.open(os.path.join(dm_dir, _name), os.O_RDONLY), _offs)
+    PS_INPUTS.update({k: set(v) for k, v in WORKER['ps_inputs'].items()})
+    XLATE_GATE = PipeGate(*WORKER['gate'])
+    raise WorkerReady
+
+T_START = time.time()
+for _n in os.listdir(RES):   # what a killed build left: unfinished result files
+    if _n.endswith('.tmp'): os.unlink(os.path.join(RES, _n))
+heads = {k: {'reused': h.get('reused')} for k in keys if (h := result_head(result_path(k)))}   # (what is read of them below: the whole heads of a library's results are ~1 GB as Python objects)
+MANIFEST, _why = (None, 'a key list') if want else (None, 'DMSH_VK_RAW') if RAW else load_manifest()
+REUSED = {k for k, h in heads.items() if h.get('reused')}
+if MANIFEST:
+    _cand = [k for k in keys if k not in heads and MANIFEST['hashes'].get(k, '-') != '-']
+    _libs = older_libraries() if _cand else []
+    _have = collections.defaultdict(list)   # key → [(library, entry number)], newest library first
+    for L in _libs:
+        for k in _cand:
+            if k in L.index: _have[k].append((L, L.index[k]))
+    def _reuse(k):
+        errs = []
+        for L, i in _have[k]:
+            try: _, hh, (_, e, b, c1, mods) = L.hash_of(i, zstd)
+            except Exception as ex: errs.append(f'{L.version}: {type(ex).__name__}: {ex}'); continue   # any entry that cannot be read is translated instead
+            if hh != MANIFEST['hashes'][k]: continue
+            refl = {'stage': STAGE_OF[k], 'reused': L.version, 'lib': {'entry': delta.zeroed(e).hex(), 'binds': b.hex(), 'c1': c1.hex()}}
+            write_result(k, 'ok', '', (refl, [(v, size, bytes(st), codec, None) for v, size, st, codec in mods]), None)
+            return k, L.version, None
+        return k, None, '; '.join(errs) or None
+    _from = collections.Counter()
+    with cf.ThreadPoolExecutor(NJ) as ex:
+        for k, v, err in ex.map(_reuse, [k for k in _cand if k in _have]):
+            if err: print(f'[RED] delta: {k}: the older library\'s entry cannot be read ({err}): translated', flush=True)
+            if v:
+                _from[v] += 1; REUSED.add(k)
+                heads[k] = {'reused': v, 'ps_inputs': None}
+    for L in _libs: L.close()
+    if not _libs and not REUSED: print('delta: no older library of this game: a full build', flush=True)
+    else: print(f'delta: {len(REUSED)} of {len(keys)} shaders kept (' + (', '.join(f'from v-{v}: {n}' for v, n in _from.most_common()) or 'by an earlier run of this build')
+                + f'); {len(keys) - len(REUSED)} to translate, {sum(1 for k in keys if k not in heads)} of them left', flush=True)
+else: print(f'delta: none ({_why}): a full build', flush=True)
+todo = [k for k in ORDER if k not in heads]
+TOTAL[0] = len(keys) - len(REUSED); DONE[0] = TOTAL[0] - len(todo)
+print(f'translating {len(todo)} shaders of {len(keys)} ({len(keys) - len(todo)} already in {RES}' + (f', {len(REUSED)} of them kept from an older library' if REUSED else '')
+      + f'; {NJ} at a time, {BATCH} a translator call)', flush=True)
+progress('translate')
+_wk = os.environ.get('WORK')
+if _wk: w = tempfile.mkdtemp(prefix='dmshvk_', dir=_wk)
+else:   # in the result folder: a killed build's leftovers go with the next run
+    w = os.path.join(RES, '.work'); shutil.rmtree(w, ignore_errors=True); os.makedirs(w)
+if todo:   # each record checked against its key, and found by it when the package is not the one the map was made from (locate)
+    try: _bins = sorted(n for n in os.listdir(dm_dir) if n.endswith('.bin'))
+    except OSError as e: sys.exit(f'[RED] shader package {dm_dir}: {e}')
+    for _name in _bins: packs[_name] = NS['record_index'](os.path.join(dm_dir, _name))   # (descriptor, record offsets): each record is read when its job is made, no package kept in memory (dmsh_build.py record_index)
+    _files = {n: [(lambda n=n, j=j: _rec(n, j)) for j in range(len(offs) - 1)] for n, (_, offs) in packs.items()}
+    _found, _bad = locate(todo, loc, _files, borrow_key(tuple(int(x, 0) for x in GAME.get('shader_key_skip', '0+0').split('+'))))
+    if _bad:
+        for _fd, _ in packs.values(): os.close(_fd)
+        sys.exit(f'[RED] {len(_bad)} of the {len(todo)} shaders to build are not in the package {dm_dir}: it is not a split of the game version the profile\'s shader_map.tsv was made from '
+                 '(split the dump again: pack_android.py does it when the package is missing). ' + '; '.join(_bad[:5]))
+    _moved = sum(1 for k in todo if _found[k] != loc[k])
+    if _moved: print(f'{_moved} of the {len(todo)} shaders are at other places in this package than in the profile\'s shader_map.tsv (another split of the game): each is read from where its key is', flush=True)
+    loc.update(_found)
 
 
 try:   # the package descriptors are closed however the translation ends (the phone runs this in a long-lived interpreter)
@@ -1059,7 +1249,7 @@ shutil.rmtree(w, ignore_errors=True)
 progress('library')
 _missing = [k for k in ORDER if not os.path.exists(result_path(k))]
 if _missing: sys.exit(f'[RED] {len(_missing)} shaders have no result (the translator wrote neither a module nor a reason for them, from {_missing[0]}): run again')
-results = [read_result(k) for k in ORDER]
+results = [(k, h['st'], h['err'], None) for k in ORDER for h in [result_parts(k)[0]]]   # (each shader's reflection: write_index)
 _bad = [r for r in results if r[1] != 'ok']
 if _bad and not want and os.environ.get('DMSH_VK_REQUIRE_ALL') == '1':   # the phone's job: a library without every shader the Mac's build of this version holds must not pass as finished
     _there = delta.not_built_there(MANIFEST, [r[0] for r in _bad])   # "-" in the profile's manifest of this version: they did not build in the Mac's full build either
@@ -1070,16 +1260,42 @@ if _bad and not want and os.environ.get('DMSH_VK_REQUIRE_ALL') == '1':   # the p
 if not want:
     for n in os.listdir(out):
         if n == 'spv': shutil.rmtree(os.path.join(out, n))
-lib, size = write_library(results)
-if os.environ.get('DMSH_VK_LOOSE') == '1':
-    os.makedirs(os.path.join(out, 'spv'), exist_ok=True)
-    for key, st, _, r in results:
-        if st == 'ok':
-            for variant, _, _, _, data in r[1]: open(os.path.join(out, 'spv', key + (f'_{variant}' if variant else '') + '.spv'), 'wb').write(data)
-index = {k: r[0] for k, st, _, r in results if st == 'ok'}   # a shader kept from an older library has its stage and that library's version here, not its whole reflection
-for v in index.values():
-    for b in v.get('bindings', ()): b['kind_num'] = KIND_NUM[b['kind']]
-json.dump({'chain': CHAIN, 'vk_chain': VKV, 'game': GAME.id, 'inputs': INPUTS, 'shaders': index}, open(os.path.join(out, 'index.json'), 'w'), separators=(',', ':'))
+lib, size = write_library([k for k, st, _, _ in results if st == 'ok'])
+# What the summary below reads of the reflections: these fields, and of the bindings only those it lists (no slot, unknown kind, page index); their kinds and the most
+# set-0 bindings per stage are counted as index.json is written. All the reflections at once are about 0.8 GB as Python objects for Ocarina of Time
+SUMMARY_FIELDS = {'reused', 'stage', 'flags', 'variants', 'caps', 'exts', 'fetch_offset', 'precise', 'drv_reads', 'vs_pad', 'vin', 'hmma_fns', 'hmma_lds', 'gmem_loop',
+                  'gmem_loop_left', 'gmem_cache', 'gmem_pidx', 'gmem_flat', 'fwd_loads', 'ssbo_base', 'texfb_sites', 'texfb_pool_sites', 'texfb_failed'}
+BIND_KINDS = collections.Counter(); MAX_SET0 = collections.defaultdict(int)
+
+
+def summary_part(refl):
+    if not refl.get('reused'):
+        for b in refl['bindings']: BIND_KINDS[KIND[b['kind']] + (('+' + KIND[b['skind']]) if b.get('skind') else '')] += 1
+        MAX_SET0[refl['stage']] = max(MAX_SET0[refl['stage']], sum(1 for b in refl['bindings'] if b['set'] == VK['SET_DRAW']))
+    x = {k: v for k, v in refl.items() if k in SUMMARY_FIELDS}
+    x['bindings'] = [{k: b.get(k) for k in ('kind', 'skind', 'set', 'flags', 'name')} for b in refl.get('bindings', ())
+                     if b['flags'] & (VK['BF_NOSLOT'] | VK['BF_PIDX']) or b['kind'] == abi.KIND_UNKNOWN or b.get('skind') == abi.KIND_UNKNOWN]
+    return x
+
+
+def write_index(results):
+    """index.json (each built shader's reflection; a shader kept from an older library has its stage and that library's version, not its whole reflection), written
+    as each result's head is read: the text json.dump gives the whole dict. → results with each built shader's summary part (summary_part) and module records"""
+    out_r = []
+    with open(os.path.join(out, 'index.json'), 'w') as f:
+        f.write(json.dumps({'chain': CHAIN, 'vk_chain': VKV, 'game': GAME.id, 'inputs': INPUTS}, separators=(',', ':'))[:-1] + ',"shaders":{')
+        first = True
+        for k, st, err, _ in results:
+            if st != 'ok': out_r.append((k, st, err, None)); continue
+            h = result_parts(k)[0]; refl = h['refl']
+            for b in refl.get('bindings', ()): b['kind_num'] = KIND_NUM[b['kind']]
+            f.write(('' if first else ',') + json.dumps(k) + ':' + json.dumps(refl, separators=(',', ':'))); first = False
+            out_r.append((k, st, err, (summary_part(refl), [(variant, size, None, codec, None) for variant, size, _, codec in h['modules']])))
+        f.write('}}')
+    return out_r
+
+
+results = write_index(results)
 json.dump([{'key': k, 'st': st, 'err': e} for k, st, e, _ in results], open(os.path.join(out, '_vk_build.json'), 'w'))
 # The new library read back and every entry hashed: vk_delta.tsv beside it (what a Mac build gives the profile: vk_android_build.py --publish-delta), and with a manifest of this
 # version, each entry checked against it: a mismatch or a shader the manifest has and the library lacks is a [RED] line naming the key (the library is kept: it is what this
@@ -1124,11 +1340,8 @@ print('modules by variant: ' + ', '.join(f'{_vn.get(v, v)} {n}' for v, n in sort
       f'; translator answers: subgroup size {ANSWERS["subgroup_size"]}, storage buffer alignment {ANSWERS["ssbo_align"]}, geometry passthrough by the shader')
 print('capabilities: ' + ', '.join(f'{c} {n}' for c, n in collections.Counter(c for x in okr for c in x['caps']).most_common()))
 print('extensions: ' + (', '.join(f'{c} {n}' for c, n in collections.Counter(c for x in okr for c in x['exts']).most_common()) or 'none'))
-kinds = collections.Counter(KIND[b['kind']] + (('+' + KIND[b['skind']]) if b.get('skind') else '') for x in okr for b in x['bindings'])
-print('binding kinds: ' + ', '.join(f'{k.lower()} {n}' for k, n in kinds.most_common()))
-mx = collections.defaultdict(int)
-for x in okr: mx[x['stage']] = max(mx[x['stage']], sum(1 for b in x['bindings'] if b['set'] == VK['SET_DRAW']))
-print('most set-0 bindings in one shader: ' + ', '.join(f'{s} {n}' for s, n in sorted(mx.items())) + f' (range {VK["STAGE_BINDINGS"]} a stage)')
+print('binding kinds: ' + ', '.join(f'{k.lower()} {n}' for k, n in BIND_KINDS.most_common()))
+print('most set-0 bindings in one shader: ' + ', '.join(f'{s} {n}' for s, n in sorted(MAX_SET0.items())) + f' (range {VK["STAGE_BINDINGS"]} a stage)')
 noreg = [x for x in okr if any(b['flags'] & VK['BF_NOSLOT'] for b in x['bindings'])]
 unk = [x for x in okr if any(b['kind'] == abi.KIND_UNKNOWN or b.get('skind') == abi.KIND_UNKNOWN for b in x['bindings'])]
 print(f'shaders with a binding whose slot was not decoded {len(noreg)}, with an unrecognized binding kind {len(unk)}')

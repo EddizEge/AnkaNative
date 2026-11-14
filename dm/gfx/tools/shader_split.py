@@ -57,7 +57,7 @@
 #   as `game.nup` or `game.nup:<selector>` is that package's romfs (the highest update's, else the base's, for a bare file)
 #   Environment DM_SPLIT_RESUME=<dir>: the scan resumes by file (ScanCache): a split stopped part way (the phone's thermal or battery pauses, a kill, a reboot) scans again only the files it had not finished
 # Pair table: (vertex key, pixel key) of every BNSH variation (every Unity program); dmsh_build uses it to give vertex shaders the outputs their pixel shaders read but they do not write (see dmsh_build.py vs_pad)
-import base64, collections, concurrent.futures as cf, hashlib, json, os, pickle, re, struct, subprocess, sys, time, zlib
+import base64, collections, concurrent.futures as cf, hashlib, json, os, pickle, re, select, struct, subprocess, sys, time, zlib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../tools'))
 from romfs import os, open, is_image
 import nup
@@ -786,8 +786,10 @@ def zip_jobs(files, parts=64):
     221 nxcontent/nvsb/*.nvsb files, but no name is relied on). → ([(path, rel, (ZIP, members)), …], the zip paths). An archive zipfile cannot read is scanned as one file, as before"""
     import zipfile
     zs = []
-    for p, r in files:
-        with open(p, 'rb') as f: h = f.read(4)
+    def head(pr):   # (each file's first 4 bytes: read by several threads, as reading them one after another waited on the storage for each; a phone took minutes)
+        with open(pr[0], 'rb') as f: return f.read(4)
+    with cf.ThreadPoolExecutor(min(8, os.cpu_count() or 1)) as ex: heads = list(ex.map(head, files, chunksize=256))
+    for (p, r), h in zip(files, heads):
         if h != ZIP: continue
         try:
             with open(p, 'rb') as source, zipfile.ZipFile(source) as z: zs.append((p, r, [(i.filename, i.file_size) for i in z.infolist() if not i.is_dir()]))
@@ -2801,13 +2803,28 @@ def nso_image(path):   # an NSO's image (dm/tools/nso.py); nso.Error (a ValueErr
     import nso
     with open(path, 'rb') as f: return bytes(nso.load(f.read(), path).image)
 
+class NeedsMain(BaseException):
+    """Raised in a subinterpreter worker (InterpPool) by an import of a module that cannot load in a subinterpreter: an extension module with single-phase
+    initialisation, as python-lz4 4.4 and zbic are ('module ... does not support loading in subinterpreters'). A BaseException, so no reader's `except Exception`
+    takes it for an unreadable file or another format (unsized's would read an LZ4 frame as it is, scan_file's would leave the file's shaders out): the batch
+    ends, and the pool scans it again in the main interpreter"""
+
+class Stopped(BaseException):
+    """scan_batch in an InterpPool after the pool was stopped (an interrupt: the app's Pause or thermal stop): the batch ends between two files"""
+
+_STOP_FD = None   # InterpPool: the read end of the pool's stop pipe, in each worker and in the main interpreter while the pool runs; readable once the pool stops
+
 def scan_batch(jobs):   # scan_file over a batch of jobs, in a pool worker
-    return [scan_file(j) for j in jobs]
+    out = []
+    for j in jobs:
+        if _STOP_FD is not None and select.select([_STOP_FD], [], [], 0)[0]: raise Stopped('the split was stopped')
+        out.append(scan_file(j))
+    return out
 
 
 class InProcess:
     """J=1: the pool's jobs run in this process, one after the other, no worker processes (the phone's packer runs in the app's process, which must not
-    fork: android/ONDEVICE.md); submit computes at once, map lazily"""
+    fork: android/README.md, Build the APK); submit computes at once, map lazily"""
     def __init__(self, initializer, initargs): initializer(*initargs)
     def __enter__(self): return self
     def __exit__(self, *exc): pass
@@ -2818,9 +2835,135 @@ class InProcess:
         return f
     def map(self, fn, it): return map(fn, it)
 
+class InterpPool:
+    """J=1 with DM_SPLIT_INTERPS=<n> (n > 1): the scan's batches in n subinterpreters of this process (Python 3.14 concurrent.interpreters), each with its own GIL, so
+    the scan's Python runs on n cores where the process may not fork (the phone's packer: android/SHADERS.md, The phone's form). Each worker imports this file as a
+    module and runs _pool_init with the pool's arguments; a batch goes in and its results come back pickled (bytes cross interpreters as they are), with what the
+    batch printed (its red lines), which is printed here. Results are taken in job order by pooled, so the outputs are those of InProcess.
+    - A module that cannot load in a subinterpreter (python-lz4 and zbic, which the phone's Python bundles, are single-phase extensions) raises NeedsMain in the
+      worker (its __import__ is wrapped), and that batch is scanned again in this interpreter, one such batch at a time: its results are those of InProcess too.
+      The first line says which of these decoders the workers lack.
+    - When no worker can be made or set up (no concurrent.interpreters, an import of the tool that fails in a subinterpreter), pool() prints one line saying so and
+      scans in this interpreter (InProcess), as before.
+    - stop() (pooled, on an interrupt): each batch in hand ends before its next file (the stop pipe, _STOP_FD), so a Pause does not wait for whole batches"""
+    BOOT = ('import builtins, io, os, pickle, sys\n'
+            'sys.path.insert(0, _here)\n'
+            '_imp = builtins.__import__\n'
+            'def _import(name, *a, **k):\n'
+            '    try: return _imp(name, *a, **k)\n'
+            '    except ImportError as e:\n'
+            '        if "does not support loading in subinterpreters" not in str(e): raise\n'
+            '        raise sys.modules["shader_split"].NeedsMain(f"{name}: {e}") from None\n'
+            'builtins.__import__ = _import\n'
+            'import shader_split as _ss\n'
+            '_ss._pool_init(*pickle.loads(_init)); _ss._STOP_FD = _stop\n'
+            '_cant = []\n'
+            'for _m in _probe:\n'
+            '    try: __import__(_m)\n'
+            '    except _ss.NeedsMain: _cant.append(_m)\n'
+            '_out.put(" ".join(_cant))\n'
+            'def _run(b):\n'
+            '    out, sys.stdout = sys.stdout, io.StringIO()\n'
+            '    try: r = ("ok", _ss.scan_batch(pickle.loads(b)))\n'
+            '    except _ss.NeedsMain as e: r = ("main", str(e))\n'
+            '    except _ss.Stopped as e: r = ("stopped", str(e))\n'
+            '    finally: text, sys.stdout = sys.stdout.getvalue(), out\n'
+            '    return pickle.dumps(r + (text,), pickle.HIGHEST_PROTOCOL)\n')
+    PROBE = ('lz4.block', 'lz4.frame', 'zbic')   # the optional decoders the scan imports when a file needs them (nso.py: zbic)
+
+    def __init__(self, n, initializer, initargs):
+        import queue, threading
+        from concurrent import interpreters
+        global _STOP_FD
+        self.I, self.Empty, self.n, self.init = interpreters, queue.Empty, n, pickle.dumps(initargs, pickle.HIGHEST_PROTOCOL)
+        self.idle, self.made, self.ex, self.main_lock, self.in_main = queue.SimpleQueue(), [], None, threading.Lock(), 0
+        initializer(*initargs)   # (this process too, as InProcess: the batches a worker cannot scan, and the parent's own scans, if any)
+        self.probe = []
+        for m in self.PROBE:
+            try: __import__(m); self.probe.append(m)
+            except ImportError: pass
+        self.stop_r, self.stop_w = os.pipe()
+        try:
+            first, self.cant = self._new()   # the first worker now: if none can be made, pool() falls back to InProcess before any job
+            self.idle.put(first)
+        except BaseException:
+            self._close(); raise
+        self.ex = cf.ThreadPoolExecutor(n)
+        _STOP_FD = self.stop_r
+
+    def _new(self):   # a worker set up → ((it, its result queue), the decoders it cannot load); not put in idle, where another thread could take it first
+        it, res = self.I.create(), self.I.create_queue(); self.made.append(it)
+        it.prepare_main(_here=os.path.dirname(os.path.abspath(__file__)), _init=self.init, _out=res, _stop=self.stop_r, _probe=tuple(self.probe))
+        try: it.exec(self.BOOT)
+        except self.I.ExecutionFailed as e: raise RuntimeError(f'split worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        return (it, res), res.get().split()
+
+    def __enter__(self): return self
+
+    def stop(self):   # the batches in hand end before their next file
+        os.write(self.stop_w, b'x')
+
+    def __exit__(self, exc_type, *exc):
+        if exc_type is not None: self.stop()
+        if self.ex: self.ex.shutdown(wait=True, cancel_futures=True)
+        if self.in_main: print(f'subinterpreters: {self.in_main} split batch(es) scanned in the main interpreter (their files need {", ".join(self.cant)})', flush=True)
+        self._close()
+
+    def _close(self):   # each worker closed on its own: one that cannot be (still running, after a second interrupt) is said, and the others are still closed
+        global _STOP_FD
+        left = 0
+        for it in self.made:
+            try:
+                if it.is_running(): raise RuntimeError('it is still running a batch')
+                it.close()
+            except Exception as e:
+                left += 1; print(f'[RED] split: a subinterpreter worker could not be closed ({type(e).__name__}: {e}): it stays in this process', flush=True)
+        self.made = []
+        if _STOP_FD == self.stop_r: _STOP_FD = None
+        if not left: os.close(self.stop_r); os.close(self.stop_w)   # (a worker left running may still read it)
+
+    def _one(self, fn, args):
+        if fn is not scan_batch: raise ValueError('InterpPool runs scan_batch only')
+        try: it, res = self.idle.get_nowait()
+        except self.Empty:   # none idle: a new worker
+            (it, res), _ = self._new()
+        try:
+            it.prepare_main(_b=pickle.dumps(args[0], pickle.HIGHEST_PROTOCOL))
+            it.exec('_out.put(_run(_b))')
+            kind, r, text = pickle.loads(res.get())
+        except self.I.ExecutionFailed as e:
+            raise RuntimeError(f'split worker: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
+        finally: self.idle.put((it, res))
+        if kind == 'stopped': raise Stopped(r)
+        if kind == 'main':   # a module the worker cannot load: this batch again, here (what it printed in the worker is not kept: the scan here prints it)
+            with self.main_lock:
+                self.in_main += 1
+                return scan_batch(args[0])
+        if text: print(text, end='', flush=True)
+        return r
+
+    def submit(self, fn, *args): return self.ex.submit(self._one, fn, args)
+
+    def map(self, fn, it):   # (the second pass: scan_file one job at a time, as scan_batch of one)
+        if fn is not scan_file: raise ValueError('InterpPool maps scan_file only')
+        return (r[0] for r in self.ex.map(lambda j: self._one(scan_batch, ([j],)), list(it)))
+
+
 def pool(J, *initargs):
-    """The scan's workers: J processes, or this process when J is 1 (InProcess)"""
-    return cf.ProcessPoolExecutor(J, initializer=_pool_init, initargs=initargs) if J > 1 else InProcess(_pool_init, initargs)
+    """The scan's workers: J processes, or this process when J is 1 (InProcess), or with DM_SPLIT_INTERPS > 1 that many subinterpreters of it (InterpPool). A line
+    says which: 'subinterpreters: <n> split workers', or why there are none ('subinterpreters: not usable here (...)': the scan in this interpreter). The app's
+    log shows these lines (PackService)"""
+    if J > 1: return cf.ProcessPoolExecutor(J, initializer=_pool_init, initargs=initargs)
+    n = int(os.environ.get('DM_SPLIT_INTERPS') or 1)
+    if n > 1:
+        try: p = InterpPool(n, _pool_init, initargs)
+        except Exception as e:
+            why = str(e).split('\n')[0]
+            print(f'subinterpreters: not usable here ({type(e).__name__}: {why}): DM_SPLIT_INTERPS={n} ignored, the scan runs in one interpreter as before', flush=True)
+        else:
+            print(f'subinterpreters: {n} split workers' + (f'; they cannot load {", ".join(p.cant)} (single-phase extension modules): the files that need them are scanned in the main interpreter' if p.cant else ''), flush=True)
+            return p
+    return InProcess(_pool_init, initargs)
 
 class ScanCache:
     """The scan's finished jobs kept in a folder (DM_SPLIT_RESUME), so a split stopped part way scans only the jobs it had not finished. The phone's split runs
@@ -2948,6 +3091,7 @@ def pooled(ex, jobs, total, start=0, chunk=1, cache=None):
     done, shown = start + sum(len(r) for r in kept.values()), 0.0
     if kept: print(f'progress: {done}/{total}', flush=True); shown = time.monotonic()
     todo = [(first, b) for first, b in batches if first not in kept]
+    futures, added = {}, set()
     try:
         if isinstance(ex, InProcess):
             for first, b in todo:
@@ -2959,8 +3103,17 @@ def pooled(ex, jobs, total, start=0, chunk=1, cache=None):
             while pending:   # a timed wait, not as_completed: the count is shown every half second even while one slow range is all that is left
                 finished, pending = cf.wait(pending, timeout=0.5, return_when=cf.FIRST_COMPLETED)
                 for f in finished:   # each result into the cache as it comes
-                    kept[futures[f]] = r = f.result(); cache.add(futures[f], r); done += len(r)
+                    kept[futures[f]] = r = f.result(); cache.add(futures[f], r); added.add(futures[f]); done += len(r)
                 if not pending or time.monotonic() - shown >= 0.5: print(f'progress: {done}/{total}', flush=True); shown = time.monotonic()
+    except BaseException:
+        if isinstance(ex, InterpPool):   # an interrupt (Pause): the batches in hand end at their next file, those not started are dropped, and every batch
+            # that finished (meanwhile, or before the interrupt reached its result) goes into the cache before it is flushed
+            ex.stop()
+            for f in futures: f.cancel()
+            cf.wait(futures)
+            for f, first in futures.items():
+                if first not in added and not f.cancelled() and f.exception() is None: cache.add(first, f.result())
+        raise
     finally:
         cache.flush()   # also on an interrupt (KeyboardInterrupt): what finished is kept
     return [r for first, _ in batches for r in kept[first]]
@@ -2981,7 +3134,8 @@ def main():
         # before the file count is known (the RomFS listing, main's decompression and scan take minutes on a phone): a stage line so the step does not look stuck
         print(f'progress: {i}/{len(romfs_v)} main', flush=True)
         tag = os.path.basename(os.path.dirname(os.path.abspath(romfs))) if i else ''
-        files += sorted((os.path.join(dp, f), (tag + '/' if tag else '') + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)   # '/' on Windows too: the source column and the keys
+        vfiles = sorted((os.path.join(dp, f), (tag + '/' if tag else '') + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)   # '/' on Windows too: the source column and the keys
+        files += vfiles
         img = nso_image(mainnso)
         if not i:
             import unityfs
@@ -3005,7 +3159,7 @@ def main():
         # Unreal Engine shader code archives decoded on the Mac (uepak.py): <version dir>/ue_shaders, or DM_UE_SHADERS; needed when the RomFS has Unreal paks
         ued = os.environ.get('DM_UE_SHADERS') or os.path.join(os.path.dirname(os.path.abspath(romfs)), 'ue_shaders')
         names = sorted(f for f in os.listdir(ued) if f.endswith('.ushaderbytecode')) if os.path.isdir(ued) else []
-        if not names and uepak.unreal_paks(romfs, inline=False): red(f'the RomFS has Unreal paks, but there are no decoded shader code archives in {ued} (the NSP script writes them)')
+        if not names and uepak.unreal_paks(romfs, inline=False, pak_paths=[p for p, _ in vfiles if p.endswith('.pak')]): red(f'the RomFS has Unreal paks, but there are no decoded shader code archives in {ued} (the NSP script writes them)')
         for nm in names: found += ue_shaders(open(os.path.join(ued, nm), 'rb').read(), f'/ue_shaders/{nm}')
         results.append(('main', {skey(c, k): (w, s, c, k) for w, s, c, k in found}, var_pairs(found), {}))
     for romfs in dlc_v:

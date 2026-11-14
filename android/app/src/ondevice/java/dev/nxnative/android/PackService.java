@@ -21,6 +21,7 @@ import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.StatFs;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -255,17 +256,20 @@ public final class PackService extends Service {
     // ---- The job ----
 
     /**
-     * Deletes the split's kept scan results (Job.splitScan, in the app's own storage) of every game but this job's, as the job starts: one job runs at a time,
-     * so no other game's split can resume from them before a job of that game starts again (after Forget, or a job whose folder went: a few hundred MB).
-     * Decided from the job that runs, read from its job.json, never from the remembered path: shared storage that is briefly unreadable deletes nothing.
+     * Deletes the split's kept scan results (Job.splitScan) and the translated shaders' results (Job.xlate), both in the app's own storage, of every game but
+     * this job's, as the job starts: one job runs at a time, so no other game's step can resume from them before a job of that game starts again (after Forget,
+     * or a job whose folder went: a few hundred MB to a GB). Decided from the job that runs, read from its job.json, never from the remembered path: shared
+     * storage that is briefly unreadable deletes nothing.
      */
-    private void dropOtherSplitScans(Job j) {
+    private void dropOtherGames(Job j) {
         String keep = j.titleId();
         if (keep.isEmpty()) return;
-        File[] games = j.splitScan(this).getParentFile().listFiles();
-        if (games != null) for (File g : games) if (!g.getName().equals(keep)) {
-            Log.i(TAG, "deleting the kept split results of another game: " + g);
-            Job.deleteTree(g);
+        for (File root : new File[] {j.splitScan(this).getParentFile(), j.xlate(this).getParentFile()}) {
+            File[] games = root.listFiles();
+            if (games != null) for (File g : games) if (!g.getName().equals(keep)) {
+                Log.i(TAG, "deleting the kept results of another game: " + g);
+                Job.deleteTree(g);
+            }
         }
     }
 
@@ -273,11 +277,16 @@ public final class PackService extends Service {
         Job j = job;
         wake.acquire(7 * 3600_000L);
         try {
-            dropOtherSplitScans(j);
+            dropOtherGames(j);
+            File oldXlate = new File(j.dir(), "xlate");   // where an older build kept the results, on shared storage: stale for this build's tools in any case
+            if (oldXlate.exists()) {
+                Log.i(TAG, "deleting the translated shaders an older build kept in " + oldXlate);
+                Job.deleteTree(oldXlate);
+            }
             if (j.apkChanged()) {
                 Log.i(TAG, "the job's shaders are from another app version: translating them again");
                 j.resetChainSteps();
-                Job.deleteTree(new File(j.dir(), "xlate"));
+                Job.deleteTree(j.xlate(this));
                 Job.deleteTree(new File(j.dir(), "lib"));
             }
             j.state("running", null, null);
@@ -323,7 +332,7 @@ public final class PackService extends Service {
                     Log.w(TAG, "split: " + e.getMessage());   // the job is done all the same; a later split begins by deleting it again
                 }
                 Job.deleteTree(j.splitScan(this));
-                Job.deleteTree(new File(j.dir(), "xlate"));
+                Job.deleteTree(j.xlate(this));
                 Job.deleteTree(new File(j.dir(), "lib"));
             } else if (stopReason != null) j.state("paused", stopReason, null);
             save(j, true);
@@ -377,7 +386,7 @@ public final class PackService extends Service {
         // The update's RomFS and main: folders of the dump, or (a .nup) <file>.nup:update/<version>/romfs and …/exefs/main (base/… for version 0), which the
         // tools take where they take the folders (android/NUP.md "Naming a package"); the dump itself goes to pack_android.py as it is, folder or .nup
         String upRomfs = DumpCheck.versionPath(dump, j.version(), "romfs"), upMain = DumpCheck.versionPath(dump, j.version(), "exefs/main");
-        File split = new File(od, "split"), splitTmp = new File(od, "split.tmp"), splitScan = j.splitScan(this), xlate = new File(od, "xlate"), lib = new File(od, "lib");
+        File split = new File(od, "split"), splitTmp = new File(od, "split.tmp"), splitScan = j.splitScan(this), xlate = j.xlate(this), lib = new File(od, "lib");
         String tool;
         String[] argv;
         // The tools' arguments: the in-process forms (pack_android.py --in-process: the rewriter in the same Python; shader_split.py with J=1 below: no process pool;
@@ -385,8 +394,8 @@ public final class PackService extends Service {
         // The split is resumable by RomFS file: its scan results are kept in the app's own storage (Job.splitScan, DM_SPLIT_RESUME, shader_split.py ScanCache) and a rerun scans only the files
         // that have none; it writes its outputs into split/ at its end, which counts as complete only once its marker is written after them (Outputs: no folder is
         // renamed on shared storage, where MediaProvider may refuse it).
-        // The shaders step is resumable by shader: each result is a file in xlate/ (DMSH_VK_RESULTS) and a rerun skips the shaders that have one; it writes the
-        // library (lib/v-<DMSH_VK_CHAIN>/) from the results at its end. The pack step copies the library into the pack (--shader-cache)
+        // The shaders step is resumable by shader: each result is a file in Job.xlate, in the app's own storage (DMSH_VK_RESULTS), and a rerun skips the shaders
+        // that have one; it writes the library (lib/v-<DMSH_VK_CHAIN>/) from the results at its end. The pack step copies the library into the pack (--shader-cache)
         switch (s) {
             case "rewrite":
                 tool = "scripts/pack_android.py";
@@ -408,6 +417,8 @@ public final class PackService extends Service {
                     return "interrupted";
                 }
                 String bad = splitMatchesProfile(j, split);
+                if (bad != null) return bad;
+                bad = resultsRoom(xlate);
                 if (bad != null) return bad;
                 tool = "dm/gfx/tools/vk_android_build.py";
                 argv = new String[] {"--target", "vulkan", new File(split, "pkg").getPath(), lib.getPath()};
@@ -451,6 +462,15 @@ public final class PackService extends Service {
         PackEngine.setenv("SPIRV_VAL", "libSPIRV-Tools-shared.so");
         PackEngine.setenv("DMSH_VK_REQUIRE_ALL", "1");   // a library without every shader is a failed step, never a finished one
         PackEngine.setenv("DMSH_VK_XLATE_J", "1");       // one translator call at a time (one thread was faster on the phone); the env file below can change it
+        // the shaders' Python half on several cores (subinterpreters, as many as the memory allows) and the translator's garbage collector less often (ShaderWorkers)
+        // and the split's scan likewise (shader_split.py DM_SPLIT_INTERPS, with its J=1 above)
+        double totalGib = totalMemGib();
+        int interps = s.equals("shaders") || s.equals("split") ? ShaderWorkers.interps(workers, totalGib) : 1;
+        PackEngine.setenv("DMSH_VK_INTERPS", String.valueOf(s.equals("shaders") ? interps : 1));
+        PackEngine.setenv("DM_SPLIT_INTERPS", String.valueOf(s.equals("split") ? interps : 1));
+        PackEngine.setenv("DOTNET_GCgen0size", ShaderWorkers.gen0());
+        // (asked for: the tool says whether they run, in a "subinterpreters: " line that Tail copies here; where none can be set up the step runs as before)
+        Log.i(TAG, s + ": " + workers + " workers, " + interps + " subinterpreters asked (" + String.format(Locale.ROOT, "%.1f", totalGib) + " GiB)");
         // Tests: ondevice/env.txt, KEY=VALUE lines, overrides any of the above for the tools (e.g. DMSH_VK_XLATE_J=6 to compare the translator's threads)
         File envFile = new File(od, "env.txt");
         if (envFile.isFile()) for (String l : Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8)) {
@@ -483,6 +503,39 @@ public final class PackService extends Service {
         long t = j.stepTotal(i);
         j.stepProgress(s, t > 0 ? t : 1, t > 0 ? t : 1, "");
         return null;
+    }
+
+    /** What the shaders step's results take in the app's own storage at most (Ocarina of Time: 0.93 GiB for 42,346 shaders), with room to spare */
+    static final long XLATE_BYTES = 1100L << 20;
+
+    /**
+     * null when the app's own storage has room for the results still to come (Job.xlate), else what to do. DumpCheck counts the free space beside the dump;
+     * the results are in the phone's internal storage, which is another place when the dump is on a memory card.
+     */
+    private String resultsRoom(File xlate) {
+        File dir = xlate.getParentFile();
+        if (dir != null && !dir.isDirectory()) dir.mkdirs();
+        long have = 0;
+        File[] l = xlate.listFiles();
+        if (l != null) for (File f : l) have += f.length();
+        long free;
+        try {
+            free = new StatFs(dir != null ? dir.getPath() : xlate.getPath()).getAvailableBytes();
+        } catch (IllegalArgumentException e) {
+            return "Cannot read the free space of the app's storage (" + dir + ").";
+        }
+        long need = XLATE_BYTES - have;
+        if (free < need + (64L << 20))
+            return String.format(Locale.ROOT, "Translating the shaders needs %.1f GB free in the phone's internal storage; it has %.2f GB free. Free some space, then tap Retry",
+                    (need + (64L << 20)) / 1073741824.0, free / 1073741824.0);
+        return null;
+    }
+
+    /** The phone's memory as Android reports it (ActivityManager totalMem, GiB; an 8 GB phone reports about 7.3), for ShaderWorkers */
+    private double totalMemGib() {
+        android.app.ActivityManager.MemoryInfo m = new android.app.ActivityManager.MemoryInfo();
+        getSystemService(android.app.ActivityManager.class).getMemoryInfo(m);
+        return m.totalMem / (double) (1L << 30);
     }
 
     /**
@@ -579,6 +632,9 @@ public final class PackService extends Service {
                     j.stepProgress(step, Long.parseLong(m.group(1)), Long.parseLong(m.group(2)), m.group(3));
                     changed = true;
                 } else if (line.startsWith("[RED] ")) lastRed = line.substring(6);
+                // the tools' word on their subinterpreter workers (vk_android_build.py, shader_split.py): how many, or that they are not usable here and the
+                // step runs as before (android/SHADERS.md, The phone's form): in logcat beside the line above that set them
+                else if (line.startsWith("subinterpreters: ")) Log.i(TAG, step + ": " + line);
             }
             if (changed) save(j, false);
         }

@@ -325,6 +325,7 @@ DM_SLOWFRAME	diagnostic	`=1` writes the per-frame timing breakdown to the log on
 DM_SPIN	switch	`0` makes the rewriter's spin gate return at once, so guest poll loops spin with no sleep; the gate stays (on by default)
 DM_SPIN_LIST	diagnostic	`=1` makes `patch_nso.py` print every guest poll loop it found and sends through a spin gate
 DM_SPIN_POLL	switch	`=<µs>`: how long a spin-gate wait polls before it sleeps with the yield back-off (default 2000; `0` yields on every pass)
+DM_SPLIT_INTERPS	switch	`=<n>` (the phone's split: `PackService`, `ShaderWorkers`) with `J=1`, `shader_split.py` scans its batches in n subinterpreters of its process, each with its own GIL (`InterpPool`; Python 3.14), with the same outputs as one interpreter; a batch whose files need a module that cannot load in a subinterpreter (python-lz4, zbic) is scanned in the main interpreter; where no worker can be set up, a `subinterpreters: not usable here` line and one interpreter; unset or 1: one interpreter
 DM_SPLIT_RESUME	path	`=<dir>` (the phone's split: `PackService`) `shader_split.py` keeps each RomFS file's scan results there and a rerun takes those whose inputs, tools and profile digest still match, so a stopped split resumes per file; unset: no kept results (the Mac's split)
 DM_SVC	diagnostic	`=1` logs memory SVCs (`SetHeapSize`, `MapMemory`, `Map`/`UnmapPhysicalMemory`) with their addresses and sizes
 DM_SYMCHECK	diagnostic	`=1` checks every hashed module symbol lookup against a linear search and logs a red line for each mismatch

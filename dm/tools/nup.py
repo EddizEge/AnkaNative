@@ -16,7 +16,7 @@ romfs.py's Path / open / os / mmap take these paths as they take paths inside a 
 
 Usage: nup.py <file>.nup [packages | ls [<name>] | cat <name> | verify [<name>]]   (exit 1 on a bad file; <name> is a selector with a path)
 """
-import builtins, errno, functools, hashlib, io, os, re, stat as _stat, struct, sys, tempfile
+import builtins, errno, functools, hashlib, io, os, re, stat as _stat, struct, sys, tempfile, threading
 
 MAGIC, TOC_MAGIC = b'NUP\x01', b'TOC\x01'
 SB = struct.Struct('<4sHHQQ32sQQII16s32s')     # superblock, 0x80 bytes (SPEC §2)
@@ -97,6 +97,20 @@ class Nup:
             self.packages.append(Package(i, tid, root, exe, rom, ver, kind, pflags))
         if sum(p.kind == BASE for p in self.packages) > 1: raise Error(f'{path}: more than one base package')
         self._check_dirs(); self._check_files(); self._check_tree()
+        self._subdirs = {}   # (directory node, name) → its child directory: lookup's answers for directories (a path is looked up from the root every time: shader_split.py's walk)
+        self._fd, self._lock = None, threading.Lock()   # the descriptor the streams read through (reader)
+
+    def reader(self):
+        """A descriptor of the .nup for os.pread, opened once for this Nup (a Nup stands for the file as it was: open_nup) and closed with it. The streams of its
+        files read through it instead of each opening the .nup again: on a phone's shared storage every open and close goes through FUSE, and a split opened
+        every one of a game's 186,583 files at least twice. A stream opens a descriptor of its own only when its fileno() is asked for"""
+        with self._lock:
+            if self._fd is None: self._fd = os.open(self.path, os.O_RDONLY | getattr(os, 'O_CLOEXEC', 0))
+            return self._fd
+
+    def __del__(self):
+        fd = getattr(self, '_fd', None)
+        if fd is not None: self._fd = None; os.close(fd)
 
     # ---- checks (SPEC §6.1) ----
     def _name_ok(self, off, ln):
@@ -210,16 +224,24 @@ class Nup:
         return [(os.fsdecode(self.name(c)), c) for c in self._dir_kids(k)]
 
     def lookup(self, k, name):
-        """The child of directory node k named name, or None"""
+        """The child of directory node k named name, or None. A directory found is kept (the tree is read once: the same answer every time)"""
+        d = self._subdirs.get((k, name))
+        if d is not None: return d
+        c = self._lookup(k, name)
+        if c is not None and self.is_dir(c): self._subdirs[(k, name)] = c
+        return c
+
+    def _lookup(self, k, name):
         if not isinstance(k, int): return dict(self.children(k)).get(name)
         if k >= self.nd: raise NotADirectoryError(errno.ENOTDIR, 'not a directory', self.path)
-        want = os.fsencode(name); kids = self._dir_kids(k)
-        lo, hi = 0, len(kids)
+        want = os.fsencode(name); kids = self.kids
+        _, _, first, count, _ = DIR.unpack_from(self.toc, self.o_dir + DIR.size * k)   # (_dir_kids' range, searched in place: a slice of a large folder's children each time cost more than the search)
+        lo, hi = first, first + count
         while lo < hi:
             mid = (lo + hi) // 2
             if self.name(kids[mid]) < want: lo = mid + 1
             else: hi = mid
-        return kids[lo] if lo < len(kids) and self.name(kids[lo]) == want else None
+        return kids[lo] if lo < first + count and self.name(kids[lo]) == want else None
 
     def find(self, inner, start=''):
         """The node of a path inside the container ('' its root; 'update/458752/romfs/a/b', 'base/exefs/main'); FileNotFoundError when there is none"""
@@ -258,8 +280,8 @@ class Nup:
         """A read-only, seekable raw stream of file node k. regions: a dict that gets {fd: (start, length)} for the stream's descriptor while it is open (romfs.py's mmap)"""
         if self.is_dir(k): raise IsADirectoryError(errno.EISDIR, 'is a directory', self.path)
         size, off, stored, _, codec = self.record(k)
-        if codec == RAW or not size: return _Raw(self.path, off, size, regions)
-        return _Zstd(self.path, off, stored, size, regions)
+        if codec == RAW or not size: return _Raw(self.path, off, size, regions, self)
+        return _Zstd(self.path, off, stored, size, regions, self)
 
     def read(self, k):
         with self.open(k) as f: return f.read()
@@ -273,14 +295,21 @@ class Nup:
 
 
 class _Raw(io.RawIOBase):
-    """A file's bytes as a slice of the .nup (codec 0); fileno() is the .nup's descriptor and the slice is in regions"""
-    def __init__(self, path, start, length, regions=None):
-        self.fd = os.open(path, os.O_RDONLY)
+    """A file's bytes as a slice of the .nup (codec 0); fileno() is the .nup's descriptor and the slice is in regions. nup: the Nup it is a file of; it reads through
+    the Nup's descriptor (Nup.reader) and opens one of its own only for fileno(). Without one, it opens its own at once, as before. The stream holds the Nup:
+    open_nup's cache may drop it while the stream is open, and the Nup closes its descriptor when it goes (its number may then name another file)"""
+    def __init__(self, path, start, length, regions=None, nup=None):
+        self.path, self.own, self.nup = path, None, nup
         self.start, self.length, self.pos, self.regions = start, length, 0, regions
-        if regions is not None: regions[self.fd] = (start, length)
+        if nup is not None: self.fd = nup.reader()
+        else: self.fileno()
     def readable(self): return True
     def seekable(self): return True
-    def fileno(self): return self.fd
+    def fileno(self):
+        if self.own is None:
+            self.own = self.fd = os.open(self.path, os.O_RDONLY)
+            if self.regions is not None: self.regions[self.fd] = (self.start, self.length)
+        return self.fd
     def tell(self): return self.pos
     def seek(self, offset, whence=0):
         pos = offset + (self.pos if whence == 1 else self.length if whence == 2 else 0)
@@ -295,9 +324,9 @@ class _Raw(io.RawIOBase):
         data = os.pread(self.fd, max(0, self.length - self.pos), self.start + self.pos) if self.pos < self.length else b''
         self.pos += len(data); return data
     def close(self):
-        if not self.closed:
-            if self.regions is not None: self.regions.pop(self.fd, None)
-            os.close(self.fd)
+        if not self.closed and self.own is not None:   # (the Nup's descriptor stays: Nup.reader)
+            if self.regions is not None: self.regions.pop(self.own, None)
+            os.close(self.own)
         super().close()
 
 
@@ -305,8 +334,8 @@ class _Zstd(io.RawIOBase):
     """A zstd file (codec 1: one frame of the whole file). Up to SMALL: decompressed into memory at the first read. Larger: streamed through the module's ZstdFile
     over the extent (a seek back starts the frame again). fileno() decompresses it into an unlinked temporary file ($DM_TEMP, else the system's) and reads from
     there from then on"""
-    def __init__(self, path, start, stored, size, regions=None):
-        self.path, self.start, self.stored, self.length, self.regions = path, start, stored, size, regions
+    def __init__(self, path, start, stored, size, regions=None, nup=None):
+        self.path, self.start, self.stored, self.length, self.regions, self.nup = path, start, stored, size, regions, nup
         self.pos, self.data, self.stream, self.tmp = 0, None, None, None
         zstd()   # fails here, at open, when there is no zstd module
     def readable(self): return True
@@ -318,7 +347,7 @@ class _Zstd(io.RawIOBase):
         self.pos = pos; return pos
     def _bad(self, got): return Error(f'{self.path}: zstd extent at {self.start:#x} gives {got} bytes, its record says {self.length}')
     def _load(self):
-        with _Raw(self.path, self.start, self.stored) as r: comp = r.readall()
+        with _Raw(self.path, self.start, self.stored, nup=self.nup) as r: comp = r.readall()
         try: self.data = zstd().decompress(comp)
         except Exception as e: raise Error(f'{self.path}: zstd extent at {self.start:#x}: {e}') from None
         if len(self.data) != self.length: raise self._bad(len(self.data))
@@ -332,7 +361,7 @@ class _Zstd(io.RawIOBase):
         else:
             if self.stream is None or self.stream.tell() > self.pos:
                 if self.stream is not None: self.stream.close()
-                self.stream = zstd().ZstdFile(_Raw(self.path, self.start, self.stored), 'rb')
+                self.stream = zstd().ZstdFile(_Raw(self.path, self.start, self.stored, nup=self.nup), 'rb')
             if self.stream.tell() < self.pos: self.stream.seek(self.pos)
             data = self.stream.read(want)
             if len(data) < want: raise self._bad(self.pos + len(data))
@@ -346,7 +375,7 @@ class _Zstd(io.RawIOBase):
     def fileno(self):
         if self.tmp is None:
             tmp = tempfile.TemporaryFile(dir=os.environ.get('DM_TEMP') or None)
-            src = _Zstd(self.path, self.start, self.stored, self.length)
+            src = _Zstd(self.path, self.start, self.stored, self.length, nup=self.nup)
             n = 0
             while b := src.read(8 << 20): tmp.write(b); n += len(b)
             src.close(); tmp.flush()
@@ -369,10 +398,10 @@ class _Zstd(io.RawIOBase):
 def _open(path, identity): return Nup(path)
 
 
-def open_nup(path):
-    """The Nup of a .nup file, kept while the file is unchanged"""
+def open_nup(path, st=None):
+    """The Nup of a .nup file, kept while the file is unchanged. st: the caller's os.stat of it, just taken"""
     path = os.path.abspath(os.fsdecode(path))
-    st = os.stat(path)
+    if st is None: st = os.stat(path)
     return _open(path, (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns))
 
 
@@ -398,7 +427,7 @@ def resolve(path):
     try: st = os.stat(f)
     except OSError: return None
     if not _stat.S_ISREG(st.st_mode): return None
-    nup = open_nup(f)   # Error when the file is not a NUP file
+    nup = open_nup(f, st)   # Error when the file is not a NUP file
     return nup, nup.node(rest)
 
 

@@ -5,6 +5,25 @@ Changes in Anka Native, grouped by topic. Most of the new behaviour is behind `D
 ([dm/games/0400486024DEC000/game.tsv](dm/games/0400486024DEC000/game.tsv)), so other games keep their old behaviour unless a switch is set.
 The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 
+## Unreleased
+
+- **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
+  cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
+  faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped
+  ([#13](https://github.com/EddizEge/AnkaNative/issues/13)). The libraries are the same bytes (version `v-0dd4341ae6ce`): finished packs stay valid. Where
+  subinterpreters do not work, each step says so in its log and runs as before; `ondevice/env.txt` with `DMSH_VK_INTERPS=1` and `DM_SPLIT_INTERPS=1`
+  turns them off (android/SHADERS.md).
+- **Prepare keeps its translated shaders in the app's own storage**, not beside the dump on shared storage, where each of about 42,000 files went
+  through Android's FUSE layer (Ocarina of Time: about 2 minutes only to delete them at the end). The shaders step checks that the phone's internal storage has
+  room for them (about 1 GB).
+- **Less work per shader in the translation step:** each shader's code is read once instead of once per variant and pass; on a PC the
+  work after the translator per shader went down by about a fifth. The library stays the same bytes (`v-0dd4341ae6ce`).
+- **The shader scan starts its workers sooner:** it no longer opens the dump file again for each of its 186,583 files, walks the game files once
+  instead of twice, and reads the files' first bytes on several threads (on a PC 2 minutes became 40 seconds). Its outputs are the same bytes.
+- **A Prepare in progress translates its shaders again after this update:** the shaders already translated are stamped with the tools that made them, so
+  a job in the middle of the shaders step when the APK is updated starts that step over (hours on a phone). Finish a running Prepare first, or let it
+  start over. Finished packs are not affected.
+
 ## Anka Native 0.2.2
 
 - **The launcher no longer takes adb control commands from other apps** ([#7](https://github.com/EddizEge/AnkaNative/issues/7)). Its activity is
