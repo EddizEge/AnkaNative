@@ -2,7 +2,7 @@
 into a small virtual screen (the escape sequences screen.py and term.py write: cursor moves, clear, SGR, the private modes), and keys are written to the master
 side. test_prepare_tui.py drives it; the real run's recording (android/README.md) used it too. The modes it tracks: the alternate screen, the cursor, bracketed
 paste and autowrap, so a test can check they are put back."""
-import os, re, select, subprocess, threading, time
+import os, re, select, subprocess, sys, threading, time
 
 CSI = re.compile(r'\x1b\[([0-9;?]*)([A-Za-z~@])')
 
@@ -74,9 +74,9 @@ class Pty:
         self.master, self.slave = os.openpty()
         fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', h, w, 0, 0))
         self.before = termios.tcgetattr(self.slave)
-        pre = (lambda: fcntl.ioctl(0, termios.TIOCSCTTY, 0)) if ctty else None   # (after the new session's setsid)
-        self.p = subprocess.Popen(argv, stdin=self.slave, stdout=self.slave, stderr=self.slave, env=env, cwd=cwd, start_new_session=True, close_fds=True,
-                                  preexec_fn=pre)
+        if ctty:   # (the new session's leader takes its stdin as the controlling terminal, then becomes the program: no preexec_fn in a process with threads)
+            argv = [sys.executable, '-c', 'import fcntl, os, sys, termios; fcntl.ioctl(0, termios.TIOCSCTTY, 0); os.execv(sys.argv[1], sys.argv[1:])', *argv]
+        self.p = subprocess.Popen(argv, stdin=self.slave, stdout=self.slave, stderr=self.slave, env=env, cwd=cwd, start_new_session=True, close_fds=True)
         self.vt, self.raw, self.lock = VT(w, h), [], threading.Lock()
         self.t = threading.Thread(target=self.read, daemon=True); self.t.start()
 
@@ -94,7 +94,9 @@ class Pty:
             s = b.decode('utf-8', 'replace')
             with self.lock: self.raw.append(s); self.vt.feed(s)
 
-    def send(self, s): os.write(self.master, s.encode() if isinstance(s, str) else s)
+    def send(self, s):
+        assert self.master is not None, 'the window was closed (hang_up)'
+        os.write(self.master, s.encode() if isinstance(s, str) else s)
 
     def resize(self, w, h):
         """The window's new size (the program reads it before its next frame); the virtual screen starts blank at that size"""

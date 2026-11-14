@@ -439,7 +439,8 @@ class Output(unittest.TestCase):
         for t, d in ((1000, 0), (1004, 768), (1009, 832), (1015, 1024)): lv.feed(t, f'progress {d} 42854 translate')
         self.assertIsNone(lv.rate(1016))
         for t in range(1020, 1061, 5): lv.feed(t, f'progress {(t - 1000) * 20} 42854 translate')
-        self.assertAlmostEqual(lv.rate(1060), (1200 - 0) / 60, places=3)
+        r = lv.rate(1060); assert r is not None
+        self.assertAlmostEqual(r, (1200 - 0) / 60, places=3)
 
     def test_words(self):
         """Plurals, sizes under a gigabyte, hours and minutes, and the phone's steps with the app's own menu marks where the output can write them"""
