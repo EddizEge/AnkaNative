@@ -18,6 +18,7 @@ MODULE_X = 3   # a rewritten module and its tables against the module's size in 
 MEM_WORKER = 0.5 * 2**30   # memory one shader worker takes, with room: a vk_android_build.py worker process and the translator it runs, 0.12-0.14 and about 0.1 GiB
                            # resident on this computer's Ocarina of Time run (2026-11-14, 11 workers)
 MEM_KEEP = 1.5 * 2**30     # memory left to the rest of the computer when the workers are counted
+RATE_MIN_S = 30.0          # the run screen's rate is shown once its window holds this many seconds of progress lines (Live.rate)
 
 
 class Bad(Exception):
@@ -321,9 +322,10 @@ class Live:
         return self.minutes
 
     def rate(self, t, span=60.0):
-        """Units a second of the step in hand over the last span seconds, or None"""
+        """Units a second of the step in hand over the last span seconds, or None until RATE_MIN_S of its progress lines are in that window (the translation's
+        lines come in batches of 64 to 768 shaders: two lines a few seconds apart gave 13, 63, 29 a second in the first minute)"""
         h = [x for x in self.hist if x[0] >= t - span]
-        if len(h) < 2 or h[-1][0] - h[0][0] < 5: return None
+        if len(h) < 4 or h[-1][0] - h[0][0] < RATE_MIN_S: return None
         return (h[-1][1] - h[0][1]) / (h[-1][0] - h[0][0])
 
     def step_frac(self):

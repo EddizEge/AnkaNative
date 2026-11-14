@@ -432,6 +432,15 @@ class Output(unittest.TestCase):
             self.assertNotIn('Traceback', txt); self.assertNotIn('File "', txt); self.assertNotIn('~~~', txt); self.assertNotIn('error: no_space', txt)
             self.assertIn('OSError: [Errno 28] No space left on device', txt); self.assertIn('0 matching functions', txt)
 
+    def test_rate_not_from_two_batches(self):
+        """The rate is not shown from the first batches a few seconds apart (the review saw 62.7 a second, then 29.1, 22.3, 18.1), only once 30 s of
+        progress lines are in its window; then it is the window's"""
+        lv, _ = live_at(FakePlan(), ['step identify', 'step rewrite', 'step split', 'progress: 1/1', 'step shaders'])
+        for t, d in ((1000, 0), (1004, 768), (1009, 832), (1015, 1024)): lv.feed(t, f'progress {d} 42854 translate')
+        self.assertIsNone(lv.rate(1016))
+        for t in range(1020, 1061, 5): lv.feed(t, f'progress {(t - 1000) * 20} 42854 translate')
+        self.assertAlmostEqual(lv.rate(1060), (1200 - 0) / 60, places=3)
+
     def test_plain_confirm_has_no_keys(self):
         p = FakePlan()
         p.x.vers = {0: None, 131072: None}
