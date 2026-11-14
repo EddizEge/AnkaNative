@@ -131,6 +131,7 @@ class FakePlan:
         self.x = FakeGame(); self.g = self.x
         self.out = Path('/games/Switch2/0400486024DEC000-work/android-pack')
         self.J, self.shaders, self.translated, self.kept_mods, self.lib_current = 12, 42854, translated, list(kept), lib_current
+        self.replaced = []
         self.rewrite, self.split, self.build = len(kept) < 3, split, not lib_current
         self.mix = (42854, 27002)
         self._short = short
@@ -898,6 +899,23 @@ class EndToEnd(unittest.TestCase):
     def test_identify_made_up_dump(self):
         x = model.identify(self.game)
         self.assertEqual((f'{x.app:016X}', x.ver, x.other), (OOT, 131072, []))
+        self.assertEqual(x.picked, x.folder)
+
+    @unittest.skipIf(os.name == 'nt', 'a symbolic link needs a right of its own on Windows')
+    def test_link_and_earlier_pack_said(self):
+        """A game picked through a link: the plan says so, since the pack folder goes beside the file it points to (as the packer does); a pack folder that
+        holds an earlier pack whose modules will be rewritten says that too (the review's run rewrote the real pack folder through a link without a word)"""
+        (self.d / 'links').mkdir(); link = self.d / 'links' / 'Game'; link.symlink_to(self.game)
+        x = model.identify(link)
+        self.assertEqual(x.picked, link); self.assertEqual(x.folder, self.game.resolve())
+        plan = model.Plan(x)
+        self.assertEqual(plan.out.parent.parent, self.game.resolve().parent)
+        txt = ' '.join(str(v) for _, v, _ in app.plan_lines(plan))
+        self.assertIn(f'picked as {link}, a link to it', txt); self.assertNotIn('earlier pack', txt)
+        plan.out.mkdir(parents=True)
+        for m in ('main', 'sdk'): (plan.out / f'{m}.patched.bin').write_bytes(b'x'); (plan.out / f'{m}.android.key').write_text('an older key\n')
+        txt = ' '.join(str(v) for _, v, _ in app.plan_lines(model.Plan(model.identify(self.game))))
+        self.assertIn('holds an earlier pack: its code of 2 of 3 modules will be rewritten', txt); self.assertNotIn('a link to it', txt)
         with self.assertRaises(model.Bad) as c: model.identify(self.d / 'Switch2')   # a folder of games, not a dump
         self.assertIn('is not a .nup file or a dump folder', model.plain_error(c.exception.code, c.exception.args_, c.exception.msg))
         (self.d / 'Half/base').mkdir(parents=True)

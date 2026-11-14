@@ -42,10 +42,14 @@ def identify(path, version=None):
     if p.is_file() and not nup.is_nup(p): raise Bad(None, [], T('pick.not_game', p))
     # a folder with neither base/ nor updates/ is no dump at all (an incomplete dump has one of them, and the packer says what it lacks)
     if p.is_dir() and not (p / 'base').is_dir() and not (p / 'updates').is_dir(): raise Bad(None, [], T('pick.not_game', p))
-    try: return pack_android.identify(p, version)
+    try: x = pack_android.identify(p, version)
     except (pack_android.Error, pack_dump.Error) as e: raise Bad(getattr(e, 'code', None), getattr(e, 'code_args', ()), str(e)) from None
     except nup.Error as e: raise Bad('unreadable_file', [p], str(e)) from None
     except OSError as e: raise Bad(None, [], f'{p}: {e.strerror or e}') from None
+    # the path as picked, when it is a link (or under one): the packer works beside the file it points to (pack_android.py resolves it too), which the
+    # confirm screen then says
+    x.picked = Path(os.path.abspath(Path(path).expanduser()))
+    return x
 
 
 def free_memory():
@@ -125,10 +129,11 @@ class Plan:
     def survey(self):
         """What an earlier run left: the modules with a current key, a current library, the package, translated shaders"""
         import pack_android   # pyright: ignore[reportMissingImports]  # scripts/, on sys.path above
-        self.kept_mods = []
+        self.kept_mods, self.replaced = [], []   # replaced: modules of a pack already in the folder that this run rewrites (its keys are not current)
         for m, src in self.x.srcs.items():
             kf = self.out / f'{m}.android.key'
             if (self.out / f'{m}.patched.bin').is_file() and kf.is_file() and kf.read_text().strip() in pack_android.rewrite_keys(src, self.g, self.out): self.kept_mods.append(m)
+            elif (self.out / f'{m}.patched.bin').is_file() or kf.is_file(): self.replaced.append(m)
         self.rewrite = len(self.kept_mods) < len(self.x.mods)
         self.lib_current = pack_android.library_current(self.lib, self.g)
         self.split = not self.lib_current and not self.pkg.is_dir()
