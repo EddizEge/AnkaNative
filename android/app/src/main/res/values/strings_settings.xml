@@ -60,7 +60,7 @@
     <string name="settings_game_gpu_timing_title">GPU timing · %1$s</string>
     <!-- %1$s: the stored DM_RES_LEVEL value -->
     <string name="settings_game_res_level_gone">Dynamic (the game\'s own; the stored %1$s is no longer offered)</string>
-    <string name="settings_game_res_level_about">The game changes the sharpness of its 3D picture by itself. A fixed level keeps it there: lower runs cooler, higher is sharper but slower. \"Never above\" lets the game lower it under load. From the next start; a DM_RES_LEVEL line in env.txt wins.</string>
+    <string name="settings_game_res_level_about">The game changes the sharpness of its 3D picture by itself. A fixed level keeps it there: a lower level is less work for the GPU, a higher one is sharper. \"Never above\" lets the game lower it under load but not raise it past that level. From the next start; a DM_RES_LEVEL line in env.txt wins.</string>
     <string name="settings_game_res_level_title">3D resolution · %1$s</string>
     <!-- %1$s: the default window size's name -->
     <string name="settings_game_default_choice">Default (%1$s)</string>

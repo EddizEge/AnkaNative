@@ -131,6 +131,10 @@ final class GameSettings {
         labels[0] = p.resLevelLabel(null);
         for (int k = 0; k < ch.size(); k++) labels[k + 1] = ch.get(k)[1];
         String cur = Prefs.resLevel(a, g.titleId);
+        // A stored value the profile no longer offers passes nothing (Profile.resLevelEnv): clear it, so Dynamic, checked below, is what is stored too, and Cancel
+        // refreshes the row that named the old value
+        boolean stale = cur != null && p.resLevelLabel(cur) == null;
+        if (stale) Prefs.resLevel(a, g.titleId, null);
         int checked = 0;
         for (int k = 0; k < ch.size(); k++) if (ch.get(k)[0].equals(cur)) checked = k + 1;
         LinearLayout box = new LinearLayout(a);
@@ -151,7 +155,7 @@ final class GameSettings {
             done.run();
         });
         Ui.add(box, rg, 8);
-        d[0] = Ui.sheet(a, a.getString(R.string.settings_game_res_level_title, g.name), box).setNegativeButton(android.R.string.cancel, null).show();
+        d[0] = Ui.sheet(a, a.getString(R.string.settings_game_res_level_title, g.name), box).setNegativeButton(android.R.string.cancel, stale ? (x, y) -> done.run() : null).show();
     }
 
     private static void resolution(MainActivity a, Game g, Runnable done) {

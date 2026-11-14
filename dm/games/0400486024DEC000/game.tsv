@@ -53,17 +53,19 @@ render_cond	on
 # The game's dynamic resolution decides from GPU timestamps (upstream nxnative's profile)
 gpu_timestamps	segment
 # Its level held or capped at load (loader.c drs_level_apply, DM_RES_LEVEL; README "Dynamic resolution"): v131072 main, the instruction after the controller's call to its
-# level selector (main+0x805f88 bl main+0x8065e0; main+0x805f8c tbz w22,#0), the controller in x19, its palette size at +0x1a0, and the zero padding before the selector
-# (7 words) and after it (3 words). A workaround on the game's own code: its controller jumps to sharp levels the phone cannot draw in time (GitHub issue 10)
-drs_level	e0f3ccfaf50065ae4ea01eb5aeb13b1a	0x805f8c	76000036	x19	0x1a0	0x8065c4:7	0x806874:3
+# level selector (main+0x805f88 bl main+0x8065e0; main+0x805f8c tbz w22,#0), the selector (the BL's target, checked), the controller in x19, its palette size at +0x1a0,
+# and the zero padding before the selector (7 words) and after it (3 words). A workaround on the game's own code: its controller jumps to sharp levels the phone cannot draw in time (GitHub issue 10)
+drs_level	e0f3ccfaf50065ae4ea01eb5aeb13b1a	0x805f8c	76000036	0x8065e0	x19	0x1a0	0x8065c4:7	0x806874:3
 # Game settings › 3D resolution (Android): 0 is the palette's sharpest level. The palette of v131072 has 10 levels, 0.75 … 0.33334 of the scene size (Banana Native
 # eden's dm/games/0400486024DEC000/game.tsv scene_scale_palette, read from Pack/Bootup.Nin_Ounce_NVN2.pack.zs there; not read again here): 0.75, 0.71112, 0.66667,
-# 0.62223, 0.58334, 0.53334, 0.5, 0.4445, 0.37223, 0.33334. Sizes are for the 2048x1152 scene the replay presents (683x384 is level 9, the floor seen in the logs)
+# 0.62223, 0.58334, 0.53334, 0.5, 0.4445, 0.37223, 0.33334. Sizes are for the 2048x1152 scene the replay presents (683x384 is level 9, the floor seen in the logs).
+# Measured on an Adreno 830 (README "Dynamic resolution", the 2026-11-14 sweep with the NDSR stand-in on every level's network): every choice below at full game speed,
+# 20 to 26 fps, 24.5 ms of GPU a frame at the lowest level to 31.8 ms at level 0. Other levels: DM_RES_LEVEL=fixed:<level> in env.txt
 res_choice	fixed:0	Max: the sharpest level (75 %, about 1536x864)
-res_choice	fixed:1	High: one step below the top (71 %, about 1456x819)
+res_choice	fixed:1	High: one step below the top (71 %, about 1457x820)
 res_choice	fixed:4	Medium (58 %, about 1195x672)
 res_choice	fixed:6	Low (50 %, about 1024x576)
-res_choice	fixed:lowest	Lowest: coolest (33 %, about 683x384)
+res_choice	fixed:lowest	Lowest: the least sharp level (33 %, about 683x384)
 res_choice	cap:1	Dynamic, never above High
 res_choice	cap:4	Dynamic, never above Medium
 # The CPU writes some textures after creating them, published with and without a flush (upstream nxnative's profile: the terrain's height, blend and hole maps)

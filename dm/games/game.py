@@ -160,17 +160,21 @@ def header(g):
             if not (0 < w < 65536 and 0 < h < 65536): sys.exit(f'{g.id}: window_fn size must be 1..65535 each: {r[3]}')
             wfn.append('{' + q(r[0]) + f', {r[1]}, {r[2]}, {w}, {h}' + '}')
     drs = []   # the game's dynamic-resolution level held or capped (loader.c drs_level_apply, drs_level.h; DM_RES_LEVEL), one row per main build:
-    # <main build ID> <site: the instruction after the call to the level selector> <its word> <the controller's register x0..x30> <the palette size's offset in it> <padding offset:words>...
+    # <main build ID> <site: the instruction after the call to the level selector> <its word> <the level selector, the call's target> <the controller's register x0..x30>
+    # <the palette size's offset in it> <padding offset:words>...
     if g.get('drs_level', ''):
         for r in g.values('drs_level'):
-            ok = len(r) >= 6 and len(r) <= 9 and re.fullmatch(r'[0-9a-f]{32}', r[0]) and re.fullmatch(r'0x[0-9a-fA-F]+', r[1]) and re.fullmatch(r'[0-9a-f]{8}', r[2]) \
-                and re.fullmatch(r'x([0-9]|[12][0-9]|30)', r[3]) and re.fullmatch(r'0x[0-9a-fA-F]+', r[4]) and all(re.fullmatch(r'0x[0-9a-fA-F]+:[1-9][0-9]?', x) for x in r[5:])
-            if not ok or int(r[1], 16) % 4 or int(r[4], 16) % 4 or int(r[4], 16) >= 0x4000 or any(int(x.split(':')[0], 16) % 4 for x in r[5:]):
-                sys.exit(f"{g.id}: drs_level takes <main build ID (32 hex)> <site offset> <its word (8 hex, as in the file)> <controller register x0..x30> <palette size offset "
-                         f"(a multiple of 4 below 0x4000)> <padding offset:words> (1 to 4 areas): {r}")
+            hx = r'0x[0-9a-fA-F]+'
+            ok = len(r) >= 7 and len(r) <= 10 and re.fullmatch(r'[0-9a-f]{32}', r[0]) and re.fullmatch(hx, r[1]) and re.fullmatch(r'[0-9a-f]{8}', r[2]) \
+                and re.fullmatch(hx, r[3]) and re.fullmatch(r'x([0-9]|[12][0-9]|30)', r[4]) and re.fullmatch(hx, r[5]) \
+                and all(re.fullmatch(hx + r':[1-9][0-9]?', x) for x in r[6:])
+            if not ok or int(r[1], 16) % 4 or int(r[3], 16) % 4 or int(r[5], 16) % 4 or int(r[5], 16) >= 0x4000 or any(int(x.split(':')[0], 16) % 4 for x in r[6:]):
+                sys.exit(f"{g.id}: drs_level takes <main build ID (32 hex)> <site offset> <its word (8 hex, as in the file)> <level selector offset (the BL's target)> "
+                         f"<controller register x0..x30> <palette size offset (a multiple of 4 below 0x4000)> <padding offset:words> (1 to 4 areas): {r}")
             word = int.from_bytes(bytes.fromhex(r[2]), 'little')
-            areas = [x.split(':') for x in r[5:]]
-            drs.append('{' + q(r[0]) + f', {r[1]}, {word:#010x}u, {r[3][1:]}, {r[4]}, {{{", ".join(a for a, _ in areas)}}}, {{{", ".join(n for _, n in areas)}}}, {len(areas)}' + '}')
+            areas = [x.split(':') for x in r[6:]]
+            drs.append('{' + q(r[0]) + f', {r[1]}, {word:#010x}u, {r[3]}, {r[4][1:]}, {r[5]}, {{{", ".join(a for a, _ in areas)}}}, {{{", ".join(n for _, n in areas)}}}, '
+                       f'{len(areas)}' + '}')
     # The Android launcher's choices for DM_RES_LEVEL (build.gradle resChoicesOf, Game settings › 3D resolution): <value> <label>, in the list's order. Needs drs_level
     if g.get('res_choice', ''):
         if not drs: sys.exit(f'{g.id}: res_choice needs a drs_level row')
@@ -237,7 +241,7 @@ def header(g):
          f'#define DM_GAME_GPU_TS_SEGMENT {int(gts == "segment")}',
          f'#define DM_GAME_VCONV_RANGE {int(vcr == "on")}',
          f'#define DM_GAME_WINDOW_FN {{{", ".join(wfn) or "{\"\", 0, 0, 0, 0}"}}}', f'#define DM_GAME_NWINDOW_FN {len(wfn)}',
-         f'#define DM_GAME_DRS_LEVEL {{{", ".join(drs) or "{\"\", 0, 0, 0, 0, {0}, {0}, 0}"}}}', f'#define DM_GAME_NDRS_LEVEL {len(drs)}',
+         f'#define DM_GAME_DRS_LEVEL {{{", ".join(drs) or "{\"\", 0, 0, 0, 0, 0, {0}, {0}, 0}"}}}', f'#define DM_GAME_NDRS_LEVEL {len(drs)}',
          *([f'#define DM_GAME_NVN_API_MAJOR {api.split(".")[0]}', f'#define DM_GAME_NVN_API_MINOR {api.split(".")[1]}'] if g.get('device_api', '') else []),   # without the key: by the SDK version (hle_nvn.c nvn_api)
          '']
     return '\n'.join(L)

@@ -660,7 +660,7 @@ static void window_apply(module_t *m) {
 }
 
 // The game's own dynamic-resolution level held or capped (profile key drs_level, DM_RES_LEVEL; drs_level.h has what the written code does). Written into main's text at
-// load, as window_apply, so no new rewrite (Prepare) is needed: only for the main build the row names, after checking the site's word, that a BL comes before it and
+// load, as window_apply, so no new rewrite (Prepare) is needed: only for the main build the row names, after checking the site's word, that a BL to the row's selector comes before it and
 // that the padding it uses is zero; anything else leaves the game's own dynamic resolution and says why. A workaround on the game's own code (the controller is tuned
 // for the Switch 2's GPU and jumps to sharp levels the phone cannot draw in time; dm/games/0400486024DEC000/README.md "Dynamic resolution")
 static void drs_level_apply(module_t *m) {
@@ -669,7 +669,8 @@ static void drs_level_apply(module_t *m) {
     int mode; unsigned n; char why[128];
     if (!drs_level_parse(e, &mode, &n, why, sizeof why)) { LOG("[RED] DM_RES_LEVEL=%s: %s; the game keeps its own dynamic resolution", e, why); return; }
     if (mode == DRS_DYNAMIC) return;
-    static const struct { const char *build; uint64_t site; uint32_t word; unsigned ctl, count_off; uint64_t area[4]; unsigned len[4]; int nareas; } rows[] = DM_GAME_DRS_LEVEL;
+    static const struct { const char *build; uint64_t site; uint32_t word; uint64_t selector; unsigned ctl, count_off; uint64_t area[4]; unsigned len[4]; int nareas; } rows[] =
+        DM_GAME_DRS_LEVEL;
     int r = -1;
     for (int i = 0; i < DM_GAME_NDRS_LEVEL; i++) if (!strcmp(rows[i].build, m->build_id)) r = i;
     if (r < 0) { LOG("[RED] DM_RES_LEVEL=%s: the profile has no drs_level row for main build %s; the game keeps its own dynamic resolution", e, m->build_id); return; }
@@ -679,6 +680,10 @@ static void drs_level_apply(module_t *m) {
     if ((prev & 0xFC000000u) != 0x94000000u || at != rows[r].word) {
         LOG("[RED] drs_level: main+%#llx is %08x %08x, not a BL then %08x; the game keeps its own dynamic resolution", (unsigned long long)site - 4, prev, at, rows[r].word); return;
     }
+    if (drs_bl_target(site - 4, prev) != rows[r].selector) {
+        LOG("[RED] drs_level: the BL at main+%#llx calls main+%#llx, not the level selector main+%#llx; the game keeps its own dynamic resolution", (unsigned long long)site - 4,
+            (unsigned long long)drs_bl_target(site - 4, prev), (unsigned long long)rows[r].selector); return;
+    }
     for (int a = 0; a < rows[r].nareas; a++) {
         if (rows[r].area[a] + 4ull * rows[r].len[a] > m->text_end) { LOG("[RED] drs_level: padding main+%#llx is outside main's text; the game keeps its own dynamic resolution", (unsigned long long)rows[r].area[a]); return; }
         for (unsigned k = 0; k < rows[r].len[a]; k++) if (*(const uint32_t *)(m->base + rows[r].area[a] + 4 * k)) {
@@ -686,7 +691,10 @@ static void drs_level_apply(module_t *m) {
         }
     }
     drs_write w[16]; int nw = drs_level_layout(mode, n, rows[r].ctl, rows[r].count_off, site, rows[r].area, rows[r].len, rows[r].nareas, w);
-    if (!nw) { LOG("[RED] drs_level: the profile's padding is too small for the code; the game keeps its own dynamic resolution"); return; }
+    if (!nw) {
+        LOG("[RED] drs_level: the profile's padding cannot hold the code (too small, overlapping, over the site, or out of a branch's reach); the game keeps its own dynamic resolution");
+        return;
+    }
     for (int i = 0; i < nw; i++) { *(uint32_t *)(m->base + w[i].off) = w[i].word; __builtin___clear_cache((char *)(m->base + w[i].off), (char *)(m->base + w[i].off + 4)); }
     char lv[16]; snprintf(lv, sizeof lv, n == DRS_LAST ? "the last" : "%u", n);
     LOG("resolution: the game's dynamic-resolution level %s %s (DM_RES_LEVEL=%s; 0 = its sharpest level; main+%#llx -> main+%#llx, %d words)",

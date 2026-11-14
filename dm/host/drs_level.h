@@ -11,7 +11,7 @@
 // then w0 = min(w0, palette size - 1) (the palette size is read from the controller, ctl+<count offset>), so a level past the palette is the palette's last, never the
 // "no level" path that draws at full scale. The site's own instruction (a test whether a downward step is immediate) is dropped: with a level set, a step down is always
 // immediate, as the game does itself in those states (the code after the site zeroes the down counter). DM_RES_LEVEL unset, empty or "dynamic" writes nothing.
-// The scratch registers (w8, w9) are caller-saved, and the site must follow a BL (checked), so nothing the caller keeps lives in them there.
+// The scratch registers (w8, w9) are caller-saved, and the site must follow a BL to the selector the row names (checked), so nothing the caller keeps lives in them there.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
@@ -54,27 +54,52 @@ static inline int drs_level_body(int mode, unsigned n, unsigned ctl, unsigned co
     return k;
 }
 
+// B's reach: a word offset in 26 bits, so -128 MiB .. +128 MiB - 4 from the branch, both ends word-aligned
+static inline int drs_b_reach(uint64_t from, uint64_t to) {
+    int64_t d = (int64_t)to - (int64_t)from;
+    return !(from % 4) && !(to % 4) && d >= -(1ll << 27) && d < (1ll << 27);
+}
 static inline uint32_t drs_b(uint64_t from, uint64_t to) { return 0x14000000u | (uint32_t)(((int64_t)to - (int64_t)from) / 4 & 0x3FFFFFF); }
+
+// The target of the BL word at `at` (bl imm26: the same reach as B), or ~0 when the word is not a BL. The host checks that the call before the site goes to the
+// level selector the profile row names
+static inline uint64_t drs_bl_target(uint64_t at, uint32_t word) {
+    if ((word & 0xFC000000u) != 0x94000000u) return ~0ull;
+    int64_t imm = (int64_t)(word & 0x3FFFFFFu);
+    if (imm & 0x2000000) imm -= 0x4000000;
+    return (uint64_t)((int64_t)at + imm * 4);
+}
 
 typedef struct { uint64_t off; uint32_t word; } drs_write;
 
 // Lays the stub out over the padding areas (offsets and word counts, in order): the body, a B to the next area where an area runs out, a B back to site + 4 at the end;
-// then the B from the site to the first area. Returns the number of writes into w (at most 16), 0 when the areas are too small. count_off must be a multiple of 4 below 16 KB
+// then the B from the site to the first area. Returns the number of writes into w (at most 16), 0 when the areas are too small, when an area is not word-aligned, overlaps
+// another or covers the site or the BL before it, or when a branch would not reach (B's +-128 MiB), so a row is never written half right. count_off must be a multiple
+// of 4 below 16 KB
 static inline int drs_level_layout(int mode, unsigned n, unsigned ctl, unsigned count_off, uint64_t site, const uint64_t *area, const unsigned *len, int nareas, drs_write w[16]) {
-    if (mode == DRS_DYNAMIC || count_off % 4 || count_off >= 0x4000 || ctl > 30) return 0;
+    if (mode == DRS_DYNAMIC || count_off % 4 || count_off >= 0x4000 || ctl > 30 || nareas < 1 || nareas > 4 || site < 4 || site % 4) return 0;
+    for (int a = 0; a < nareas; a++) {
+        if (area[a] % 4 || !len[a]) return 0;
+        uint64_t lo = area[a], hi = area[a] + 4ull * len[a];
+        if (lo < site + 4 && site - 4 < hi) return 0;                                         // covers the BL or the site
+        for (int b = 0; b < a; b++) if (lo < area[b] + 4ull * len[b] && area[b] < hi) return 0;   // overlaps an earlier area
+    }
     uint32_t body[8]; int nb = drs_level_body(mode, n, ctl, count_off, body), nw = 0, i = 0, done = 0;
     for (int a = 0; a < nareas && !done; a++) {
         uint64_t at = area[a];
         for (unsigned left = len[a]; left; left--, at += 4) {
-            if (i == nb) { w[nw++] = (drs_write){at, drs_b(at, site + 4)}; done = 1; break; }   // all placed: back after the site
+            if (i == nb) {                                                                     // all placed: back after the site
+                if (!drs_b_reach(at, site + 4)) return 0;
+                w[nw++] = (drs_write){at, drs_b(at, site + 4)}; done = 1; break;
+            }
             if (left == 1) {                                                                   // one slot left: it takes the branch on
-                if (a == nareas - 1) return 0;
+                if (a == nareas - 1 || !drs_b_reach(at, area[a + 1])) return 0;
                 w[nw++] = (drs_write){at, drs_b(at, area[a + 1])}; break;
             }
             w[nw++] = (drs_write){at, body[i++]};
         }
     }
-    if (!done) return 0;
+    if (!done || !drs_b_reach(site, area[0])) return 0;
     w[nw++] = (drs_write){site, drs_b(site, area[0])};
     return nw;
 }
