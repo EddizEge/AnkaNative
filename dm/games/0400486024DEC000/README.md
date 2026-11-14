@@ -96,6 +96,7 @@ The intro skip ([android/TESTING.md](../../../android/TESTING.md#intro-skip)) ta
 - HyperOS's `uinput-xiaomi`: the front end's filter that leaves it without a player (step 5) is not yet checked on the phone.
 - The memory keys are still Mario Kart World's, not measured: about 10.0 of 10.9 GiB in use while playing.
 - The microphone path (no device on the host; [Files](#files)).
+- The raw counter reports' rate ([Raw NVN timestamp units](../../../docs/reference/frame-rate.md#raw-nvn-timestamp-units), nxnative PR #1714): `DM_NVN_TS_HZ=31250000` against unset on the phone: the speed of the swaying grass, leaves and hanging plants in Kokiri Forest, and the dynamic-resolution level and GPU time the game settles at (the 683x384 floor).
 
 ## Found on this game
 
