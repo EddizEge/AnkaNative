@@ -89,6 +89,34 @@ def wrap(s, n):
     return out
 
 
+def wrap_cmd(s, n, cont):
+    """A command in lines of at most n cells: whole when it fits, else broken at spaces outside single quotes (a backslash and a newline inside them would
+    stay as they are), each line but the last ending in cont, the shell's line continuation, so that the lines copied together run as one command. A word
+    longer than a line (a URL) is cut after a separator (never at a space), with no mark: no continuation can go inside a word"""
+    if width(s) <= n: return [s]
+    words, cur, quoted = [], '', False
+    for ch in s:
+        if ch == "'": quoted = not quoted
+        if ch == ' ' and not quoted: words.append(cur); cur = ''
+        else: cur += ch
+    words.append(cur)
+    out, line = [], ''
+    for i, word in enumerate(words):
+        last = i == len(words) - 1
+        cand = word if not line else line + ' ' + word
+        if width(cand) + (0 if last else width(cont)) <= n: line = cand; continue
+        if line: out.append(line + cont)
+        if width(word) + (0 if last else width(cont)) <= n: line = word; continue
+        while width(word) > n - width(cont):   # (cut after its last separator that fits, as wrap cuts a path, but never at a space: the last part leaves room for cont)
+            part = fit(word, n - width(cont), '')
+            cut = max(part.rfind('/'), part.rfind('\\'))
+            if cut > 0: part = part[:cut + 1]
+            out.append(part); word = word[len(part):]
+        line = word
+    if line: out.append(line)
+    return out
+
+
 class Screen:
     def __init__(self, w, h, glyphs=None):
         self.w, self.h = w, h

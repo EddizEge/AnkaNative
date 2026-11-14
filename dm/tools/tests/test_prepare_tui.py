@@ -818,6 +818,28 @@ class Prereq(unittest.TestCase):
             with mock.patch.object(self.checks, 'old_python', return_value=False): self.assertEqual(self.checks.pkg_fix('arch'), [f'{self.checks.py_cmd()} {self.checks.PIP}'])
             (env / 'conda-meta').rmdir(); self.assertFalse(self.checks.in_venv())
 
+    def test_command_wrap(self):
+        """A command too long for the screen: broken at spaces with the shell's line continuation (a backtick in PowerShell), never inside single quotes,
+        whole when it fits; the checks screen draws it so"""
+        c = self.checks
+        pip = c.Cmd('<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4')
+        self.assertEqual(scr.wrap_cmd(pip, 68, pip.cont), ['<dump folder>/.venv-anka/bin/python -m pip install \\', '"capstone>=5,<6" lz4'])
+        self.assertEqual(scr.wrap_cmd(pip, 80, pip.cont), [pip])
+        ps = c.PsCmd(r'D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4')
+        self.assertTrue(scr.wrap_cmd(ps, 68, ps.cont)[0].endswith(' `'))
+        su = c.Cmd("su -c 'apt install python3.14 python3.14-venv' && echo done")
+        self.assertEqual(scr.wrap_cmd(su, 50, su.cont), ["su -c 'apt install python3.14 python3.14-venv' \\", '&& echo done'])
+        for n in (30, 48, 68):
+            for cmd in (pip, c.BREW_GET, su):
+                rows = scr.wrap_cmd(cmd, n, cmd.cont)
+                self.assertTrue(all(scr.width(r) <= n for r in rows), rows)
+                self.assertEqual(''.join(r[:-2] + ' ' if r.endswith(' \\') else r for r in rows), cmd)   # (the cut inside a word adds nothing)
+        sc = scr.Screen(80, 24)
+        app.draw_checks(sc, [c.Check('Capstone 5', False, 'missing', [pip])])
+        self.assertIn('-m pip install \\\n', sc.text().replace(' \\' + ' ' * 9, ' \\'))
+        rows = [l.strip() for l in sc.text().split('\n')]
+        self.assertEqual(rows[rows.index('<dump folder>/.venv-anka/bin/python -m pip install \\') + 1], '"capstone>=5,<6" lz4')
+
     def test_windows(self):
         self.path()
         f = self.fixes('windows')
@@ -828,30 +850,42 @@ class Prereq(unittest.TestCase):
         for w in ('dotnet', 'spirv', 'cc'): self.assertIn('https://', f[w][0], w)
 
     def test_no_tool_without_a_way(self):
-        """For every system, every fix and every set of TOOLS on the PATH: each line is either a text of texts.TEXTS (words) or a command; a command's first
-        word is a known one; and a tool it runs (as the command, after sudo or su -c, or in $(…) / <(…)) is on the PATH or got by an earlier line of the
-        fix: its page named, or an install line for it. A new fix line that runs a tool without either fails here."""
+        """For every system (Linux also as a few releases), every fix and every set of TOOLS on the PATH: each line is either a command (checks.Cmd) or one of
+        texts.TEXTS' fix texts, whole; a command's first word is a known one; a tool it runs (as the command, after sudo or su -c, or in $(…) / <(…)) is on
+        the PATH or got by an earlier line of the fix: its page named, or an install line for it; and a text that names a tool not on the PATH is in a fix
+        that gets it (so no command hides in the words). A new fix line that runs a tool without either fails here."""
         import itertools
-        words = [re.compile(re.escape(v).replace(r'\{\}', '.*') + '$', re.S) for v in texts.TEXTS.values()]
+        words = [re.compile(re.escape(v).replace(r'\{\}', '.*'), re.S) for k, v in texts.TEXTS.items() if k.startswith('fix.')]
         gets = {'brew': r'https://brew\.sh', 'micromamba': r'mamba\.readthedocs\.io', 'curl': r"(?:install|-S) curl'?$|curl package",
                 'python3.14': r'python\.org', 'py': r'python\.org', 'pymanager': r'python\.org', 'sudo': r'(?!)'}   # sudo: only when found (root() takes su without it)
         first_words = {'brew', 'micromamba', 'python3.14', 'py', 'sudo', 'su', 'xcode-select', 'eval', '<dump', '"${SHELL}"', '/bin/bash', 'D:\\Switch2\\.venv-anka\\Scripts\\python',
                        self.checks.py_cmd().split()[0]}
+        releases = ({}, {'ID': 'debian', 'VERSION_ID': '13', 'PRETTY_NAME': 'Debian GNU/Linux 13 (trixie)'}, {'ID': 'ubuntu', 'VERSION_ID': '22.04'},
+                    {'ID': 'opensuse-leap', 'VERSION_ID': '16.0'}, {'ID': 'opensuse-tumbleweed', 'VERSION_ID': '20261110'})
         n = 0
         for k in range(len(TOOLS) + 1):
             for on in itertools.combinations(TOOLS, k):
                 self.path(*on)
-                for sysname, arm in [(s, True) for s in SYSTEMS] + [('mac', False)]:   # (and an Intel Mac)
-                    for name, fix in self.fixes(sysname, arm).items():
-                        for i, line in enumerate(fix):
-                            if any(w.match(line) for w in words): continue
-                            n += 1
-                            where = f'{sysname} {name} with {on or "nothing"} on the PATH: {line!r} in {fix}'
-                            self.assertIn(line.split()[0], first_words, where)
-                            for t in TOOLS:
-                                if not re.search(rf"(?:^|sudo |su -c '|\$\(|<\(){re.escape(t)}(?:\s|$)", line): continue
-                                if t in on or sysname == 'mac' and t == 'curl': continue   # (macOS has curl: /usr/bin/curl)
-                                self.assertTrue(any(re.search(gets[t], l) for l in fix[:i]), f'{t} neither found nor got: {where}')
+                for rel in releases:
+                    self.rel = rel
+                    for sysname, arm in [(s, True) for s in SYSTEMS] + [('mac', False)]:   # (and an Intel Mac)
+                        if rel and sysname in ('windows', 'mac'): continue
+                        for name, fix in self.fixes(sysname, arm).items():
+                            for i, line in enumerate(fix):
+                                where = f'{sysname} {rel.get("ID", "")} {name} with {on or "nothing"} on the PATH: {line!r} in {fix}'
+                                if not isinstance(line, self.checks.Cmd):
+                                    self.assertTrue(any(w.fullmatch(line) for w in words), f'neither a command nor a fix text: {where}')
+                                    for t in TOOLS:
+                                        if t in on or sysname == 'mac' and t == 'curl' or not re.search(rf'(?<![\w/.-]){re.escape(t)}(?![\w.-])', line): continue
+                                        if re.search(rf'\bno {re.escape(t)} here', line): continue   # (says it is missing)
+                                        self.assertTrue(any(re.search(gets[t], l) for l in fix), f'a text names {t}, neither found nor got: {where}')
+                                    continue
+                                n += 1
+                                self.assertIn(line.split()[0], first_words, where)
+                                for t in TOOLS:
+                                    if not re.search(rf"(?:^|sudo |su -c '|\$\(|<\(){re.escape(t)}(?:\s|$)", line): continue
+                                    if t in on or sysname == 'mac' and t == 'curl': continue   # (macOS has curl: /usr/bin/curl)
+                                    self.assertTrue(any(re.search(gets[t], l) for l in fix[:i]), f'{t} neither found nor got: {where}')
         self.assertGreater(n, 1000)
 
 

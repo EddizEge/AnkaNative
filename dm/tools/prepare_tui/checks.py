@@ -15,6 +15,16 @@ import nso   # noqa: E402  (dm/tools/nso.py: the ZBIC decoder's build and load)
 PIP = '-m pip install "capstone>=5,<6" lz4'
 
 
+class Cmd(str):
+    """A fix line that is a command, typed as it is; the other lines are words (texts.py). A command too long for the screen is broken at spaces with the
+    shell's line continuation (cont) at the end of each line but the last, so that its lines copied together still run as one command (screen.wrap_cmd)"""
+    cont = ' \\'
+
+
+class PsCmd(Cmd):   # a PowerShell command: its line continuation is the backtick
+    cont = ' `'
+
+
 class Check:
     def __init__(self, name, ok, found, fix=(), detail=()):
         self.name, self.ok, self.found, self.fix = name, ok, found, list(fix)   # fix: lines, commands as they are typed on this system
@@ -59,9 +69,9 @@ def py_cmd():   # this Python as it is typed
 # need it (an installer from the official download page). test_prepare_tui.py Prereq holds every system's fixes to that, with and without each tool.
 VENV = '<dump folder>/.venv-anka'
 BREW_PREFIXES = ('/opt/homebrew', '/usr/local')   # where Homebrew installs itself: Apple silicon, Intel Macs (docs.brew.sh/Installation)
-BREW_GET = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'   # as https://brew.sh gives it
-MAMBA_GET = '"${SHELL}" <(curl -L micro.mamba.pm)'   # as https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html gives it
-MAMBA_CREATE = f'micromamba create -p {VENV} python=3.14 -c conda-forge'
+BREW_GET = Cmd('/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"')   # as https://brew.sh gives it
+MAMBA_GET = Cmd('"${SHELL}" <(curl -L micro.mamba.pm)')   # as https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html gives it
+MAMBA_CREATE = Cmd(f'micromamba create -p {VENV} python=3.14 -c conda-forge')
 # The distribution's own Python 3.14 (Ubuntu 26.04 and later, Debian testing, Fedora, Arch's python, openSUSE Tumbleweed); Debian's venv module is a
 # package of its own. Where the distribution has none, micromamba brings it.
 PY_PKG = {'debian': 'apt install python3.14 python3.14-venv', 'fedora': 'dnf install python3.14', 'arch': 'pacman -S python', 'suse': 'zypper install python314'}
@@ -99,17 +109,17 @@ def found(tool): return shutil.which(tool) is not None
 
 def root(cmd):
     """A package manager's command as root: with sudo when there is one, else with su (a Debian installed with a root password has no sudo)"""
-    return f'sudo {cmd}' if found('sudo') else f"su -c '{cmd}'"
+    return Cmd(f'sudo {cmd}' if found('sudo') else f"su -c '{cmd}'")
 
 
 def brew(args):
     """The lines that run `brew args` on the Mac: the command when Homebrew is on the PATH; when it is installed but not on the PATH (its installer's last
     step not done), the line that puts it there first; else how to get Homebrew"""
-    if found('brew'): return [f'brew {args}']
+    if found('brew'): return [Cmd(f'brew {args}')]
     for p in BREW_PREFIXES:
         b = Path(p) / 'bin' / 'brew'
-        if b.is_file(): return [T('fix.brew_path', b), f'eval "$({b} shellenv)"', f'brew {args}']
-    return [T('fix.brew_get'), BREW_GET, T('fix.brew_then'), f'brew {args}']
+        if b.is_file(): return [T('fix.brew_path', b), Cmd(f'eval "$({b} shellenv)"'), Cmd(f'brew {args}')]
+    return [T('fix.brew_get'), BREW_GET, T('fix.brew_then'), Cmd(f'brew {args}')]
 
 
 def mac_arm():
@@ -132,9 +142,9 @@ def venv_fix(sysname):
     micromamba when it is (first on the Mac, where a python3.14 may be an Intel Homebrew's, which starts the translator as Intel code), else how to get one"""
     if sysname == 'windows':   # (python.org's default download is the Python install manager, whose py installs 3.14 only when asked: py install)
         get = [] if found('pymanager') and found('py') else [T('fix.python_win')]
-        return get + ['py install 3.14', r'py -3.14 -m venv D:\Switch2\.venv-anka',
-                rf'D:\Switch2\.venv-anka\Scripts\python {PIP}', r'D:\Switch2\.venv-anka\Scripts\python scripts\prepare.py']
-    venv = f'python3.14 -m venv {VENV}'
+        return get + [PsCmd(c) for c in ('py install 3.14', r'py -3.14 -m venv D:\Switch2\.venv-anka', rf'D:\Switch2\.venv-anka\Scripts\python {PIP}',
+                                         r'D:\Switch2\.venv-anka\Scripts\python scripts\prepare.py')]
+    venv = Cmd(f'python3.14 -m venv {VENV}')
     if sysname == 'mac':
         head = [MAMBA_CREATE] if found('micromamba') else [venv] if found('python3.14') else [T('fix.python_mac'), venv]
     elif found('python3.14'): head = [venv]
@@ -144,13 +154,13 @@ def venv_fix(sysname):
         if pkg and python_none(rid, ver): head = [T('fix.python_none', name)]   # (no line that is sure to fail first)
         else: head = [T('fix.python_pkg'), root(pkg), T('fix.python_mamba')] if pkg else [T('fix.python_other')]
         head += mamba(sysname)
-    return head + [f'{VENV}/bin/python {PIP}', f'{VENV}/bin/python scripts/prepare.py']
+    return head + [Cmd(f'{VENV}/bin/python {PIP}'), Cmd(f'{VENV}/bin/python scripts/prepare.py')]
 
 
 def pkg_fix(sysname):
     """Capstone's and lz4's fix: pip in this Python's environment; in a Python older than 3.14 the environment's fix, the same as the Python check's (shown once)"""
     if old_python(): return venv_fix(sysname)
-    if in_venv(): return [f'{py_cmd()} {PIP}']
+    if in_venv(): return [(PsCmd if sysname == 'windows' else Cmd)(f'{py_cmd()} {PIP}')]
     return [T('fix.not_venv')] + venv_fix(sysname)
 
 
@@ -165,7 +175,7 @@ def install(sysname, what):
     if sysname == 'windows': return [T({'dotnet': 'fix.dotnet_win', 'spirv': 'fix.spirv_win', 'cc': 'fix.cc_win'}[what])]
     if sysname == 'mac':   # (Homebrew builds spirv-tools for Apple silicon only: formulae.brew.sh; an Intel Mac is its Tier 3, which builds it from source)
         spirv = ([] if mac_arm() else [T('fix.spirv_intel')]) + brew('install spirv-tools') if what == 'spirv' else []
-        return {'dotnet': [T('fix.dotnet_mac')], 'spirv': spirv, 'cc': ['xcode-select --install']}[what]
+        return {'dotnet': [T('fix.dotnet_mac')], 'spirv': spirv, 'cc': [Cmd('xcode-select --install')]}[what]
     if sysname in PKG_INSTALL:
         pkg = {'dotnet': 'dotnet-runtime-10.0', 'spirv': 'spirv-tools', 'cc': 'build-essential' if sysname == 'debian' else 'gcc'}[what]
         out = [root(f'{PKG_INSTALL[sysname]} {pkg}')]

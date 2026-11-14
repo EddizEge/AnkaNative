@@ -146,7 +146,10 @@ def draw_checks(sc, res, scroll=0, busy=False):
             lines.append(([(T('checks.same_fix'), YELLOW)], 6))
         elif not c.ok:
             lines.append(([(T('checks.fix'), YELLOW)], 6))
-            for f in c.fix:
+            for f in c.fix:   # a command on more lines with its line continuation, the lines after its first indented (and all of it bold)
+                if isinstance(f, checks.Cmd):
+                    lines += [([(l, YELLOW | BOLD)], 8 if i == 0 else 10) for i, l in enumerate(scr.wrap_cmd(f, sc.w - 12, f.cont))]
+                    continue
                 for i, l in enumerate(scr.wrap(f, sc.w - 10)): lines.append(([(l, YELLOW | BOLD if i == 0 and not f.endswith(':') else YELLOW)], 8))
     top, rows = 4, sc.h - 8
     scroll = max(0, min(scroll, len(lines) - rows))
