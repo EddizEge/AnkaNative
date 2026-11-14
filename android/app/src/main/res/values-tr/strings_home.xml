@@ -157,10 +157,19 @@
     <string name="home_no_pack_folder_body">%1$s\n\nTam olarak bu klasör için yapılmış bir paket klasörün (pack.tsv içeren) varsa onu seçebilirsin.</string>
     <string name="home_pick_a_pack_folder">Paket klasörü seç</string>
     <string name="home_pick_android_pack">Paket klasörünü seç (android-pack, pack.tsv içeren)</string>
-    <string name="home_added_ok">Eklendi: %1$s.</string>
-    <string name="home_added_prepare">Hazırlanması gerekiyor: %1$s. Uygun bir paket bulunamadı: kartındaki %2$s düğmesi bu telefonda bir paket yapar (aynı anda bir oyun).</string>
+        <plurals name="home_added_ok">
+        <item quantity="one">Eklendi: %1$s.</item>
+        <item quantity="other">Eklendi: %1$s.</item>
+    </plurals>
+        <plurals name="home_added_prepare">
+        <item quantity="one">Hazırlanması gerekiyor: %1$s. Uygun bir paket bulunamadı: kartındaki %2$s düğmesi bu telefonda bir paket yapar (aynı anda bir oyun).</item>
+        <item quantity="other">Hazırlanması gerekiyor: %1$s. Uygun bir paket bulunamadı: kartındaki %2$s düğmesi bu telefonda bir paket yapar (aynı anda bir oyun).</item>
+    </plurals>
     <string name="home_added_unsupported">Bu uygulamada desteklenmiyor: %1$s. Bu uygulama şunları çalıştırır: %2$s.</string>
-    <string name="home_added_no_pack">Paket bulunamadı: %1$s. Paket klasörünü seçmek için onu tek başına ekle.</string>
+        <plurals name="home_added_no_pack">
+        <item quantity="one">Paket bulunamadı: %1$s. Paket klasörünü seçmek için onu tek başına ekle.</item>
+        <item quantity="other">Paket bulunamadı: %1$s. Paket klasörünü seçmek için onu tek başına ekle.</item>
+    </plurals>
     <string name="home_added_failed">Eklenmedi: %1$s</string>
     <string name="home_added_twice">Aynı oyunun başka bir dökümü zaten listedeydi, bu yüzden iki kart da tutuldu: %1$s. ⋯ › %2$s ile biri kaldırılabilir (hiçbir şey silinmez).</string>
     <string name="home_added_none_title">Oyun eklenmedi</string>

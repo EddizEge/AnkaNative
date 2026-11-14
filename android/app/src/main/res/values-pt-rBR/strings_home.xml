@@ -181,12 +181,21 @@
     <string name="home_pick_a_pack_folder">Escolher uma pasta de pacote</string>
     <string name="home_pick_android_pack">Escolha a pasta do pacote (android-pack, com pack.tsv)</string>
     <!-- The summary of Add game for a folder of games: one paragraph each; also logged in English -->
-    <string name="home_added_ok">Jogos adicionados: %1$s.</string>
+        <plurals name="home_added_ok">
+        <item quantity="one">Jogo adicionado: %1$s.</item>
+        <item quantity="other">Jogos adicionados: %1$s.</item>
+    </plurals>
     <!-- %2$s: home_prepare (the card's button) -->
-    <string name="home_added_prepare">Falta preparar: %1$s. Nenhum pacote compatível foi encontrado: o botão %2$s de cada cartão cria um neste celular (um jogo por vez).</string>
+        <plurals name="home_added_prepare">
+        <item quantity="one">Falta preparar: %1$s. Nenhum pacote compatível foi encontrado: o botão %2$s do cartão dele cria um neste celular (um jogo por vez).</item>
+        <item quantity="other">Falta preparar: %1$s. Nenhum pacote compatível foi encontrado: o botão %2$s de cada cartão cria um neste celular (um jogo por vez).</item>
+    </plurals>
     <!-- %2$s: the title IDs this app runs -->
     <string name="home_added_unsupported">Sem suporte neste app: %1$s. Este app roda: %2$s.</string>
-    <string name="home_added_no_pack">Nenhum pacote encontrado: %1$s. Adicione cada jogo separadamente para escolher a pasta do pacote dele.</string>
+        <plurals name="home_added_no_pack">
+        <item quantity="one">Nenhum pacote encontrado: %1$s. Adicione o jogo sozinho para escolher a pasta do pacote dele.</item>
+        <item quantity="other">Nenhum pacote encontrado: %1$s. Adicione cada jogo separadamente para escolher a pasta do pacote dele.</item>
+    </plurals>
     <string name="home_added_failed">Não foi possível adicionar: %1$s</string>
     <!-- %1$s: the file, %2$s: why -->
     <!-- %2$s: home_remove (the Manage sheet's button) -->

@@ -785,10 +785,10 @@ public final class MainActivity extends Activity {
         refresh();
         // The summary's paragraphs: the dialog shows them in the user's language, the log line keeps them English
         List<Msg> m = new ArrayList<>();
-        if (!ok.isEmpty()) m.add(new Msg("home_added_ok", TextUtils.join(", ", ok)));
-        if (!prepare.isEmpty()) m.add(new Msg("home_added_prepare", TextUtils.join(", ", prepare), new Msg("home_prepare")));
+        if (!ok.isEmpty()) m.add(Msg.plural("home_added_ok", ok.size(), TextUtils.join(", ", ok)));
+        if (!prepare.isEmpty()) m.add(Msg.plural("home_added_prepare", prepare.size(), TextUtils.join(", ", prepare), new Msg("home_prepare")));
         if (!unsupported.isEmpty()) m.add(new Msg("home_added_unsupported", TextUtils.join(", ", unsupported), TextUtils.join(", ", profileIds())));
-        if (!noPack.isEmpty()) m.add(new Msg("home_added_no_pack", TextUtils.join(", ", noPack)));
+        if (!noPack.isEmpty()) m.add(Msg.plural("home_added_no_pack", noPack.size(), TextUtils.join(", ", noPack)));
         List<String> shownM = new ArrayList<>(), englishM = new ArrayList<>();
         for (Msg x : m) { shownM.add(x.text()); englishM.add(x.english()); }
         if (!failed.isEmpty()) {   // each why rendered on its own (a Msg, or another area's English), then joined in each language

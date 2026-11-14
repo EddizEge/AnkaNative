@@ -81,7 +81,7 @@ public final class HomeTextsJvmTest {
         // The summary of Add game: a Msg, English for the log line whatever the user's language
         Msg twice = new Msg("home_added_twice", "a.nup, b", new Msg("home_remove"));
         same(twice.english(), "Another dump of the same game was on the list already, so both cards are kept: " + "a.nup, b" + ". ⋯ › Remove from list takes one away (nothing is deleted).", "twice");
-        same(new Msg("home_added_prepare", "OoT", new Msg("home_prepare")).english(),
+        same(Msg.plural("home_added_prepare", 1, "OoT", new Msg("home_prepare")).english(),
                 "Needs Prepare: " + "OoT" + ". No pack that fits was found: its card's Prepare makes one on this phone (one game at a time).", "needs prepare");
         same(new Msg("home_added_failed_item", "x.nup", new Msg("home_nup_wrong_case_short", "x.NUP")).english(),
                 "x.nup" + ": " + "x.NUP" + ": rename it so that its name ends in \".nup\" (lower case).", "failed item");

@@ -185,13 +185,23 @@
     <string name="home_no_pack_folder_body">%1$s\n\nIf you have a pack folder made for exactly this folder (with pack.tsv), you can pick it.</string>
     <string name="home_pick_a_pack_folder">Pick a pack folder</string>
     <string name="home_pick_android_pack">Pick the pack folder (android-pack, with pack.tsv)</string>
-    <!-- The summary of Add game for a folder of games: one paragraph each; also logged in English -->
-    <string name="home_added_ok">Added: %1$s.</string>
+    <!-- The summary of Add game for a folder of games: one paragraph each; also logged in English. %1$s: a list of one or more games; the plurals pick their item
+         by how many games the list holds (the same English for both) -->
+    <plurals name="home_added_ok">
+        <item quantity="one">Added: %1$s.</item>
+        <item quantity="other">Added: %1$s.</item>
+    </plurals>
     <!-- %2$s: home_prepare (the card's button) -->
-    <string name="home_added_prepare">Needs Prepare: %1$s. No pack that fits was found: its card\'s %2$s makes one on this phone (one game at a time).</string>
+        <plurals name="home_added_prepare">
+        <item quantity="one">Needs Prepare: %1$s. No pack that fits was found: its card\'s %2$s makes one on this phone (one game at a time).</item>
+        <item quantity="other">Needs Prepare: %1$s. No pack that fits was found: its card\'s %2$s makes one on this phone (one game at a time).</item>
+    </plurals>
     <!-- %2$s: the title IDs this app runs -->
     <string name="home_added_unsupported">Not supported by this app: %1$s. This app runs: %2$s.</string>
-    <string name="home_added_no_pack">No pack found: %1$s. Add it on its own to pick its pack folder.</string>
+        <plurals name="home_added_no_pack">
+        <item quantity="one">No pack found: %1$s. Add it on its own to pick its pack folder.</item>
+        <item quantity="other">No pack found: %1$s. Add it on its own to pick its pack folder.</item>
+    </plurals>
     <string name="home_added_failed">Not added: %1$s</string>
     <!-- %1$s: the file, %2$s: why -->
     <string name="home_added_failed_item">%1$s: %2$s</string>

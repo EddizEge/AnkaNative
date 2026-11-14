@@ -156,10 +156,19 @@
     <string name="home_no_pack_folder_body">%1$s\n\nSi tienes una carpeta de paquete hecha exactamente para esta carpeta (con pack.tsv), puedes elegirla.</string>
     <string name="home_pick_a_pack_folder">Elegir carpeta de paquete</string>
     <string name="home_pick_android_pack">Elige la carpeta del paquete (android-pack, con pack.tsv)</string>
-    <string name="home_added_ok">Agregados: %1$s.</string>
-    <string name="home_added_prepare">Falta preparar: %1$s. No se encontró un paquete que coincida: el botón %2$s de cada tarjeta crea uno en este teléfono (un juego a la vez).</string>
+        <plurals name="home_added_ok">
+        <item quantity="one">Se agregó: %1$s.</item>
+        <item quantity="other">Se agregaron: %1$s.</item>
+    </plurals>
+        <plurals name="home_added_prepare">
+        <item quantity="one">Falta preparar: %1$s. No se encontró un paquete que coincida: el botón %2$s de su tarjeta crea uno en este teléfono (un juego a la vez).</item>
+        <item quantity="other">Falta preparar: %1$s. No se encontró un paquete que coincida: el botón %2$s de cada tarjeta crea uno en este teléfono (un juego a la vez).</item>
+    </plurals>
     <string name="home_added_unsupported">Sin compatibilidad con esta app: %1$s. Esta app ejecuta: %2$s.</string>
-    <string name="home_added_no_pack">No se encontró paquete: %1$s. Agrega cada uno por separado para elegir su carpeta de paquete.</string>
+        <plurals name="home_added_no_pack">
+        <item quantity="one">No se encontró paquete: %1$s. Agrégalo por separado para elegir su carpeta de paquete.</item>
+        <item quantity="other">No se encontró paquete: %1$s. Agrega cada uno por separado para elegir su carpeta de paquete.</item>
+    </plurals>
     <string name="home_added_failed">Sin agregar: %1$s</string>
     <string name="home_added_twice">Ya había otro volcado del mismo juego en la lista, así que se conservan ambas tarjetas: %1$s. ⋯ › %2$s quita una (no se elimina nada).</string>
     <string name="home_added_none_title">No se agregó ningún juego</string>
