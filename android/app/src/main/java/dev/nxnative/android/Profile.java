@@ -64,7 +64,7 @@ final class Profile {
 
     /** The label of a stored 3D resolution value (Prefs.resLevel): "Dynamic (the game's own)" for null, the choice's label, or null for a value this profile no longer offers */
     String resLevelLabel(String value) {
-        if (value == null) return "Dynamic (the game's own)";
+        if (value == null) return Tr.s("settings_profile_res_level_dynamic");
         for (String[] c : resLevels()) if (c[0].equals(value)) return c[1];
         return null;
     }
@@ -127,13 +127,21 @@ final class Profile {
     /** The default game (the first): the graphics self-test runs its host */
     static Profile first() { return all().get(0); }
 
-    /** Why this APK cannot run a title, in a sentence (null when it has its profile) */
+    /** Why this APK cannot run a title, in a sentence (null when it has its profile). English (logs, and the callers of other areas until they take
+     *  {@link #missingMsg}); a screen of the settings area takes missingMsg */
     static String missing(String titleId, String what) {
+        Msg m = missingMsg(titleId, what);
+        return m == null ? null : m.english();
+    }
+
+    /** {@link #missing} as a Msg (null when this APK has the title's profile); what: a name, the caller's own Msg ("This dump"), or null for the title ID alone */
+    static Msg missingMsg(String titleId, Object what) {
         if (of(titleId) != null) return null;
         // The title IDs this APK runs, so a user with another game sees it is not supported (rather than a broken dump); IDs only, no game names
         List<String> ids = new ArrayList<>();
         for (Profile p : all()) ids.add(p.titleId);
-        return (what == null ? titleId : what + " (" + titleId + ")") + " has no game profile in this app, so it cannot run here. This app runs: " + String.join(", ", ids) + ".";
+        String runs = String.join(", ", ids);
+        return what == null ? new Msg("settings_profile_missing", titleId, runs) : new Msg("settings_profile_missing_named", what, titleId, runs);
     }
 
     /** A version of a dump in words: 0 is the base game itself (no update installed; Mario Kart World 1.8.0's supported build), any other an update. English,
@@ -162,7 +170,7 @@ final class Profile {
     /** buildName as a Msg; the module name and build ID ("main d00e…") stay as they are in every language */
     Msg buildMsg(long v) {
         String d = display(v), main = buildMap().getOrDefault(v, Map.of()).get("main");
-        String ids = main == null ? "" : "main " + main.substring(0, Math.min(16, main.length())) + "…";
+        String ids = main == null ? "" : "main " + main.substring(0, Math.min(16, main.length())) + "…";   // i18n-keep: the module name and its build ID
         if (d != null) {
             Msg which = v == 0 ? new Msg("settings_profile_base_game_v0") : new Msg("settings_profile_update", v);
             return ids.isEmpty() ? new Msg("settings_profile_build_shown", d, which) : new Msg("settings_profile_build_shown_ids", d, which, ids);

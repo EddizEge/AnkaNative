@@ -12,7 +12,7 @@ import java.security.NoSuchAlgorithmException;
  */
 final class Signer {
     /** The release certificate's fingerprint before the release key exists: matches no signer */
-    static final String NOT_SET = "not set";
+    static final String NOT_SET = "not set";   // i18n-keep: a value of OFFICIAL that test_android_signer.py reads, not a text
 
     // ======================================================================================================================================================
     // THE RELEASE CERTIFICATE: the one place its fingerprint lives (dm/tools/tests/test_android_signer.py reads it from here). NOT SET until the owner's release
@@ -53,7 +53,7 @@ final class Signer {
 
     static String mark(boolean play, String[] signers, String cert) {
         if (!play) return null;
-        return official(signers, cert) ? "official" : "unofficial build";
+        return official(signers, cert) ? "official" : "unofficial build";   // i18n-keep: part of the build tag, the first line of every game log and the readiness report
     }
 
     /** For logs and reports: the first signer's first 16 hex digits ("+<n>" when more keys signed it), "unknown" when none could be read */
@@ -80,7 +80,7 @@ final class Signer {
     }
 
     /** The build tag without its mark: "Anka Native &lt;buildId&gt;" (play app), "Anka Native test · &lt;buildId&gt;" (test app) */
-    static String buildTag(boolean play, String buildId) { return "Anka Native " + (play ? "" : "test · ") + buildId; }
+    static String buildTag(boolean play, String buildId) { return "Anka Native " + (play ? "" : "test · ") + buildId; }   // i18n-keep: the app's name and variant, logged (NX_BUILD_TAG)
 
     /** The build tag with its mark:"<tag> · official", "<tag> · unofficial build", or the tag alone (test app) */
     static String tag(String tag, boolean play, String[] signers) { return tag(tag, play, signers, OFFICIAL); }

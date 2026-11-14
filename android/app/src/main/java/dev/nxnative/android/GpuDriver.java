@@ -95,9 +95,9 @@ final class GpuDriver {
     /** The host's switch for a run of a game (before env.txt, whose lines win) and a line for the log */
     static String env(Context c, String titleId, List<String> env) {
         Info i = selected(c, titleId);
-        if (i == null) return "GPU driver: system";
+        if (i == null) return "GPU driver: system";   // i18n-keep: a log line (GameActivity's Native.note)
         env.add("DM_VK_DRIVER=" + i.dir.getPath());
-        return "GPU driver: " + i.label() + " (" + i.dir + ")";
+        return "GPU driver: " + i.label() + " (" + i.dir + ")";   // i18n-keep: a log line
     }
 
     private static JSONObject meta(File f) {
@@ -117,13 +117,13 @@ final class GpuDriver {
     static Info install(Context c, InputStream zin, String fallbackName) throws IOException {
         File dir = DriverZip.install(root(c), zin, fallbackName, GpuDriver::metaFields);
         JSONObject m = meta(new File(dir, "meta.json"));
-        if (m == null) throw new IOException("cannot read the installed " + dir + "/meta.json");
+        if (m == null) throw new LocalizedIOException("settings_gpu_meta_unreadable", dir);
         return new Info(dir, m);
     }
 
     static Info install(Context c, Uri uri) throws IOException {
         try (InputStream in = c.getContentResolver().openInputStream(uri)) {
-            if (in == null) throw new IOException("cannot open " + uri);
+            if (in == null) throw new LocalizedIOException("settings_gpu_cannot_open", uri);
             String last = uri.getLastPathSegment();
             return install(c, in, last == null ? "driver" : last.replaceAll(".*[/:]", "").replaceAll("\\.zip$", ""));
         }
@@ -155,17 +155,19 @@ final class GpuDriver {
 
     private static final Handler UI = new Handler(Looper.getMainLooper());
 
-    /** A reason for the user, without a stack trace */
+    /** A reason for the user, without a stack trace, in the user's language */
     static String why(Throwable e) {
-        String m = e.getMessage();
+        String m = e.getLocalizedMessage();
         return m != null && !m.isEmpty() ? m : e.getClass().getSimpleName();
     }
 
     /** Runs an install off the UI thread behind a wait dialog; picks the driver only when it is installed, then says so (or why not) and runs after (on the UI
-     *  thread, also after a failure; may be null). Nothing it throws reaches the app: a failed install is a message and changes no pick. */
+     *  thread, also after a failure; may be null). Nothing it throws reaches the app: a failed install is a message and changes no pick. what: the zip's name,
+     *  null when it has none */
     static void installInBackground(Activity a, String what, Job job, Runnable after) {
         Context app = a.getApplicationContext();
-        AlertDialog wait = new AlertDialog.Builder(a).setMessage("Installing " + what + "…").setCancelable(false).create();
+        AlertDialog wait = new AlertDialog.Builder(a).setMessage(what == null ? a.getString(R.string.settings_gpu_installing_unnamed) : a.getString(R.string.settings_gpu_installing, what))
+                .setCancelable(false).create();
         wait.show();
         new Thread(() -> {
             Info got = null; String fail = null;
@@ -174,7 +176,7 @@ final class GpuDriver {
             final Info i = got; final String f = fail;
             UI.post(() -> {
                 if (!a.isFinishing() && !a.isDestroyed()) { try { wait.dismiss(); } catch (RuntimeException ignored) { /* its window is gone */ } }
-                Toast.makeText(app, f != null ? "GPU driver not installed: " + f : "GPU driver installed and picked: " + i.label(), Toast.LENGTH_LONG).show();
+                Toast.makeText(app, f != null ? app.getString(R.string.settings_gpu_install_failed, f) : app.getString(R.string.settings_gpu_installed, i.label()), Toast.LENGTH_LONG).show();
                 if (after != null) after.run();
             });
         }, "driver-install").start();
@@ -188,7 +190,7 @@ final class GpuDriver {
             Info sel = null;
             for (Info d : installed(a)) if (d.dir.getName().equals(pick)) sel = d;
             select(a, sel);
-            Toast.makeText(a, "GPU driver: " + (sel == null ? "system" : sel.label()), Toast.LENGTH_SHORT).show();
+            Toast.makeText(a, sel == null ? a.getString(R.string.settings_gpu_picked_system) : a.getString(R.string.settings_gpu_picked, sel.label()), Toast.LENGTH_SHORT).show();
         };
         if (zip != null) installInBackground(a, new File(zip).getName(), () -> install(a, new File(zip)), doPick);
         else if (doPick != null) doPick.run();
@@ -199,30 +201,30 @@ final class GpuDriver {
         List<Info> inst = installed(a);
         Info sel = selected(a);
         List<String> labels = new ArrayList<>();
-        labels.add("System (the phone's own driver)");
+        labels.add(a.getString(R.string.settings_gpu_system));
         int checked = 0;
-        for (int k = 0; k < inst.size(); k++) { labels.add(inst.get(k).label() + (recommended(inst.get(k)) ? " (recommended)" : "")); if (sel != null && inst.get(k).dir.equals(sel.dir)) checked = k + 1; }
-        new AlertDialog.Builder(a).setTitle("GPU driver (takes effect at the next game start)")
+        for (int k = 0; k < inst.size(); k++) { labels.add(recommended(inst.get(k)) ? a.getString(R.string.settings_gpu_recommended, inst.get(k).label()) : inst.get(k).label()); if (sel != null && inst.get(k).dir.equals(sel.dir)) checked = k + 1; }
+        new AlertDialog.Builder(a).setTitle(a.getString(R.string.settings_gpu_title))
                 .setSingleChoiceItems(labels.toArray(new String[0]), checked, (d, w) -> { select(a, w == 0 ? null : inst.get(w - 1)); d.dismiss(); })
-                .setPositiveButton("Install…", (d, w) -> installDialog(a, request))
-                .setNeutralButton(sel != null ? "Remove picked…" : "Close", (d, w) -> {
+                .setPositiveButton(a.getString(R.string.settings_gpu_install), (d, w) -> installDialog(a, request))
+                .setNeutralButton(a.getString(sel != null ? R.string.settings_gpu_remove_picked : R.string.settings_close), (d, w) -> {
                     if (sel == null) return;
-                    Ui.confirmDanger(a, "Remove " + sel.label() + "?", "Deleted: this driver's copy inside the app (" + sel.dir + ").\n\nKept: the zip you installed it from, "
-                            + "your games, packs and saves. The game uses the phone's own driver until you pick another.", "Remove driver", () -> {
+                    Ui.confirmDanger(a, a.getString(R.string.settings_gpu_remove_title, sel.label()), a.getString(R.string.settings_gpu_remove_message, sel.dir),
+                            a.getString(R.string.settings_gpu_remove), () -> {
                         DriverZip.deleteTree(sel.dir); select(a, null);
-                        Toast.makeText(a, "Removed " + sel.label() + "; the system driver is used", Toast.LENGTH_LONG).show();
+                        Toast.makeText(a, a.getString(R.string.settings_gpu_removed, sel.label()), Toast.LENGTH_LONG).show();
                     });
                 })
-                .setNegativeButton("Cancel", null).show();
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     private static void installDialog(Activity a, int request) {
         List<File> zips = found(a);   // names only, in the app's own folder
         List<String> labels = new ArrayList<>();
-        for (File f : zips) labels.add(f.getName() + "  (the app's gpu_drivers folder)");
-        labels.add("Pick a zip…");
-        labels.add("Download…");   // DriverFetch: GitHub releases, only on a tap
-        new AlertDialog.Builder(a).setTitle("Install a driver zip (with meta.json)")
+        for (File f : zips) labels.add(a.getString(R.string.settings_gpu_zip_found, f.getName()));
+        labels.add(a.getString(R.string.settings_gpu_pick_zip));
+        labels.add(a.getString(R.string.settings_gpu_download));   // DriverFetch: GitHub releases, only on a tap
+        new AlertDialog.Builder(a).setTitle(a.getString(R.string.settings_gpu_install_title))
                 .setItems(labels.toArray(new String[0]), (d, w) -> {
                     if (w == zips.size() + 1) { DriverFetch.dialog(a, request); return; }
                     if (w == zips.size()) {
@@ -232,12 +234,12 @@ final class GpuDriver {
                     }
                     File z = zips.get(w);
                     installInBackground(a, z.getName(), () -> install(a, z), null);
-                }).setNegativeButton("Cancel", null).show();
+                }).setNegativeButton(android.R.string.cancel, null).show();
     }
 
     /** The picker's result (MainActivity.onActivityResult) */
     static void picked(Activity a, Uri uri) {
         String last = uri.getLastPathSegment();
-        installInBackground(a, last == null ? "the driver" : last.replaceAll(".*[/:]", ""), () -> install(a, uri), null);
+        installInBackground(a, last == null ? null : last.replaceAll(".*[/:]", ""), () -> install(a, uri), null);
     }
 }
