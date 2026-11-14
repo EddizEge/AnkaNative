@@ -16,6 +16,8 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 - **Prepare keeps its translated shaders in the app's own storage**, not beside the dump on shared storage, where each of about 42,000 files went
   through Android's FUSE layer (Ocarina of Time: about 2 minutes only to delete them at the end). The shaders step checks that the phone's internal storage has
   room for them (about 1 GB).
+- **Less work per shader in the translation step:** each shader's code is read once instead of once per variant and pass; on a PC the
+  work after the translator per shader went down by about a fifth. The library stays the same bytes (`v-0dd4341ae6ce`).
 - **A Prepare in progress translates its shaders again after this update:** the shaders already translated are stamped with the tools that made them, so
   a job in the middle of the shaders step when the APK is updated starts that step over (hours on a phone). Finish a running Prepare first, or let it
   start over. Finished packs are not affected.

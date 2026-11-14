@@ -499,6 +499,7 @@ def dim_byte(d):
 def place(stage, binds, m):
     """Set and binding of each record in the Vulkan ABI, written into the module"""
     base = BIND_RANGE[stage] * VK['STAGE_BINDINGS']; n = 0
+    decorations = m.decorations()   # (one scan of the module for all its bindings, not one each)
     for e in sorted(binds, key=lambda e: e['tbind']):
         if e['kind'] in (abi.KIND_TEX_POOL, abi.KIND_SAMP_POOL):
             e['set'] = VK['SET_POOL']
@@ -507,7 +508,7 @@ def place(stage, binds, m):
         else:
             if n >= VK['STAGE_BINDINGS']: raise ValueError(f'more than {VK["STAGE_BINDINGS"]} bindings in one stage')
             e['set'], e['binding'] = VK['SET_DRAW'], base + n; n += 1
-        m.set_binding(e['id'], e['set'], e['binding'])
+        m.set_binding(e['id'], e['set'], e['binding'], decorations)
         if e['kind'] in SLOT_KINDS and e.get('reg') is None: e['flags'] |= VK['BF_NOSLOT']
         if e['kind'] == abi.KIND_IMG and m_atomic(m, e['id']): e['flags'] |= VK['BF_ATOMIC']
         if e['kind'] == abi.KIND_IMG and m_writes(m, e['id']): e['flags'] |= VK['BF_RW']
@@ -620,16 +621,24 @@ def finish(key, w, job, c1):
     mods = [(VK['MOD_BASE'], m.data())]
     uint_mask = 0
     iout = spv.int_outputs(m) if stage == 'ps' else set()   # (once: ps_variants and facts_of read the same module)
+    src = [None]   # each module's Module, for the passes below (each pass takes a module as Module(data) parses it: Module.copy / reparsed)
     if stage == 'ps':   # the variants of the same module (dmsh_abi_vk.h DMSH_VK_MOD_*)
         mods_, uint_mask = ps_variants(key, m, iout)
-        mods += mods_
+        mods += [(v, d) for v, d, _ in mods_]; src += [u for _, _, u in mods_]
     if stage == 'cs':   # its subgroup shuffles through workgroup memory, for drivers without an arbitrary-index shuffle instruction (vk_android_spv.py shuffle_lds)
-        x = spv.Module(m.data())
-        if spv.shuffle_lds(x, VK['SHARED_MAX']): mods.append((VK['MOD_SHUFFLE_LDS'], x.data()))
+        x = m.copy()
+        if spv.shuffle_lds(x, VK['SHARED_MAX']): mods.append((VK['MOD_SHUFFLE_LDS'], x.data())); src.append(x)
+    # What the reflection reads of the base module as it is here (facts_of, drv_reads below), taken now: the passes below then run on m itself instead of a copy.
+    # An error of either is raised where they were read, after the modules are checked, as before
+    try: fa_now, fa_err = facts_of(key, stage, m, job, res, iout), None
+    except Exception as e: fa_now, fa_err = None, e
+    try: drv_now, drv_err = drv_reads(binds, m), None
+    except Exception as e: drv_now, drv_err = None, e
+    src[0] = m
     nfwd = gloop = gcache = gpidx = gleft = 0
     plain, texfb, fb_err = list(mods), (0, 0), None   # (the modules without texture-use feedback: kept when the pass fails for any of them)
     for i, (variant, data) in enumerate(mods):   # the translator's temporaries forwarded within each block (vk_android_spv.py local_forward), in every module
-        x = spv.Module(data); n = spv.local_forward(x)
+        x = src[i].reparsed(index=False); src[i] = None; n = spv.local_forward(x, stale=True)
         # then the pool searches as loops NIR keeps (vk_android_spv.py gmem_loop: no spills, Turnip's private memory BOs stay small) in compute (GMEM_LOOP_STAGES), and
         # in the other stages replaced by the page index (gmem_pidx, GMEM_PIDX: every module of the entry) or behind the invocation's cached entry (gmem_cache; both off:
         # the base module only counts them); all match only forwarded code (each step's select read directly, not through the translator's temporaries)
@@ -667,7 +676,8 @@ def finish(key, w, job, c1):
     if gpidx:   # the host binds the table with the page index after it (dmsh_abi_vk.h DMSH_VK_BF_PIDX, vka_draw.c gmem_map)
         for e in binds:
             if e['kind'] == abi.KIND_GMEM_MAP: e['flags'] |= VK['BF_PIDX']
-    fa = facts_of(key, stage, m, job, res, iout)
+    if fa_err is not None: raise fa_err
+    fa = fa_now
     if texfb[1]:
         fa['flags'] |= VK['F_TEXFB']
         fa['caps'] = sorted(set(fa['caps']) | {'GroupNonUniform', 'GroupNonUniformBallot'})   # (F_SUBGROUP stays the translator's own subgroup operations')
@@ -686,7 +696,7 @@ def finish(key, w, job, c1):
             if not sp: e['kind'] = abi.KIND_UNKNOWN; continue   # (the replay then refuses the shader)
             e['bytes'] = sp['bytes']; shared = sp['workgroup']
     refl = {'key': key, 'stage': stage, 'source': f'{name}#{k}', 'pc_paired': pc_of[key], 'c1': c1.hex(), 'local': job.get('local') or [1, 1, 1], 'shared': shared,
-            'notes': res['notes'], 'vs_pad': pad, 'mesh': res.get('mesh'), 'ps_prim': prim, 'caps_dropped': dropped, 'caps_added': added, 'precise': n_precise, **({'fetch_offset': n_fetch_off} if n_fetch_off else {}), 'hmma_lds': hmma, 'gmem_flat': gflat, 'gmem_loop': gloop, **({'gmem_cache': gcache} if spv.GMEM_CACHE and not spv.GMEM_PIDX else {}), **({'gmem_pidx': gpidx} if spv.GMEM_PIDX else {}), 'gmem_loop_left': gleft, 'ssbo_base': sbase, 'fwd_loads': nfwd, 'texfb_sites': texfb[0], 'texfb_pool_sites': texfb[1], 'texfb_failed': fb_err, 'drv_reads': drv_reads(binds, m), 'tf': job.get('tf'), **fa,
+            'notes': res['notes'], 'vs_pad': pad, 'mesh': res.get('mesh'), 'ps_prim': prim, 'caps_dropped': dropped, 'caps_added': added, 'precise': n_precise, **({'fetch_offset': n_fetch_off} if n_fetch_off else {}), 'hmma_lds': hmma, 'gmem_flat': gflat, 'gmem_loop': gloop, **({'gmem_cache': gcache} if spv.GMEM_CACHE and not spv.GMEM_PIDX else {}), **({'gmem_pidx': gpidx} if spv.GMEM_PIDX else {}), 'gmem_loop_left': gleft, 'ssbo_base': sbase, 'fwd_loads': nfwd, 'texfb_sites': texfb[0], 'texfb_pool_sites': texfb[1], 'texfb_failed': fb_err, 'drv_reads': drv_rows(drv_now, drv_err), 'tf': job.get('tf'), **fa,
             'bindings': [{kk: v for kk, v in e.items() if kk not in ('id', 'tbind', 'index')} for e in binds]}
     loose = os.environ.get('DMSH_VK_LOOSE') == '1'
     out_mods = []
@@ -698,22 +708,27 @@ def finish(key, w, job, c1):
     return 'ok', '', (refl, out_mods)
 
 
+def drv_rows(rows, err):   # drv_reads as finish() took it before its passes: raised here, where finish read it before
+    if err is not None: raise err
+    return rows
+
+
 def ps_variants(key, m, iout=None):
     """A pixel shader's extra modules (dmsh_build.py fs_uint / fs_dual on SPIR-V): MOD_UINT when it writes an output from integer bits or only constants (a clear into an
     integer target), MOD_UINT_MIXED when it also writes float outputs (uint_mask: the integer ones), MOD_DUAL for the profile's dual_want.tsv shaders writing exactly
-    colours 0 and 1. → ([(variant, SPIR-V)], uint_mask)"""
+    colours 0 and 1. (m.data() was taken: Module.copy.) → ([(variant, SPIR-V, its Module)], uint_mask)"""
     out, mask = [], 0
     fl = {l for l, (_, t) in m.io(spv.SC_OUTPUT).items() if not m.int_type(m.scalar_of(t))}
     from_int = (spv.int_outputs(m) if iout is None else iout) & fl
     if from_int or spv.const_written_outputs(m):
-        u = spv.Module(m.data())
-        if spv.retype_outputs(u, fl): out.append((VK['MOD_UINT'], u.data()))
+        u = m.copy()
+        if spv.retype_outputs(u, fl): out.append((VK['MOD_UINT'], u.data(), u))
         if from_int and fl - from_int:
-            u = spv.Module(m.data()); done = spv.retype_outputs(u, from_int)
-            if done: out.append((VK['MOD_UINT_MIXED'], u.data())); mask = sum(1 << l for l in done if l < 8)
+            u = m.copy(); done = spv.retype_outputs(u, from_int)
+            if done: out.append((VK['MOD_UINT_MIXED'], u.data(), u)); mask = sum(1 << l for l in done if l < 8)
     if key in DUAL_WANT:
-        d = spv.Module(m.data())
-        if spv.dual_source(d): out.append((VK['MOD_DUAL'], d.data()))
+        d = m.copy()
+        if spv.dual_source(d): out.append((VK['MOD_DUAL'], d.data(), d))
     return out, mask
 
 

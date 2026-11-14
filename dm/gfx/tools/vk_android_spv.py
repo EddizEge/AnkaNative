@@ -1,7 +1,7 @@
 """SPIR-V reading and the few rewrites the Android Vulkan library needs (vk_android_build.py): the descriptor set / binding renumbering into the Vulkan ABI
 (dm/gfx/nvn/dmsh_abi_vk.h), vertex outputs that start as (0, 0, 0, 1), the GL depth and alpha test constants, the integer-output and dual-source variants, the
 viewport mask of an emulated passthrough geometry shader, and the facts the reflection reads (resources, vertex inputs, colour outputs, capabilities). The translator's modules are taken as they come; every rewrite keeps the module valid for spirv-val --target-env vulkan1.3."""
-import array, itertools, struct, sys
+import array, itertools, operator, struct, sys
 
 MAGIC = 0x07230203
 _WORDS_LE = array.array('I').itemsize == 4 and sys.byteorder == 'little'   # (Module.data / parse through array: the words as they are in memory)
@@ -49,6 +49,15 @@ def lit_string(text):
     return list(struct.unpack('<%dI' % (len(b) // 4), b))
 
 
+_INDEXED = frozenset({OP_NAME, OP_DECORATE, OP_CAPABILITY, OP_EXTENSION, OP_ENTRY_POINT, OP_EXECUTION_MODE, OP_CONSTANT, OP_VARIABLE, *range(19, 40)})   # what index() reads
+_FIRST, _SIXTEEN, _OPMASK = operator.itemgetter(0), itertools.repeat(16), itertools.repeat(0xffff)
+
+
+def opcodes(ins):
+    """Each instruction's opcode, in a list (made in C: the scans below look up positions in it with list.index instead of a loop of Python steps)"""
+    return list(map(operator.and_, map(_FIRST, ins), _OPMASK))
+
+
 class Module:
     def __init__(self, data):
         if len(data) % 4 or len(data) < 20: raise ValueError('not a SPIR-V module (length)')
@@ -62,10 +71,38 @@ class Module:
             add(w[i:i + n]); i += n
         self.index()
 
+    def _as_parsed(self, in_place=False):
+        """Whether Module(self.data()) would split the words into these same instructions: each a list whose word count is its length (not 0), and, for
+        in_place, none in the list twice (a parse makes each its own list). (Iterated in C: map with operator functions)"""
+        ins = self.ins
+        if len(self.header) != 5 or not set(map(type, ins)) <= {list}: return False
+        try: counts = list(map(operator.rshift, map(_FIRST, ins), _SIXTEEN))
+        except IndexError: return False   # (an empty instruction: the parse refuses its words)
+        return 0 not in counts and counts == list(map(len, ins)) and (not in_place or len(set(map(id, ins))) == len(ins))
+
+    def copy(self):
+        """Module(self.data()) without the words' round trip: the header and every instruction copied, the tables indexed from them (the build copies each module
+        for its variants and passes, several times a shader). The caller has taken self.data() of this same module (its words fit 32 bits); a module the parse
+        would split otherwise is parsed from its words"""
+        if not self._as_parsed(): return Module(self.data())
+        c = Module.__new__(Module)
+        c.header, c.ins = list(self.header), list(map(list.copy, self.ins))
+        c.index()
+        return c
+
+    def reparsed(self, index=True):
+        """This module as Module(self.data()) would give it: in place when its instructions are what the parse would split (copy's rule; the tables indexed again,
+        as passes leave some of them behind the instructions), else a parse of its words. The caller has taken self.data() of it and no longer needs it as it was.
+        index=False: its tables are left as they are, for a caller whose next step indexes them in any case (local_forward(m, stale=True))"""
+        if not self._as_parsed(in_place=True): return Module(self.data())
+        if index: self.index()
+        return self
+
     def index(self):
         self.names, self.decos, self.types, self.consts, self.vars, self.caps, self.exts = {}, {}, {}, {}, {}, [], []
         self.entry = None; self.modes = []
-        for x in self.ins:
+        ins = self.ins
+        for x in itertools.compress(ins, map(_INDEXED.__contains__, opcodes(ins))):   # (only the instructions read below: a function body's are skipped in C)
             op = x[0] & 0xffff
             if op == OP_NAME: self.names[x[1]] = string_at(x, 2)[0]
             elif op == OP_DECORATE: self.decos.setdefault(x[1], {})[x[2]] = x[3:]
@@ -165,15 +202,26 @@ class Module:
             out.append(e)
         return out
 
-    def set_binding(self, vid, s, b):
+    def decorations(self):
+        """id → its OpDecorate instructions (the lists in self.ins, in their order): set_binding's lookup, made once for all the bindings of a module"""
+        out = {}
         for x in self.ins:
+            if x[0] & 0xffff == OP_DECORATE: out.setdefault(x[1], []).append(x)
+        return out
+
+    def set_binding(self, vid, s, b, decorations=None):
+        """decorations: self.decorations(), kept up to date by the calls given it (they change only these decorations), so each call reads the variable's
+        decorations instead of every instruction"""
+        for x in (self.ins if decorations is None else decorations.get(vid, ())):
             if x[0] & 0xffff == OP_DECORATE and x[1] == vid:
                 if x[2] == DEC_SET: x[3] = s
                 elif x[2] == DEC_BINDING: x[3] = b
         d = self.decos.setdefault(vid, {})
         if DEC_SET not in d:   # a resource without a set decoration is in set 0: give it its set explicitly
             at = next(k for k, y in enumerate(self.ins) if y[0] & 0xffff == OP_DECORATE and y[1] == vid)
-            self.ins.insert(at, [4 << 16 | OP_DECORATE, vid, DEC_SET, s])
+            x = [4 << 16 | OP_DECORATE, vid, DEC_SET, s]
+            self.ins.insert(at, x)
+            if decorations is not None: decorations.setdefault(vid, []).insert(0, x)
         d[DEC_SET] = [s]; d[DEC_BINDING] = [b]
 
     def io(self, sc):
@@ -188,20 +236,30 @@ class Module:
 
     def builtin_var(self, sc, builtin):
         """(variable, member index or None) of a builtin in the interface: a variable decorated with it, or a block member"""
+        md = None   # the OpMemberDecorate instructions, in order: gathered once, when a block is looked into
         for vid in self.interface():
             ptr, c = self.vars.get(vid, (None, None))
             if c != sc: continue
             if self.decos.get(vid, {}).get(DEC_BUILTIN) == [builtin]: return vid, None
             t = self.pointee(ptr)[1]
-            for x in self.ins:
-                if x[0] & 0xffff == OP_MEMBER_DECORATE and x[1] == t and x[3] == DEC_BUILTIN and x[4] == builtin: return vid, x[2]
+            if md is None: md = list(itertools.compress(self.ins, map(OP_MEMBER_DECORATE.__eq__, opcodes(self.ins))))
+            for x in md:
+                if x[1] == t and x[3] == DEC_BUILTIN and x[4] == builtin: return vid, x[2]
         return None, None
 
     def entry_function(self): return self.entry[2]
 
-    def function_range(self, fid):   # (index of OpFunction, index of OpFunctionEnd)
-        a = next(k for k, x in enumerate(self.ins) if x[0] & 0xffff == OP_FUNCTION and x[2] == fid)
-        return a, next(k for k in range(a, len(self.ins)) if self.ins[k][0] & 0xffff == OP_FUNCTION_END)
+    def function_range(self, fid, ops=None):
+        """(index of OpFunction, index of OpFunctionEnd); ops: opcodes(self.ins) when the caller has it. StopIteration when there is no such function or end"""
+        ins = self.ins
+        if ops is None: ops = opcodes(ins)
+        a = -1
+        while True:   # (the first OpFunction of that id: list.index finds each OpFunction in C)
+            try: a = ops.index(OP_FUNCTION, a + 1)
+            except ValueError: raise StopIteration from None
+            if ins[a][2] == fid: break
+        try: return a, ops.index(OP_FUNCTION_END, a)
+        except ValueError: raise StopIteration from None
 
     def uses(self):
         """id → [instruction indices that take it as an operand] (operand positions are not decoded: a literal equal to an id counts too, which only widens the search)"""
@@ -211,11 +269,15 @@ class Module:
         return u
 
 
+_DEF_AT_1 = frozenset({OP_LABEL, OP_EXT_INST_IMPORT})
+_DEF_AT_2 = frozenset({OP_LOAD, OP_ACCESS_CHAIN, OP_IN_BOUNDS_ACCESS_CHAIN, OP_COMPOSITE_EXTRACT, OP_COPY_OBJECT, OP_BITCAST, OP_VARIABLE, OP_CONSTANT, OP_CONSTANT_COMPOSITE})
+
+
 def defined_id(x):
     """The result id of an instruction with a result type (or a type / label), else None: [opcode, type, result, ...] for most"""
     op = x[0] & 0xffff
-    if 19 <= op <= 39 or op in (OP_LABEL, OP_EXT_INST_IMPORT): return x[1]
-    if op in (OP_LOAD, OP_ACCESS_CHAIN, OP_IN_BOUNDS_ACCESS_CHAIN, OP_COMPOSITE_EXTRACT, OP_COPY_OBJECT, OP_BITCAST, OP_VARIABLE, OP_CONSTANT, OP_CONSTANT_COMPOSITE): return x[2]
+    if 19 <= op <= 39 or op in _DEF_AT_1: return x[1]
+    if op in _DEF_AT_2: return x[2]
     return None
 
 
@@ -296,16 +358,18 @@ def gl_depth(m, spec_id):
 def value_uses(m):
     """id → [(instruction, operand position)] for the instructions of function bodies whose operands are ids at known positions"""
     u = {}
+    get = u.get
     for x in m.ins:
         op = x[0] & 0xffff
-        if op in (OP_LOAD,): ids = [(3, x[3])]
-        elif op == OP_STORE: ids = [(1, x[1]), (2, x[2])]
-        elif op in (OP_ACCESS_CHAIN, OP_IN_BOUNDS_ACCESS_CHAIN): ids = [(p, x[p]) for p in range(3, len(x))]
-        elif op == OP_COMPOSITE_EXTRACT: ids = [(3, x[3])]
-        elif op in (OP_COPY_OBJECT, OP_BITCAST): ids = [(3, x[3])]
+        if op == OP_LOAD or op == OP_COMPOSITE_EXTRACT or op == OP_COPY_OBJECT or op == OP_BITCAST: first, end = 3, 4
+        elif op == OP_STORE: first, end = 1, 3
+        elif op == OP_ACCESS_CHAIN or op == OP_IN_BOUNDS_ACCESS_CHAIN: first, end = 3, len(x)
         elif op == OP_ENTRY_POINT or op == OP_NAME or op == OP_DECORATE or op == OP_MEMBER_DECORATE: continue
-        else: ids = [(p, x[p]) for p in range(1, len(x))]   # conservative: every word may be an id
-        for p, v in ids: u.setdefault(v, []).append((x, p))
+        else: first, end = 1, len(x)   # conservative: every word may be an id
+        for p in range(first, end):   # (in the order of the positions, as the lists of (instruction, position) were)
+            v = x[p]; l = get(v)
+            if l is None: u[v] = [(x, p)]
+            else: l.append((x, p))
     return u
 
 
@@ -362,10 +426,13 @@ def int_outputs(m):
     for x in m.ins:
         if x[0] & 0xffff == OP_STORE and len(x) > 2 and x[1] in ptr: stored.setdefault(x[2], set()).update(ptr[x[1]])
     if not stored: return set()
-    defs = {}   # (the last definition of an id, as a scan of every instruction gives it)
+    defs = {}   # (the last definition of an id, as a scan of every instruction gives it: defined_id, inline)
     for x in m.ins:
-        d = defined_id(x)
-        if d is not None and d in stored: defs[d] = x[0] & 0xffff
+        op = x[0] & 0xffff
+        if 19 <= op <= 39 or op in _DEF_AT_1: d = x[1]
+        elif op in _DEF_AT_2: d = x[2]
+        else: continue
+        if d in stored: defs[d] = op
     return {loc for v, locs in stored.items() if defs.get(v) == OP_BITCAST for loc in locs}   # the translator bit-casts only between integers and floats
 
 
@@ -453,6 +520,7 @@ def fetch_offset(m):
     maintenance8 (VUID-RuntimeSpirv-Offset-10213), so spirv-val refused the module and the shader was not in the library (Ocarina of Time's AA pass d17eefaff4f0bc23,
     10 fetches). A fetch's offset adds to its integer texel coordinate at the level it reads, so the add is exact. Fetches whose coordinate and offset types differ (an arrayed
     coordinate) are left. → fetches rewritten"""
+    if OP_IMAGE_FETCH not in opcodes(m.ins) or not any(x[0] & 0xffff == OP_IMAGE_FETCH and len(x) > 5 and x[5] & 0x10 and not x[5] & ~0xff for x in m.ins): return 0   # (none to rewrite: most modules)
     ty, body = {}, False
     for x in m.ins:   # (result types of the values in functions: outside them _result_id's [op, type, result] shape does not hold)
         op = x[0] & 0xffff
@@ -1824,15 +1892,17 @@ def id_positions(x):
     return tuple(range(1, len(x)))
 
 
-def local_forward(m):
+def local_forward(m, stale=False):
     """The translator writes every intermediate value to a function variable and reads it back (debug mode, android/SHADERS.md "Size"): tens of thousands of variables
     in a large compute program. Turnip turns them back into values only after nir_opt_copy_prop_vars, which clones its table of them at every if (memory and time that
     grow with both): Ocarina of Time's video network spent 117 s and 700 MB in Turnip's compiler on one program for it, 14 s and 330 MB with this. Within each block a load
     of a variable written (or read) earlier in the block takes that value instead; a variable no load reads any more loses its stores and its declaration. Only variables
-    that are loaded and stored directly (no access chain, no call argument) are touched; nothing moves across blocks, so no phi is made. → loads removed"""
+    that are loaded and stored directly (no access chain, no call argument) are touched; nothing moves across blocks, so no phi is made. stale: m's tables
+    (index) may be behind its instructions, which this pass does not read: they are indexed at its end whatever it changed (Module.reparsed(index=False)).
+    → loads removed"""
     removed, gone = 0, set()
     for f in [x[2] for x in m.ins if x[0] & 0xffff == OP_FUNCTION]:
-        a, e = m.function_range(f)
+        a, e = m.function_range(f)   # (m.ins does not change below until this function's body is replaced: a and e hold for that too)
         body = m.ins[a:e + 1]
         local = {x[2] for x in body if x[0] & 0xffff == OP_VARIABLE and len(x) >= 4 and x[3] == SC_FUNCTION}
         if not local: continue
@@ -1849,7 +1919,7 @@ def local_forward(m):
                 if x[2] in direct: direct.discard(x[2])
                 if len(x) > 3: direct.difference_update(x[3:])
                 continue
-            if not direct.isdisjoint(x[1:]): direct.difference_update(x[1:])
+            if not direct.isdisjoint(x) and not direct.isdisjoint(x[1:]): direct.difference_update(x[1:])   # (the whole list first: no slice for most)
         if not direct: continue
         ren, state, out = {}, {}, []
         def r(v):   # a forwarded load's value (that value may itself be a forwarded load's)
@@ -1864,25 +1934,27 @@ def local_forward(m):
                 state[x[3]] = x[2]
             out.append(x)
         if ren:
+            rk = ren.keys()
             for i, x in enumerate(out):
-                if x[0] & 0xffff == OP_VARIABLE or ren.keys().isdisjoint(x[1:]): continue
+                if x[0] & 0xffff == OP_VARIABLE or rk.isdisjoint(x) or rk.isdisjoint(x[1:]): continue
                 pos = [p for p in id_positions(x) if x[p] in ren]
                 if pos:
                     x = list(x)
                     for p in pos: x[p] = r(x[p])
                     out[i] = x
-        read = {x[3] for x in out if x[0] & 0xffff == OP_LOAD}
+        read = {x[3] for x in itertools.compress(out, map(OP_LOAD.__eq__, opcodes(out)))}
         dead = direct - read; gone |= dead
-        out = [x for x in out if not ((x[0] & 0xffff) == OP_STORE and x[1] in dead) and not ((x[0] & 0xffff) == OP_VARIABLE and x[2] in dead)]
-        a, e = m.function_range(f)
+        if dead: out = [x for x in out if not ((x[0] & 0xffff) == OP_STORE and x[1] in dead) and not ((x[0] & 0xffff) == OP_VARIABLE and x[2] in dead)]
         m.ins[a:e + 1] = out
     if removed or gone:
         m.ins = [x for x in m.ins if not (x[0] & 0xffff in (OP_NAME, OP_DECORATE) and x[1] in gone)]   # the removed variables' names
         m.index()
+    elif stale: m.index()
     return removed
 
 
 # ---- storage buffers read from a base the host writes (ssbo_base)
+_SSBO_DEF_OPS = frozenset({OP_LOAD, OP_ACCESS_CHAIN, OP_IN_BOUNDS_ACCESS_CHAIN, OP_BITCAST, OP_COPY_OBJECT})
 def ssbo_base(m, c0_var, rows, align, word):
     """NVN's storage buffers are raw global memory: a shader may read before its slot's address (Ocarina of Time's UI text vertex shader reads the glyph records below the
     header record its base instance names, at a negative offset from the address in c0). With the ssbo_align answer the translator indexes a slot's descriptor by
@@ -1897,7 +1969,10 @@ def ssbo_base(m, c0_var, rows, align, word):
     component (DMSH_VK_C0_SSBO_BASE / 4). → bases rewritten (0: none, the host binds as before), or -1 when a c0 mask was not one of them (the module unchanged)"""
     if c0_var is None or not rows: return 0
     neg = -align & 0xffffffff
-    defs = {x[2]: x for x in m.ins if x[0] & 0xffff in (OP_LOAD, OP_ACCESS_CHAIN, OP_IN_BOUNDS_ACCESS_CHAIN, OP_BITCAST, OP_COPY_OBJECT)}
+    ops = opcodes(m.ins)
+    ands = [x for x in itertools.compress(m.ins, map(OP_BITWISE_AND.__eq__, ops)) if len(x) == 5]
+    if not ands: return 0   # (no mask: nothing below would be read)
+    defs = {x[2]: x for x in itertools.compress(m.ins, map(_SSBO_DEF_OPS.__contains__, ops))}
 
     def is_mask(c):
         k = m.consts.get(c)
@@ -1918,8 +1993,7 @@ def ssbo_base(m, c0_var, rows, align, word):
         return None
 
     sites = {}
-    for x in m.ins:
-        if x[0] & 0xffff != OP_BITWISE_AND or len(x) != 5: continue
+    for x in ands:
         v = x[3] if is_mask(x[4]) else x[4] if is_mask(x[3]) else None
         if v is None: continue
         s = source(v)
@@ -1931,13 +2005,15 @@ def ssbo_base(m, c0_var, rows, align, word):
     for p in sites.values():   # (constants first: they go in before the functions)
         t = m.consts[p[6]][0]
         if t not in comp: comp[t] = m.add_const(t, word)
-    out = []
-    for x in m.ins:
-        p = sites.get(id(x))
-        if p is None: out.append(x); continue
+    out, ins, at = [], m.ins, 0
+    for k in itertools.compress(range(len(ins)), map(OP_BITWISE_AND.__eq__, opcodes(ins))):   # (the sites in order, the instructions between them copied as they are)
+        x = ins[k]; p = sites.get(id(x))
+        if p is None: continue
+        out += ins[at:k]; at = k + 1
         ptr, ld = m.new_id(), m.new_id(); scalar = m.pointee(p[1])[1]
         out += [[7 << 16 | (p[0] & 0xffff), p[1], ptr, c0_var, p[4], p[5], comp[m.consts[p[6]][0]]], [4 << 16 | OP_LOAD, scalar, ld, ptr],
                 [4 << 16 | (OP_COPY_OBJECT if scalar == x[1] else OP_BITCAST), x[1], x[2], ld]]
+    out += ins[at:]
     m.ins = out
     m.index()
     return len(sites)
@@ -2003,7 +2079,7 @@ def tex_feedback(m, pool_set, pool_binding, fb_binding, spec_id):
     for f in funcs:
         a, e = m.function_range(f)
         for x in m.ins[a:e + 1]:
-            if pool.isdisjoint(x[1:]) or all(x[j] not in pool for j in id_positions(x)): continue   # (a literal operand that equals a pool id: an ext instruction's number)
+            if pool.isdisjoint(x) or pool.isdisjoint(x[1:]) or all(x[j] not in pool for j in id_positions(x)): continue   # (a literal operand that equals a pool id: an ext instruction's number)
             if x[0] & 0xffff in (OP_ACCESS_CHAIN, OP_IN_BOUNDS_ACCESS_CHAIN) and x[3] in pool and len(x) == 5 and x[4] not in pool: sites += 1; continue
             raise ValueError(f'texture pool used by opcode {x[0] & 0xffff}, not a one-index access chain')
     if not sites: return 0, 0
