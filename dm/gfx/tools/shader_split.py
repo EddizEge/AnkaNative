@@ -161,7 +161,9 @@ def bnsh_shaders(d, base, label):
         if not prog: continue
         for si in range(len(STAGES) + len(NVN2_SLOTS)):
             st = STAGES[si] if si < len(STAGES) else NVN2_SLOTS[si - len(STAGES)]
-            sc = field(d, '<Q', base + prog + 8 + 8 * si, f'{where} variation {v} program')[0]
+            at = base + prog + 8 + 8 * si
+            if st is None and not 0 <= at <= len(d) - 8: continue   # (an NVN program's record need not reach the NVN2 slots: nothing there, not a damaged file)
+            sc = field(d, '<Q', at, f'{where} variation {v} program')[0]
             if not sc: continue
             if st is not None:
                 pctl, pcode, ncode, nctl = field(d, '<QQII', base + sc + 8, f'{where} variation {v} {st}')
@@ -170,7 +172,10 @@ def bnsh_shaders(d, base, label):
                 pctl, pcode, ncode, nctl = struct.unpack_from('<QQII', d, base + sc + 8)
                 if not (0x48 <= nctl < 0x10000 and base + pctl + nctl <= len(d) and base + pcode + ncode <= len(d)) or not nvn2_ctl(d[base + pctl:base + pctl + nctl]): continue
                 st = nvn2_stage(d[base + pctl:base + pctl + nctl], d[base + pcode:base + pcode + ncode])
-                if st not in ('ts', 'ms'): red(f'{where} variation {v}: NVN2 stage slot {si} holds a {st} shader, not a task or mesh shader')
+                # (slots past the six are taken only for task and mesh shaders; anything else there, never seen, is logged and left out rather than ending the split)
+                if st not in ('ts', 'ms'): print(f'[RED] {where} variation {v}: NVN2 stage slot {si} holds a {st} shader, not a task or mesh shader; left out', flush=True); continue
+                why = check(label, st, d[base + pctl:base + pctl + nctl], d[base + pcode:base + pcode + ncode])
+                if why: print(f'[RED] {where} variation {v} {st} (NVN2 stage slot {si}): {why}; left out', flush=True); continue
             ctl, code = span(d, base + pctl, nctl, f'{where} variation {v} {st} control section'), span(d, base + pcode, ncode, f'{where} variation {v} {st} code area')
             why = check(label, st, ctl, code)
             if why: red(f'{label} BNSH @{base:#x} variation {v} {st}: {why}')
