@@ -352,7 +352,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         // The notice is short (what is missing, by name); Details has each item's sentence, the GPU and Copy report
         if (!fails.isEmpty()) {
             StringBuilder m = new StringBuilder("Missing: ");
-            for (Readiness.Check c : fails) m.append(c.title).append(", ");
+            for (Readiness.Check c : fails) m.append(c.titleText()).append(", ");
             m.setLength(m.length() - 2);
             // Without placed memory maps the GPU sees none of the game's memory: draws are off (vka_draw.c), so the result is certain, not "may"
             boolean placed = false;
@@ -365,7 +365,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             readinessDialog("Not ready for this game", m.toString(), details(fails, warns, gpu), report, placed ? "Start anyway (black screen)" : "Try anyway", true);
         } else if (!warns.isEmpty() && !Prefs.of(this).getString(Prefs.gameKey("readiness_seen", id), "").equals(warnKey(f, warns))) {
             StringBuilder m = new StringBuilder("Runs with less: ");
-            for (Readiness.Check c : warns) m.append(c.title).append(", ");
+            for (Readiness.Check c : warns) m.append(c.titleText()).append(", ");
             m.setLength(m.length() - 2);
             m.append('.');
             readinessDialog("Ready, with limits", m.toString(), details(fails, warns, gpu), report, "Continue", false);
@@ -375,8 +375,8 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     /** The Details of the start-up notice: each failure and warning with its sentence, then the GPU and memory */
     private static String details(List<Readiness.Check> fails, List<Readiness.Check> warns, String gpu) {
         StringBuilder m = new StringBuilder();
-        for (Readiness.Check c : fails) m.append("✕ ").append(c.title).append(": ").append(c.message).append("\n\n");
-        for (Readiness.Check c : warns) m.append("! ").append(c.title).append(": ").append(c.message).append("\n\n");
+        for (Readiness.Check c : fails) m.append("✕ ").append(c.titleText()).append(": ").append(c.messageText()).append("\n\n");
+        for (Readiness.Check c : warns) m.append("! ").append(c.titleText()).append(": ").append(c.messageText()).append("\n\n");
         return m.append(gpu).toString();
     }
 

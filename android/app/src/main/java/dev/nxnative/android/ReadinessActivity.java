@@ -239,7 +239,7 @@ public final class ReadinessActivity extends Activity {
         TextView st = Ui.text(this, m, 15, x.status == Readiness.Status.FAIL ? R.color.bn_danger : x.status == Readiness.Status.PASS ? R.color.bn_leaf : R.color.bn_text_2, 900);
         st.setGravity(android.view.Gravity.CENTER);
         top.addView(st, new LinearLayout.LayoutParams(Ui.dp(this, 24), ViewGroup.LayoutParams.WRAP_CONTENT));
-        TextView t = Ui.text(this, x.title, 15, R.color.bn_text, 600);
+        TextView t = Ui.text(this, x.titleText(), 15, R.color.bn_text, 600);
         t.setPadding(Ui.dp(this, 8), 0, 0, 0);
         top.addView(t, Ui.weight());
         android.widget.ImageView chev = new android.widget.ImageView(this);   // turned down when closed, up when open
@@ -251,7 +251,7 @@ public final class ReadinessActivity extends Activity {
         LinearLayout more = new LinearLayout(this);
         more.setOrientation(LinearLayout.VERTICAL);
         more.setPadding(Ui.dp(this, 32), 0, 0, 0);
-        TextView msg = Ui.small(this, x.message);
+        TextView msg = Ui.small(this, x.messageText());
         msg.setTextIsSelectable(false);
         more.addView(msg);
         View.OnClickListener fix = fix(x);

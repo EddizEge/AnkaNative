@@ -19,36 +19,81 @@ import java.util.Map;
 final class Readiness {
     enum Status { PASS, WARNING, FAIL, INFO }
 
+    /**
+     * The host's requirement rows that have a text resource (docs/i18n.md "Readiness requirements"): the row of fact REQ_FACTS[i] reads REQ_KEYS[i], "title: why"
+     * in the user's language. A literal table, so test_android_i18n.py checks every key exists. A host row whose fact is not here, and every row of a game's own
+     * readiness.tsv, keeps the English it was written with. Add a row's fact and key at the same index, and its English, the same as the HOST row's, to
+     * strings_readiness.xml (ReadinessJvmTest checks both)
+     */
+    static final String[] REQ_FACTS = {"feature.timelineSemaphore"};
+    static final String[] REQ_KEYS = {"readiness_req_feature_timeline_semaphore"};
+
     /** One requirement: the fact (a key of the facts) must be at least min (a number, a dotted version, or 0x hex). what: "title: why" */
     static final class Req {
         final boolean required;
+        /** title and why: English, for the report and the log; the screen's are {@link #shownTitle} and {@link #shownWhy} */
         final String fact, min, title, why;
+        /** The row's index in REQ_KEYS, or -1: no resource (a game's row, or a host row the table does not know) */
+        final int res;
 
-        Req(boolean required, String fact, String min, String what) {
+        /** A game's row (Readiness.parseReqs): its text stays the English of its readiness.tsv */
+        Req(boolean required, String fact, String min, String what) { this(required, fact, min, what, false); }
+
+        /** host: one of HOST's rows, whose text is REQ_KEYS's when the table knows its fact */
+        Req(boolean required, String fact, String min, String what, boolean host) {
             this.required = required;
             this.fact = fact;
             this.min = min;
             int c = what.indexOf(": ");
             this.title = c > 0 ? what.substring(0, c) : what;
             this.why = c > 0 ? what.substring(c + 2) : "";
+            this.res = host ? java.util.Arrays.asList(REQ_FACTS).indexOf(fact) : -1;
         }
+
+        /** "title: why" in English: the resource's English when the row has one (the same text as HOST's), else what it was built with */
+        String english() { return res < 0 ? title + (why.isEmpty() ? "" : ": " + why) : Tr.english(REQ_KEYS[res]); }
+
+        /** "title: why" in the user's language; English for a row without a resource */
+        String shown() { return res < 0 ? title + (why.isEmpty() ? "" : ": " + why) : Tr.s(REQ_KEYS[res]); }
+
+        String shownTitle() { String w = shown(); int c = w.indexOf(": "); return c > 0 ? w.substring(0, c) : w; }
+
+        String shownWhy() { String w = shown(); int c = w.indexOf(": "); return c > 0 ? w.substring(c + 2) : ""; }
     }
 
+    /**
+     * One result. title and message are English: the report (toString), the log line (summary) and anything pasted into an issue. A screen shows
+     * {@link #titleText} and {@link #messageText}, the user's language (docs/i18n.md: the readiness area owns these texts; another area's screen passes them as
+     * arguments of its own sentences and never reads a readiness_ key).
+     */
     static final class Check {
         final String title, message, fix, fact;
         final Status status;
+        /** The screen's title and message in the user's language; null: the same as title / message */
+        private final String titleText, messageText;
 
         Check(String title, Status status, String message, String fix) { this(title, status, message, fix, null); }
 
         /** fact: the requirement's fact key (Req.fact) when the check is one, else a fixed key of what it is about ("error", "unchecked", "status"), so a caller can
          *  tell what failed without matching titles (titles are translated); null for the screen's own cards */
-        Check(String title, Status status, String message, String fix, String fact) {
+        Check(String title, Status status, String message, String fix, String fact) { this(title, null, status, message, null, fix, fact); }
+
+        /** titleText, messageText: the screen's texts in the user's language (null: the English ones) */
+        Check(String title, String titleText, Status status, String message, String messageText, String fix, String fact) {
             this.fact = fact;
             this.title = title;
+            this.titleText = titleText;
             this.status = status;
             this.message = message;
+            this.messageText = messageText;
             this.fix = fix;
         }
+
+        /** The title on a screen, in the user's language */
+        String titleText() { return titleText != null ? titleText : title; }
+
+        /** The message on a screen, in the user's language */
+        String messageText() { return messageText != null ? messageText : message; }
 
         @Override public String toString() { return "[" + status + "] " + title + ": " + message; }
     }
@@ -56,19 +101,19 @@ final class Readiness {
     /** What the host needs whatever the game: vka_dev.c stops without the first ones (Vulkan 1.3, the queue, timeline semaphores, dynamic rendering), and without
      *  placed memory maps, update-after-bind texture tables or a swapchain it runs but draws or shows nothing (its [RED] lines say so) */
     static final List<Req> HOST = Collections.unmodifiableList(List.of(
-            new Req(true, "android.sdk", "31", "Android 12 or newer: the app is built for it"),
-            new Req(true, "vk.instance", "1.1", "Vulkan 1.1 loader or newer: Android 12's loader reports 1.1 and 13's 1.3; the replay's Vulkan 1.3 is the GPU driver's (the next row)"),
-            new Req(true, "vk.api", "1.3", "Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3"),
-            new Req(true, "queue.graphicsCompute", "1", "A graphics and compute queue: everything is submitted to one such queue"),
-            new Req(true, "feature.timelineSemaphore", "1", "Timeline semaphores: the game's fences are built on them"),
-            new Req(true, "feature.dynamicRendering", "1", "Dynamic rendering: every render pass is recorded with it"),
-            new Req(true, "ext.VK_KHR_swapchain", "1", "Swapchain: without it no picture reaches the screen"),
-            new Req(true, "ext.VK_KHR_map_memory2", "1", "Memory map 2: placed memory maps need it"),
-            new Req(true, "ext.VK_EXT_map_memory_placed", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn"),
-            new Req(true, "feature.memoryMapPlaced", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn"),
-            new Req(true, "feature.descriptorBindingSampledImageUpdateAfterBind", "1", "Texture tables (update after bind): the game's texture pools live in them"),
-            new Req(true, "feature.descriptorBindingPartiallyBound", "1", "Texture tables (partially bound): the game's texture pools live in them"),
-            new Req(true, "feature.runtimeDescriptorArray", "1", "Texture tables (runtime arrays): the game's texture pools live in them")));
+            new Req(true, "android.sdk", "31", "Android 12 or newer: the app is built for it", true),
+            new Req(true, "vk.instance", "1.1", "Vulkan 1.1 loader or newer: Android 12's loader reports 1.1 and 13's 1.3; the replay's Vulkan 1.3 is the GPU driver's (the next row)", true),
+            new Req(true, "vk.api", "1.3", "Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3", true),
+            new Req(true, "queue.graphicsCompute", "1", "A graphics and compute queue: everything is submitted to one such queue", true),
+            new Req(true, "feature.timelineSemaphore", "1", "Timeline semaphores: the game's fences are built on them", true),
+            new Req(true, "feature.dynamicRendering", "1", "Dynamic rendering: every render pass is recorded with it", true),
+            new Req(true, "ext.VK_KHR_swapchain", "1", "Swapchain: without it no picture reaches the screen", true),
+            new Req(true, "ext.VK_KHR_map_memory2", "1", "Memory map 2: placed memory maps need it", true),
+            new Req(true, "ext.VK_EXT_map_memory_placed", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn", true),
+            new Req(true, "feature.memoryMapPlaced", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn", true),
+            new Req(true, "feature.descriptorBindingSampledImageUpdateAfterBind", "1", "Texture tables (update after bind): the game's texture pools live in them", true),
+            new Req(true, "feature.descriptorBindingPartiallyBound", "1", "Texture tables (partially bound): the game's texture pools live in them", true),
+            new Req(true, "feature.runtimeDescriptorArray", "1", "Texture tables (runtime arrays): the game's texture pools live in them", true)));
 
     /** A profile's req rows as build.gradle hands them over (Profile.reqs): "level|fact|min|what" rows, ';' between them; a malformed row is skipped */
     static List<Req> parseReqs(String table) {
@@ -146,13 +191,13 @@ final class Readiness {
             seen.add(key);
             boolean ok = have != null && compare(have, r.min) >= 0;
             String shown = have == null ? "not reported" : "reports " + have;
-            if (ok) out.add(new Check(r.title, Status.PASS, "Present (" + label(r.fact) + " " + have + ", needs " + r.min + ").", null));
+            if (ok) out.add(new Check(r.title, r.shownTitle(), Status.PASS, "Present (" + label(r.fact) + " " + have + ", needs " + r.min + ").", null, null, null));
             else {
                 if (r.required) { failed.add(r.fact); failed.add("title " + r.title); }
                 String msg = (r.required ? "This device lacks it; this game needs it. " : "Missing: this game runs without it, with less. ")
                         + (r.why.isEmpty() ? "" : r.why.substring(0, 1).toUpperCase(Locale.ROOT) + r.why.substring(1) + ". ")
                         + "(" + label(r.fact) + " " + shown + ", needs " + r.min + ")";
-                out.add(new Check(r.title, r.required ? Status.FAIL : Status.WARNING, msg, r.fact.equals("ram_gib") ? "memory" : "driver", r.fact));
+                out.add(new Check(r.title, r.shownTitle(), r.required ? Status.FAIL : Status.WARNING, msg, null, r.fact.equals("ram_gib") ? "memory" : "driver", r.fact));
             }
         }
         return out;

@@ -5,4 +5,6 @@
         <item quantity="one">%1$d game runs with less here.</item>
         <item quantity="other">%1$d games run with less here.</item>
     </plurals>
+    <!-- Readiness.REQ_KEYS: the host's requirement rows, "title: why" (Readiness.Req splits on ": "); the English is the same as Readiness.HOST's -->
+    <string name="readiness_req_feature_timeline_semaphore">Timeline semaphores: the game\'s fences are built on them</string>
 </resources>

@@ -46,6 +46,41 @@ public final class ReadinessJvmTest {
                 && rows.get(1).title.equals("Sparse BC6H") && rows.get(1).why.isEmpty(), "parseReqs");
         check(Readiness.parseReqs(null).isEmpty() && Readiness.parseReqs("").isEmpty(), "no rows");
 
+        // The host rows' text resources (Readiness.REQ_FACTS -> REQ_KEYS, docs/i18n.md): each table fact is a HOST row, its resource's English is that row's text
+        // word for word; a host row the table does not know and every game row keep their English
+        check(Readiness.REQ_FACTS.length == Readiness.REQ_KEYS.length && Readiness.REQ_FACTS.length > 0, "REQ_FACTS and REQ_KEYS pair up");
+        int withRes = 0;
+        for (Readiness.Req r : Readiness.HOST) {
+            String what = r.title + (r.why.isEmpty() ? "" : ": " + r.why);
+            check(r.english().equals(what), "HOST " + r.fact + ": the resource's English [" + r.english() + "] is the row's [" + what + "]");
+            check(r.shown().equals(what) && r.shownTitle().equals(r.title) && r.shownWhy().equals(r.why), "HOST " + r.fact + ": shown in English on the JVM");
+            if (r.res >= 0) { withRes++; check(Readiness.REQ_FACTS[r.res].equals(r.fact), "HOST " + r.fact + ": its own table row"); }
+        }
+        check(withRes == Readiness.REQ_FACTS.length, "every REQ_FACTS fact is a HOST row (" + withRes + " of " + Readiness.REQ_FACTS.length + ")");
+        Readiness.Req own = Readiness.parseReqs("required|feature.timelineSemaphore|1|Fences: this game's own words").get(0);
+        check(own.res == -1 && own.shown().equals("Fences: this game's own words") && own.shownTitle().equals("Fences"), "a game's row keeps its readiness.tsv English");
+        Readiness.Req ts = null;
+        for (Readiness.Req r : Readiness.HOST) if (r.fact.equals("feature.timelineSemaphore")) ts = r;
+        check(ts != null && ts.res >= 0 && ts.shownTitle().equals("Timeline semaphores"), "the timeline semaphore row reads its resource");
+        // In another language (a made-up translation in a scratch res folder): the screen's text is the translation, the report's stays English
+        File scratch = Files.createTempDirectory("readiness-tr").toFile();
+        File en = new File(scratch, "values"), trd = new File(scratch, "values-tr");
+        check(en.mkdirs() && trd.mkdirs(), "scratch res");
+        Files.write(new File(en, "strings_readiness.xml").toPath(), ("<resources><string name=\"readiness_req_feature_timeline_semaphore\">" + ts.title + ": "
+                + ts.why.replace("'", "\\'") + "</string></resources>").getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(trd, "strings_readiness.xml").toPath(),
+                "<resources><string name=\"readiness_req_feature_timeline_semaphore\">TR başlık: TR neden</string></resources>".getBytes(StandardCharsets.UTF_8));
+        Tr.Backend before = Tr.backend();
+        Tr.install(new Tr.Xml(scratch, java.util.Locale.forLanguageTag("tr")));
+        try {
+            check(ts.shownTitle().equals("TR başlık") && ts.shownWhy().equals("TR neden") && ts.english().equals(ts.title + ": " + ts.why), "translated on screen, English in reports");
+            Readiness.Check c = Readiness.evaluate(Readiness.facts("feature.timelineSemaphore=1"), List.of()).stream()
+                    .filter(x -> "Timeline semaphores".equals(x.title)).findFirst().orElse(null);
+            check(c != null && c.titleText().equals("TR başlık") && c.toString().startsWith("[PASS] Timeline semaphores: "), "a Check: titleText translated, toString English");
+        } finally {
+            Tr.install(before);
+        }
+
         // A phone with everything: every check passes
         String all = "vk.instance=1.4.0\nvk.api=1.4.295\nqueue.graphicsCompute=1\nfeature.timelineSemaphore=1\nfeature.dynamicRendering=1\next.VK_KHR_swapchain=1\n"
                 + "ext.VK_KHR_map_memory2=1\next.VK_EXT_map_memory_placed=1\nfeature.memoryMapPlaced=1\nfeature.descriptorBindingSampledImageUpdateAfterBind=1\n"
