@@ -320,11 +320,17 @@ if argv[:1] == ['--publish-delta'] and len(argv) >= 2:
     except FileNotFoundError: _prev = None
     except ValueError as _e: sys.exit(f'[RED] {_prof}: {_e}')
     if _prev and _prev['game'] == _g.id and _prev['version'] != _m['version']: _froms[_prev['version']] = len(delta.to_translate(_prev['hashes'], _m['hashes']))
-    if _prev and _prev['version'] == _m['version']: _froms.update(_prev['from']); _stamps.update(_prev['stamp'])   # published again: keep what was measured
+    # The same version from other profile inputs (new shaders in the profile's tables, android/SHADERS.md#profile-input-updates): a phone's library of the previous
+    # manifest's inputs keeps every entry whose hash is unchanged, so its row "<version>@<those inputs>" counts the rest. What the previous manifest measured against
+    # its own hashes (its from and stamp rows) is not carried over: a stamp row names a file of those inputs
+    if _prev and _prev['game'] == _g.id and _prev['version'] == _m['version'] and _prev['inputs'] != _m['inputs']:
+        _froms[f'{_m["version"]}@{_prev["inputs"]}'] = len(delta.to_translate(_prev['hashes'], _m['hashes']))
+    elif _prev and _prev['version'] == _m['version']: _froms.update(_prev['from']); _stamps.update(_prev['stamp'])   # published again: keep what was measured
     for _o in _olds:
         _L, _hs = delta.library_hashes(_o if _o.endswith('.lib') else os.path.join(_o, VK['LIB_FILE']), zstd, int(os.environ.get('J', '8'))); _L.close()
         if _L.game != _g.id: sys.exit(f'[RED] {_o}: a library of game {_L.game}')
         if _L.version != _m['version']: _froms[_L.version] = len(delta.to_translate(_hs, _m['hashes']))
+        elif _L.inputs != _m['inputs']: _froms[f'{_L.version}@{_L.inputs}'] = len(delta.to_translate(_hs, _m['hashes']))   # this version, older profile inputs
         _of = _o if _o.endswith('.lib') else os.path.join(_o, VK['LIB_FILE'])
         if _L.version != _m['version'] and os.path.isfile(_new) and delta.stamp_only(_of, _new):   # byte-identity is the rule (a shader that builds nowhere counts in from)
             _stamps[_L.version] = (delta.sha256_file(_of), delta.sha256_file(_new))
@@ -904,7 +910,8 @@ def load_manifest():
 
 def older_libraries():
     """The libraries a delta may take entries from: DMSH_VK_DELTA_FROM (paths separated by os.pathsep, each a dmsh_vk.lib, a v-<V> folder or a folder of them; the app passes
-    the pack's shaders/), else the other v-<V> folders of the output's cache folder; only libraries of this game in a format this tool reads, newest first"""
+    the pack's shaders/), else the v-<V> folders of the output's cache folder; only libraries of this game in a format this tool reads, newest first. The output's own
+    library is one only when it was made from other profile inputs (android/SHADERS.md#profile-input-updates): of these inputs, its entries are results already"""
     roots = [p for p in os.environ.get('DMSH_VK_DELTA_FROM', '').split(os.pathsep) if p] or [cache_root]
     files = []
     for r in roots:
@@ -915,10 +922,10 @@ def older_libraries():
         files += [os.path.join(r, n, VK['LIB_FILE']) for n in subs if n.startswith(VK['DIR_PREFIX']) and os.path.isfile(os.path.join(r, n, VK['LIB_FILE']))]
     libs = []
     for f in sorted(set(os.path.realpath(f) for f in files)):
-        if os.path.dirname(f) == os.path.realpath(out): continue   # this version's own library (an earlier run's): its entries are results already
+        own = os.path.dirname(f) == os.path.realpath(out)   # this version's own library (an earlier run's)
         try: L = delta.Library(f)
         except (OSError, ValueError, struct.error) as e: print(f'delta: {f} skipped: {e}', flush=True); continue
-        if L.game != GAME.id: L.close(); continue
+        if L.game != GAME.id or own and L.inputs == INPUTS: L.close(); continue
         libs.append(L)
     return sorted(libs, key=lambda L: -os.stat(L.path).st_mtime)
 
