@@ -5,8 +5,12 @@
 
     <!-- Ondevice: a build without the packer -->
     <string name="prepare_unavailable">Esta versión de Anka Native no puede preparar un juego en el teléfono. Prepáralo una vez en una computadora (Linux o Mac), como indican los pasos de \"Install\" del README (github.com/EddizEge/AnkaNative), copia el paquete junto al volcado como &lt;title ID&gt;-work/android-pack y luego vuelve a agregar el juego o elige esa carpeta de paquete.</string>
+    <string name="prepare_shaders_update_quick">Actualiza los shaders a partir de tu volcado: %1$,d de los %2$,d son nuevos o cambiaron en esta versión de la app; los demás se conservan tal como están. Solo se leen las partes de tu volcado que contienen los nuevos: %3$s en total, en segundo plano.</string>
+    <string name="prepare_shaders_update_full">Actualiza los shaders a partir de tu volcado: %1$,d de los %2$,d son nuevos o cambiaron en esta versión de la app; los demás se conservan tal como están. Primero se vuelven a leer los shaders del volcado, que es la mayor parte del tiempo: %3$s en total, en segundo plano.</string>
     <string name="prepare_shaders_make">Crea los shaders a partir de tu volcado (%1$s, en segundo plano).</string>
     <string name="prepare_shaders_make_default">Crea los shaders a partir de tu volcado (unos 20-35 minutos, en segundo plano).</string>
+    <string name="prepare_shaders_update_quick_step">Al preparar el juego, se actualizan los shaders a partir de tu volcado: %1$,d de los %2$,d son nuevos o cambiaron en esta versión de la app; los demás se conservan tal como están. Solo se leen las partes de tu volcado que contienen los nuevos: %3$s en total, en segundo plano.</string>
+    <string name="prepare_shaders_update_full_step">Al preparar el juego, se actualizan los shaders a partir de tu volcado: %1$,d de los %2$,d son nuevos o cambiaron en esta versión de la app; los demás se conservan tal como están. Primero se vuelven a leer los shaders del volcado, que es la mayor parte del tiempo: %3$s en total, en segundo plano.</string>
     <string name="prepare_shaders_make_step">Al preparar el juego, se crean los shaders a partir de tu volcado (%1$s, en segundo plano).</string>
     <string name="prepare_shaders_make_step_default">Al preparar el juego, se crean los shaders a partir de tu volcado (unos 20-35 minutos, en segundo plano).</string>
     <string name="prepare_not_on_storage">Esa carpeta no está en el almacenamiento del teléfono (%1$s).</string>
@@ -80,9 +84,13 @@
     <string name="prepare_manage_title">Preparando %1$s</string>
     <string name="prepare_button_done">Listo</string>
     <string name="prepare_forget_title">¿Olvidar esta preparación?</string>
+    <string name="prepare_forget_body">Se elimina: nada. La pantalla deja de mostrar la preparación.\n\nSe conserva: sus archivos en %1$s, el paquete, tu volcado y tus partidas guardadas. Si vuelves a elegir el mismo volcado, la preparación aparece de nuevo.\n\nEl progreso guardado de la división de shaders (una copia en el almacenamiento propio de la app) y los shaders traducidos (hasta 1 GB aproximadamente, también en el almacenamiento propio de la app) se eliminan cuando empieza la preparación de otro juego; hasta entonces, una preparación sin terminar se reanuda desde ellos.</string>
     <string name="prepare_button_forget">Olvidar</string>
     <string name="prepare_not_deleted_dump">No se eliminó: %1$s contiene tu volcado o está dentro de él.</string>
     <string name="prepare_not_deleted_save">No se eliminó: %1$s contiene tu carpeta de partidas o está dentro de ella.</string>
+    <string name="prepare_deleted_work">Se elimina:\n· los archivos de trabajo en %1$s (código reescrito, shaders divididos, el progreso de la preparación)\n· el progreso guardado de la división de shaders y los shaders traducidos, en el almacenamiento propio de la app</string>
+    <string name="prepare_deleted_work_pack_inside">Se elimina:\n· los archivos de trabajo en %1$s, con el paquete dentro (código reescrito, shaders divididos, el progreso de la preparación)\n· el progreso guardado de la división de shaders y los shaders traducidos, en el almacenamiento propio de la app</string>
+    <string name="prepare_deleted_work_and_pack">Se elimina:\n· los archivos de trabajo en %1$s (código reescrito, shaders divididos, el progreso de la preparación)\n· el progreso guardado de la división de shaders y los shaders traducidos, en el almacenamiento propio de la app\n· el paquete preparado y su biblioteca de shaders en %2$s</string>
     <string name="prepare_kept">Se conserva: tu volcado (%1$s) y tus partidas guardadas. Las partidas guardadas nunca se eliminan desde aquí.</string>
     <string name="prepare_kept_save">Se conserva: tu volcado (%1$s) y tus partidas guardadas (%2$s). Las partidas guardadas nunca se eliminan desde aquí.</string>
     <string name="prepare_kept_pack">Se conserva: tu volcado (%1$s), tus partidas guardadas y el paquete (%2$s). Las partidas guardadas nunca se eliminan desde aquí.</string>
@@ -115,6 +123,8 @@
     <string name="prepare_status_paused">En pausa: %1$s. %2$s.</string>
     <string name="prepare_status_running">%1$s (paso %2$d de %3$d).</string>
     <string name="prepare_status_interrupted">Se interrumpió (%1$s). Toca %2$s para continuar.</string>
+    <string name="prepare_notice_inputs_changed">Esta versión de la app conoce más shaders del juego, así que primero se vuelven a buscar en tu volcado.</string>
+    <string name="prepare_notice_split_full">La lectura rápida de tu volcado no encontró un shader que necesita esta actualización, así que ahora se leen todos los shaders del volcado.</string>
     <string name="prepare_reason_user">la pausaste tú</string>
     <string name="prepare_reason_battery">batería por debajo del 20 %: conecta el cargador para continuar</string>
     <string name="prepare_reason_thermal">el teléfono está demasiado caliente: continuará cuando se enfríe</string>
@@ -150,6 +160,8 @@
     <string name="prepare_dump_free_unknown">No se puede leer el espacio libre de %1$s.</string>
     <string name="prepare_dump_space">Para preparar el juego se necesitan %1$.1f GB libres junto al volcado; %2$s tiene %3$.2f GB libres.</string>
     <string name="prepare_dump_not_writable">No se puede crear %1$s: no se puede escribir en la carpeta que está junto al volcado.</string>
+    <string name="prepare_results_free_unknown">No se puede leer el espacio libre del almacenamiento de la app (%1$s).</string>
+    <string name="prepare_error_results_space">traducir los shaders necesita %1$.1f GB libres en el almacenamiento interno del teléfono, y tiene %2$.2f GB libres. Libera espacio y luego toca %3$s</string>
     <string name="prepare_status_failed_coded">Se detuvo durante %1$s. %2$s Toca %3$s para continuar.</string>
     <string name="prepare_status_failed_sentence">Se detuvo durante %1$s: %2$s Toca %3$s para continuar.</string>
 </resources>

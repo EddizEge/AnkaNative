@@ -198,6 +198,8 @@
     <string name="home_shaders_missing">Faltan shaders</string>
     <string name="home_shaders_missing_body">Sin ellos, el juego no muestra ninguna imagen.\n\n%1$s</string>
     <string name="home_start_anyway">Iniciar de todos modos</string>
+    <string name="home_shaders_out_of_date">Shaders desactualizados</string>
+    <string name="home_shaders_out_of_date_body">El juego inicia con los shaders que tiene el paquete. Los que agregó esta versión de la app faltan hasta que el paquete se vuelva a crear con las herramientas de esta versión (scripts/pack_android.py en una computadora) o hasta que el juego se agregue a partir de su volcado para que la app los actualice.\n\n%1$s</string>
     <string name="home_pack_cannot_start">El paquete no puede iniciar este juego</string>
     <string name="home_pack_problem_dump">Con %1$s se corrige a partir de tu volcado, en este teléfono.\n\n%2$s\n\nPaquete: %3$s</string>
     <string name="home_pack_problem">%1$s\n\nPaquete: %2$s</string>

@@ -8,6 +8,7 @@
     <string name="packs_no_module">o pacote não tem %1$s.patched.bin</string>
     <string name="packs_tsv_no_row">o pack.tsv não tem %1$s</string>
     <string name="packs_library_unreadable">Não é possível ler a biblioteca de shaders do pacote (%1$s): %2$s</string>
+    <string name="packs_library_older_inputs">A biblioteca de shaders do pacote foi criada a partir de tabelas de shaders mais antigas (entradas %1$s) que as deste app (%2$s): %3$,d dos %4$,d shaders do jogo são novos ou mudaram nesta versão do app. Até eles serem criados, o jogo roda sem eles, então parte dele não é desenhada; uma atualização a partir do dump cria só esses e mantém os outros.</string>
     <string name="packs_library_other_inputs">A biblioteca de shaders do pacote foi criada a partir de outras tabelas de shaders (entradas %1$s), não das deste app (%2$s): os shaders dela precisam ser criados de novo.</string>
     <string name="packs_library_none">A pasta do pacote %1$s não tem biblioteca de shaders: este app precisa de shaders/v-%2$s/dmsh_vk.lib nela.</string>
     <string name="packs_library_other_version">A pasta do pacote %1$s tem a biblioteca de shaders na versão %2$s, mas este app precisa da versão %3$s (shaders/v-%3$s/dmsh_vk.lib).</string>

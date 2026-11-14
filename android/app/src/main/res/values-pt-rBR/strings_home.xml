@@ -232,6 +232,8 @@
     <string name="home_shaders_missing">Faltam shaders</string>
     <string name="home_shaders_missing_body">Sem eles, o jogo não mostra imagem nenhuma.\n\n%1$s</string>
     <string name="home_start_anyway">Iniciar mesmo assim</string>
+    <string name="home_shaders_out_of_date">Shaders desatualizados</string>
+    <string name="home_shaders_out_of_date_body">O jogo inicia com os shaders que o pacote tem. Os que esta versão do app adicionou ficam faltando até o pacote ser criado de novo com as ferramentas desta versão (scripts/pack_android.py em um computador) ou até o jogo ser adicionado a partir do dump, para que o app os atualize.\n\n%1$s</string>
     <string name="home_pack_cannot_start">O pacote não consegue iniciar este jogo</string>
     <!-- %1$s: home_prepare_again, %2$s: why (PackCheck), %3$s: the pack folder -->
     <string name="home_pack_problem_dump">A opção %1$s corrige isso a partir do seu dump, neste celular.\n\n%2$s\n\nPacote: %3$s</string>

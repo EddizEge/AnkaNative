@@ -8,6 +8,7 @@
     <string name="packs_no_module">pakette %1$s.patched.bin yok</string>
     <string name="packs_tsv_no_row">pack.tsv içinde %1$s yok</string>
     <string name="packs_library_unreadable">Paketin shader kütüphanesi (%1$s) okunamıyor: %2$s</string>
+    <string name="packs_library_older_inputs">Paketin shader kütüphanesi, bu uygulamanınkinden (%2$s) daha eski shader tablolarıyla (girdiler: %1$s) yapılmış: oyunun %4$,d shader\'ından %3$,d tanesi bu uygulama sürümünde yeni ya da değişmiş. Bunlar yapılana kadar oyun onlarsız oynar, bu yüzden bir kısmı çizilmez; dökümden yapılan bir güncelleme yalnızca bunları yapar, diğerlerini korur.</string>
     <string name="packs_library_other_inputs">Paketin shader kütüphanesi, bu uygulamanınkinden (%2$s) farklı shader tablolarıyla (girdiler: %1$s) oluşturulmuş: shader\'larının yeniden yapılması gerekiyor.</string>
     <string name="packs_library_none">Paket klasöründe shader kütüphanesi yok: %1$s. Bu uygulama içinde shaders/v-%2$s/dmsh_vk.lib bekler.</string>
     <string name="packs_library_other_version">Paket klasöründeki (%1$s) shader kütüphanesinin sürümü %2$s, ama bu uygulama %3$s sürümünü gerektirir (shaders/v-%3$s/dmsh_vk.lib).</string>

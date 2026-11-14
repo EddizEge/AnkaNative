@@ -150,4 +150,9 @@
     <!-- %2$s: Share log (home's Settings row); Back is the phone's back gesture or button -->
     <string name="game_selftest_pass">SUCESSO (código de retorno %1$d)\nVolte para sair; use %2$s para enviar o log desta execução.</string>
     <string name="game_selftest_fail">FALHA (código de retorno %1$d)\nVolte para sair; use %2$s para enviar o log desta execução.</string>
+    <plurals name="game_mesh_making">
+        <item quantity="one">Criando %1$d shader de malha para este celular (a primeira abertura depois de uma atualização): até ele ficar pronto, parte do cenário não é desenhada.</item>
+        <item quantity="other">Criando %1$d shaders de malha para este celular (a primeira abertura depois de uma atualização): até eles ficarem prontos, parte do cenário não é desenhada.</item>
+    </plurals>
+    <string name="game_mesh_ready">Shaders de malha prontos: agora tudo é desenhado.</string>
 </resources>

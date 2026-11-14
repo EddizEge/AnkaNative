@@ -199,6 +199,8 @@
     <string name="home_shaders_missing">Shader\'lar eksik</string>
     <string name="home_shaders_missing_body">Shader\'lar olmadan oyun hiçbir şey çizmez.\n\n%1$s</string>
     <string name="home_start_anyway">Yine de başlat</string>
+    <string name="home_shaders_out_of_date">Shader\'lar güncel değil</string>
+    <string name="home_shaders_out_of_date_body">Oyun, paketteki shader\'larla başlar. Bu uygulama sürümünün eklediği shader\'lar, paket bu sürümün araçlarıyla yeniden yapılana (bilgisayarda scripts/pack_android.py) ya da oyun dökümünden eklenip uygulama onları güncelleyene kadar eksik kalır.\n\n%1$s</string>
     <string name="home_pack_cannot_start">Paket bu oyunu başlatamıyor</string>
     <string name="home_pack_problem_dump">%1$s seçeneği bunu dökümden, bu telefonda düzeltir.\n\n%2$s\n\nPaket: %3$s</string>
     <string name="home_pack_problem">%1$s\n\nPaket: %2$s</string>
