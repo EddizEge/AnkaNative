@@ -513,6 +513,16 @@ public final class MainActivity extends Activity {
         return null;
     }
 
+    /** The text of a playable older library's card state (GameGate.Line): only "updating shaders" while its update runs or was just started */
+    private static int updateLine(GameGate.Line l) {
+        switch (l) {
+            case UPDATING: return R.string.home_state_ready_updating;
+            case GAME: return R.string.home_state_ready_update_game;
+            case PAUSED: return R.string.home_state_ready_update_paused;
+            default: return R.string.home_state_ready_older;
+        }
+    }
+
     /** The card's state, checked off the main thread (NSO headers, the stamp, and for a ready pack the rewriter's key, which hashes the modules) */
     private void check(Game g, TextView st, Ui.Action play, LinearLayout info) {
         new Thread(() -> {
@@ -526,9 +536,9 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (info.getParent() == null) return;
                 // An APK update's new shaders: made in the background with no question when the pack's older library is one the delta manifest knows (Ondevice.autoUpdate)
-                if (problem != null && problem.shadersOnly && problem.prepare) Ondevice.autoUpdate(this, new File(g.gameDir), new File(g.packDir), g.titleId);
+                boolean queued = problem != null && problem.shadersOnly && problem.prepare && Ondevice.autoUpdate(this, new File(g.gameDir), new File(g.packDir), g.titleId);
                 if (problem == null) Ui.status(st, getString(R.string.home_state_ready), R.color.bn_leaf);
-                else if (problem.playable) Ui.status(st, getString(R.string.home_state_ready_updating), R.color.bn_leaf);
+                else if (problem.playable) Ui.status(st, getString(updateLine(Ondevice.updateLine(new File(g.packDir), queued))), R.color.bn_leaf);   // how its update stands (GameGate.card)
                 else if (problem.legacy) Ui.status(st, getString(R.string.home_state_ready_legacy), R.color.bn_accent);
                 else Ui.status(st, problem.label, problem.prepare ? R.color.bn_accent : R.color.bn_danger);
                 if (problem != null && !problem.detail.isEmpty()) {   // which build IDs (or which file) the state is about

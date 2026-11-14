@@ -100,9 +100,20 @@ final class Ondevice {
      * (Pack.playableLibrary); otherwise Play waits for it as before. Only the card's own pack is updated (card = true): never the pack Folders.packFor would pick
      * (a game added with another pack, e.g. the play app's beside the dump), never a whole job, never a job for another pack folder
      */
-    static void autoUpdate(MainActivity a, File dump, File packDir, String titleId) {
-        if (!available() || panel == null || panel.a != a || panel.alive() || deltaShaders(packDir, titleId) < 0 || !autoTried.add(dump.getPath())) return;
+    static boolean autoUpdate(MainActivity a, File dump, File packDir, String titleId) {
+        if (!available() || panel == null || panel.a != a || panel.alive() || deltaShaders(packDir, titleId) < 0 || !autoTried.add(dump.getPath())) return false;
         panel.picked(dump, true, packDir, false, true);
+        return true;
+    }
+
+    /**
+     * The game card's state for a pack whose older library plays while the update makes this version's (GameGate.card): from the Prepare job when it is this
+     * pack's (job.json, and whether the service's worker runs it), else whether the card's check just started the update (queued). On the main thread
+     */
+    static GameGate.Line updateLine(File packDir, boolean queued) {
+        Job j = panel != null ? panel.job : null;
+        if (j == null || !GameList.samePath(j.pack().getPath(), packDir.getPath())) return GameGate.card(queued, null, null, false);
+        return GameGate.card(queued, j.state(), j.reason(), panel.alive());
     }
 
     /**
@@ -310,6 +321,8 @@ final class Ondevice {
 
         /** When Home last resumed a job left waiting for a game (afterGame) */
         long afterGameAt;
+        /** The game cards' line for the job as last shown (GameGate.card): Home's cards are made again when it changes */
+        String cardKey;
 
         /**
          * A job left paused for a game whose service is gone (its process died while the game ran: a low-memory kill, or Android refused the restart), once
@@ -328,6 +341,9 @@ final class Ondevice {
         void show() {
             afterGame();
             boolean alive = job != null && alive();
+            String key = job == null ? "" : job.pack().getPath() + " " + GameGate.card(false, job.state(), job.reason(), alive);
+            if (cardKey != null && !cardKey.equals(key)) a.refresh();   // a game card of this pack says how its update stands (MainActivity.check)
+            cardKey = key;
             boolean ready = job != null && ready(job);
             // A finished job: its game goes into the list with its pack (once), and the card goes: Play is on the game's card
             if (ready && !alive && !addedKey(job).equals(Prefs.open(a, "ondevice").getString("added", ""))) addGame(job);
@@ -441,7 +457,7 @@ final class Ondevice {
 
         void checked(Found f, boolean start, File packOverride, boolean again, boolean card) {
             DumpCheck.Result r = f.r;
-            if (!r.ok()) { if (!card) { a.error(r.errorText()); show(); } return; }
+            if (!r.ok()) { if (!card) { a.error(r.errorText()); show(); } else a.refresh(); return; }   // a card's update that did not start: its line says so
             // A job in progress for this dump is resumed
             if (f.existing != null) {
                 try {
@@ -458,7 +474,7 @@ final class Ondevice {
                         return;
                     }
                     if (!s.equals("done") && !s.isEmpty()) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
-                        if (card) return;   // an automatic update leaves it to the user
+                        if (card) { a.refresh(); return; }   // an automatic update leaves it to the user
                         a.error(a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(), a.getString(R.string.prepare_label_delete_work)));
                         Job.remember(a, f.existing);
                         job = j;
@@ -474,7 +490,7 @@ final class Ondevice {
                 a.error(a.getString(R.string.prepare_busy, job.name(), job.statusMsg(true).text()));
                 return;
             }
-            if (card && (f.pack == null || f.build != null)) return;   // an automatic update only updates the shaders of the card's own pack, when its code fits
+            if (card && (f.pack == null || f.build != null)) { a.refresh(); return; }   // an automatic update only updates the shaders of the card's own pack, when its code fits
             // A pack already there (the picked pack folder, else beside the dump): what fits is kept
             if (f.pack != null) {
                 File pd = f.packDir;

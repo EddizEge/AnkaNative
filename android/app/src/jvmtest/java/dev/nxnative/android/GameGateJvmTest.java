@@ -3,7 +3,8 @@ package dev.nxnative.android;
 /**
  * GameGate on the JVM: a game and this app's Prepare job, which must not work at the same time. The case it was made for (the phone test of 2026-11-14): a game
  * started beside a running Prepare or shader update (from a frontend, or Play during the automatic update) ran a 12 GB phone out of memory, and about 30 s
- * after the game was in, lmkd ended the job's process and the user's background apps. Prints "ok" lines, exits 1 on the first failed check. Run by dm/tools/tests/test_android_game_gate.py.
+ * after the game was in, lmkd ended the job's process and the user's background apps; the game card said "Ready · updating shaders" when no update was
+ * queued. Prints "ok" lines, exits 1 on the first failed check. Run by dm/tools/tests/test_android_game_gate.py.
  */
 public final class GameGateJvmTest {
     private static void check(boolean ok, String what) {
@@ -48,6 +49,19 @@ public final class GameGateJvmTest {
         check(!GameGate.resumeAfterGame("paused", "game", true, false), "its worker runs: it goes on by itself");
         check(!GameGate.resumeAfterGame("paused", "user", false, false), "paused by the user: stays paused");
 
+        // The game card of a pack whose older library plays while the update makes this version's
+        same(GameGate.card(false, null, null, false), GameGate.Line.OLDER, "no update of this pack queued or running: not \"updating shaders\" (the phone test's line)");
+        same(GameGate.card(true, null, null, false), GameGate.Line.UPDATING, "the card's check just started its update");
+        same(GameGate.card(false, "running", "", true), GameGate.Line.UPDATING, "its update runs");
+        same(GameGate.card(false, "pending", "", false), GameGate.Line.UPDATING, "its update is written and starting");
+        same(GameGate.card(false, "running", "", false), GameGate.Line.PAUSED, "running in job.json, its process dead: not updating");
+        same(GameGate.card(false, "paused", "game", true), GameGate.Line.GAME, "waiting while a game runs");
+        same(GameGate.card(false, "paused", "game", false), GameGate.Line.GAME, "left waiting for a game (Home resumes it once the game is gone)");
+        same(GameGate.card(false, "paused", "thermal", true), GameGate.Line.UPDATING, "waiting for the heat: it goes on by itself");
+        same(GameGate.card(false, "paused", "battery", false), GameGate.Line.PAUSED, "a battery wait whose process died");
+        same(GameGate.card(false, "paused", "user", false), GameGate.Line.PAUSED, "paused by the user");
+        same(GameGate.card(false, "failed", "", false), GameGate.Line.OLDER, "its update failed: older shaders");
+        same(GameGate.card(true, "paused", "user", false), GameGate.Line.UPDATING, "a paused update the card's check resumed just now");
         System.out.println("all ok");
     }
 }

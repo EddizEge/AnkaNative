@@ -1,8 +1,9 @@
-"""A game and this app's Prepare job (GameGate.java, PrepareGate.java, PackService.java, GameActivity.java, Ondevice.java). The phone test of 2026-11-14: a
-game started beside a running Prepare (from a frontend) or beside the automatic shader update (Play, which stays on during it) ran a 12 GB phone out of
-memory, and about 30 s after the game was in, lmkd ended the job's process and the user's background apps. Now a game about to start pauses the job first
-(reason "game"), a process that has run a tool ends instead of waiting beside the game, and the job goes on by itself when the game's process is gone. The
-decisions run on the JVM (GameGateJvmTest); the rest checks that the game, the service and Home use them as written. Skipped without a JDK (the JVM part)."""
+"""A game and this app's Prepare job (GameGate.java, PrepareGate.java, PackService.java, GameActivity.java, Ondevice.java, MainActivity.java). The phone test
+of 2026-11-14: a game started beside a running Prepare (from a frontend) or beside the automatic shader update (Play, which stays on during it) ran a 12 GB
+phone out of memory, and about 30 s after the game was in, lmkd ended the job's process and the user's background apps; the game card said "Ready · updating
+shaders" when no update was queued. Now a game about to start pauses the job first (reason "game"), a process that has run a tool ends instead of waiting
+beside the game, and the job goes on by itself when the game's process is gone; the card says how its pack's update stands. The decisions run on the JVM
+(GameGateJvmTest); the rest checks that the game, the service and Home use them as written. Skipped without a JDK (the JVM part)."""
 import re
 import shutil
 import subprocess
@@ -128,10 +129,20 @@ class Home(unittest.TestCase):
         self.assertIn('GameGate.resumeAfterGame(job.state(), job.reason(), jobAlive, PrepareGate.gameRunning(a))', body(o, '        void afterGame() {', '\n        }\n'))
         self.assertIn('d.containsKey("job")', o)
 
+    def test_card_line(self):
+        """The game card's "updating shaders" comes from the job of its pack (GameGate.card), and the cards are made again when that changes"""
+        m = code(MAIN / 'MainActivity.java')
+        self.assertIn('Ondevice.updateLine(new File(g.packDir), queued)', m)
+        self.assertNotIn('getString(R.string.home_state_ready_updating), R.color.bn_leaf)', m)
+        o = code(ONDEVICE / 'Ondevice.java')
+        self.assertIn('return GameGate.card(queued, j.state(), j.reason(), panel.alive());', o)
+        show = body(o, '        void show() {', '\n        }\n')
+        self.assertIn('if (cardKey != null && !cardKey.equals(key)) a.refresh();', show)
+
     def test_texts(self):
         for d in ('values', 'values-tr', 'values-pt-rBR', 'values-b+es+419'):
             t = ''.join(p.read_text(encoding='utf-8') for p in (RES / d).glob('strings_*.xml'))
-            for k in ('prepare_reason_game', 'game_prepare_pausing'):
+            for k in ('prepare_reason_game', 'game_prepare_pausing', 'home_state_ready_update_game', 'home_state_ready_update_paused', 'home_state_ready_older'):
                 self.assertIn(f'name="{k}"', t, f'{d}: {k}')
         self.assertIn('case "game": return new Msg("prepare_reason_game");', code(ONDEVICE / 'Job.java'))
 

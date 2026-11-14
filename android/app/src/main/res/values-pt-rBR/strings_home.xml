@@ -109,6 +109,9 @@
     <string name="home_state_shaders_needed">Faltam shaders</string>
     <string name="home_state_ready">Pronto</string>
     <string name="home_state_ready_updating">Pronto · atualizando shaders</string>
+    <string name="home_state_ready_update_game">Pronto · atualização de shaders pausada enquanto um jogo está aberto</string>
+    <string name="home_state_ready_update_paused">Pronto · atualização de shaders pausada</string>
+    <string name="home_state_ready_older">Pronto · shaders antigos</string>
     <string name="home_state_ready_legacy">Pronto · shaders precisam de uma atualização</string>
     <!-- The ⋯ button's description: %1$s the game's name -->
     <string name="home_manage_game">Gerenciar %1$s</string>

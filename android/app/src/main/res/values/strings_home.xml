@@ -113,6 +113,9 @@
     <string name="home_state_shaders_needed">Shaders needed</string>
     <string name="home_state_ready">Ready</string>
     <string name="home_state_ready_updating">Ready · updating shaders</string>
+    <string name="home_state_ready_update_game">Ready · shader update paused while a game runs</string>
+    <string name="home_state_ready_update_paused">Ready · shader update paused</string>
+    <string name="home_state_ready_older">Ready · older shaders</string>
     <string name="home_state_ready_legacy">Ready · shaders need one update</string>
     <!-- The ⋯ button's description: %1$s the game's name -->
     <string name="home_manage_game">Manage %1$s</string>

@@ -6,7 +6,7 @@ package dev.nxnative.android;
  * runs the job waits, paused with its own reason "game", and goes on by itself when the game's process is gone, as the battery and heat waits do; a job the
  * user paused stays paused. Plain Java over job.json's state and reason and what the service knows of itself, checked on the JVM by GameGateJvmTest
  * (dm/tools/tests/test_android_game_gate.py). Its callers: GameActivity (PrepareGate, in the game's process, before the host starts), PackService (ACTION_GAME
- * and its wait) and Home's Preparing card (Ondevice: a job left waiting for a game).
+ * and its wait), Home's Preparing card (Ondevice: a job left waiting for a game) and Home's game cards (MainActivity.check).
  * <p>
  * Why the job's process ends instead of waiting beside the game: after the shaders step's tool has run, the process keeps what the tool left (the translator's
  * heap, Python's arenas): about 0.55 GB on the phone (the pack step's samples) and 0.56 GB on a computer in the phone's form right after a stopped
@@ -59,5 +59,34 @@ final class GameGate {
      */
     static boolean resumeAfterGame(String state, String reason, boolean worker, boolean gameRuns) {
         return "paused".equals(state) && REASON.equals(reason) && !worker && !gameRuns;
+    }
+
+    /** The game card's state for a pack whose older library plays while the shader update makes this version's */
+    enum Line {
+        /** "Ready · updating shaders": the update of this card's pack runs, waits for the battery or the heat, or was just started */
+        UPDATING,
+        /** "Ready · shader update paused while a game runs" */
+        GAME,
+        /** "Ready · shader update paused": paused by the user, Android's daily limit or a start Android refused, or its process died (Resume on the Preparing card) */
+        PAUSED,
+        /** "Ready · older shaders": no update of this card's pack is queued or running (none started, or it stopped with an error) */
+        OLDER
+    }
+
+    /**
+     * queued: the card's check started the update just now (Ondevice.autoUpdate); state, reason: the Prepare job's when it is this card's pack's, else null;
+     * worker: the service's worker runs that job (a job.json that says running or waiting with no worker is a process that died)
+     */
+    static Line card(boolean queued, String state, String reason, boolean worker) {
+        if (queued) return Line.UPDATING;   // started or resumed just now (Ondevice.autoUpdate); the card is made again as the job goes on (Ondevice show)
+        if (state != null) {
+            if ("pending".equals(state)) return Line.UPDATING;
+            if ("running".equals(state)) return worker ? Line.UPDATING : Line.PAUSED;
+            if ("paused".equals(state)) {
+                if (REASON.equals(reason)) return Line.GAME;   // with no worker too: Home resumes it once no game runs (resumeAfterGame)
+                return JobForm.waitsByItself(reason) && worker ? Line.UPDATING : Line.PAUSED;
+            }
+        }
+        return Line.OLDER;
     }
 }
