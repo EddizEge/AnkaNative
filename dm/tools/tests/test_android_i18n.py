@@ -262,6 +262,12 @@ def key_args(t):
     neither (a key built at run time, a variable, another class's array), which test_java_keys_are_literals refuses"""
     v = [x[1] for x in t]
     tables = literal_tables(t)
+    # Names this file declares as a Msg (a field, a parameter, a local) and never as anything else: such a Msg was built by a checked call, so
+    # new LocalizedIOException(m, cause) passes it on. A name also declared with another type (a String why elsewhere in the file) is not taken
+    def declared(typ):
+        return {v[j + 1] for j in range(len(t) - 2) if v[j] == typ and t[j + 1][0] == 'id' and v[j + 2] in ('=', ',', ')', ';') and (j == 0 or v[j - 1] != '.')}
+    msgs = declared('Msg') - {n for j in range(len(t) - 2) if t[j][0] == 'id' and v[j] != 'Msg' and v[j][:1].isupper() for n in [v[j + 1]]
+                              if t[j + 1][0] == 'id' and v[j + 2] in ('=', ',', ')', ';')}
     out = []
 
     def arg(at):
@@ -287,8 +293,8 @@ def key_args(t):
             call, typ, keys = k, 'string' if v[k + 2] in ('s', 'english') else 'plurals', arg(k + 4)
         elif v[k:k + 3] == ['new', 'Msg', '(']:
             call, typ, keys = k, 'string', arg(k + 3)
-        elif v[k:k + 3] == ['new', 'LocalizedIOException', '(']:   # a key, or a Msg built right there (checked as new Msg)
-            call, typ, keys = k, 'string', [] if v[k + 3:k + 5] == ['new', 'Msg'] else arg(k + 3)
+        elif v[k:k + 3] == ['new', 'LocalizedIOException', '(']:   # a key, a Msg built right there (checked as new Msg), or a Msg variable with its cause
+            call, typ, keys = k, 'string', [] if v[k + 3:k + 5] == ['new', 'Msg'] or (v[k + 3] in msgs and v[k + 4:k + 5] == [',']) else arg(k + 3)
         elif v[k] == 'getIdentifier':
             call = k
         if call is not None:
@@ -439,6 +445,7 @@ class KeyPatterns(unittest.TestCase):
     def test_accepted(self):
         for call in ('Tr.s("home_a")', 'Tr.s("home_a", i)', 'Tr.p("home_n", i, i)', 'new Msg("home_a", fact)', 'Msg.plural("home_n", i, i)',
                      'new LocalizedIOException("home_a", fact)', 'new LocalizedIOException(new Msg("home_a"), null)', 'Tr.s(WINDOW_KEYS[i])',
+                     'Msg m = new Msg("home_a"); throw new LocalizedIOException(m, null)',
                      'Tr.english(REQ_KEYS[i], fact)', 'new Msg(WINDOW_KEYS[Math.max(0, i)])', 'Tr.s(COUNTED[i])'):
             self.assertEqual(self.problems(call), [], call)
         self.assertEqual(self.keys('Tr.s(WINDOW_KEYS[i])'), [('string', ['home_window_1080p', 'home_window_original'])], 'every element is checked to exist')
@@ -446,6 +453,8 @@ class KeyPatterns(unittest.TestCase):
 
     def test_refused(self):
         for call in ('Tr.s("readiness_req_" + fact)', 'Tr.s(fact)', 'new Msg(fact)', 'Msg.plural(fact, i)', 'new LocalizedIOException(fact)',
+                     'new LocalizedIOException(fact, null)', 'Msg m = null; throw new LocalizedIOException(m)',
+                     'if (i > 0) { Msg why = null; } else { String why = fact; throw new LocalizedIOException(why, null); }',
                      'Tr.s(MIXED[i])', 'Tr.s(POKED[i])', 'Tr.s(loose[i])', 'Tr.s(ROWS[i][1])', 'Tr.s(Prefs.WINDOW_KEYS[i])', 'Tr.s(WINDOW_KEYS[i] + "x")',
                      'Tr.s(NOWHERE[i])', 'Tr.s(SHADOWED[i])', 'Tr.s(FILLED[i])', 'getIdentifier(fact, "string", "p")'):
             self.assertEqual(len(self.problems(call)), 1, call)
