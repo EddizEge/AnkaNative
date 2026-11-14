@@ -128,7 +128,8 @@
     <string name="prepare_status_pending">Not started yet.</string>
     <string name="prepare_status_paused">Paused: %1$s. %2$s.</string>
     <string name="prepare_status_running">%1$s (step %2$d of %3$d).</string>
-    <string name="prepare_status_interrupted">Interrupted at %1$s. Tap %2$s to go on.</string>
+    <!-- %1$s in paused, running and interrupted: the step's line as the card shows it (Job.stepMsg: "Translating shaders: 1,234 of 5,000"), not a noun phrase -->
+    <string name="prepare_status_interrupted">Interrupted (%1$s). Tap %2$s to go on.</string>
     <!-- a state or reason this app version does not know, as job.json has it -->
     <string name="prepare_status_raw">%1$s</string>
     <!-- Job.reasonMsg: why a job is paused; tap %1$s: the button's label -->

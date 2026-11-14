@@ -166,7 +166,7 @@ public final class PrepareTextsJvmTest {
         eq("Not started yet.", "prepare_status_pending");
         eq("Paused: " + "by you" + ". " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_user"), step);
         eq(stepOld + " (" + ("step " + 4 + " of " + 5) + ").", "prepare_status_running", step, 4, 5);
-        eq("Interrupted at " + stepOld + ". Tap Resume to go on.", "prepare_status_interrupted", step, new Msg("prepare_button_resume"));
+        eq("Interrupted (" + stepOld + "). Tap Resume to go on.", "prepare_status_interrupted", step, new Msg("prepare_button_resume"));
         eq("adopting", "prepare_status_raw", "adopting");
         eq("by you", "prepare_reason_user");
         eq("battery below 20 %: plug in the charger to go on", "prepare_reason_battery");
