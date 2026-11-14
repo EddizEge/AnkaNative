@@ -8,11 +8,11 @@
     <!-- Readiness.REQ_KEYS: "title: why", the why in lower case -->
     <string name="readiness_req_feature_timeline_semaphore">Zaman çizelgesi semaforları: oyunun fence nesneleri bunların üzerine kurulu</string>
     <string name="readiness_req_android_sdk">Android 12 ya da daha yenisi: uygulama bunun için derlendi</string>
-    <string name="readiness_req_vk_instance">Vulkan 1.1 ya da daha yeni yükleyici: Android 12\'nin yükleyicisi 1.1, Android 13\'ünki 1.3 bildirir; grafik aktarımının Vulkan 1.3 gereksinimini GPU sürücüsü karşılar (sonraki satır)</string>
-    <string name="readiness_req_vk_api">Vulkan 1.3 GPU sürücüsü: grafik aktarımı Vulkan 1.3 için yazıldı</string>
+    <string name="readiness_req_vk_instance">Vulkan 1.1 ya da daha yeni yükleyici: Android 12\'nin yükleyicisi 1.1, Android 13\'ünkü 1.3 bildirir; grafik katmanının Vulkan 1.3 gereksinimini GPU sürücüsü karşılar (sonraki satır)</string>
+    <string name="readiness_req_vk_api">Vulkan 1.3 GPU sürücüsü: grafik katmanı Vulkan 1.3 için yazıldı</string>
     <string name="readiness_req_queue_graphics_compute">Grafik ve hesaplama kuyruğu: her şey bu türden tek bir kuyruğa gönderilir</string>
     <string name="readiness_req_feature_dynamic_rendering">Dinamik çizim (dynamic rendering): her çizim geçişi onunla kaydedilir</string>
-    <string name="readiness_req_ext_vk_khr_swapchain">Swapchain: o olmadan hiçbir görüntü ekrana ulaşmaz</string>
+    <string name="readiness_req_ext_vk_khr_swapchain">Swapchain: bu olmadan hiçbir görüntü ekrana ulaşmaz</string>
     <string name="readiness_req_ext_vk_khr_map_memory2">Bellek eşleme 2: yerleştirilmiş bellek eşlemeleri buna ihtiyaç duyar</string>
     <string name="readiness_req_ext_vk_ext_map_memory_placed">Yerleştirilmiş bellek eşlemeleri: oyunun GPU belleği oyunun kendi adreslerine eşlenir; bunlar olmadan hiçbir şey çizilmez</string>
     <string name="readiness_req_feature_descriptor_binding_sampled_image_update_after_bind">Doku tabloları (bağlamadan sonra güncelleme): oyunun doku havuzları bunların içinde</string>
@@ -26,7 +26,7 @@
     <string name="readiness_row_degraded_bare">Eksik: bu oyun onsuz, kısıtlı çalışır. (%1$s %2$s; gereken: %3$s)</string>
     <string name="readiness_row_fact_memory">GiB cinsinden bellek:</string>
     <string name="readiness_row_not_reported">bildirilmedi</string>
-    <string name="readiness_row_reports">bildirilen %1$s</string>
+    <string name="readiness_row_reports">%1$s</string>
     <string name="readiness_unchecked_no_host">bu derlemedeki host, GPU özelliklerini bildiremiyor</string>
     <string name="readiness_unchecked_timeout">GPU kontrolü %1$d sn içinde yanıt vermedi</string>
     <string name="readiness_check_gpu_features">GPU özellikleri</string>
@@ -109,7 +109,7 @@
     <string name="readiness_last_exit_desc">Son oyun %2$s %1$s (%3$s). Günlüğünü göndermek için: %4$s › %5$s.</string>
     <string name="readiness_exit_memory">bellek yüzünden Android tarafından durduruldu</string>
     <string name="readiness_exit_crashed">çöktü</string>
-    <string name="readiness_exit_anr">yanıt vermez oldu</string>
+    <string name="readiness_exit_anr">yanıt vermeyi bıraktı</string>
     <string name="readiness_exit_normal">normal şekilde kapandı</string>
     <string name="readiness_exit_other">kapandı (%1$s)</string>
     <string name="readiness_exit_reason_signal">bir sinyal</string>
