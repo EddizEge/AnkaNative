@@ -3,9 +3,9 @@
 <resources>
     <!-- GameActivity: the game's screen -->
     <string name="game_panel_open_description">Abrir el panel del juego</string>
-    <string name="game_paused">En pausa\n\nToca para continuar  (A o Start en un control)</string>
+    <string name="game_paused">En pausa\n\nToca para continuar \u0020(A o Start en un control)</string>
     <string name="game_stopped_in_background">El juego se detuvo mientras estaba en segundo plano (Android finalizó su proceso). Se perdió el progreso no guardado; vuelve a iniciarlo desde el launcher.</string>
-    <string name="game_intro_skip_on">Omitir introducción activado: se presiona A y se terminan los videos hasta llegar al juego</string>
+    <string name="game_intro_skip_on">Omitir introducción activado: la app presiona A y salta los videos hasta llegar al juego</string>
     <string name="game_intro_skip_off">Omitir introducción desactivado</string>
     <string name="game_save_unfinished_restore">La carpeta de partidas tiene una restauración sin terminar que no se puede completar: %1$s</string>
     <string name="game_test_save_cannot_create">no se puede crear la carpeta de partidas de prueba %1$s</string>
@@ -14,9 +14,9 @@
     <string name="game_save_not_copied">No se pudo copiar tu partida guardada al almacenamiento de la app (%1$s). Esta vez se usa donde está, en %2$s.</string>
     <string name="game_checking_gpu">%1$s: revisando la GPU de este teléfono…</string>
     <string name="game_details_gpu">GPU: %1$s\nMemoria: %2$.1f GiB según Android.</string>
-    <string name="game_ready_missing">Falta: %1$s.\n\nEl juego puede detenerse o dibujar mal. Un controlador de GPU personalizado (%2$s › %3$s) podría ayudar.</string>
-    <string name="game_ready_missing_black_system">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se dibuja nada: la pantalla queda en negro mientras el juego se ejecuta. Elige un controlador personalizado que tenga mapeos de memoria ubicados en %3$s › %4$s, o en %5$s (solo para este juego).</string>
-    <string name="game_ready_missing_black_custom">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se dibuja nada: la pantalla queda en negro mientras el juego se ejecuta. Elige %3$s en %4$s › %5$s, o en %6$s (solo para este juego).</string>
+    <string name="game_ready_missing">Falta: %1$s.\n\nEl juego puede detenerse o mostrar gráficos incorrectos. Un controlador de GPU personalizado (%2$s › %3$s) podría ayudar.</string>
+    <string name="game_ready_missing_black_system">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se muestra ninguna imagen: la pantalla queda en negro mientras el juego se ejecuta. Elige un controlador personalizado que tenga mapeos de memoria ubicados en %3$s › %4$s, o en %5$s (solo para este juego).</string>
+    <string name="game_ready_missing_black_custom">Falta: %1$s.\n\nCon este controlador de GPU (%2$s) no se muestra ninguna imagen: la pantalla queda en negro mientras el juego se ejecuta. Elige %3$s en %4$s › %5$s, o en %6$s (solo para este juego).</string>
     <string name="game_ready_not_ready_title">No está listo para este juego</string>
     <string name="game_ready_start_black">Iniciar de todos modos (pantalla negra)</string>
     <string name="game_ready_try_anyway">Intentar de todos modos</string>
@@ -41,7 +41,7 @@
     <string name="game_cannot_start_title">No se puede iniciar %1$s</string>
     <string name="game_running_title">%1$s se está ejecutando</string>
     <string name="game_running_message">Primero detenlo (panel del juego › %2$s) y luego inicia %1$s. Solo se ejecuta un juego a la vez.</string>
-    <string name="game_save_in_use">La partida guardada %1$s está en uso: se está respaldando o restaurando. Vuelve a intentarlo cuando termine.</string>
+    <string name="game_save_in_use">La partida guardada en %1$s está en uso: se está respaldando o restaurando. Vuelve a intentarlo cuando termine.</string>
 
     <!-- SidePanel: the in-game panel -->
     <string name="game_panel_intro">El juego sigue ejecutándose detrás de este panel; cada cambio se aplica al instante y se conserva.</string>
@@ -57,7 +57,7 @@
     <string name="game_panel_pause_on_return">Pausar cuando el juego vuelva del segundo plano</string>
     <string name="game_panel_stop">Detener el juego</string>
     <string name="game_panel_stop_title">¿Detener el juego?</string>
-    <string name="game_panel_stop_message">El juego termina; se pierde el progreso no guardado. El registro queda disponible para %1$s.</string>
+    <string name="game_panel_stop_message">El juego termina; se pierde el progreso no guardado. El registro queda disponible en %1$s.</string>
     <string name="game_panel_stop_confirm">Detener</string>
     <string name="game_panel_keep_running">Seguir jugando</string>
     <string name="game_panel_back">Volver al juego</string>
@@ -90,7 +90,7 @@
 
     <!-- Overlay -->
     <string name="game_overlay_item_fps">Velocidad de cuadros y tiempo por cuadro</string>
-    <string name="game_overlay_item_throttle">Punto de limitación (verde / amarillo / rojo)</string>
+    <string name="game_overlay_item_throttle">Indicador de limitación de rendimiento (verde / amarillo / rojo)</string>
     <string name="game_overlay_item_gpu">Tiempo de GPU por cuadro</string>
     <string name="game_overlay_item_cpu">Límites de frecuencia de la CPU</string>
     <string name="game_overlay_item_battery">Temperatura y nivel de la batería</string>
