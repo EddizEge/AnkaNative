@@ -27,7 +27,7 @@
     <string name="packs_nup_flags">%1$s tem flags %2$d que este app não conhece</string>
     <string name="packs_nup_package_count">%1$s tem %2$d pacotes internos</string>
     <string name="packs_nup_records">%1$s: os registros de pacotes internos não cabem no TOC</string>
-    <string name="packs_nup_toc_short">%1$s: o TOC termina antes da hora</string>
+    <string name="packs_nup_toc_short">%1$s: o TOC termina antes do esperado</string>
     <string name="packs_nup_toc_hash">%1$s: o índice não corresponde ao SHA-256 dele: o arquivo está danificado</string>
     <string name="packs_nup_toc_magic">%1$s: sem a assinatura do TOC</string>
     <string name="packs_nup_toc_count">%1$s: o TOC e o cabeçalho contam números diferentes de pacotes internos</string>
@@ -72,7 +72,7 @@
     <string name="packs_zip_own_folder">%1$s é a própria pasta de pacotes do app (ou a contém): não há nada para importar</string>
     <string name="packs_zip_cannot_clear">não é possível limpar %1$s</string>
     <string name="packs_zip_tsv_names">o pack.tsv indica %1$s</string>
-    <string name="packs_zip_simulated">esse pacote é um marcador de posição do motor simulado, não um pacote para jogar</string>
+    <string name="packs_zip_simulated">esse pacote é um pacote provisório (placeholder) do motor simulado, não um pacote para jogar</string>
     <string name="packs_zip_unfinished">o código do pacote está incompleto (%1$s não tem .android.key): prepare-o de novo onde ele foi feito</string>
     <string name="packs_zip_no_library">o pacote não tem biblioteca de shaders (shaders/v-&lt;version&gt;/dmsh_vk.lib)</string>
     <string name="packs_zip_cannot_move">não é possível tirar o pacote atual %1$s do lugar</string>
@@ -129,7 +129,7 @@
     <string name="packs_dump_other_title">%1$s é de %2$s, e o jogo é %3$s.</string>
     <string name="packs_dump_no_npdm_short">sem exefs/main.npdm</string>
     <!-- ShaderLibs -->
-    <string name="packs_legacy_warning">Os shaders deste jogo foram feitos antes das atualizações de shaders com versão, então esta versão do app não consegue atualizá-los em parte. Você pode continuar jogando com eles, mas é recomendado atualizar os shaders mais uma vez com %1$s: depois disso, as correções de shaders chegam como pequenas atualizações incrementais.</string>
+    <string name="packs_legacy_warning">Os shaders deste jogo foram feitos antes das atualizações versionadas de shaders, então esta versão do app não consegue atualizá-los parcialmente. Você pode continuar jogando com eles, mas é recomendado atualizar os shaders mais uma vez com %1$s: depois disso, as correções de shaders chegam como pequenas atualizações incrementais.</string>
     <string name="packs_minutes">cerca de %1$d-%2$d minutos</string>
     <!-- PackUi: a game's Export pack… and Import pack… -->
     <string name="packs_ui_busy">Uma exportação ou importação do pacote de %1$s ainda está em andamento.</string>
@@ -147,7 +147,7 @@
     <string name="packs_ui_export_space">o zip precisa de %1$s, e %2$s tem %3$s livres</string>
     <string name="packs_ui_export_failed">Nenhum pacote foi exportado: %1$s\n\nO pacote em %2$s só foi lido.</string>
     <string name="packs_ui_exported_title">Pacote exportado</string>
-    <string name="packs_ui_exported">%1$s\n\n%2$s, verificado arquivo por arquivo com o pacote. Use %3$s em outro celular (ou depois de uma nova instalação) para colocá-lo de volta.</string>
+    <string name="packs_ui_exported">%1$s\n\n%2$s, conferido arquivo por arquivo com o pacote. Use %3$s em outro celular (ou depois de uma nova instalação) para restaurá-lo.</string>
     <string name="packs_ui_importing">Importando o pacote de %1$s…</string>
     <string name="packs_ui_import_space">o pacote precisa de %1$s, e o armazenamento do app tem %2$s livres</string>
     <string name="packs_ui_import_job">uma tarefa de preparação deste jogo grava em %1$s (%2$s): deixe-a terminar, ou esqueça-a antes em ⋯ %3$s</string>
