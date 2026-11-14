@@ -23,9 +23,14 @@
 # Each module is rewritten into <out>/.rewrite-<module>/ and moved into the pack when complete, its <module>.android.key last (a module without its key is
 # unfinished: the launcher refuses it, the next run rewrites it). Libraries of other versions in the pack's shaders/ are kept.
 # --code-only rewrites the modules and stops (pack.tsv, game.tsv and the shaders untouched); --keep-code packs without rewriting (the phone's two steps).
+# Progress on stdout, for scripts/prepare.py (the computer's interface; the phone runs each step as a process of its own and needs no step lines): a line
+# "step <name>" as each step starts (identify, rewrite, split, shaders, pack; a step that is not needed prints none), and the tools' "progress" lines in the
+# spellings the phone's PackService reads with one pattern: "progress <done>/<total> <module>" here as each module is rewritten, "progress: <done>/<total> [stage]"
+# from shader_split.py and "progress <done> <total> <stage>" from vk_android_build.py.
 # Usage: pack_android.py <game folder | .nup file> [--version N] [--out DIR] [-j N] [--shader-cache DIR] [--shader-pkg DIR] [--shader-python PY] [-J N] [--no-shaders] [--code-only | --keep-code] [--in-process]   (exit 1 on error)
 import argparse, hashlib, os, runpy, shutil, subprocess, sys, time
 from pathlib import Path
+from types import SimpleNamespace
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / 'scripts')); sys.path.insert(0, str(REPO / 'dm/games'))
 import pack_dump
@@ -124,6 +129,10 @@ def upgrade_keys(srcs, out, g):
             print(f'  {m}: key brought to the current formula (same rewrite)')
 
 
+def step(name):   # the "step <name>" line of a step that starts (the header: scripts/prepare.py reads it)
+    print(f'step {name}', flush=True)
+
+
 def nso_build_id(path):   # the module's build ID (NSO header +0x40), as the profile's build rows name it
     b = path.read_bytes()[:0x60]
     if b[:4] != b'NSO0': raise Error(f'{path}: not an NSO', 'unreadable_file', path)
@@ -210,6 +219,8 @@ def rewrite(py, srcs, out, jobs, g, in_process=False):
             print(f'progress {i + 1}/{n} {m}', flush=True)
         return
     procs = {}
+    n, finished = len(todo), 0   # progress <done>/<total> <module> as each module is complete, as in process (the order they finish in)
+    if n: print(f'progress 0/{n} {next(iter(todo))}', flush=True)
     try:
         pending = list(todo)
         while pending or procs:
@@ -227,7 +238,9 @@ def rewrite(py, srcs, out, jobs, g, in_process=False):
                     c = pack_errors.of_exit(p.returncode, 'patch_nso.py') or pack_errors.of_log('\n'.join(tail), 'patch_nso.py')
                     raise Error(f'patch_nso.py exit code {p.returncode} on {m} (the last lines of rewrite_{m}.log above)', *pack_errors.flat(c), detail=tail)
                 swap_in(out, m, todo[m][1])
+                finished += 1
                 print(f'  {m}: done', flush=True)
+                print(f'progress {finished}/{n} {m}', flush=True)
             if procs: time.sleep(0.2)
     finally:
         for p, log in procs.values():
@@ -316,6 +329,7 @@ def split_shaders(a, g, vdir, pkg, parts=None):   # parts: the version's (romfs,
     decides what is built, and vk_android_build.py finds each of its shaders in the package by key), so the split must hold every shader of the profile's map: one that
     lacks any (a dump of another version, or incomplete) stops here"""
     rd, ed = parts or (vdir / 'romfs', vdir / 'exefs')
+    step('split')
     py = shader_python(a.shader_python, split=True)
     tmp = pkg.with_name(pkg.name + '.tmp'); shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir(parents=True)
     print(f'shaders: splitting the shaders out of {rd} into {pkg} with {py} (a few minutes)', flush=True)
@@ -335,16 +349,30 @@ def split_shaders(a, g, vdir, pkg, parts=None):   # parts: the version's (romfs,
     tmp.rmdir()
 
 
+def work_dir(folder, app):   # the game's work folder beside the dump or the NUP file: <title ID>-work
+    return folder.parent / f'{app:016X}-work'
+
+
+def default_out(folder, app):   # the pack folder without --out
+    return work_dir(folder, app) / 'android-pack'
+
+
+def shader_dirs(work, cache=None, pkg=None):
+    """(the shader cache, the library of this tree's version in it, the Switch shader package): --shader-cache and --shader-pkg, else their folders in the work folder"""
+    cache = (cache or work / 'android-shaders' / 'lib').resolve()
+    return cache, cache / (VK_PREFIX + vk_chain()), (pkg or work / 'android-shaders' / 'pkg').resolve()
+
+
 def pack_shaders(a, g, work, out, vdir, parts=None):
     """shaders/v-<V>/ in the pack: an up-to-date library from the cache (built there first when it is missing or stale, from the shader package, split from the dump
     first when there is none and --shader-pkg names none). → the library path in the pack, or None"""
-    v = vk_chain(); name = VK_PREFIX + v
-    cache = (a.shader_cache or work / 'android-shaders' / 'lib').resolve(); lib = cache / name
+    cache, lib, pkg = shader_dirs(work, a.shader_cache, a.shader_pkg)
+    name = lib.name
     dst = out / 'shaders' / name
     if not library_current(lib, g):
         if a.in_process: raise Error(f'no current shader library {lib}: --in-process does not build one yet (vk_android_build.py starts the translator and spirv-val as programs); --no-shaders packs without')
-        pkg = (a.shader_pkg or work / 'android-shaders' / 'pkg').resolve()
         if not pkg.is_dir(): split_shaders(a, g, vdir, pkg, parts)   # also into a --shader-pkg folder that is not there yet
+        step('shaders')
         py = shader_python(a.shader_python)
         print(f'shaders: building the Vulkan library {lib} from {pkg} with {py} (J={a.J}; about 10 minutes on DKB)', flush=True)
         (work / 'android-shaders' / 'work').mkdir(parents=True, exist_ok=True)
@@ -354,6 +382,7 @@ def pack_shaders(a, g, work, out, vdir, parts=None):
                                      *pack_errors.flat(pack_errors.of_exit(r.returncode, 'vk_android_build.py')))
         if not library_current(lib, g): raise Error(f'vk_android_build.py finished but {lib} is not a full library of {g.id} with the current inputs')
     else: print(f'shaders: {lib} is current (game {g.id}, inputs {dmsh_chain.inputs(g)})')
+    step('pack')
     dst.mkdir(parents=True, exist_ok=True)
     if not (lib / dmsh_chain.STAMP).is_file():   # a library copied without its stamp: written from its header (library_current took it from there)
         st = lib_stamp(lib); dmsh_chain.write_stamp(str(lib), st['game'], st['inputs'])
@@ -371,6 +400,35 @@ def commit():   # the packer's commit; DM_PACKER_COMMIT when the repository's to
     try: r = subprocess.run(['git', '-C', str(REPO), 'rev-parse', '--short=12', 'HEAD'], capture_output=True, text=True).stdout.strip()
     except OSError: r = ''
     return r or os.environ.get('DM_PACKER_COMMIT') or 'unknown'
+
+
+def identify(folder, version=None, ids=True):
+    """The game a folder or NUP file holds, checked as the pack needs it (the dump's layout, the profile, the version, the program IDs, the modules): its folder,
+    title ID (app), versions and DLC, profile (g), the version to pack (ver), its folder, ExeFS and RomFS, the profile's modules with their files (srcs), and with
+    ids their build IDs (build_ids), as a SimpleNamespace; an Error (with its code) when it cannot be packed. Reads the NSO headers, never the whole dump"""
+    app, vers, dlc = pack_dump.scan(folder)
+    try: g = game.load(f'{app:016X}')
+    except SystemExit: raise Error(f'no profile dm/games/{app:016X}: the Android pack needs one (build_ipa_from_nsp.py makes a provisional one)', 'no_profile', f'{app:016X}') from None
+    ver = version if version is not None else max(vers, default=0)
+    if ver and ver not in vers: raise Error(f'no updates/{ver} (have: {", ".join(map(str, sorted(vers))) or "none"})', 'version_missing', ver)
+    vdir = pack_dump.version_dir(folder, vers, ver)
+    exe, romfs = pack_dump.version_part(folder, vers, ver, 'exefs'), pack_dump.version_part(folder, vers, ver, 'romfs')   # its own, else the base's
+    if not (exe / 'main.npdm').is_file() or not romfs.is_dir(): raise Error(f'{vdir}: no exefs/main.npdm and romfs (neither its own nor the base\'s)', 'dump_incomplete', vdir)
+    if (pid := pack_dump.program_id(exe / 'main.npdm')) != app: raise Error(f'{vdir}: program ID {pid:016X}, the base is {app:016X}', 'wrong_title', vdir, f'{pid:016X}', f'{app:016X}')
+    mods = g.words('modules')
+    srcs = {m: exe / m for m in mods}
+    if missing := [m for m in mods if not srcs[m].is_file()]: raise Error(f'{exe}: no {", ".join(missing)} (the profile\'s modules are {" ".join(mods)})', 'module_missing', exe, ' '.join(missing))
+    x = SimpleNamespace(folder=folder, app=app, vers=vers, dlc=dlc, g=g, ver=ver, vdir=vdir, exe=exe, romfs=romfs, mods=mods, srcs=srcs)
+    return build_ids(x) if ids else x
+
+
+def build_ids(x):
+    """identify's game with its modules' build IDs (ids, from the NSO headers: an Error when one is no NSO), the profile's builds (known) and the modules of another
+    build (other: the profile was not brought up on it, so its build-gated cuts do not apply)"""
+    x.ids = {m: nso_build_id(x.srcs[m]) for m in x.mods}
+    x.known = {m: i for v in x.g.builds().values() for m, i in v.items() if m != 'display'}
+    x.other = [m for m in x.mods if x.known.get(m) and x.known[m] != x.ids[m]]
+    return x
 
 
 def main():
@@ -394,38 +452,29 @@ def main():
         try: import capstone, lz4.block   # noqa: F401  (patch_nso.py needs both; checked here so a missing one fails before any work)
         except ImportError as e: raise Error(f'{e.name} is missing in {sys.executable}: see android/README.md for the environment') from None
         if capstone.cs_version()[0] != 5: raise Error(f'Capstone {capstone.__version__}: the rewriter needs Capstone 5')
-        app, vers, dlc = pack_dump.scan(folder)
-        try: g = game.load(f'{app:016X}')
-        except SystemExit: raise Error(f'no profile dm/games/{app:016X}: the Android pack needs one (build_ipa_from_nsp.py makes a provisional one)', 'no_profile', f'{app:016X}') from None
-        ver = a.version if a.version is not None else max(vers, default=0)
-        if ver and ver not in vers: raise Error(f'no updates/{ver} (have: {", ".join(map(str, sorted(vers))) or "none"})', 'version_missing', ver)
-        vdir = pack_dump.version_dir(folder, vers, ver)
-        exe, romfs = pack_dump.version_part(folder, vers, ver, 'exefs'), pack_dump.version_part(folder, vers, ver, 'romfs')   # its own, else the base's
-        if not (exe / 'main.npdm').is_file() or not romfs.is_dir(): raise Error(f'{vdir}: no exefs/main.npdm and romfs (neither its own nor the base\'s)', 'dump_incomplete', vdir)
-        if (pid := pack_dump.program_id(exe / 'main.npdm')) != app: raise Error(f'{vdir}: program ID {pid:016X}, the base is {app:016X}', 'wrong_title', vdir, f'{pid:016X}', f'{app:016X}')
-        mods = g.words('modules')
-        srcs = {m: exe / m for m in mods}
-        if missing := [m for m in mods if not srcs[m].is_file()]: raise Error(f'{exe}: no {", ".join(missing)} (the profile\'s modules are {" ".join(mods)})', 'module_missing', exe, ' '.join(missing))
-        out = (a.out or folder.parent / f'{app:016X}-work' / 'android-pack').resolve()
+        step('identify')
+        x = identify(folder, a.version, ids=False)
+        app, dlc, g, ver, vdir, exe, romfs, mods, srcs = x.app, x.dlc, x.g, x.ver, x.vdir, x.exe, x.romfs, x.mods, x.srcs
+        out = (a.out or default_out(folder, app)).resolve()
         try: out.relative_to(REPO); raise Error(f'{out} is inside the repository: packs never go there')
         except ValueError: pass
         out.mkdir(parents=True, exist_ok=True)
-        ids = {m: nso_build_id(srcs[m]) for m in mods}
-        known = {m: i for v in g.builds().values() for m, i in v.items() if m != 'display'}
+        ids, known = build_ids(x).ids, x.known
         print(f'{app:016X} {g.get("name", "?")} version {ver}: {vdir}', flush=True)
-        for m in mods:
-            if known.get(m) and known[m] != ids[m]: print(f'[RED] {m} build {ids[m]} is not the profile\'s build {known[m]}: build-gated cuts do not apply')
+        for m in x.other: print(f'[RED] {m} build {ids[m]} is not the profile\'s build {known[m]}: build-gated cuts do not apply')
         if a.keep_code:
             if missing := [m for m in mods if not (out / f'{m}.patched.bin').is_file() or not (out / f'{m}.android.key').is_file()]:
                 raise Error(f'--keep-code: {out} has no complete {", ".join(missing)} (patched.bin and its key): rewrite first')
             print('  modules kept as they are (--keep-code)')
         else:
+            step('rewrite')
             try: rewrite(sys.executable, srcs, out, max(1, a.j), g, a.in_process)
             finally: shutil.rmtree(out / '.nup-src', ignore_errors=True)   # the module copies a NUP game's rewrite read (rewriter_src)
         if a.code_only: print(f'done: the modules in {out} (--code-only: pack.tsv and the shaders unchanged)'); return
         if a.keep_code: upgrade_keys(srcs, out, g)   # before the copy below replaces the game.tsv an earlier key was made with (a rewrite run did it in rewrite)
         shutil.copyfile(g.dir / 'game.tsv', out / 'game.tsv')
-        shaders = None if a.no_shaders else pack_shaders(a, g, folder.parent / f'{app:016X}-work', out, vdir, (romfs, exe))
+        if a.no_shaders: step('pack')
+        shaders = None if a.no_shaders else pack_shaders(a, g, work_dir(folder, app), out, vdir, (romfs, exe))
         top = folder.parent if pack_dump.nup.is_nup(folder) else folder   # a NUP file's paths are `<name>.nup:<package>/...`, relative to its folder
         rel = lambda p: p.relative_to(top).as_posix()
         rows = [('format', str(FORMAT)), ('title_id', f'{app:016X}'), ('name', g.get('name', '')), ('version', str(ver)), ('target', 'android'),
