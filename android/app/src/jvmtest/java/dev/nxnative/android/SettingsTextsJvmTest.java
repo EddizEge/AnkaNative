@@ -34,6 +34,7 @@ public final class SettingsTextsJvmTest {
         out("no_games", Tr.english("settings_folders_no_games", HomeLabels.addGame(), HomeLabels.folders()));
         out("game_intro", Tr.english("settings_game_intro", HomeLabels.settings()));
         out("fps_cap_default", Tr.english("settings_game_fps_cap_default", "30 fps", HomeLabels.settings()));
+        out("driver_default_system", Tr.english("settings_game_driver_default", HomeLabels.gpuSystem()));
         out("pack_default_app", Tr.english("settings_folders_pack_default_app", "/data/packs/X", Tr.english("settings_folders_library_present", "vk7")));
         out("pack_set_ready", Tr.english("settings_folders_pack_set_ready", "/sdcard/pack", "vk7"));
         out("copy_message", Tr.english("settings_folders_copy_message", "/a", "/b"));

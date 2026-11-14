@@ -46,6 +46,7 @@ EXPECTED = {
     'no_games': "No games yet: + Add game first. Each game has its own folders (its card's ⋯ › Folders…).",
     'game_intro': 'For this game only, from its next start. Default follows Settings.',
     'fps_cap_default': 'Default (Settings: ' + '30 fps' + ')',
+    'driver_default_system': "Default (the main screen's: System)",   # GameSettings.driver: home's label of the system driver (it had a key of its own)
     'pack_default_app': '/data/packs/X' + " (default: in the app's storage)" + '\\n' + 'Shader library ' + 'vk7' + ': present.',
     'pack_set_ready': '/sdcard/pack' + '\\n\\n' + "It has this app's shader library (" + 'vk7' + "): ready to play.",
     'copy_message': "The folder you picked is empty. Your current save is in " + '/a' + ".\\n\\nCopy it into " + '/b' + "? The current folder stays as it is: nothing is deleted.",

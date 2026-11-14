@@ -69,9 +69,8 @@
     <!-- %1$s: the main screen's frame rate cap, %2$s: Settings (home's page title) -->
     <string name="settings_game_fps_cap_default">Default (%2$s: %1$s)</string>
     <string name="settings_game_fps_cap_title">Frame rate cap · %1$s</string>
-    <!-- %1$s: the main screen's GPU driver, a name and its version -->
+    <!-- %1$s: the main screen's GPU driver as its row shows it: a driver's name and version, or home_gpu_system (the label for the phone's own driver) -->
     <string name="settings_game_driver_default">Default (the main screen\'s: %1$s)</string>
-    <string name="settings_game_driver_default_system">Default (the main screen\'s: System)</string>
     <string name="settings_game_gpu_driver_title">GPU driver · %1$s</string>
     <string name="settings_game_env_about">KEY=VALUE lines for the host, one a line (# starts a comment). They come after env.txt and win over it, for %1$s only.</string>
     <string name="settings_game_env_title">Extra environment · %1$s</string>

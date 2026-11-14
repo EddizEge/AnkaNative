@@ -195,7 +195,8 @@ final class GameSettings {
         List<GpuDriver.Info> inst = GpuDriver.installed(a);
         GpuDriver.Info def = GpuDriver.selected(a);
         List<String> labels = new ArrayList<>();
-        labels.add(def == null ? a.getString(R.string.settings_game_driver_default_system) : a.getString(R.string.settings_game_driver_default, def.label()));
+        // the main screen's GPU driver row as it shows it: a driver's name, or home's label for the system's (HomeLabels.gpuSystem, never typed again here)
+        labels.add(a.getString(R.string.settings_game_driver_default, def == null ? HomeLabels.gpuSystem().text() : def.label()));
         labels.add(a.getString(R.string.settings_gpu_system));
         String c = GpuDriver.choice(a, g.titleId);
         int checked = c == null ? 0 : c.equals(GpuDriver.SYSTEM) ? 1 : 0;
