@@ -119,7 +119,7 @@ final class PackUi {
         run(a, g, a.getString(R.string.packs_ui_exporting, g.name), () -> {
             long need = size(pack);
             if (dir.isDirectory() && dir.getUsableSpace() < need + (64L << 20))
-                throw new IOException(a.getString(R.string.packs_ui_export_space, SaveStore.size(need), dir, SaveStore.size(dir.getUsableSpace())));
+                throw new LocalizedIOException("packs_ui_export_space", SaveStore.size(need), dir, SaveStore.size(dir.getUsableSpace()));
             return PackZip.export(pack, dir);
         }, (r, err) -> {
             if (err != null) { a.error(a.getString(R.string.packs_ui_export_failed, err, pack)); return; }
@@ -135,7 +135,7 @@ final class PackUi {
         run(a, g, a.getString(R.string.packs_ui_importing, g.name), () -> {
             long need = size(source);
             if (packs.getParentFile() != null && packs.getParentFile().getUsableSpace() < need + (256L << 20))
-                throw new IOException(a.getString(R.string.packs_ui_import_space, SaveStore.size(need), SaveStore.size(packs.getParentFile().getUsableSpace())));
+                throw new LocalizedIOException("packs_ui_import_space", SaveStore.size(need), SaveStore.size(packs.getParentFile().getUsableSpace()));
             File remembered = Job.remembered(a);
             if (remembered != null && remembered.isFile()) {
                 Job j = Job.read(remembered);
@@ -146,7 +146,7 @@ final class PackUi {
             try {
                 Msg bad = PackCheck.blockingMsg(a, p, new File(g.gameDir));
                 if (bad != null) throw new LocalizedIOException(bad, null);
-                if (SaveUi.gameRunning(a, g)) throw new IOException(a.getString(R.string.packs_ui_started_meanwhile, g.name));
+                if (SaveUi.gameRunning(a, g)) throw new LocalizedIOException("packs_ui_started_meanwhile", g.name);
                 PackZip.swapIn(p.dir, target);
             } finally {
                 if (p.dir.exists()) SaveStore.deleteTree(p.dir);
