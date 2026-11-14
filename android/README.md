@@ -40,19 +40,43 @@ py -3.14 -m venv D:\Switch2\.venv-anka
 D:\Switch2\.venv-anka\Scripts\python -m pip install "capstone>=5,<6" lz4
 ```
 
-Linux (the distribution's `dotnet-runtime-10.0`, `spirv-tools` and `gcc` packages, `build-essential` instead of `gcc` on Debian and Ubuntu; Python 3.14 from the distribution or micromamba):
+Linux: the distribution's `dotnet-runtime-10.0` (Arch: `dotnet-runtime-10.0`, not `dotnet-runtime`, which moves on to .NET 11), `spirv-tools` and `gcc`
+packages (`build-essential` instead of `gcc` on Debian and Ubuntu), with `sudo apt install …`, `sudo dnf install …`, `sudo pacman -S …` or
+`sudo zypper install …` (without `sudo`, as on a Debian installed with a root password: `su -c '…'`). Debian, Ubuntu before 24.04 and openSUSE Leap do
+not carry `dotnet-runtime-10.0` themselves: add the package source that [Microsoft's page for the distribution](https://learn.microsoft.com/dotnet/core/install/linux)
+names first (Microsoft's on Debian and openSUSE, `ppa:dotnet/backports` on Ubuntu 22.04), or install the runtime from https://dotnet.microsoft.com/download/dotnet/10.0.
+Python 3.14 is the distribution's where it has one (`python3.14` and `python3.14-venv` on Ubuntu 26.04 and Debian testing, `python3.14` on Fedora, `python`
+on Arch, `python314` on openSUSE Tumbleweed):
 
 ```sh
 python3.14 -m venv <dump folder>/.venv-anka
 <dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
 
-The Mac (`brew install --cask dotnet-sdk`, `brew install spirv-tools`, and `xcode-select --install` for the command line tools' C compiler):
+Where it has none (Debian 13, Ubuntu 24.04), micromamba brings it, with no root rights. Its installer
+([micromamba's page](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)) needs `curl` (`sudo apt install curl` on Debian),
+asks where to put micromamba and whether to set up the shell; then, in a new terminal:
 
 ```sh
+"${SHELL}" <(curl -L micro.mamba.pm)
 micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge
 <dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
 ```
+
+The Mac: the .NET 10 Runtime from https://dotnet.microsoft.com/download/dotnet/10.0 (the installer, Arm64 on Apple silicon or x64 on an Intel Mac;
+Homebrew's `dotnet-sdk` cask is .NET 11 now, whose runtime does not start the translator, built for .NET 10), `xcode-select --install` for the command line
+tools' C compiler, and `brew install spirv-tools`. Without Homebrew, install it first with the command that https://brew.sh gives
+(`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`) and run the lines it prints at its end, which put
+`brew` on the `PATH` (`eval "$(/opt/homebrew/bin/brew shellenv)"` in `~/.zprofile` on Apple silicon). Python 3.14 from https://www.python.org/downloads/macos/
+(its installer adds `python3.14`), or micromamba (installed as on Linux above, or with `brew install micromamba`):
+
+```sh
+python3.14 -m venv <dump folder>/.venv-anka   # or: micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge
+<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4
+```
+
+The interface's first screen gives these fixes for the system it runs on, and for a tool a fix needs that is not on the `PATH` (Homebrew, micromamba,
+`python3.14`, `sudo`, `curl`) how to get it first.
 
 Capstone comes from pip: conda-forge's Capstone 5 finds its library only through `CONDA_PREFIX`, so it fails when the environment's Python is run without activating it.
 On Windows `pack_android.py` runs the tools in UTF-8 mode (`PYTHONUTF8=1`; set it yourself to run one of them directly), writes every text file with LF line ends (`scripts/lf_newlines.py`), as the phone reads them, and rewrites the code in one process
