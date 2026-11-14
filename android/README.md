@@ -123,7 +123,7 @@ What a phone must have for a game, checked before the game starts and on its own
 
 | Class | What | Missing means |
 |---|---|---|
-| Every game: the phone | 64-bit ARM, Android 12 (SDK 31) or newer, All files access; tested on Android 13 and later only (Android 12 and 12L: [Android versions](#android-versions)) | the app does not install, or cannot read the game |
+| Every game: the phone | 64-bit ARM, Android 12 (SDK 31) or newer, All files access; tested on Android 13 and later only (Android 12 and 12L: [Android versions](#android-versions)) | the app does not install, or cannot read the game; on Android 12 and 12L a warning (degraded) that they are untested |
 | Every game: Vulkan | Vulkan 1.3 driver with a Vulkan 1.1 loader or newer (Android 12's loader reports 1.1, Android 13's 1.3: [Android versions](#android-versions)), one graphics + compute queue, timeline semaphores, dynamic rendering (`vka_dev.c` stops without them); `VK_KHR_swapchain`, `VK_KHR_map_memory2` + `VK_EXT_map_memory_placed` (`memoryMapPlaced`), update-after-bind sampled image arrays (partially bound, runtime arrays) | the host stops, or runs and draws or shows nothing |
 | Per game: memory | at least the game's `ram_gib` (ActivityManager `totalMem`, which on a 16 GB phone is about 14.5-15.5 GiB) | required: Android stops the game; degraded: tested on more only |
 | Per game: shader features | the features the game's shader library uses (geometry shaders, storage images without a format, draw parameters, buffer device addresses, 64-bit integers ...), and `maxComputeSharedMemorySize` at least its largest compute shader's | required: those draws are skipped or the pipelines fail; degraded: a few shaders |

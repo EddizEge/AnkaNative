@@ -78,9 +78,16 @@ public final class ReadinessJvmTest {
 
         // No Vulkan facts (no answer, or a host that cannot report): one warning, nothing called missing; the launcher's own facts still checked
         l = Readiness.evaluate(Readiness.merge(null, 15, 30), game);
-        check(Readiness.of(l, Readiness.Status.FAIL).size() == 1 && find(l, "Android 12 or newer").status == Readiness.Status.FAIL && find(l, "GPU features").status == Readiness.Status.WARNING, "no facts: " + l);
+        check(Readiness.of(l, Readiness.Status.FAIL).size() == 1 && find(l, "Android 12 or newer").status == Readiness.Status.FAIL && find(l, "GPU features").status == Readiness.Status.WARNING
+                && find(l, "Android 13 or newer") == null, "no facts: " + l);
         l = Readiness.evaluate(Readiness.merge(null, 15, 31), game);
         check(!Readiness.any(l, Readiness.Status.FAIL) && find(l, "Android 12 or newer").status == Readiness.Status.PASS, "Android 12 (SDK 31) passes: " + l);
+        Readiness.Check untested = find(l, "Android 13 or newer");
+        check(untested != null && untested.status == Readiness.Status.WARNING && untested.message.contains("untested"), "Android 12 (SDK 31) warns it is untested: " + l);
+        l = Readiness.evaluate(Readiness.merge(null, 15, 32), game);
+        check(find(l, "Android 13 or newer").status == Readiness.Status.WARNING, "Android 12L (SDK 32) warns: " + l);
+        l = Readiness.evaluate(Readiness.merge(null, 15, 33), game);
+        check(find(l, "Android 13 or newer").status == Readiness.Status.PASS, "Android 13 (SDK 33) passes: " + l);
         // Android 12's Vulkan loader reports 1.1: with a 1.3 driver that passes; a 1.1 driver does not
         l = Readiness.evaluate(Readiness.merge(all.replace("vk.instance=1.4.0", "vk.instance=1.1.0"), 15.0, 31), game);
         check(find(l, "Vulkan 1.1 loader or newer").status == Readiness.Status.PASS && find(l, "Vulkan 1.3 GPU driver").status == Readiness.Status.PASS, "a 1.1 loader with a 1.3 driver: " + l);
