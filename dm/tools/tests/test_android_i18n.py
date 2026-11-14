@@ -300,6 +300,33 @@ class Resources(unittest.TestCase):
                 missing.append(f'{typ} {k} ({", ".join(where)})')
         self.assertEqual(missing, [], 'keys the Java names that values/ lacks')
 
+    def test_java_keys_are_literals(self):
+        """A key is a string literal directly in the call (docs/i18n.md), so test_java_keys_exist sees it: a key built at run time could name a text that
+        does not exist, and the app would throw MissingResourceException. Tr, TrAndroid, Msg and LocalizedIOException pass keys on and are left out"""
+        machinery = {'Tr.java', 'TrAndroid.java', 'Msg.java', 'LocalizedIOException.java'}
+        bad = []
+        for p in java_files():
+            if p.name in machinery:
+                continue
+            t = list(tokens(p.read_text(encoding='utf-8')))
+            v = [x[1] for x in t]
+            for k in range(len(t)):
+                at = None
+                if v[k:k + 2] in (['Tr', '.'], ['Msg', '.']) and k + 3 < len(t) and v[k + 3] == '(' and (v[k], v[k + 2]) in (
+                        ('Tr', 's'), ('Tr', 'p'), ('Tr', 'english'), ('Tr', 'englishP'), ('Msg', 'plural')):
+                    at, ok = k + 4, t[k + 4][0] == 'str' if k + 4 < len(t) else False
+                elif v[k:k + 3] == ['new', 'Msg', '(']:
+                    at, ok = k + 3, k + 3 < len(t) and t[k + 3][0] == 'str'
+                elif v[k:k + 3] == ['new', 'LocalizedIOException', '(']:   # a key, or a Msg built right there
+                    at, ok = k + 3, k + 3 < len(t) and (t[k + 3][0] == 'str' or v[k + 3:k + 5] == ['new', 'Msg'])
+                elif v[k] == 'getIdentifier':
+                    at, ok = k, False
+                if at is not None and ok and t[at][0] == 'str' and v[at + 1:at + 2] not in ([','], [')']):
+                    ok = False   # a literal with more glued on: "readiness_req_" + fact
+                if at is not None and not ok:
+                    bad.append(f'{p.name}:{t[k][2]}: {" ".join(v[k:k + 6])}')
+        self.assertEqual(bad, [], 'a key that is not a string literal in the call (or a getIdentifier outside TrAndroid)')
+
     def test_completeness(self):
         """Not a failure: how much of the English each language has (docs/i18n.md: untranslated is absent, never English copied)"""
         todo = [k for k, v in self.base.items() if v[2].get('translatable') != 'false']
