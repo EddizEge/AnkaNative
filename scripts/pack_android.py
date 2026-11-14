@@ -375,8 +375,9 @@ def pack_shaders(a, g, work, out, vdir, parts=None):
         step('shaders')
         py = shader_python(a.shader_python)
         print(f'shaders: building the Vulkan library {lib} from {pkg} with {py} (J={a.J}; about 10 minutes on DKB)', flush=True)
-        (work / 'android-shaders' / 'work').mkdir(parents=True, exist_ok=True)
-        env = tool_env(DM_GAME=g.id, J=str(a.J), WORK=str(work / 'android-shaders' / 'work'))
+        # its temporary files in the library's result folder (no WORK): a build that is stopped leaves them there, and the next build of that library removes them
+        env = tool_env(DM_GAME=g.id, J=str(a.J))
+        env.pop('WORK', None)
         r = subprocess.run(tool_argv(py, VK_BUILD, '--target', 'vulkan', pkg, cache), env=env)
         if r.returncode: raise Error(f'vk_android_build.py exit code {r.returncode} (a package that lacks the profile\'s shaders stops it: delete {pkg} and the split runs again)',
                                      *pack_errors.flat(pack_errors.of_exit(r.returncode, 'vk_android_build.py')))
@@ -432,7 +433,8 @@ def build_ids(x):
 
 
 def main():
-    if WINDOWS: import lf_newlines; lf_newlines.install()   # pack.tsv and the keys this script writes, with LF as on the Mac
+    if WINDOWS:   # pack.tsv and the keys this script writes, with LF as on the Mac; Ctrl+Break (scripts/prepare.py's stop) as Ctrl+C
+        import lf_newlines; lf_newlines.install(); lf_newlines.break_as_interrupt()
     ap = argparse.ArgumentParser(description='Pack a dumped game for the Android launcher: its code modules rewritten with --target android, no RomFS')
     ap.add_argument('game', type=Path, help='the game folder (base/exefs, base/romfs or an update\'s romfs, updates/<version>/, dlc/), or a .nup file')
     ap.add_argument('--version', type=int, help='the update version to pack (default: the newest in updates/; 0 = the base game)')

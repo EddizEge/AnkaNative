@@ -2,7 +2,10 @@
 # on the terminal and only the rows that changed are written. The tests draw into it and read it back as text (Screen.text), at any size, without a terminal.
 # Glyphs: the box, bar and mark characters in Unicode, or in ASCII when the console's encoding cannot print them (glyphs_for).
 # Styles: bold, dim and reverse always (the selection is reverse video, so it shows without colour), the colours only when colour is on (NO_COLOR off, app.py).
-# Widths: a character of the East Asian wide or full-width classes takes two cells, a combining one none (a path may hold any of them).
+# Widths: a character of the East Asian wide or full-width classes takes two cells, a combining one (or a variation selector) none: it goes into the cell of the
+# character before it, after the text is composed (NFC: a name the Mac stores decomposed keeps its accents). Format characters (bidirectional controls, joiners) are
+# not drawn, and control characters (C0, DEL, C1: a file name may hold any of them, and C1's CSI would start an escape sequence) are drawn as '?'.
+# Columns are padded by cells (pad), never by str.ljust, which counts characters.
 import unicodedata
 
 BOLD, DIM, REV, UNDER = 1, 2, 4, 8
@@ -37,11 +40,16 @@ def glyphs_for(encoding):
 
 def cw(c):
     """The cells a character takes"""
-    if unicodedata.combining(c): return 0
+    if unicodedata.combining(c) or unicodedata.category(c) in ('Mn', 'Me', 'Cf'): return 0
     return 2 if unicodedata.east_asian_width(c) in 'WF' else 1
 
 
 def width(s): return sum(cw(c) for c in s)
+
+
+def pad(s, n):
+    """s with spaces after it to n cells"""
+    return s + ' ' * max(0, n - width(s))
 
 
 def fit(s, n, dots='…', left=False):
@@ -92,13 +100,16 @@ class Screen:
         if not 0 <= y < self.h: return x
         end = self.w if maxw is None else min(self.w, x + maxw)
         row = self.rows[y]
-        for c in s:
+        last = -1   # the cell of the character before (where a combining one goes)
+        for c in unicodedata.normalize('NFC', s):
+            if c < ' ' or '\x7f' <= c <= '\x9f': c = '?'
             n = cw(c)
-            if n == 0: continue
-            if c < ' ': c, n = ' ', 1
+            if n == 0:
+                if unicodedata.category(c) != 'Cf' and last >= 0: row[last] = (row[last][0] + c, row[last][1])
+                continue
             if x + n > end: break
             if x >= 0:
-                row[x] = (c, style)
+                row[x] = (c, style); last = x
                 if n == 2: row[x + 1] = ('', style)   # the second cell of a wide character
             x += n
         return x

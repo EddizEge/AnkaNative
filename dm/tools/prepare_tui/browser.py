@@ -3,7 +3,7 @@
 # the state file that keeps the last folder and the recent ones between runs.
 # The state file is the user's, never the repository's: <config>/anka-native/prepare.json, <config> being %APPDATA% on Windows, ~/Library/Application Support on
 # the Mac and $XDG_CONFIG_HOME (else ~/.config) elsewhere; ANKA_PREPARE_STATE names another file (the tests). It is written to a temporary name and renamed.
-import json, os, string, sys
+import json, os, shlex, string, sys
 from pathlib import Path
 
 RECENT = 6   # recent folders kept
@@ -44,12 +44,21 @@ def remember(state, folder):
 
 
 def is_dump(p):
-    """A folder pack_android.py takes as a game (pack_dump.is_dump's layout: a main.npdm in base/exefs or an update's exefs, and a RomFS), checked by its names only"""
-    try:
-        ups = [u for u in (p / 'updates').iterdir() if u.is_dir() and u.name.isdigit()] if (p / 'updates').is_dir() else []
-        code = (p / 'base/exefs/main.npdm').is_file() or any((u / 'exefs/main.npdm').is_file() for u in ups)
-        return code and ((p / 'base/romfs').is_dir() or any((u / 'romfs').is_dir() for u in ups))
+    """A folder pack_android.py takes as a game (pack_dump.is_dump: a main.npdm in base/exefs or an update's exefs, and a RomFS), checked by its names only"""
+    import pack_dump   # pyright: ignore[reportMissingImports]  # scripts/, on sys.path (model.py)
+    try: return pack_dump.is_dump(p)
     except OSError: return False   # a folder that cannot be read is no game (it shows as a folder, and entering it says why)
+
+
+def unquote(text):
+    """A path as typed, pasted or dropped on the terminal → the path: the quotes around it taken off; on POSIX, a path in the shell's quoting (a file dragged onto
+    the terminal: `/Users/me/Switch\\ 2/a.nup` from the Mac's Terminal and iTerm2, `'it'\\''s'` from GNOME's) unquoted when it is not a path as it is"""
+    t = text.strip()
+    if os.name == 'nt': return t[1:-1] if len(t) >= 2 and t[0] == t[-1] == '"' else t
+    if os.path.exists(os.path.expanduser(t)): return t
+    try: words = shlex.split(t)
+    except ValueError: return t   # (a quote left open: no shell quoting, the text as it is)
+    return words[0] if len(words) == 1 else t
 
 
 class Entry:

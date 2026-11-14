@@ -3,10 +3,13 @@
 #   Full    the full-screen mode: term.py's terminal, screen.py's frames, keys
 #   Plain   lines: when stdin or stdout is not a terminal, TERM=dumb, the console takes no escape sequences, or --plain; questions through input(), progress as
 #           a line at each step and every PLAIN_EVERY seconds
-# The run is pack_android.py as a child process (runner.py); Ctrl+C or q asks, then stops it cleanly, and a later run resumes. SIGTERM and SIGHUP (a closed
+# The run is pack_android.py as a child process (runner.py); Ctrl+C or q asks, then stops it cleanly, and a later run resumes. Before it starts, the folders it
+# writes in are checked and locked against another run of this interface (model.Plan.ready). It is over when the packer has exited (runner.Run.finished): done or
+# failed by its exit code, a packer killed by a signal said in words (SIGKILL: the out-of-memory killer's), a failure without a code as a permission problem or a
+# failure to report. SIGTERM and SIGHUP (a closed
 # window) end the interface through SystemExit, which stops the child and puts the terminal back (main's finally); on Windows the console's close event does it
 # (term.WindowsTerminal.on_close).
-import os, signal, sys, time
+import os, re, signal, sys, time
 from pathlib import Path
 
 from prepare_tui import browser, checks, eta, model, progress, runner, screen as scr, term
@@ -30,6 +33,17 @@ class Outcome:
         self.kind, self.live, self.plan, self.rc, self.took, self.log = kind, live, plan, rc, took, log   # kind: done, failed, stopped
 
 
+def outcome(proc, live, plan, log, now):
+    """The Outcome of a run that is over (proc.finished()): its last lines fed first; stopped when it was asked to stop, else done or failed by the packer's exit
+    code (never by its output)"""
+    lines, _ = proc.lines()
+    for t, l in lines: live.feed(live.t0 + t, l)
+    proc.close()
+    live.log_error = proc.log_error
+    rc = proc.p.returncode
+    return Outcome('stopped' if proc.stopping else 'done' if rc == 0 else 'failed', live, plan, rc, now - live.t0, log)
+
+
 # ---- the full-screen mode
 
 class Full:
@@ -44,7 +58,7 @@ class Full:
         w, h = self.t.size()
         sc = scr.Screen(w, h, self.g)
         self.drawn = draw(sc)   # what draw returned (draw_end: the scroll it used)
-        if (w, h) != self.size: self.t.write('\x1b[0m\x1b[2J'); self.shown = None; self.size = (w, h)
+        if (w, h) != self.size or self.t.dirty: self.t.write('\x1b[0m\x1b[2J'); self.shown = None; self.size = (w, h); self.t.dirty = False
         out = scr.render(sc, self.shown, self.color)
         if out: self.t.write(out)
         self.shown = sc
@@ -59,6 +73,12 @@ class Full:
             for k in self.keys():
                 if k.name == 'char' and k.text.lower() == yes: return True
                 if k.name in ('esc', 'enter', 'ctrl-c') or k.name == 'char' and k.text.lower() == no: return False
+
+    def tell(self, draw, text):
+        """A message drawn over the screen until a key"""
+        while True:
+            self.frame(lambda sc: (draw(sc), dialog(sc, text + '  (Enter)')))
+            if self.keys(): return
 
 
 def dialog(sc, text):
@@ -97,7 +117,7 @@ def draw_checks(sc, res, scroll=0, busy=False):
     for c in res:
         mark = sc.g.ok if c.ok else sc.g.bad
         found = scr.wrap(c.found, max(10, sc.w - 5 - nw))   # what was found in full (a path, a version string), on more lines when it is long
-        lines.append(([(mark + ' ', GREEN | BOLD if c.ok else RED | BOLD), (scr.fit(c.name, nw - 1, sc.g.dots).ljust(nw), BOLD), (found[0], 0 if c.ok else RED)], 2))
+        lines.append(([(mark + ' ', GREEN | BOLD if c.ok else RED | BOLD), (scr.pad(scr.fit(c.name, nw - 1, sc.g.dots), nw), BOLD), (found[0], 0 if c.ok else RED)], 2))
         lines += [([(f, 0 if c.ok else RED)], 4 + nw) for f in found[1:]]
         if not c.ok and c.fix == []: continue
         if not c.ok and fix_shown(res, c):
@@ -176,7 +196,7 @@ def draw_pick(sc, p):
         sc.put(2, top - 1, T('pick.places'), BOLD | (REV if p.focus == 'places' else 0))
         for i, (lab, _) in enumerate(p.places[:rows]):
             st = REV if p.focus == 'places' and i == p.pcur else 0
-            sc.put(2, top + i, scr.fit(lab, pw - 3, g.dots).ljust(pw - 3), st)
+            sc.put(2, top + i, scr.pad(scr.fit(lab, pw - 3, g.dots), pw - 3), st)
         lx = pw + 1
         for i in range(rows + 1): sc.put(lx - 1, top - 1 + i, g.v, DIM)
     sc.put(lx + 1, top - 1, T('pick.list'), BOLD | (REV if p.focus == 'list' else 0))
@@ -189,7 +209,7 @@ def draw_pick(sc, p):
         elif e.kind == 'game': name, tag, st = '* ' + e.name + os.sep, T('pick.tag_dump'), GREEN | BOLD
         else: name, tag, st = '* ' + e.name, model.gb(e.size), GREEN | BOLD
         tw = scr.width(tag)
-        sc.put(lx + 1, top + i, scr.fit(name, lw - tw - 2, g.dots).ljust(lw - tw - 1) + tag, (st | REV) if sel else st)
+        sc.put(lx + 1, top + i, scr.pad(scr.fit(name, lw - tw - 2, g.dots), lw - tw - 1) + tag, (st | REV) if sel else st)
     if not items: sc.put(lx + 1, top, T('pick.empty') if not p.b.filter else T('pick.nomatch'), DIM)
     if p.b.error: p.say(p.b.error, RED)
     for i, l in enumerate(scr.wrap(p.msg, sc.w - 4)[:2]): sc.put(2, sc.h - 3 + i, l, p.msg_style)
@@ -202,6 +222,9 @@ def screen_pick(ui, p, check):
         ui.frame(lambda sc: draw_pick(sc, p))
         for k in ui.keys():
             picked = pick_key(p, k)
+            if picked is QUIT_ASK:   # (Esc: a lone one, or the first half of an arrow key that came late, or Alt+key)
+                if ui.ask(lambda sc: draw_pick(sc, p), T('pick.quit_ask')): raise Quit()
+                continue
             if picked is None: continue
             p.say(T('pick.reading', picked), CYAN)
             ui.frame(lambda sc: draw_pick(sc, p))
@@ -209,8 +232,11 @@ def screen_pick(ui, p, check):
             except model.Bad as e: p.say(model.plain_error(e.code, e.args_, e.msg), RED)
 
 
+QUIT_ASK = object()   # pick_key's answer to Esc: leave, once the user says so
+
+
 def pick_key(p, k):
-    """One key on the pick screen → a path picked, or None"""
+    """One key on the pick screen → a path picked, None, or QUIT_ASK"""
     b = p.b
     if k.name == 'ctrl-c': raise Quit()
     if p.path is not None:   # the path field
@@ -220,7 +246,7 @@ def pick_key(p, k):
         elif k.name == 'tab': p.path = browser.complete(p.path)
         elif k.name == 'esc': p.path = None
         elif k.name == 'enter':
-            t = Path(os.path.expanduser(p.path.strip().strip('"').strip("'")))
+            t = Path(os.path.expanduser(browser.unquote(p.path)))
             p.path = None
             if t.is_dir() and not browser.is_dump(t):
                 if b.go(t): p.say(b.error, RED)
@@ -237,7 +263,7 @@ def pick_key(p, k):
         elif k.name in ('enter', 'right'):
             if b.go(p.places[p.pcur][1]): p.say(b.error, RED)
             else: p.focus = 'list'; p.say('')
-        elif k.name == 'esc': raise Quit()
+        elif k.name == 'esc': return QUIT_ASK
         return None
     if k.name in ('up', 'down', 'home', 'end', 'pgup', 'pgdn'): b.move(k.name); p.say(''); return None
     if k.name == 'enter':
@@ -256,7 +282,7 @@ def pick_key(p, k):
     if k.name == 'backspace': b.erase(); return None
     if k.name == 'esc':
         if b.filter: b.filter = ''; return None
-        raise Quit()
+        return QUIT_ASK
     if k.name == 'char':
         if not b.filter and k.text in '/\\~' or (len(b.filter) == 1 and k.text == ':' and b.filter.isalpha() and os.name == 'nt'):
             p.path = b.filter + k.text; b.filter = ''; return None   # a path typed from its start: the path field
@@ -271,20 +297,20 @@ def versions(x):
     return sorted(set(x.vers) | ({0} if x.ver == 0 or (x.folder / 'base').is_dir() or x.folder.is_file() else set()))
 
 
-def plan_lines(plan):
-    """[(label, value, style)] of the confirmation, the same in both modes"""
+def plan_lines(plan, keys=True):
+    """[(label, value, style)] of the confirmation, the same in both modes (keys: with the full-screen mode's key hints)"""
     x, g = plan.x, plan.g
     out = [(T('confirm.game'), f'{g.get("name", "?")} ({x.app:016X})', BOLD)]   # (label, value, style); a value that is a path is a Path (cut at its start)
     vers = sorted(x.vers)
     vtxt = T('confirm.version_base') if x.ver == 0 else str(x.ver)
     if x.ver and x.ver == max(vers): vtxt += '   ' + T('confirm.version_newest')
-    if len(versions(x)) > 1: vtxt += '   ' + T('confirm.version_keys')
+    if keys and len(versions(x)) > 1: vtxt += '   ' + T('confirm.version_keys')
     out.append((T('confirm.version'), vtxt, 0))
     if x.other: out.append(('', T('confirm.other_build', ', '.join(x.other)), YELLOW))
     out.append((T('confirm.file'), x.folder, 0))
     out.append((T('confirm.out'), plan.out, 0))
     mem = model.free_memory()
-    out.append((T('confirm.workers'), T('confirm.workers_value', plan.J, os.cpu_count() or '?', model.gb(mem) if mem else '?'), 0))
+    out.append((T('confirm.workers'), T('confirm.workers_value', plan.J, os.cpu_count() or '?', model.gb(mem) if mem else '?') + ('   ' + T('confirm.workers_keys') if keys else ''), 0))
     sp = plan.space()
     if not sp: out.append((T('confirm.disk'), T('confirm.disk_none'), 0))   # (everything is kept from an earlier run)
     for e, need, free in sp:
@@ -325,6 +351,7 @@ def screen_confirm(ui, plan, remake):
         for k in ui.keys():
             if k.name == 'enter':
                 if plan.short() and not ui.ask(lambda sc, plan=plan: draw_confirm(sc, plan), T('confirm.short_ask')): continue
+                if why := plan.ready(): ui.tell(lambda sc, plan=plan: draw_confirm(sc, plan), why); continue
                 return plan
             if k.name == 'ctrl-c' or k.name == 'char' and k.text in 'qQ': raise Quit()
             if k.name in ('esc', 'backspace') or k.name == 'char' and k.text in 'bB': return None
@@ -334,7 +361,7 @@ def screen_confirm(ui, plan, remake):
                 vs = versions(plan.x)
                 nxt = vs[(vs.index(plan.x.ver) + 1) % len(vs)] if plan.x.ver in vs else vs[0]
                 try: plan = remake(plan, version=nxt)
-                except model.Bad as e: ui.ask(lambda sc, plan=plan: draw_confirm(sc, plan), model.plain_error(e.code, e.args_, e.msg) + '  (Enter)')
+                except model.Bad as e: ui.tell(lambda sc, plan=plan: draw_confirm(sc, plan), model.plain_error(e.code, e.args_, e.msg))
             if k.name == 'char' and k.text in 'oO':
                 new = edit_line(ui, lambda sc, plan=plan: draw_confirm(sc, plan), T('confirm.out_ask'), str(plan.out))
                 if new: plan = remake(plan, out=new)
@@ -394,8 +421,9 @@ def run_lines(live, now):
         s += '   ' + T('run.rate', f'{r:,.1f}', T('run.unit_shaders') if i == 3 else T('run.unit_files'))
     out.append((s, 0))
     m = live.minutes
-    out.append((model.eta_words(m) if m >= 0 else T('run.measuring'), BOLD if m >= 0 else DIM))
+    out.append((model.eta_words(m, guess=live.guess) if m >= 0 else T('run.measuring'), BOLD if m >= 0 and not live.guess else DIM if m < 0 else 0))
     if live.state.warnings: out.append((T('run.warnings', live.state.warnings), YELLOW))
+    if live.log_error: out.append((T('run.log_error', live.log_error.strerror or live.log_error), RED))
     return out
 
 
@@ -438,20 +466,17 @@ def draw_run(sc, live, log, now, stopping=None):
 def screen_run(ui, plan, start):
     """The run on screen until it ends; → Outcome"""
     proc, live, log = start(plan)
-    stopping = False
     while True:
-        lines, end = proc.lines()
+        lines, _ = proc.lines()
         for t, l in lines: live.feed(live.t0 + t, l)
         now = time.monotonic()
         live.tick(now)
-        if end and proc.poll() is not None:
-            proc.close()
-            return Outcome('stopped' if stopping else 'done' if proc.p.returncode == 0 else 'failed', live, plan, proc.p.returncode, now - live.t0, log)
+        live.log_error = proc.log_error
+        if proc.finished(): return outcome(proc, live, plan, log, now)
         ui.frame(lambda sc, now=now: draw_run(sc, live, log, now))
         for k in ui.keys(0.25):
             if k.name == 'ctrl-c' or k.name == 'char' and k.text in 'qQ':
                 if ui.ask(lambda sc: draw_run(sc, live, log, time.monotonic()), T('run.stop_ask')):
-                    stopping = True
                     proc.stop(on_wait=lambda left: ui.frame(lambda sc: draw_run(sc, live, log, time.monotonic(), T('run.stopping', int(left) + 1))))
 
 
@@ -477,17 +502,39 @@ def end_lines(o):
         out += [(T('end.stopped'), YELLOW | BOLD), ('', 0), (T('end.resume'), 0), (T('end.took', model.duration(o.took)), 0), (T('end.log', o.log), DIM)]
     else:
         code, red = live.state.failure()
+        if o.rc is not None and o.rc < 0: code, red = signal_failure(-o.rc)   # killed: no line of its own says why (an earlier [RED] line is not it)
+        perm = None if code else no_permission(live.state.lines)
         out += [(T('end.failed'), RED | BOLD), ('', 0)]
         if code: out.append((model.plain_error(code[0], code[1], red or ''), BOLD))
+        elif perm: out.append((T('end.no_permission', perm), BOLD))
         elif red: out.append((red, BOLD))
         else: out.append((T('end.exit', o.rc), BOLD))
         if code and red: out.append((T('end.detail', red), DIM))
-        out.append((T('end.retry'), 0))
+        out.append((T('end.retry') if code or perm else T('end.report'), 0))
         out.append((T('end.log', o.log), DIM))
         out.append(('', 0)); out.append((T('end.last'), BOLD))
         tail = [l for l in live.state.lines if not progress.PROGRESS.match(l) and not progress.STEP.match(l)][-8:]
         out += [(l, RED if l.startswith('[RED] ') else DIM) for l in tail]
+    if live.log_error: out.insert(2, (T('run.log_error', live.log_error.strerror or live.log_error), RED))
     return out
+
+
+def signal_failure(sig):
+    """(code, sentence) for a packer ended by signal sig: SIGKILL is what the out-of-memory killer sends (pack_errors.of_exit)"""
+    if sig == 9: return ('out_of_memory', ['pack_android.py']), T('end.signal', 'SIGKILL')
+    try: name = signal.Signals(sig).name
+    except ValueError: name = str(sig)
+    return None, T('end.signal', name)
+
+
+PERMISSION = re.compile(r"PermissionError: \[Errno 13\] [^:']*: '([^']+)'|OSError: \[Errno 30\] Read-only file system: '([^']+)'")
+
+
+def no_permission(lines):
+    """The path of a PermissionError or read-only file system in the packer's last lines (a traceback: its failure has no code), or None"""
+    for l in reversed(lines[-30:]):
+        if m := PERMISSION.search(l): return m.group(1) or m.group(2)
+    return None
 
 
 def draw_end(sc, o, scroll=0):
@@ -545,11 +592,14 @@ def plain_checks(ui, run_checks):
 
 def plain_pick(ui, path, state, check):
     while True:
-        if path is None:
-            last = state.get('last', '')
+        last = state.get('last', '')
+        if not (last and Path(last).is_dir()): last = ''
+        asked = path is None
+        if asked:
             path = ui.ask(T('plain.pick', last) if last else T('plain.pick_none'), '')
             if not path: raise Quit()
-        p = Path(os.path.expanduser(path.strip().strip('"').strip("'")))
+        p = Path(os.path.expanduser(browser.unquote(path)))
+        if asked and last and not p.is_absolute(): p = Path(last) / p   # a name typed at the question: in the last folder, as the question says
         ui.say(T('pick.reading', p))
         try: return p, check(p)
         except model.Bad as e:
@@ -560,13 +610,15 @@ def plain_pick(ui, path, state, check):
 
 def plain_confirm(ui, plan):
     ui.say(''); ui.say(T('confirm.head'))
-    for lab, val, _ in plan_lines(plan): ui.say(f'  {lab:<14}{val}')
+    for lab, val, _ in plan_lines(plan, keys=False): ui.say(f'  {lab:<14}{val}')
     if plan.short(): ui.say('  ' + T('confirm.short'))
-    if ui.yes: return plan
-    a = ui.ask(T('plain.workers', plan.J), str(plan.J))
-    if a.isdigit() and int(a) > 0: plan.J = int(a)
-    a = ui.ask(T('plain.start'), 'y', eof='n')   # Enter is yes; no answer at all (the input ended) is no
-    if a.lower() not in ('y', 'yes'): raise Quit()
+    if not ui.yes:
+        a = ui.ask(T('plain.workers', plan.J), str(plan.J))
+        if a.isdigit() and int(a) > 0: plan.J = int(a)
+        a = ui.ask(T('plain.start'), 'y', eof='n')   # Enter is yes; no answer at all (the input ended) is no
+        if a.lower() not in ('y', 'yes'): raise Quit()
+    if why := plan.ready():
+        ui.say('  ' + why); raise SystemExit(1)
     return plan
 
 
@@ -580,7 +632,7 @@ def plain_run_on(ui, plan, proc, live, log):
     last_step, last_said = live.state.step, time.monotonic()
     try:
         while True:
-            lines, end = proc.lines()
+            lines, _ = proc.lines()
             for t, l in lines:
                 e = live.feed(live.t0 + t, l)
                 if e.kind == 'red' or e.kind == 'error': ui.say('  ' + l)
@@ -592,12 +644,11 @@ def plain_run_on(ui, plan, proc, live, log):
             i = live.state.step
             if i >= 0 and now - last_said >= PLAIN_EVERY:
                 det = step_detail(live, i)
-                eta_s = model.eta_words(live.minutes) if live.minutes >= 0 else ''
+                eta_s = model.eta_words(live.minutes, guess=live.guess) if live.minutes >= 0 else ''
                 ui.say(f'[{model.duration(now - live.t0)}] {T(STEP_KEYS[i])}' + (f': {det}' if det else '') + (f'; {eta_s}' if eta_s else ''))
                 last_said = now
-            if end and proc.poll() is not None:
-                proc.close()
-                return Outcome('done' if proc.p.returncode == 0 else 'failed', live, plan, proc.p.returncode, now - live.t0, log)
+            if proc.log_error and not live.log_error: live.log_error = proc.log_error; ui.say('  ' + T('run.log_error', proc.log_error.strerror or proc.log_error))
+            if proc.finished(): return outcome(proc, live, plan, log, now)
             time.sleep(0.2)
     except KeyboardInterrupt:
         if not ui.yes and sys.stdin.isatty():   # asked, as the full-screen mode asks; no answer (the input ended, Ctrl+C again) is yes
@@ -606,8 +657,7 @@ def plain_run_on(ui, plan, proc, live, log):
             if go_on: return plain_run_on(ui, plan, proc, live, log)
         ui.say(T('run.stopping_plain'))
         proc.stop()
-        proc.close()
-        return Outcome('stopped', live, plan, proc.p.returncode, time.monotonic() - live.t0, log)
+        return outcome(proc, live, plan, log, time.monotonic())
 
 
 def plain_end(ui, o):
@@ -637,9 +687,12 @@ class App:
         return p
 
     def start(self, plan):
-        """Starts the packer for plan → (runner.Run, model.Live, the log's path)"""
+        """Starts the packer for plan → (runner.Run, model.Live, the log's path); model.Bad when its log cannot be made (nothing was started)"""
         log = plan.log_path()
-        proc = runner.Run(plan.argv(), log, cwd=str(model.REPO))
+        try: proc = runner.Run(plan.argv(), log, cwd=str(model.REPO))
+        except OSError as e:
+            why = model.writable(log.parent) or T('confirm.not_writable', log, e.strerror or e)
+            raise model.Bad(None, [], why) from None
         self.proc = proc
         live = model.Live(plan, proc.t0)
         return proc, live, log
@@ -664,11 +717,13 @@ class App:
             if picked is None: picked, x = screen_pick(ui, p, lambda q: self.check(q, self.a.version))
             prob = self.remember(picked)
             if prob: p.say(T('pick.state_bad', prob), YELLOW)
-            plan = screen_confirm(ui, self.plan(x), self.remake)
+            plan = self.plan(x)
+            while (plan := screen_confirm(ui, plan, self.remake)) is not None:
+                try: o = screen_run(ui, plan, self.start); break
+                except model.Bad as e: ui.tell(lambda sc, plan=plan: draw_confirm(sc, plan), e.msg)   # (the log could not be made: back to the plan)
             if plan is not None: break
             picked = None
             p.b.go(p.b.folder); p.say('')
-        o = screen_run(ui, plan, self.start)
         screen_end(ui, o)
         return o
 
@@ -678,7 +733,9 @@ class App:
         prob = self.remember(picked)
         if prob: ui.say(T('pick.state_bad', prob))
         plan = plain_confirm(ui, self.plan(x))
-        o = plain_run(ui, plan, self.start)
+        try: o = plain_run(ui, plan, self.start)
+        except model.Bad as e:
+            ui.say('  ' + e.msg); raise SystemExit(1) from None
         plain_end(ui, o)
         return o
 
@@ -687,7 +744,9 @@ def on_signal(sig, _frame): raise SystemExit(128 + sig)   # SIGTERM, SIGHUP: the
 
 
 def main(a):
-    """→ the exit code: 0 the pack is ready, 1 the run failed or something is missing, 2 left before a run, 3 the run was stopped"""
+    """→ the exit code: 0 the pack is ready, 1 the run failed or something is missing, 2 left before a run, 3 the run was stopped (128 + the signal: ended by
+    SIGHUP, a closed window, or SIGTERM, its run stopped)"""
+    if sys.stdout is None: return 1   # no output at all (pythonw, or started with its output closed): nothing could be shown or asked
     sys.stdout.reconfigure(errors='replace')   # pyright: ignore[reportAttributeAccessIssue]  # a path the console cannot print comes out with a mark, not an exception
     for s in ('SIGTERM', 'SIGHUP'):
         if hasattr(signal, s): signal.signal(getattr(signal, s), on_signal)
@@ -699,10 +758,11 @@ def main(a):
             if not a.plain and why: print(T('plain.why', why), flush=True)
             o = app.plain(Plain(yes=a.yes))
         else:
-            g = scr.Glyphs(False) if a.ascii else scr.glyphs_for(getattr(sys.stdout, 'encoding', 'ascii'))
+            g = scr.Glyphs(False) if a.ascii or not term.unicode_glyphs() else scr.glyphs_for(getattr(sys.stdout, 'encoding', 'ascii'))
             if isinstance(t, term.WindowsTerminal): t.on_close = app.emergency
-            t.enter()
-            try: o = app.full(Full(t, g, color))
+            try:
+                t.enter()
+                o = app.full(Full(t, g, color))
             finally: t.restore()
             if o is not None:
                 for line, _ in end_lines(o): print(line)

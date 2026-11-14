@@ -2,19 +2,25 @@
 # Keys come in two families, both decoded by Decoder:
 #   - escape sequences (Linux and Mac terminals, Windows Terminal with virtual terminal input): CSI (ESC [ ... final) and SS3 (ESC O x) forms of the arrows, Home / End,
 #     Insert / Delete, PgUp / PgDn and F1-F12 (the xterm, rxvt and Linux console spellings, modifiers ignored), and bracketed paste (ESC [200~ ... ESC [201~)
-#   - the Windows console's scan codes, as msvcrt.getwch returns them: a 0x00 or 0xE0 character and then the key's scan code (H up, P down, ...)
-# A lone ESC is the Escape key once nothing follows it for ESC_WAIT seconds (Decoder.flush).
+#   - the Windows console's scan codes, as msvcrt.getwch returns them: a 0x00 or 0xE0 character and then the key's scan code (H up, P down, ...), only on a console
+#     that does not take virtual terminal input (older than Windows 10). There 0xE0 is also the character à (French and Italian keyboards): it is taken as a scan
+#     code only when a known one follows it
+# A lone ESC is the Escape key once nothing follows it for ESC_WAIT seconds (Decoder.flush): long enough for an arrow key's sequence that ssh or a busy computer
+# delivers in two parts.
 # PosixTerminal: termios (no echo, no line editing, no signals from Ctrl+C / Ctrl+Z, no flow control, the output's newline translation kept), select for input with a
-# timeout, SIGWINCH needs no handler (the size is read before each frame). WindowsTerminal: kernel32's console modes through ctypes (virtual terminal processing for
-# the output, processed / line / echo input off, so Ctrl+C is a key), msvcrt for the keys, and a console control handler that closes the job when the window closes.
+# timeout, SIGWINCH needs no handler (the size is read before each frame). A stop from outside (kill -TSTP; SIGSTOP) and `fg` after it: SIGTSTP puts the terminal
+# back before the process stops, SIGCONT takes it again and has the screen drawn whole (dirty).
+# WindowsTerminal: kernel32's console modes through ctypes (virtual terminal processing for the output; for the input virtual terminal input, so keys come as
+# escape sequences, processed / line / echo input off, so Ctrl+C is a key, and quick edit off, so a stray click does not start a selection that holds the screen),
+# msvcrt for the keys, and a console control handler that closes the job when the window closes.
 # enter() switches to the alternate screen with the cursor hidden and bracketed paste on; restore() puts back the modes and the screen, once, however it is reached
 # (the caller's finally, atexit, SIGTERM / SIGHUP turned into SystemExit by app.py, the console's close event).
-import atexit, codecs, os, sys, time
+import atexit, codecs, os, signal, sys, time
 from collections import namedtuple
 from typing import Callable
 
 Key = namedtuple('Key', 'name text')   # name: 'char' (text: the character), 'paste' (text: what was pasted), else the key's name ('up', 'enter', 'f5', 'ctrl-c', ...)
-ESC_WAIT = 0.05
+ESC_WAIT = 0.15
 
 # CSI <n> ~ keys (xterm, rxvt, the Linux console)
 TILDE = {1: 'home', 2: 'insert', 3: 'delete', 4: 'end', 5: 'pgup', 6: 'pgdn', 7: 'home', 8: 'end', 11: 'f1', 12: 'f2', 13: 'f3', 14: 'f4', 15: 'f5', 17: 'f6', 18: 'f7',
@@ -72,6 +78,7 @@ class Decoder:
         c = b[0]
         if self.scancodes and c in '\x00\xe0':
             if len(b) < 2: return 0, None
+            if c == '\xe0' and b[1] not in SCAN: return 1, Key('char', c)   # the character à, and what follows it is another key
             return 2, Key(SCAN.get(b[1], 'unknown'), '')
         if c == '\x1b':
             if len(b) < 2: return 0, None
@@ -101,7 +108,8 @@ class Decoder:
 
 # Escape sequences of the full-screen mode
 ENTER = '\x1b[?1049h\x1b[?25l\x1b[?2004h\x1b[?7l\x1b[H\x1b[2J'   # alternate screen, cursor hidden, bracketed paste, no autowrap, cleared
-LEAVE = '\x1b[0m\x1b[?7h\x1b[?2004l\x1b[?25h\x1b[?1049l'
+# cleared first (a terminal without the alternate screen, such as the Linux console, keeps no frame under the lines printed after it), then the modes put back
+LEAVE = '\x1b[0m\x1b[H\x1b[2J\x1b[?7h\x1b[?2004l\x1b[?25h\x1b[?1049l'
 
 
 class Terminal:
@@ -109,6 +117,7 @@ class Terminal:
     def __init__(self, out=None):
         self.out = out or sys.stdout
         self.active = False
+        self.dirty = False   # the screen must be drawn whole (the terminal was given back and taken again)
 
     def write(self, s):
         self.out.write(s); self.out.flush()
@@ -125,7 +134,9 @@ class Terminal:
         return max(c, 20), max(r, 8)
 
     def enter(self):
-        self.modes_on()
+        try: self.modes_on()
+        except BaseException:
+            self.modes_off(); raise   # what modes_on had changed before it failed is put back
         self.active = True
         atexit.register(self.restore)
         self.write(ENTER)
@@ -147,18 +158,51 @@ class PosixTerminal(Terminal):
     def modes_on(self):
         import termios
         self.saved = termios.tcgetattr(self.fd)
+        self.raw()
+
+    def raw(self):
+        import termios
         a = termios.tcgetattr(self.fd)
         a[0] &= ~(termios.IXON | termios.ICRNL | termios.INLCR | termios.IGNCR | termios.ISTRIP)
         a[3] &= ~(termios.ECHO | termios.ICANON | termios.ISIG | termios.IEXTEN)
         a[6][termios.VMIN], a[6][termios.VTIME] = 1, 0
         termios.tcsetattr(self.fd, termios.TCSADRAIN, a)
 
-    def modes_off(self):
-        if self.saved is None: return
+    def cooked(self):
+        """The modes as they were before enter (kept for the next raw)"""
         import termios
+        if self.saved is None: return
         try: termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved)
         except (OSError, termios.error): pass   # the terminal is gone (a closed window): its modes went with it
+
+    def modes_off(self):
+        if self.saved is None: return
+        self.cooked()
         self.saved = None
+        for s in ('SIGTSTP', 'SIGCONT'): signal.signal(getattr(signal, s), signal.SIG_DFL)
+
+    def enter(self):
+        super().enter()
+        signal.signal(signal.SIGTSTP, self.on_tstp); signal.signal(signal.SIGCONT, self.on_cont)
+
+    def on_tstp(self, _sig, _frame):
+        """A stop from outside (kill -TSTP, a job control): the terminal given back as it was, then the process stops as it would have; on_cont takes it again"""
+        if self.active:
+            try: self.out.write(LEAVE); self.out.flush()
+            except (OSError, ValueError): pass   # the terminal is gone: nothing to give back on it
+            self.cooked()
+        signal.signal(signal.SIGTSTP, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGTSTP)   # (stopped here until continued)
+        signal.signal(signal.SIGTSTP, self.on_tstp)
+
+    def on_cont(self, _sig, _frame):
+        """Continued (fg, or after a SIGSTOP that could not be caught): the full-screen modes again and the screen drawn whole, once in the foreground (in the
+        background the terminal's modes cannot be set: the next read stops the process, and the fg that follows continues it here again)"""
+        if not self.active or not foreground(self.fd): return
+        import termios
+        try: self.raw(); self.out.write(ENTER); self.out.flush()
+        except (OSError, ValueError, termios.error): return   # the terminal is gone: the next read says so
+        self.dirty = True
 
     def keys(self, timeout):
         """The keys typed within timeout seconds (an empty list when none)"""
@@ -180,7 +224,9 @@ class PosixTerminal(Terminal):
 class WindowsTerminal(Terminal):
     """The Windows console (Windows Terminal, PowerShell's and cmd.exe's conhost on Windows 10 and 11)"""
     VT_OUT = 0x0004   # ENABLE_VIRTUAL_TERMINAL_PROCESSING
-    IN_OFF = 0x0001 | 0x0002 | 0x0004   # ENABLE_PROCESSED_INPUT (Ctrl+C as a signal), ENABLE_LINE_INPUT, ENABLE_ECHO_INPUT
+    IN_OFF = 0x0001 | 0x0002 | 0x0004 | 0x0040   # ENABLE_PROCESSED_INPUT (Ctrl+C as a signal), ENABLE_LINE_INPUT, ENABLE_ECHO_INPUT, ENABLE_QUICK_EDIT_MODE
+    IN_ON = 0x0080   # ENABLE_EXTENDED_FLAGS (quick edit's bit is taken only with it)
+    VT_IN = 0x0200   # ENABLE_VIRTUAL_TERMINAL_INPUT
 
     def __init__(self, out=None):
         super().__init__(out)
@@ -208,7 +254,10 @@ class WindowsTerminal(Terminal):
 
     def modes_on(self):
         self.saved = (self.mode(self.hin), self.mode(self.hout), self.k32.GetConsoleOutputCP())
-        if self.saved[0] is not None: self.k32.SetConsoleMode(self.hin, self.saved[0] & ~self.IN_OFF)
+        if self.saved[0] is not None:   # keys as escape sequences where the console can (Windows 10 on), else as msvcrt's scan codes
+            vt = bool(self.k32.SetConsoleMode(self.hin, (self.saved[0] & ~self.IN_OFF) | self.IN_ON | self.VT_IN))
+            if not vt: self.k32.SetConsoleMode(self.hin, (self.saved[0] & ~self.IN_OFF) | self.IN_ON)
+            self.dec = Decoder(scancodes=not vt)
         if self.saved[1] is not None and not self.k32.SetConsoleMode(self.hout, self.saved[1] | self.VT_OUT | 0x0001):
             raise OSError('the console does not take escape sequences')
         self.k32.SetConsoleOutputCP(65001)
@@ -248,6 +297,18 @@ class WindowsTerminal(Terminal):
         return out
 
 
+def foreground(fd):
+    """Whether this process is in the foreground of the terminal fd (in the background, setting its modes would stop it)"""
+    try: return os.tcgetpgrp(fd) == os.getpgrp()
+    except OSError: return True   # not this process's controlling terminal (a test's pseudo-terminal): no job control on it to stop the process
+
+
+def unicode_glyphs():
+    """Whether the console's font is likely to have the marks (✓ ▶ ✗): Windows Terminal and other terminals that fall back to other fonts do; conhost's own window
+    (Consolas, no fallback) does not"""
+    return os.name != 'nt' or bool(os.environ.get('WT_SESSION') or os.environ.get('TERM_PROGRAM'))
+
+
 def open_terminal():
     """The terminal of this system for the full-screen mode, or (None, why not) when only the plain mode can work"""
     if not (sys.stdin.isatty() and sys.stdout.isatty()): return None, 'not a terminal'
@@ -256,4 +317,6 @@ def open_terminal():
         t = WindowsTerminal()
         if not t.vt_ok(): return None, 'this console does not take escape sequences'
         return t, ''
+    if not os.environ.get('TERM'): return None, 'TERM is not set'
+    if not foreground(sys.stdin.fileno()): return None, 'started in the background'
     return PosixTerminal(), ''

@@ -124,7 +124,8 @@ def check_dotnet(sysname):
     rt = ('.NET ' + (', '.join(v for v in rts if v.startswith('10.')) or '10 -')) if rts is not None else T('check.no_dotnet')
     if emb.startswith(tool_lock.NO_RUN): return Check(T('check.dotnet'), False, T('check.no_run', rt, emb), install(sysname, 'dotnet'))
     if emb != want: return Check(T('check.dotnet'), False, T('check.other_xlate', rt, emb, want), [T('fix.xlate')])
-    return Check(T('check.dotnet'), True, T('check.runs', rt, emb))
+    # the translator starts: its launcher found the runtime (a dotnet that is not on the PATH, in its usual folder) when `dotnet` itself is not on the PATH
+    return Check(T('check.dotnet'), True, T('check.runs', rt, emb) if rts is not None else T('check.runs_found', emb))
 
 
 def check_spirv(sysname):

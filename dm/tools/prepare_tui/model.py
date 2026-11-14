@@ -40,6 +40,8 @@ def identify(path, version=None):
     p = Path(path).expanduser().resolve()
     if not p.exists(): raise Bad(None, [], T('pick.missing', p))
     if p.is_file() and not nup.is_nup(p): raise Bad(None, [], T('pick.not_game', p))
+    # a folder with neither base/ nor updates/ is no dump at all (an incomplete dump has one of them, and the packer says what it lacks)
+    if p.is_dir() and not (p / 'base').is_dir() and not (p / 'updates').is_dir(): raise Bad(None, [], T('pick.not_game', p))
     try: return pack_android.identify(p, version)
     except (pack_android.Error, pack_dump.Error) as e: raise Bad(getattr(e, 'code', None), getattr(e, 'code_args', ()), str(e)) from None
     except nup.Error as e: raise Bad('unreadable_file', [p], str(e)) from None
@@ -181,8 +183,64 @@ class Plan:
         from prepare_tui import runner
         return runner.packer_argv(PACK_ANDROID, self.x.folder, self.x.ver, self.out, self.J, self.j, self.cache_arg and self.cache, self.pkg_arg and self.pkg, python)
 
+    def log_dir(self): return self.out.parent / 'prepare-logs'
+
     def log_path(self):
-        return self.out.parent / 'prepare-logs' / f'prepare-{time.strftime("%Y%m%d-%H%M%S")}.log'
+        return self.log_dir() / f'prepare-{time.strftime("%Y%m%d-%H%M%S")}.log'
+
+    def ready(self):
+        """Before the run starts: the folders it writes in can be written (the pack folder, the log folder, the shader cache, the package's folder; each made when
+        it is not there, but never the package itself, whose absence starts the split), and no other run of this interface uses the pack folder or the shader cache
+        (their locks, held until this process ends). → '' or what stops the run, in plain words"""
+        for d in (self.out, self.log_dir(), self.cache, self.pkg.parent):
+            if why := writable(d): return why
+        for d, f in ((self.out, self.log_dir() / f'{self.out.name}.lock'), (self.cache, self.cache / '.prepare.lock')):
+            if f in HELD: continue
+            k = Lock(f)
+            if not k.take(): return T('confirm.busy', d)
+            HELD[f] = k
+        return ''
+
+
+def writable(d):
+    """'' when a file can be made in folder d (made first when it is not there), else why not in plain words"""
+    import tempfile, pack_errors
+    try:
+        Path(d).mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryFile(dir=d): pass
+    except OSError as e:
+        c = pack_errors.of_os_error(e)
+        if c and c[0] == 'no_space': return T('error.no_space', d)
+        return T('confirm.not_writable', d, e.strerror or e)
+    return ''
+
+
+HELD = {}   # the locks this process holds, by their file: one each (this process's second flock of a file it holds, through another descriptor, is refused)
+
+
+class Lock:
+    """An exclusive lock on a file, released when this process ends however it ends (flock on POSIX, msvcrt.locking on Windows): two runs of the interface on the
+    same pack folder or shader cache would translate the same shaders and write the same files. The file stays (removing it would let a run that opened it just
+    before lock a file no other run sees)"""
+    def __init__(self, path): self.path, self.fd = Path(path), None
+
+    def take(self):
+        """→ whether this process holds the lock now (False: another holds it)"""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)   # pyright: ignore[reportAttributeAccessIssue]
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)   # pyright: ignore[reportAttributeAccessIssue]
+        except OSError as e:   # (BlockingIOError on POSIX, EACCES / EDEADLOCK from msvcrt): another run holds it
+            os.close(fd)
+            if os.name == 'nt' or isinstance(e, BlockingIOError): return False
+            raise
+        self.fd = fd
+        return True
 
 
 def gb(n): return f'{n / 1e9:.1f} GB'
@@ -205,8 +263,8 @@ def minutes_words(s):
     return plural(h, 'eta.n_hour', 'eta.n_hours') + ('' if mm == 0 else ' ' + plural(mm, 'eta.n_minute', 'eta.n_minutes'))
 
 
-def eta_words(minutes, now=None):
-    """'About 12 minutes left, done around 21:40' for the minutes to show (Eta.minutes), '' for none"""
+def eta_words(minutes, now=None, guess=False):
+    """'About 12 minutes left, done around 21:40' for the minutes to show (Eta.minutes), '' for none; guess: the time is still mostly the fixed figure (Eta.guess)"""
     if minutes < 0: return ''
     clock = time.strftime('%H:%M', time.localtime((now or time.time()) + max(minutes, 1) * 60))
     if minutes == 0: left = T('eta.less')
@@ -214,7 +272,7 @@ def eta_words(minutes, now=None):
     else:
         h, m = divmod(minutes, 60)
         left = plural(h, 'eta.hour', 'eta.hours') if m == 0 else T('eta.hours_minutes', plural(h, 'eta.hour', 'eta.hours'), m)
-    return T('eta.line', left, clock)
+    return T('eta.line_guess' if guess else 'eta.line', left, clock)
 
 
 class Live:
@@ -228,7 +286,8 @@ class Live:
         self.eta.start(now)
         self.hist = []   # (time, done) of the step in hand's counted part, for its rate
         self.step_t = {}  # step → its start
-        self.minutes = -1
+        self.minutes, self.guess = -1, False
+        self.log_error = None   # the run's log could not be written on (runner.Run.log_error)
         self.weights = [2.0, eta.REWRITE_S if plan.rewrite else 0.0, eta.SPLIT_S if plan.split else 0.0,
                         ((plan.shaders - plan.translated) * plan.shader_s() + plan.shaders * eta.LIBRARY_S) if plan.build else 0.0, eta.PACK_S]
 
@@ -247,6 +306,7 @@ class Live:
 
     def tick(self, t):
         self.minutes = self.eta.minutes(t)
+        self.guess = self.minutes >= 0 and self.eta.guess
         return self.minutes
 
     def rate(self, t, span=60.0):

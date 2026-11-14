@@ -13,7 +13,8 @@
 #   unknown  identify, the rewrite (three modules of very different sizes) and the split's start before its scan ("main"): no estimate
 # The steps still to come are added from what is known: the shaders after a split at shader_s each, the library at LIBRARY_S an entry, the pack at PACK_S. A counted
 # part says nothing until it has its own measurement (MIN_S of running time with progress, or MIN_SMALL_S and MIN_SMALL_SHARE of it for a small job), unless an
-# earlier part of this run had one: then the fixed figure stands in meanwhile. It says nothing either when progress stalls (STALL_S), when a part's total is 0,
+# earlier part of this run had one: then the fixed figure stands in meanwhile. While the translation's time is the figure (the split, and the translation before its
+# own rate), the estimate is marked a guess (Eta.guess), and the screens say so: a computer busier than the figures' was 40 % slower. It says nothing either when progress stalls (STALL_S), when a part's total is 0,
 # changes or is passed, or its count goes back, when a timed part has taken twice its figure, or when more than MAX_S is left.
 # The figures are those of a run on a computer (FIGURES below); dm/tools/tests/test_prepare_tui.py replays that run's trace (prepare_data/prepare-pc-oot.trace.txt)
 # with them and checks the estimate's error along it.
@@ -92,6 +93,7 @@ class Eta:
         self.finish, self.finish_at = math.nan, 0.0
         self.shown = -1
         self.last_seconds = math.nan
+        self.guess = False
 
     def mix(self, m):
         """The profile map's (shaders, non-vertex shaders) from shader_mix, or None"""
@@ -168,7 +170,9 @@ class Eta:
     def library_left(self): return self.library * self.library_s
 
     def raw(self):
-        """Seconds left in the whole run, unsmoothed; nan for none"""
+        """Seconds left in the whole run, unsmoothed; nan for none. Sets guess: whether most of it is still the fixed figure (the translation, before it has a rate
+        of its own on this computer)"""
+        self.guess = False
         since_inc = self.run - max(self.last_inc, self.phase_start)
         if self.kind == LIBRARY: return timed(self.library_left(), self.run - self.phase_start) + self.pack_s
         if self.kind == PACKING: return timed(self.pack_s, self.run - self.phase_start) if self.known else math.nan
@@ -187,8 +191,9 @@ class Eta:
         elif self.known and not self.disturbed and self.step == SHADERS:   # the translation's start: the figure until its own rate
             t = self.total if self.started else self.shaders
             rest = max(0, t - (self.done if self.started else 0)) * self.shader_s
+            self.guess = True
         else: return math.nan
-        if self.step == SPLIT: rest += self.shaders * self.shader_s
+        if self.step == SPLIT: rest += self.shaders * self.shader_s; self.guess = self.shaders > 0
         rest += self.library_left() + self.pack_s
         return math.nan if rest > MAX_S else rest
 

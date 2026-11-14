@@ -1,17 +1,23 @@
 """scripts/prepare.py, the terminal interface for preparing a game on a computer (dm/tools/prepare_tui), without a terminal of the test's own:
 - keys: the escape-sequence family (CSI and SS3 forms of the xterm, rxvt and Linux console spellings, bracketed paste, a lone Escape, sequences split between
-  reads, UTF-8) and the Windows console's scan codes (a lone 0xE0 being the character à), fed as characters into term.Decoder
+  reads, UTF-8; on a pty, a sequence whose parts come 80 ms apart) and the Windows console's scan codes (0xE0 being the character à unless a scan code follows it),
+  fed as characters into term.Decoder
 - drawing: every screen into an in-memory screen.Screen at 80x24, 160x50 and 60x18, Unicode and ASCII glyphs (an ASCII screen holds only ASCII), nothing past
-  the edge, no colour in the text, each key line whole at 80 columns, a fix shared by several checks shown once; render()'s escape sequences with and without colour
+  the edge, no colour in the text, each key line whole at 80 columns, a fix shared by several checks shown once; render()'s escape sequences with and without colour;
+  file names with wide, decomposed, emoji and control characters (one size column, accents kept, no control character written)
 - the browser's logic on a temporary folder tree (folders, .nup files, dump folders, the filter, up and into folders, the window, path completion) and the
-  state file (written, read back, a damaged one)
+  state file (written, read back, a damaged one); a path dropped on the terminal in the shell's quoting
 - the packer's output: progress lines in the three spellings, step lines, error: lines and [RED] lines, and a failure's code paired as the phone pairs it
+- the packer as a child process (runner.Run): a worker left behind holding the output (the run still ends), a log that cannot be written (the run goes on),
+  a folder that cannot be written, the lock against a second run; a failure without a code in words (a signal, a permission error, else a bug to report)
 - the estimator (eta.py, the phone's Eta.java on the computer's steps): steady, a falling rate, a stall, the translation's end and the library's countdown, a
   resumed run's baseline, the split's hand-over to the shaders' figure, totals of 0, and a replay of the real run's trace (prepare_data/prepare-pc-oot.trace.txt)
-- the plain line mode end to end (done, failed, a bad pick, and on POSIX Ctrl+C), and on POSIX the full-screen mode on a pseudo-terminal (prepare_vt.py): a
+- the plain line mode end to end (done, failed, a bad pick, a name in the last folder, a worker left behind, a pack folder that cannot be written, a second
+  run refused, and on POSIX Ctrl+C and the packer killed), and on POSIX the full-screen mode on a pseudo-terminal (prepare_vt.py): a
   made-up dump folder of Ocarina of Time (an NPDM and NSO headers of a few bytes, as test_pack_errors.py makes them) picked with the packer's own checks, and a
   stand-in packer that prints what pack_android.py prints; a file picked with keys, confirmed, the run watched to its end, the terminal's modes put back; Ctrl+C
-  in the middle stops the stand-in packer and its worker; so do SIGHUP (a closed window) and SIGTERM
+  in the middle stops the stand-in packer and its worker; so do SIGHUP (a closed window) and SIGTERM; Esc on the pick asks; kill -TSTP and SIGCONT give the
+  terminal back and take it again; a pack folder that cannot be written is said on the plan
 - the texts: every key the code uses is in texts.TEXTS, and every key there is used
 The Windows console itself (term.WindowsTerminal: console modes, msvcrt, the close event) cannot run here: only its scan-code decoding is tested."""
 import math
@@ -28,7 +34,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / 'dm/tools')); sys.path.insert(0, str(Path(__file__).resolve().parent))
-from prepare_tui import app, browser, eta, model, progress, screen as scr, texts   # noqa: E402
+from prepare_tui import app, browser, eta, model, progress, runner, screen as scr, texts   # noqa: E402
 from prepare_tui.term import Decoder   # noqa: E402
 
 DATA = Path(__file__).resolve().parent / 'prepare_data'
@@ -84,6 +90,24 @@ class Keys(unittest.TestCase):
         d = Decoder(scancodes=True)
         self.assertEqual(d.feed('\xe0'), []); self.assertEqual(names(d.flush()), [('char', '\xe0')])   # nothing after it: the character à, typed
         self.assertEqual(names(d.feed('x')), [('char', 'x')])   # ... and the next key is not taken as its scan code
+        got = Decoder(scancodes=True).feed('C:\\Jeux\\Voil\xe0\\x.nup')   # à and what follows it in one read (a paste, fast typing): à is a character there
+        self.assertEqual(''.join(k.text for k in got), 'C:\\Jeux\\Voil\xe0\\x.nup')
+        self.assertEqual(names(Decoder(scancodes=True).feed('d\xe9j\xe0 vu')), [('char', c) for c in 'd\xe9j\xe0 vu'])
+
+    @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
+    def test_sequence_split_by_a_delay(self):
+        """An arrow key whose escape sequence comes in two parts 80 ms apart (ssh, a busy computer) is the arrow, not Escape and two characters"""
+        import threading
+        from prepare_tui.term import PosixTerminal
+        m, sl = os.openpty()
+        try:
+            t = PosixTerminal(fd=sl, out=open(os.devnull, 'w'))
+            t.modes_on()
+            def later(): time.sleep(0.08); os.write(m, b'[B')
+            os.write(m, b'\x1b'); threading.Thread(target=later).start()
+            self.assertEqual(names(t.keys(1.0)), ['down'])
+            t.modes_off(); t.out.close()
+        finally: os.close(m); os.close(sl)
 
 
 # ---- drawing
@@ -187,6 +211,7 @@ class Drawing(unittest.TestCase):
                     if name == 'confirm' and w >= 80: self.assertIn('The Legend of Zelda: Ocarina of Time (0400486024DEC000)', txt); self.assertIn('Kept', txt)
                     if name == 'confirm-short': self.assertIn('Not enough free space', txt)
                     if name == 'end-done' and h >= 24: self.assertIn('The pack is ready', txt); self.assertIn('Next:', txt)
+                    if name.startswith('end-') and name != 'end-failed': self.assertNotIn('failed', txt)
                     if name == 'end-done' and (w, h) == (80, 24): self.assertIn('must keep the name', txt)   # the whole end fits at 80x24
                     if name == 'end-failed' and w >= 80: self.assertIn('Not enough free space (/games/x)', txt)
                     if name == 'end-stopped': self.assertIn('What was finished is kept', txt)
@@ -211,6 +236,28 @@ class Drawing(unittest.TestCase):
         self.assertEqual(scr.wrap('one two three', 7), ['one two', 'three'])
         self.assertEqual(scr.wrap('Pack: /games/Switch2/run1/pack', 16), ['Pack:', '/games/Switch2/', 'run1/pack'])   # a path cut after a separator
         self.assertEqual(scr.wrap('abcdefghij', 4), ['abcd', 'efgh', 'ij'])
+        s = scr.Screen(10, 1); s.put(0, 0, 'e\u0301x\u202ey'); self.assertEqual(s.rows[0][:3], [('é', 0), ('x', 0), ('y', 0)])   # composed; a bidi control not drawn
+        self.assertEqual(scr.pad('漢x', 5), '漢x  ')
+
+    def test_odd_names(self):
+        """File names with wide, combining (a name the Mac stores decomposed), emoji and control characters: the size column stays in place, accents stay,
+        no control character reaches the terminal"""
+        import unicodedata
+        with tempfile.TemporaryDirectory() as d:
+            names_ = ['日本語のゲーム名がとても長いファイル.nup', unicodedata.normalize('NFD', 'Pokémon.nup'), 'combining-e\u0301\u0301\u0301.nup', 'emoji-🎮\ufe0f.nup',
+                      'csi-\x9b31m-red.nup', 'plain.nup']
+            for n in names_: (Path(d) / n).write_bytes(b'x' * 10)
+            pick = app.Pick.__new__(app.Pick)
+            pick.state, pick.b, pick.places, pick.pcur, pick.focus, pick.path = {}, browser.Browser(Path(d)), [('Home', Path(d))], 0, 'places', None
+            pick.msg, pick.msg_style = '', 0
+            sc = scr.Screen(80, 24); app.draw_pick(sc, pick)
+            txt = sc.text()
+            rows = [l for l in txt.split('\n') if '0.0 GB' in l]
+            self.assertEqual(len(rows), len(names_), txt)
+            self.assertEqual({scr.width(l[:l.index('0.0 GB')]) for l in rows}, {scr.width(rows[-1][:rows[-1].index('0.0 GB')])}, txt)   # one column for every size
+            self.assertIn('Pokémon.nup', unicodedata.normalize('NFC', txt))
+            out = scr.render(sc, None, True)
+            self.assertNotIn('\x9b', out); self.assertIn('csi-?31m-red', txt)
 
     def test_glyphs_for(self):
         self.assertTrue(scr.glyphs_for('utf-8').unicode)
@@ -262,6 +309,16 @@ class Browsing(unittest.TestCase):
         self.assertEqual(browser.complete(g + 'O'), g + 'O')   # Ocarina.NUP and Other: their common start only
         self.assertEqual(browser.complete(g + 'Oc'), g + 'Ocarina.NUP')
 
+    @unittest.skipIf(os.name == 'nt', "the shell's quoting is POSIX")
+    def test_dropped_path(self):
+        """A file dragged onto the terminal comes in the shell's quoting"""
+        (self.d / 'Switch 2').mkdir(); (self.d / "it's").mkdir()
+        self.assertEqual(browser.unquote(str(self.d) + '/Switch\\ 2 '), str(self.d / 'Switch 2'))
+        self.assertEqual(browser.unquote("'" + str(self.d) + "/it'\\''s'"), str(self.d / "it's"))
+        self.assertEqual(browser.unquote('"' + str(self.d / 'Switch 2') + '"'), str(self.d / 'Switch 2'))
+        self.assertEqual(browser.unquote(str(self.d / 'Switch 2')), str(self.d / 'Switch 2'))   # a path as it is stays as it is
+        self.assertEqual(browser.unquote("/x/it's"), "/x/it's")   # an open quote: no shell quoting
+
     def test_state(self):
         f = self.d / 'cfg/anka-native/prepare.json'
         self.assertEqual(browser.load_state(f), ({}, ''))
@@ -304,6 +361,27 @@ class Output(unittest.TestCase):
         self.assertEqual(model.plain_error('no_space', [], 'the sentence'), 'the sentence')       # too few arguments
 
 
+    def test_failure_words(self):
+        """A failure without a code: killed by a signal (SIGKILL: the out-of-memory killer), a permission error in a traceback, else a bug to report"""
+        p = FakePlan()
+        lv, _ = live_at(p, RUN_LINES)   # (its last [RED] line is a warning of the run, not why it ended)
+        end = lambda rc: '\n'.join(t for t, _ in app.end_lines(app.Outcome('failed', lv, p, rc, 100.0, Path('/x.log'))))
+        self.assertIn('Not enough memory: pack_android.py was stopped', end(-9))
+        self.assertIn('signal SIGTERM', end(-15)); self.assertNotIn('older library', end(-15).split('Its last lines')[0])
+        lp, _ = live_at(p, RUN_LINES + ['Traceback (most recent call last):', "PermissionError: [Errno 13] Permission denied: '/games/ro/pack/rewrite_main.log'"])
+        txt = '\n'.join(t for t, _ in app.end_lines(app.Outcome('failed', lp, p, 1, 100.0, Path('/x.log'))))
+        self.assertIn('does not let the packer use /games/ro/pack/rewrite_main.log', txt); self.assertIn('Fix what it says', txt)
+        lb, _ = live_at(p, RUN_LINES[:-1] + ['Traceback (most recent call last):', 'AssertionError'])
+        txt = '\n'.join(t for t, _ in app.end_lines(app.Outcome('failed', lb, p, 1, 100.0, Path('/x.log'))))
+        self.assertIn('no advice for', txt); self.assertNotIn('Fix what it says', txt)
+
+    def test_plain_confirm_has_no_keys(self):
+        p = FakePlan()
+        p.x.vers = {0: None, 131072: None}
+        full, plain = ' '.join(str(v) for _, v, _ in app.plan_lines(p)), ' '.join(str(v) for _, v, _ in app.plan_lines(p, keys=False))
+        self.assertIn('+ / -', full); self.assertIn('v: another', full)
+        self.assertNotIn('+ / -', plain); self.assertNotIn('v: another', plain)
+
     def test_whole_job_on_resume(self):
         """A resumed translation's count includes what the earlier run translated: the whole job's bar starts the step at this run's share, not ahead of it"""
         p = FakePlan(translated=3384, kept=('main', 'subsdk0', 'sdk'), split=False)
@@ -311,6 +389,71 @@ class Output(unittest.TestCase):
         b, _ = live_at(p, ['step identify', 'step rewrite', 'step shaders', 'progress 23119 42854 translate'])
         self.assertLess(a.overall(), 0.01)
         self.assertAlmostEqual(b.overall(), (b.weights[0] + 0.5 * (42854 - 3384) * p.shader_s()) / sum(b.weights), places=3)   # half of this run's translation
+
+
+# ---- the packer as a child process
+
+class Runs(unittest.TestCase):
+    def setUp(self): self.d = Path(tempfile.mkdtemp(prefix='run_'))
+
+    def tearDown(self):
+        import shutil
+        for p in self.d.rglob('*'):
+            if p.is_dir(): p.chmod(0o755)
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def run_to_end(self, r, limit=30):
+        got, end = [], time.monotonic() + limit
+        while not r.finished():
+            self.assertLess(time.monotonic(), end, 'the run does not end')
+            got += [l for _, l in r.lines()[0]]; time.sleep(0.05)
+        got += [l for _, l in r.lines()[0]]; r.close()
+        return got
+
+    def test_worker_left_behind(self):
+        """The packer exits while a worker it started still holds its output: the run ends GRACE after the exit, by the packer's exit code, the worker ended"""
+        code = ('import subprocess, sys; w = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(600)"]); print(w.pid, flush=True); '
+                'print("done: x (1.0 MiB)", flush=True)')
+        t0 = time.monotonic()
+        r = runner.Run([sys.executable, '-c', code], self.d / 'logs/a.log')
+        got = self.run_to_end(r)
+        self.assertEqual(r.p.returncode, 0); self.assertLess(time.monotonic() - t0, 20)
+        self.assertIn('done: x (1.0 MiB)', got)
+        if os.name != 'nt':
+            time.sleep(0.2)
+            with self.assertRaises(ProcessLookupError): os.kill(int(got[0]), 0)
+
+    def test_log_cannot_be_written(self):
+        """The log's drive fills up during the run: the lines still come and the run ends; log_error says why the log stops"""
+        import errno
+        class Full:
+            def __init__(self, f): self.f, self.n = f, 0
+            def write(self, s):
+                self.n += 1
+                if self.n > 3: raise OSError(errno.ENOSPC, 'No space left on device')
+                return self.f.write(s)
+            def flush(self): self.f.flush()
+            def close(self): self.f.close()
+        r = runner.Run([sys.executable, '-c', 'for i in range(100000): print(f"progress {i} 100000 translate")'], self.d / 'b.log')
+        r.log = Full(r.log)   # pyright: ignore[reportAttributeAccessIssue]  # (a stand-in for the log file)
+        got = self.run_to_end(r)
+        self.assertEqual(len(got), 100000); self.assertEqual(r.p.returncode, 0)
+        assert r.log_error is not None; self.assertEqual(r.log_error.errno, errno.ENOSPC)
+
+    @unittest.skipIf(os.name == 'nt' or hasattr(os, 'geteuid') and os.geteuid() == 0, 'POSIX permissions (root ignores them)')
+    def test_folder_not_writable(self):
+        ro = self.d / 'ro'; ro.mkdir(); ro.chmod(0o555)
+        self.assertIn('Cannot write in', model.writable(ro / 'pack'))
+        self.assertEqual(model.writable(self.d / 'rw/pack'), '')
+        with self.assertRaises(OSError): runner.Run([sys.executable, '-c', 'pass'], ro / 'prepare-logs/x.log')
+
+    def test_lock(self):
+        a, b = model.Lock(self.d / 'x.lock'), model.Lock(self.d / 'x.lock')
+        self.assertTrue(a.take()); self.assertFalse(b.take())
+        code = f'import sys; sys.path.insert(0, {str(REPO / "dm/tools")!r}); from prepare_tui import model; print(model.Lock({str(self.d / "x.lock")!r}).take())'
+        self.assertEqual(subprocess.run([sys.executable, '-c', code], capture_output=True, text=True).stdout.strip(), 'False')   # another process: refused too
+        assert a.fd is not None; os.close(a.fd)
+        self.assertEqual(subprocess.run([sys.executable, '-c', code], capture_output=True, text=True).stdout.strip(), 'True')   # released with its holder
 
 
 # ---- the estimator
@@ -380,6 +523,17 @@ class Estimator(unittest.TestCase):
         e.step_to(eta.SHADERS, t)
         e.progress(eta.SHADERS, 0, 42854, 'translate', t + 30)
         self.assertAlmostEqual(e.raw(), 42854 * 0.07 + 42854 * eta.LIBRARY_S + eta.PACK_S)   # the figure until the translation has its own rate
+
+    def test_guess(self):
+        """The time from the fixed figure (the split, the translation before its own rate) is called a first guess; a measured one is not"""
+        e = eta.Eta(42854, 42854, 0.07); e.start(0); e.step_to(eta.SPLIT, 0)
+        feed_rate(e, eta.SPLIT, 30, 300, 186583, 0, 500, stage='')
+        e.raw(); self.assertTrue(e.guess)
+        e.step_to(eta.SHADERS, 300); e.progress(eta.SHADERS, 0, 42854, 'translate', 330)
+        e.raw(); self.assertTrue(e.guess)
+        feed_rate(e, eta.SHADERS, 335, 800, 42854, 0, 30)
+        e.raw(); self.assertFalse(e.guess)
+        self.assertTrue(model.eta_words(20, now=0, guess=True).endswith(': a first guess'))
 
     def test_no_total(self):
         e = eta.Eta(0, 0, 0.1); e.start(0); e.step_to(eta.SHADERS, 0)
@@ -530,7 +684,10 @@ class EndToEnd(unittest.TestCase):
     def test_identify_made_up_dump(self):
         x = model.identify(self.game)
         self.assertEqual((f'{x.app:016X}', x.ver, x.other), (OOT, 131072, []))
-        with self.assertRaises(model.Bad) as c: model.identify(self.d / 'Switch2')
+        with self.assertRaises(model.Bad) as c: model.identify(self.d / 'Switch2')   # a folder of games, not a dump
+        self.assertIn('is not a .nup file or a dump folder', model.plain_error(c.exception.code, c.exception.args_, c.exception.msg))
+        (self.d / 'Half/base').mkdir(parents=True)
+        with self.assertRaises(model.Bad) as c: model.identify(self.d / 'Half')
         self.assertEqual(c.exception.code, 'dump_incomplete')
         self.assertIn('The dump is incomplete', model.plain_error(c.exception.code, c.exception.args_, c.exception.msg))
 
@@ -576,9 +733,68 @@ class EndToEnd(unittest.TestCase):
             with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
 
     def test_plain_bad_pick(self):
-        r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.d / 'Switch2'), '--plain', '--yes', *self.args], env=self.env, capture_output=True,
+        (self.d / 'Half/base').mkdir(parents=True)
+        r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.d / 'Half'), '--plain', '--yes', *self.args], env=self.env, capture_output=True,
                            text=True, encoding='utf-8', timeout=120)
         self.assertEqual(r.returncode, 1); self.assertIn('The dump is incomplete', r.stdout)
+
+    def test_plain_name_in_last_folder(self):
+        """A name alone typed at the plain mode's question is looked for in the last folder used, as the question says"""
+        browser.save_state(browser.remember({}, self.d / 'Switch2'), self.d / 'state.json')
+        r = subprocess.run([sys.executable, str(self.d / 'run.py'), '--plain', *self.args], env=self.env, input='Ocarina\n\ny\n', capture_output=True, text=True,
+                           encoding='utf-8', timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr); self.assertIn(f'looked for in {self.d / "Switch2"}', r.stdout)
+        self.assertNotIn('+ / -', r.stdout)   # (no key hints in the plain mode)
+
+    def test_plain_worker_left_behind(self):
+        """The packer ends while its worker lives on and holds the output: the run still ends, done by the packer's exit code, and the worker is ended"""
+        t0 = time.monotonic()
+        r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.game), '--plain', '--yes', *self.args], env=dict(self.env, FAKE_MODE='slow'),
+                           capture_output=True, text=True, encoding='utf-8', timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr); self.assertIn('The pack is ready', r.stdout); self.assertLess(time.monotonic() - t0, 60)
+        if os.name != 'nt':
+            with self.assertRaises(ProcessLookupError): os.kill(int((self.d / 'pids').read_text().split()[1]), 0)
+
+    @unittest.skipIf(os.name == 'nt', 'SIGKILL is POSIX')
+    def test_plain_packer_killed(self):
+        """The packer killed (SIGKILL, as the out-of-memory killer does) while its worker goes on: the run fails at once, in plain words, the worker ended"""
+        import signal
+        p = subprocess.Popen([sys.executable, str(self.d / 'run.py'), str(self.game), '--plain', '--yes', *self.args], env=dict(self.env, FAKE_MODE='slow', FAKE_SLOW='5'),
+                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8')
+        try:
+            for _ in range(300):
+                if (self.d / 'pids').is_file() and (self.d / 'pids').read_text(): break
+                time.sleep(0.1)
+            pids = [int(x) for x in (self.d / 'pids').read_text().split()]
+            os.kill(pids[0], signal.SIGKILL)
+            out, _ = p.communicate(timeout=60)
+        finally:
+            if p.poll() is None: p.kill()
+        self.assertEqual(p.returncode, 1, out)
+        self.assertIn('Preparing failed.', out); self.assertIn('Not enough memory: pack_android.py was stopped', out)
+        with self.assertRaises(ProcessLookupError): os.kill(pids[1], 0)
+
+    @unittest.skipIf(os.name == 'nt' or hasattr(os, 'geteuid') and os.geteuid() == 0, 'POSIX permissions (root ignores them)')
+    def test_plain_pack_folder_not_writable(self):
+        (self.d / 'ro').mkdir(); (self.d / 'ro').chmod(0o555)
+        try:
+            args = ['--out', str(self.d / 'ro/pack')] + self.args[2:]
+            r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.game), '--plain', '--yes', *args], env=self.env, capture_output=True, text=True,
+                               encoding='utf-8', timeout=120)
+        finally: (self.d / 'ro').chmod(0o755)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f'Cannot write in {self.d / "ro/pack"}', r.stdout); self.assertNotIn('Traceback', r.stdout + r.stderr)
+
+    def test_plain_second_run_refused(self):
+        """A second run on the pack folder another run of the interface is using does not start"""
+        hold = model.Lock(self.d / 'out/prepare-logs/pack.lock'); self.assertTrue(hold.take())
+        try:
+            r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.game), '--plain', '--yes', *self.args], env=self.env, capture_output=True, text=True,
+                               encoding='utf-8', timeout=120)
+        finally:
+            assert hold.fd is not None; os.close(hold.fd)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr); self.assertIn('Another preparing run is using', r.stdout)
+        self.assertFalse((self.d / 'out/pack/pack.tsv').exists())
 
     @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
     def test_full_screen(self):
@@ -591,12 +807,13 @@ class EndToEnd(unittest.TestCase):
             self.assertIn('Esc: quit', s)   # the key line whole at 80 columns
             t.resize(160, 30)   # drawn again at the new size: the title's right part at the new right edge
             t.wait_for(re.compile(r'^ Anka Native.{100,}2 Pick the game$', re.M))
+            t.send('\x1b'); t.wait_for('Leave without preparing'); t.send('n'); t.wait_for('Folders and games')   # Esc asks first
             t.send('Oc'); t.wait_for('Filter: Oc'); t.send('\x1b[B'); t.send('\x1b[A'); t.send('\r')
             s = t.wait_for('Prepare this game?', 30)
             self.assertIn('131072', s); self.assertIn('4 shaders at once', s)
             t.send('+'); t.wait_for('5 shaders at once'); t.send('\r')
             s = t.wait_for('The pack is ready', 60)
-            self.assertIn('Copy the pack folder', s)
+            self.assertIn('Copy the pack folder', s); self.assertNotIn('failed', ''.join(t.raw))
             t.send('\r'); t.p.wait(30); time.sleep(0.3)
             self.assertEqual(t.p.returncode, 0)
             self.assertEqual(t.attrs(), t.before)   # the terminal's modes put back
@@ -651,6 +868,42 @@ class EndToEnd(unittest.TestCase):
                 for pid in pids:
                     with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
             finally: t.close()
+
+    @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
+    def test_full_screen_suspend(self):
+        """kill -TSTP and then SIGCONT (fg): the terminal is given back before the process stops, and taken again, the screen drawn whole, when it goes on"""
+        import signal
+        from prepare_vt import Pty
+        t = Pty([sys.executable, str(self.d / 'run.py'), '--folder', str(self.d / 'Switch2'), *self.args], 80, 24, dict(self.env, TERM='xterm'))
+        try:
+            t.wait_for('Everything is there', 30); t.send('\r'); t.wait_for('Folders and games', 30)
+            raw = t.attrs()
+            os.kill(t.p.pid, signal.SIGTSTP)
+            for _ in range(100):
+                if t.attrs() == t.before: break
+                time.sleep(0.05)
+            self.assertEqual(t.attrs(), t.before); self.assertFalse(t.vt.modes.get(1049))
+            os.kill(t.p.pid, signal.SIGCONT)
+            t.wait_for('Folders and games', 30)
+            self.assertEqual(t.attrs(), raw); self.assertTrue(t.vt.modes.get(1049))
+            t.send('\x1b[B'); t.send('\x03'); t.p.wait(30)   # keys work again
+            self.assertEqual(t.p.returncode, 2); self.assertEqual(t.attrs(), t.before)
+        finally: t.close()
+
+    @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
+    def test_full_screen_pack_folder_not_writable(self):
+        from prepare_vt import Pty
+        (self.d / 'ro').mkdir(); (self.d / 'ro').chmod(0o555)
+        t = Pty([sys.executable, str(self.d / 'run.py'), str(self.game), '--out', str(self.d / 'ro/pack'), *self.args[2:]], 100, 30, dict(self.env, TERM='xterm'))
+        try:
+            t.wait_for('Everything is there', 30); t.send('\r')
+            t.wait_for('Prepare this game?', 30); t.send('\r')
+            t.wait_for('Cannot write in', 30); t.send('\r')
+            t.wait_for(re.compile(r'\A(?![\s\S]*Cannot write in)[\s\S]*Prepare this game\?'), 30)   # told, and back on the plan
+            t.send('q'); t.p.wait(30)
+            self.assertEqual(t.p.returncode, 2); self.assertNotIn('Traceback', ''.join(t.raw))
+        finally:
+            t.close(); (self.d / 'ro').chmod(0o755)
 
 
 class Texts(unittest.TestCase):

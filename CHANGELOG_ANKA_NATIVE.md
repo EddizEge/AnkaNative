@@ -12,8 +12,9 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   browser, shows what an earlier run left and the disk space the run needs, then runs the packer with its steps, bars, the time left and the clock time it
   should be done, and ends with where the pack is and what to do on the phone, or the failure in plain words. `q` or Ctrl+C stops it, and starting again goes
   on from what was finished. Windows, Linux and the Mac; it falls back to plain lines when there is no full terminal. Ocarina of Time took 26 minutes on a
-  12-thread Linux PC. The packer prints a line as each step starts, which the interface reads; `scripts/pack_android.py` is otherwise unchanged and stays the
-  way to script a run. Tried on Linux only so far.
+  12-thread Linux PC. The packer prints a line as each step starts, which the interface reads; `scripts/pack_android.py` stays the way to script a run. On
+  Windows Ctrl+Break now stops the packer and its tools as Ctrl+C does, and the shader build's temporary files are now kept in the library's result folder,
+  where the next build removes what a stopped one left. Tried on Linux only so far.
 - **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
   cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
   faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped

@@ -66,16 +66,17 @@ It needs nothing beyond that Python (the standard library; `dm/tools/prepare_tui
    `spirv-val` and this copy's line ends, each found or missing with the commands that fix it on this system (the ones above). A missing one stops here.
 2. **Pick the game**: a file browser of folders, `.nup` files and dump folders (arrows, PgUp / PgDn, Home / End, Enter opens a folder or picks a game,
    Backspace or Left goes up, typing filters the list, Ctrl+L or `/` types or pastes a full path with Tab completion, Tab moves to the places: the home
-   folder, recently used folders, the drives on Windows, mounted volumes elsewhere). The pick is checked with the packer's own code
+   folder, recently used folders, the drives on Windows, mounted volumes elsewhere; a file dragged onto the terminal works too, Esc asks before it leaves). The pick is checked with the packer's own code
    (`pack_android.identify`): title ID, name, version, a profile in this tree; when it cannot be packed, the packer's error in plain words. The last folder and
    the recent ones are kept in `anka-native/prepare.json` in the user's config folder (`%APPDATA%`, `~/Library/Application Support`, `$XDG_CONFIG_HOME` or
    `~/.config`).
 3. **Confirm**: the game and version (`v` for another), the pack folder (`o` to change), the shaders translated at once (`+` / `-`; the default is one per
    CPU thread, fewer when the free memory is short), the disk space the run needs against what is free, what an earlier run left that is kept, and a first
-   guess of the time.
+   guess of the time. Enter checks that the folders can be written and that no other run of the interface is using the pack folder or the shader cache.
 4. **Prepare**: `pack_android.py` runs as a child process. The steps with the current one marked, a bar for the step and one for the whole job, the shaders
    done and the rate, the time elapsed and left with the clock time it should be done ("About 12 minutes left, done around 21:40"; nothing is shown until
-   the speed is measured), the last lines and the warnings. The whole output goes to `<pack folder>/../prepare-logs/prepare-<time>.log`. `q` or Ctrl+C asks,
+   the speed is measured, and "a first guess" is added while the translation's part is still the fixed figure), the last lines and the warnings.
+   If the packer is killed, the run ends at once as failed, and workers it left behind are ended. The whole output goes to `<pack folder>/../prepare-logs/prepare-<time>.log`. `q` or Ctrl+C asks,
    then stops the packer and its workers cleanly; starting again goes on from what was finished. Closing the window stops them too.
 5. **End**: where the pack is, its size and the time it took, and the steps on the phone; or the failure in plain words ([error codes](#error-codes)), its
    last lines and the log.
@@ -83,7 +84,8 @@ It needs nothing beyond that Python (the standard library; `dm/tools/prepare_tui
 When the input or output is not a terminal, `TERM` is `dumb`, the console takes no escape sequences, or with `--plain`, it asks the same questions and prints
 the progress as lines (`--yes` starts without asking; the game is then given on the command line). `NO_COLOR` or `--no-color` turns the colours off,
 `--ascii` draws with ASCII characters (the default when the console's encoding cannot print the others). `--out`, `--version`, `-J`, `--shader-cache` and
-`--shader-pkg` are the packer's. Exit code: 0 the pack is ready, 1 it failed or something is missing, 2 left before a run, 3 stopped. The time left follows the
+`--shader-pkg` are the packer's. Exit code: 0 the pack is ready, 1 it failed or something is missing, 2 left before a run, 3 stopped, 128 + the signal when
+the window was closed (SIGHUP) or it got SIGTERM (its run is stopped first). The time left follows the
 phone's Prepare estimate (running time only, the rate over a recent window, smoothed, vertex shaders weighted), ported in `prepare_tui/eta.py` with this
 computer's steps and figures. Ocarina of Time from its `.nup` took 26 minutes from nothing on a 12-thread Linux PC with 11 workers (other builds running beside it), and its
 library was byte for byte the one the phone's tools build.

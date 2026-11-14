@@ -18,7 +18,8 @@
 # NO_COLOR (or --no-color) turns the colours off; --ascii draws with ASCII only (the default when the console's encoding cannot print the box characters).
 # Usage: prepare.py [<game: .nup file or dump folder>] [--version N] [--out DIR] [-J N] [-j N] [--shader-cache DIR] [--shader-pkg DIR] [--folder DIR] [--plain]
 #                   [--yes] [--ascii] [--no-color]
-# Exit code: 0 the pack is ready, 1 the run failed or something it needs is missing, 2 left before a run, 3 the run was stopped.
+# Exit code: 0 the pack is ready, 1 the run failed or something it needs is missing, 2 left before a run, 3 the run was stopped, 128 + the signal when SIGHUP (a
+# closed window) or SIGTERM ended it (its run stopped first).
 import argparse, sys
 from pathlib import Path
 
