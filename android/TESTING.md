@@ -17,6 +17,8 @@ android/ondevice/build.sh $W/packer                                             
 cd android/app && ./gradlew -PnxPackStage=$W/packer/stage apk && cd ../..      # → android/app/out/anka-native-test.apk
 ```
 
+The launcher's JVM tests (`dm/tools/tests/test_android_*.py`, which compile `android/app/src/jvmtest` with `javac`) need JDK 21 first on `PATH`: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` on the Mac, `export JAVA_HOME=/usr/lib/jvm/java-21-openjdk` on Linux, then `export PATH=$JAVA_HOME/bin:$PATH`. A newer JDK fails some of them for reasons of its own (`test_android_driverzip` gets JDK 27's different zip error message).
+
 Without a pack from the Mac, the app prepares one from the dump on the phone: copy only the dump (step 3 without `android-pack`), then in step 5 **Add game** finds no pack and offers **Prepare** (about 30-45 minutes in the background, ONDEVICE.md). Kill it (`adb shell am force-stop dev.ankanative.android.test`) or restart the phone halfway: **Resume** on the main screen goes on from the shader it had reached.
 
 ## 2. Install the APK
