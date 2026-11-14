@@ -34,12 +34,12 @@ final class MemText {
 
     private static String gib(long bytes) { return String.format(Locale.ROOT, "%.1f", bytes / GIB); }
 
-    /** The overlay's game line: "App 4.3 GiB" (the game process's resident set) */
-    static String app(long rssBytes) { return rssBytes < 0 ? "App ? GiB" : "App " + gib(rssBytes) + " GiB"; }
+    /** The overlay's game line: "App 4.3 GiB" (the game process's resident set), in the user's language (the figures in Latin digits) */
+    static String app(long rssBytes) { return rssBytes < 0 ? Tr.s("settings_mem_app_unknown") : Tr.s("settings_mem_app", gib(rssBytes)); }
 
     /** The overlay's phone line: "RAM 9.8/14.7 GiB" (in use / total); the caller marks lowMemory */
     static String system(long totalBytes, long availBytes) {
-        if (totalBytes <= 0) return "RAM ?";
-        return "RAM " + gib(Math.max(0, totalBytes - Math.max(0, availBytes))) + "/" + gib(totalBytes) + " GiB";
+        if (totalBytes <= 0) return Tr.s("settings_mem_ram_unknown");
+        return Tr.s("settings_mem_ram", gib(Math.max(0, totalBytes - Math.max(0, availBytes))), gib(totalBytes));
     }
 }

@@ -17,4 +17,215 @@
     <string name="settings_profile_build_shown_ids">%1$s (%2$s, %3$s)</string>
     <!-- A build without a display version, with its module and build ID: "update 458752 (main e25c90c1…)" -->
     <string name="settings_profile_build_ids">%1$s (%2$s)</string>
+    <!-- Words of the settings area's dialogs -->
+    <string name="settings_done">Done</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_clear">Clear</string>
+    <string name="settings_close">Close</string>
+    <string name="settings_back">Back</string>
+    <!-- Profile: the 3D resolution's default choice, and why this app cannot run a title (%1$s: the title ID, or a name or the caller's own words with %2$s the title ID; then the title IDs this app runs, ", " between them) -->
+    <string name="settings_profile_res_level_dynamic">Dynamic (the game\'s own)</string>
+    <string name="settings_profile_missing">%1$s has no game profile in this app, so it cannot run here. This app runs: %2$s.</string>
+    <string name="settings_profile_missing_named">%1$s (%2$s) has no game profile in this app, so it cannot run here. This app runs: %3$s.</string>
+    <!-- GameSettings: a game's own settings (its Manage sheet › Game settings…). %1$s in the titles: the game's name -->
+    <string name="settings_game_intro">For this game only, from its next start. Default follows Settings.</string>
+    <string name="settings_game_resolution">Game resolution</string>
+    <string name="settings_game_res_level">3D resolution</string>
+    <string name="settings_game_fps_cap">Frame rate cap</string>
+    <string name="settings_game_fps_own">This game picks its own frame rate</string>
+    <string name="settings_game_gpu_driver">GPU driver</string>
+    <string name="settings_game_gpu_timing">GPU timing</string>
+    <string name="settings_game_pause_on_return">Pause on return</string>
+    <string name="settings_game_pause_on_return_about">Coming back from the background, the game waits paused for a tap</string>
+    <string name="settings_game_intro_skip">Intro skip (debug)</string>
+    <string name="settings_game_intro_skip_about">In the game, hold − and + together for 1 s: presses A through movies and menus, ends movies early, stops at gameplay. Hold again to stop</string>
+    <string name="settings_game_ram_saver">RAM saver (uses storage)</string>
+    <string name="settings_game_ram_saver_about">Keeps the game\'s texture data in a file instead of compressed RAM: about 1 GB more free RAM where the phone runs short, but each area load writes that data to storage (about 2 GB in Ocarina of Time) and needs that much free space. Off: as before</string>
+    <string name="settings_game_env">Extra environment</string>
+    <string name="settings_game_env_none">None (KEY=VALUE lines for the host, after env.txt)</string>
+    <!-- %1$d: how many lines; %2$s: the lines, a space between them -->
+    <plurals name="settings_game_env_lines">
+        <item quantity="one">%1$d line: %2$s</item>
+        <item quantity="other">%1$d lines: %2$s</item>
+    </plurals>
+    <string name="settings_game_title">Game settings · %1$s</string>
+    <!-- A value that follows Settings (the main screen's): %1$s is that value -->
+    <string name="settings_game_default_value">Default · %1$s</string>
+    <string name="settings_game_gpu_ts_segment">Per segment</string>
+    <string name="settings_game_gpu_ts_submission">Per submission</string>
+    <!-- %1$s: Per segment or Per submission, the game's default -->
+    <string name="settings_game_gpu_ts_default_value">Game default · %1$s</string>
+    <string name="settings_game_gpu_ts_default">Game default (%1$s)</string>
+    <string name="settings_game_gpu_ts_about">Per segment: the game\'s timestamps see the real GPU time, so its dynamic resolution can adapt. Per submission: one time for the whole submission (the older behaviour). A DM_NVN_GPU_TS line in env.txt wins.</string>
+    <string name="settings_game_gpu_timing_title">GPU timing · %1$s</string>
+    <!-- %1$s: the stored DM_RES_LEVEL value -->
+    <string name="settings_game_res_level_gone">Dynamic (the game\'s own; the stored %1$s is no longer offered)</string>
+    <string name="settings_game_res_level_about">The game changes the sharpness of its 3D picture by itself. A fixed level keeps it there: lower runs cooler, higher is sharper but slower. \"Never above\" lets the game lower it under load. From the next start; a DM_RES_LEVEL line in env.txt wins.</string>
+    <string name="settings_game_res_level_title">3D resolution · %1$s</string>
+    <!-- %1$s: the default window size's name -->
+    <string name="settings_game_default_choice">Default (%1$s)</string>
+    <string name="settings_game_resolution_title">Game resolution · %1$s</string>
+    <!-- %1$s: the main screen's frame rate cap -->
+    <string name="settings_game_fps_cap_default">Default (Settings: %1$s)</string>
+    <string name="settings_game_fps_cap_title">Frame rate cap · %1$s</string>
+    <!-- %1$s: the main screen's GPU driver, a name and its version -->
+    <string name="settings_game_driver_default">Default (the main screen\'s: %1$s)</string>
+    <string name="settings_game_driver_default_system">Default (the main screen\'s: System)</string>
+    <string name="settings_game_gpu_driver_title">GPU driver · %1$s</string>
+    <string name="settings_game_env_about">KEY=VALUE lines for the host, one a line (# starts a comment). They come after env.txt and win over it, for %1$s only.</string>
+    <string name="settings_game_env_title">Extra environment · %1$s</string>
+    <!-- Folders: a game's game, pack and save folders. %1$s in the values: the folder's path -->
+    <string name="settings_folders_save_default_old">%1$s (default: your save from an earlier version, beside the game. The game\'s next start copies it into the app\'s storage, %2$s, and plays it from there; this folder is never changed)</string>
+    <!-- %2$s: the backups folder -->
+    <string name="settings_folders_save_default_app">%1$s (default: in the app\'s storage). Back up saves puts copies in %2$s, on shared storage: they stay when the app is uninstalled.</string>
+    <!-- %2$s: where the save was copied from; %3$s: the backups folder -->
+    <string name="settings_folders_save_default_copied">%1$s (default: in the app\'s storage; copied from %2$s, which is kept as it was). Back up saves puts copies in %3$s, on shared storage: they stay when the app is uninstalled.</string>
+    <string name="settings_folders_no_games">No games yet: + Add game first. Each game has its own folders (its card\'s ⋯ › Folders…).</string>
+    <string name="settings_folders_which_game">Folders of which game?</string>
+    <!-- %1$s: the shader library's version -->
+    <string name="settings_folders_library_present">Shader library %1$s: present.</string>
+    <string name="settings_folders_game_nup">Game (.nup file)</string>
+    <string name="settings_folders_game">Game folder</string>
+    <string name="settings_folders_pick">Pick…</string>
+    <string name="settings_folders_pack">Pack and shader folder (pack.tsv, shaders/)</string>
+    <!-- %1$s: the pack folder; %2$s: its shader library's state, a sentence -->
+    <string name="settings_folders_pack_picked">%1$s (picked)\n%2$s</string>
+    <string name="settings_folders_pack_default_app">%1$s (default: in the app\'s storage)\n%2$s</string>
+    <string name="settings_folders_pack_default_game">%1$s (default: beside the game)\n%2$s</string>
+    <string name="settings_folders_pick_pack">Pick the pack folder (the one with pack.tsv and shaders/)</string>
+    <string name="settings_folders_default">Default</string>
+    <string name="settings_folders_save">Save folder</string>
+    <string name="settings_folders_save_picked">%1$s (picked)</string>
+    <!-- %1$s: the game's name -->
+    <string name="settings_folders_pick_save">Pick the save folder for %1$s</string>
+    <string name="settings_folders_kept">These are kept when the app is updated. Picking a folder never moves, copies or deletes anything without asking.</string>
+    <string name="settings_folders_title">Folders · %1$s</string>
+    <!-- %1$s: why the folder is not a pack -->
+    <string name="settings_folders_not_pack">Not a pack folder: %1$s</string>
+    <!-- Names the title whose profile is missing: "That pack's game (<title ID>) has no game profile in this app…" -->
+    <string name="settings_folders_that_pack_game">That pack\'s game</string>
+    <!-- %1$s: the pack's title ID; %2$s, %3$s: the game's name and title ID -->
+    <string name="settings_folders_pack_other_game">That pack is for %1$s, not %2$s (%3$s).</string>
+    <string name="settings_folders_pack_set">Pack folder set</string>
+    <!-- %1$s: the folder; %2$s: the shader library's version -->
+    <string name="settings_folders_pack_set_ready">%1$s\n\nIt has this app\'s shader library (%2$s): ready to play.</string>
+    <!-- %1$s: the folder; %2$s: what is wrong with its shader library, a sentence -->
+    <string name="settings_folders_pack_set_problem">%1$s\n\n%2$s</string>
+    <string name="settings_folders_copy_title">Copy the save?</string>
+    <!-- %1$s: the current save folder; %2$s: the folder picked -->
+    <string name="settings_folders_copy_message">The folder you picked is empty. Your current save is in %1$s.\n\nCopy it into %2$s? The current folder stays as it is: nothing is deleted.</string>
+    <string name="settings_folders_copy_use">Copy and use</string>
+    <string name="settings_folders_copy_failed">The copy failed (%1$s); the save folder was not changed.</string>
+    <string name="settings_folders_use_empty">Use it empty</string>
+    <string name="settings_folders_cannot_create">cannot create %1$s</string>
+    <!-- GpuDriver: custom GPU drivers. A driver's label is its name and version, never translated -->
+    <string name="settings_gpu_system">System (the phone\'s own driver)</string>
+    <!-- %1$s: the driver folder -->
+    <string name="settings_gpu_meta_unreadable">cannot read the installed %1$s/meta.json</string>
+    <string name="settings_gpu_cannot_open">cannot open %1$s</string>
+    <!-- %1$s: the zip's file name -->
+    <string name="settings_gpu_installing">Installing %1$s…</string>
+    <string name="settings_gpu_installing_unnamed">Installing the driver…</string>
+    <string name="settings_gpu_install_failed">GPU driver not installed: %1$s</string>
+    <string name="settings_gpu_installed">GPU driver installed and picked: %1$s</string>
+    <string name="settings_gpu_picked_system">GPU driver: system</string>
+    <string name="settings_gpu_picked">GPU driver: %1$s</string>
+    <string name="settings_gpu_recommended">%1$s (recommended)</string>
+    <string name="settings_gpu_title">GPU driver (takes effect at the next game start)</string>
+    <string name="settings_gpu_install">Install…</string>
+    <string name="settings_gpu_remove_picked">Remove picked…</string>
+    <string name="settings_gpu_remove_title">Remove %1$s?</string>
+    <!-- %1$s: the driver's folder inside the app -->
+    <string name="settings_gpu_remove_message">Deleted: this driver\'s copy inside the app (%1$s).\n\nKept: the zip you installed it from, your games, packs and saves. The game uses the phone\'s own driver until you pick another.</string>
+    <string name="settings_gpu_remove">Remove driver</string>
+    <string name="settings_gpu_removed">Removed %1$s; the system driver is used</string>
+    <!-- %1$s: a zip's file name; two spaces before the parenthesis -->
+    <string name="settings_gpu_zip_found">%1$s\u0020\u0020(the app\'s gpu_drivers folder)</string>
+    <string name="settings_gpu_pick_zip">Pick a zip…</string>
+    <string name="settings_gpu_download">Download…</string>
+    <string name="settings_gpu_install_title">Install a driver zip (with meta.json)</string>
+    <!-- DriverZip: why a driver zip was not installed -->
+    <string name="settings_driverzip_cannot_create">cannot create %1$s</string>
+    <!-- %1$s: the Java exception's name -->
+    <string name="settings_driverzip_cut_short">the zip cannot be read (damaged or cut short: %1$s)</string>
+    <!-- %1$s: the zip reader's detail (English) -->
+    <string name="settings_driverzip_damaged">the zip cannot be read (damaged, or a file name in it is not UTF-8): %1$s</string>
+    <string name="settings_driverzip_too_many_files">more than %1$d files: not a driver zip</string>
+    <string name="settings_driverzip_too_large">more than 512 MB unpacked: not a driver zip</string>
+    <string name="settings_driverzip_no_meta">no meta.json in the zip: not a driver package (or not a zip)</string>
+    <string name="settings_driverzip_no_library">meta.json names no library</string>
+    <!-- %1$s: the library's file name -->
+    <string name="settings_driverzip_library_missing">meta.json names %1$s, which is not in the zip</string>
+    <string name="settings_driverzip_cannot_replace">cannot replace the installed %1$s</string>
+    <!-- %1$s: the driver's folder; %2$s: where the earlier driver is kept -->
+    <string name="settings_driverzip_cannot_move_kept">cannot move the driver to %1$s (the earlier one is kept as %2$s)</string>
+    <string name="settings_driverzip_cannot_move">cannot move the driver to %1$s</string>
+    <!-- GitHub: the driver download and the app update -->
+    <string name="settings_net_not_https">not an https link: %1$s</string>
+    <string name="settings_net_rate_limit">GitHub rate limit, try again later</string>
+    <!-- %1$d: the HTTP status code -->
+    <string name="settings_net_http">GitHub answered HTTP %1$d</string>
+    <string name="settings_net_no_network">No network (cannot reach GitHub)</string>
+    <string name="settings_net_timeout">No network (GitHub did not answer in time)</string>
+    <!-- %1$s: the JSON parser's detail (English) -->
+    <string name="settings_net_bad_answer">GitHub\'s answer could not be read: %1$s</string>
+    <!-- A size in megabytes: %1$s is the number, one decimal ("12.3") -->
+    <string name="settings_size_mb">%1$s MB</string>
+    <!-- DriverFetch: "Download…" a driver. A release: %1$s its tag; then, on the next line, two spaces, %2$s the zip's name, two spaces and %3$s its size ("12.3 MB") -->
+    <string name="settings_driverfetch_asset">%1$s\n\u0020\u0020%2$s\u0020\u0020(%3$s)</string>
+    <string name="settings_driverfetch_zip_too_large">the zip is larger than 512 MB: not a driver package</string>
+    <string name="settings_driverfetch_download_too_large">the download is larger than 512 MB: not a driver package</string>
+    <string name="settings_driverfetch_title">Download a driver (GitHub releases)</string>
+    <!-- %1$s: the repository, owner/name -->
+    <string name="settings_driverfetch_reading">Reading the releases of %1$s…</string>
+    <!-- %1$s: the repository; %2$s: why its releases could not be read -->
+    <string name="settings_driverfetch_list_failed">%1$s: %2$s</string>
+    <string name="settings_driverfetch_no_zips">%1$s: no .zip assets in its releases</string>
+    <string name="settings_driverfetch_downloading">Downloading %1$s…</string>
+    <string name="settings_driverfetch_failed">Not installed: %1$s</string>
+    <string name="settings_driverfetch_installed">Installed and picked %1$s</string>
+    <!-- Updater: the in-app update -->
+    <string name="settings_update_title">Updates</string>
+    <string name="settings_update_release_only">Only the release app (dev.ankanative.android) checks for updates. A test app checks when update.txt in its files folder names repo= or url=.</string>
+    <!-- %1$s: the app's version name -->
+    <string name="settings_update_not_release">This build\'s version (%1$s) is not a release version: nothing to compare.</string>
+    <string name="settings_update_checking">Checking for updates…</string>
+    <string name="settings_update_check_failed">Update check failed: %1$s</string>
+    <!-- %1$s: the version, X.Y.Z -->
+    <string name="settings_update_up_to_date">You\'re up to date (v%1$s)</string>
+    <!-- %1$s: the new version; %2$s: the app's version -->
+    <string name="settings_update_available_text">Version %1$s is available (you have %2$s).</string>
+    <!-- %1$s: the APK's file name; %2$s: its size ("12.3 MB") -->
+    <string name="settings_update_asset">%1$s · %2$s · from GitHub</string>
+    <string name="settings_update_available">Update available</string>
+    <string name="settings_update_update">Update</string>
+    <string name="settings_update_later">Later</string>
+    <string name="settings_update_starting">Starting…</string>
+    <!-- %1$s: the release's tag -->
+    <string name="settings_update_downloading">Downloading %1$s</string>
+    <!-- %1$s, %2$s: sizes ("12.3 MB") -->
+    <string name="settings_update_progress">%1$s of %2$s</string>
+    <string name="settings_update_not_installed">Update not installed</string>
+    <string name="settings_update_apk_too_large">the APK is larger than 1 GB</string>
+    <string name="settings_update_cannot_make">cannot make %1$s</string>
+    <string name="settings_update_no_sha256">no SHA-256</string>
+    <string name="settings_update_cancelled">cancelled</string>
+    <string name="settings_update_larger_than_release">the download is larger than the release says</string>
+    <!-- %1$d: bytes received; %2$d: the release's size in bytes -->
+    <string name="settings_update_incomplete">the download is incomplete (%1$d of %2$d bytes)</string>
+    <!-- %1$s: the download's SHA-256 -->
+    <string name="settings_update_sha256_mismatch">the download\'s SHA-256 does not match the release (%1$s)</string>
+    <string name="settings_update_cannot_rename">cannot rename the download</string>
+    <string name="settings_update_allow_title">Allow installs</string>
+    <!-- "Install unknown apps": Android's own name of the setting; use the phone's wording in each language -->
+    <string name="settings_update_allow_message">To install the update, allow Anka Native to install apps (\"Install unknown apps\"), then come back.</string>
+    <string name="settings_update_open_settings">Open settings</string>
+    <string name="settings_update_installs_not_allowed">Installs from this app are not allowed: the update was not installed</string>
+    <!-- %1$d: PackageInstaller's status code -->
+    <string name="settings_update_installer_status">The installer answered status %1$d.</string>
+    <!-- MemText: the in-game overlay's memory lines. %1$s, %2$s: GiB with one decimal ("4.3") -->
+    <string name="settings_mem_app">App %1$s GiB</string>
+    <string name="settings_mem_app_unknown">App ? GiB</string>
+    <string name="settings_mem_ram">RAM %1$s/%2$s GiB</string>
+    <string name="settings_mem_ram_unknown">RAM ?</string>
 </resources>

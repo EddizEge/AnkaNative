@@ -107,6 +107,6 @@ final class UpdateCheck {
         return best;
     }
 
-    /** "12.3 MB" */
-    static String mb(long bytes) { return String.format(Locale.US, "%.1f MB", bytes / 1048576.0); }
+    /** "12.3 MB", in the user's language (the figure in Latin digits); screen only */
+    static String mb(long bytes) { return Tr.s("settings_size_mb", String.format(Locale.US, "%.1f", bytes / 1048576.0)); }
 }

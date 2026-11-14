@@ -69,17 +69,17 @@ final class DriverZip {
     /** Unpacks the zip into root/&lt;name from its meta.json, else fallbackName&gt;/ and returns that folder; throws with the reason, leaving root as it was */
     static File install(File root, InputStream zin, String fallbackName, MetaReader meta) throws IOException {
         synchronized (LOCK) {
-            if (!root.isDirectory() && !root.mkdirs()) throw new IOException("cannot create " + root);
+            if (!root.isDirectory() && !root.mkdirs()) throw new LocalizedIOException("settings_driverzip_cannot_create", root);
             recover(root);
             File tmp = new File(root, INSTALLING);
-            if (!tmp.mkdirs()) throw new IOException("cannot create " + tmp);
+            if (!tmp.mkdirs()) throw new LocalizedIOException("settings_driverzip_cannot_create", tmp);
             try {
                 return unpack(root, tmp, zin, fallbackName, meta);
             } catch (IOException e) {
                 if (e.getMessage() != null && !e.getMessage().isEmpty()) throw e;
-                throw new IOException("the zip cannot be read (damaged or cut short: " + e.getClass().getSimpleName() + ")", e);   // EOFException has no message
+                throw new LocalizedIOException(new Msg("settings_driverzip_cut_short", e.getClass().getSimpleName()), e);   // EOFException has no message
             } catch (RuntimeException e) {   // the zip reader's IllegalArgumentException ("MALFORMED" names), a damaged zip's other surprises
-                throw new IOException("the zip cannot be read (damaged, or a file name in it is not UTF-8): " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
+                throw new LocalizedIOException(new Msg("settings_driverzip_damaged", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
             } finally { deleteTree(tmp); }
         }
     }
@@ -91,11 +91,11 @@ final class DriverZip {
                 if (e.isDirectory()) continue;
                 String n = new File(e.getName().replace('\\', '/')).getName();   // drivers are flat; a folder in the zip is dropped, and no entry can leave the target folder
                 if (n.isEmpty() || n.startsWith(".")) continue;
-                if (++files > MAX_FILES) throw new IOException("more than " + MAX_FILES + " files: not a driver zip");
+                if (++files > MAX_FILES) throw new LocalizedIOException("settings_driverzip_too_many_files", MAX_FILES);
                 try (OutputStream out = new FileOutputStream(new File(tmp, n))) {
                     int k;
                     while ((k = z.read(b)) > 0) {
-                        if ((total += k) > MAX_BYTES) throw new IOException("more than 512 MB unpacked: not a driver zip");
+                        if ((total += k) > MAX_BYTES) throw new LocalizedIOException("settings_driverzip_too_large");
                         out.write(b, 0, k);
                     }
                 }
@@ -103,19 +103,19 @@ final class DriverZip {
         }
         byte[] mj = readMeta(new File(tmp, "meta.json"));
         String[] m = mj == null ? null : meta.read(mj);
-        if (m == null) throw new IOException("no meta.json in the zip: not a driver package (or not a zip)");
+        if (m == null) throw new LocalizedIOException("settings_driverzip_no_meta");
         String lib = m[1] == null ? "" : m[1];
         if (lib.isEmpty() || lib.contains("/") || lib.contains("\\") || !new File(tmp, lib).isFile())
-            throw new IOException("meta.json names " + (lib.isEmpty() ? "no library" : lib + ", which is not in the zip"));
+            throw lib.isEmpty() ? new LocalizedIOException("settings_driverzip_no_library") : new LocalizedIOException("settings_driverzip_library_missing", lib);
         String name = safe(m[0] == null ? "" : m[0]);
         if (name.isEmpty()) name = safe(fallbackName);
         if (name.isEmpty()) name = "driver";
         File dir = new File(root, name), old = new File(root, REPLACED + name);
         deleteTree(old);
-        if (dir.exists() && !dir.renameTo(old)) throw new IOException("cannot replace the installed " + name);
+        if (dir.exists() && !dir.renameTo(old)) throw new LocalizedIOException("settings_driverzip_cannot_replace", name);
         if (!tmp.renameTo(dir)) {
-            if (old.exists() && !old.renameTo(dir)) throw new IOException("cannot move the driver to " + dir + " (the earlier one is kept as " + old + ")");
-            throw new IOException("cannot move the driver to " + dir);
+            if (old.exists() && !old.renameTo(dir)) throw new LocalizedIOException("settings_driverzip_cannot_move_kept", dir, old);
+            throw new LocalizedIOException("settings_driverzip_cannot_move", dir);
         }
         deleteTree(old);
         return dir;

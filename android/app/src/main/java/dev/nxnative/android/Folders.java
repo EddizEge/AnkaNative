@@ -95,24 +95,24 @@ final class Folders {
         return Prefs.migratedFrom(a, g.titleId) == null && SaveMigrate.needed(old, app) ? old : app;
     }
 
-    /** The default save folder's state in words: in app storage (and copied there from where), or still beside the game until the next start copies it */
+    /** The default save folder (its path) with its state in words: in app storage (and copied there from where), or still beside the game until the next start copies it */
     static String saveState(Context a, Game g, File save) {
         File app = AppStorage.save(a, g.titleId);
-        if (!SaveStore.same(save, app)) return " (default: your save from an earlier version, beside the game. The game's next start copies it into the app's storage, "
-                + app + ", and plays it from there; this folder is never changed)";
+        if (!SaveStore.same(save, app)) return a.getString(R.string.settings_folders_save_default_old, save.getPath(), app);
         String from = Prefs.migratedFrom(a, g.titleId);
-        return " (default: in the app's storage" + (from != null ? "; copied from " + from + ", which is kept as it was" : "")
-                + "). Back up saves puts copies in " + Prefs.backupsDir(new File(g.gameDir), g.titleId) + ", on shared storage: they stay when the app is uninstalled.";
+        File backups = Prefs.backupsDir(new File(g.gameDir), g.titleId);
+        return from != null ? a.getString(R.string.settings_folders_save_default_copied, save.getPath(), from, backups)
+                : a.getString(R.string.settings_folders_save_default_app, save.getPath(), backups);
     }
 
     /** Settings › Folders: the only game's folders, else the user picks the game first */
     static void dialog(MainActivity a) {
         List<Game> list = Game.load(a);
-        if (list.isEmpty()) { a.error("No games yet: + Add game first. Each game has its own folders (its card's ⋯ › Folders…)."); return; }
+        if (list.isEmpty()) { a.error(a.getString(R.string.settings_folders_no_games)); return; }
         if (list.size() == 1) { dialog(a, list.get(0)); return; }
         String[] names = new String[list.size()];
         for (int i = 0; i < names.length; i++) names[i] = list.get(i).name + "  (" + list.get(i).titleId + ")";
-        new AlertDialog.Builder(a).setTitle("Folders of which game?").setItems(names, (d, w) -> dialog(a, list.get(w))).setNegativeButton("Cancel", null).show();
+        new AlertDialog.Builder(a).setTitle(a.getString(R.string.settings_folders_which_game)).setItems(names, (d, w) -> dialog(a, list.get(w))).setNegativeButton(android.R.string.cancel, null).show();
     }
 
     static void dialog(MainActivity a, Game g) {
@@ -123,15 +123,17 @@ final class Folders {
 
         String pack = pickedPack(a, g.titleId);
         String lp = Pack.libraryProblem(new File(g.packDir), g.titleId);
-        String packState = "\n" + (lp == null ? "Shader library " + BuildConfig.NX_DMSH_VK_CHAIN + ": present." : lp);
+        String packState = lp == null ? a.getString(R.string.settings_folders_library_present, BuildConfig.NX_DMSH_VK_CHAIN) : lp;
         File save = save(a, g);
         String saveKey = "save_" + g.titleId;
 
-        row(a, box, Nup.isNup(new File(g.gameDir)) ? "Game (.nup file)" : "Game folder", g.gameDir, "Pick…", v -> { d[0].dismiss(); a.addGame(); }, null, null);
+        row(a, box, a.getString(Nup.isNup(new File(g.gameDir)) ? R.string.settings_folders_game_nup : R.string.settings_folders_game), g.gameDir, a.getString(R.string.settings_folders_pick),
+                v -> { d[0].dismiss(); a.addGame(); }, null, null);
         boolean inApp = SaveStore.inside(new File(g.packDir), AppStorage.packs(a));
-        row(a, box, "Pack and shader folder (pack.tsv, shaders/)", g.packDir + (pack != null ? " (picked)" : inApp ? " (default: in the app's storage)" : " (default: beside the game)") + packState,
-                "Pick…", v -> { d[0].dismiss(); a.pickFolder(PICK_PACK, "Pick the pack folder (the one with pack.tsv and shaders/)"); },
-                pack == null ? null : "Default", v -> {
+        row(a, box, a.getString(R.string.settings_folders_pack), a.getString(pack != null ? R.string.settings_folders_pack_picked : inApp ? R.string.settings_folders_pack_default_app
+                        : R.string.settings_folders_pack_default_game, g.packDir, packState),
+                a.getString(R.string.settings_folders_pick), v -> { d[0].dismiss(); a.pickFolder(PICK_PACK, a.getString(R.string.settings_folders_pick_pack)); },
+                pack == null ? null : a.getString(R.string.settings_folders_default), v -> {
                     d[0].dismiss();
                     pickedPack(a, g.titleId, null);
                     if (pack.equals(Prefs.folder(a, "pack"))) Prefs.folder(a, "pack", null);   // the older single-game key, when it was this game's
@@ -140,11 +142,11 @@ final class Folders {
                     dialog(a, g);
                 });
         boolean savePicked = Prefs.folder(a, saveKey) != null;
-        row(a, box, "Save folder", save.getPath() + (savePicked ? " (picked)" : saveState(a, g, save)),
-                "Pick…", v -> { d[0].dismiss(); a.pickFolder(PICK_SAVE, "Pick the folder for " + g.name + "'s save"); },
-                savePicked ? "Default" : null, v -> { d[0].dismiss(); Prefs.folder(a, saveKey, null); dialog(a, g); });
-        Ui.add(box, Ui.small(a, "These are kept when the app is updated. Picking a folder never moves, copies or deletes anything without asking."), 16);
-        d[0] = Ui.sheet(a, "Folders · " + g.name, box).setPositiveButton("Done", null).show();
+        row(a, box, a.getString(R.string.settings_folders_save), savePicked ? a.getString(R.string.settings_folders_save_picked, save.getPath()) : saveState(a, g, save),
+                a.getString(R.string.settings_folders_pick), v -> { d[0].dismiss(); a.pickFolder(PICK_SAVE, a.getString(R.string.settings_folders_pick_save, g.name)); },
+                savePicked ? a.getString(R.string.settings_folders_default) : null, v -> { d[0].dismiss(); Prefs.folder(a, saveKey, null); dialog(a, g); });
+        Ui.add(box, Ui.small(a, a.getString(R.string.settings_folders_kept)), 16);
+        d[0] = Ui.sheet(a, a.getString(R.string.settings_folders_title, g.name), box).setPositiveButton(a.getString(R.string.settings_done), null).show();
     }
 
     /** One folder: a soft card with its name, its path (selectable) and its buttons */
@@ -179,7 +181,7 @@ final class Folders {
     /** Pick a pack folder for whichever game it holds (Prepare's "Pick another pack folder"), not for the game the dialog showed last */
     static void pickPack(MainActivity a) {
         current = null;
-        a.pickFolder(PICK_PACK, "Pick the pack folder (the one with pack.tsv and shaders/)");
+        a.pickFolder(PICK_PACK, a.getString(R.string.settings_folders_pick_pack));
     }
 
     static boolean activityResult(MainActivity a, int request, File dir) {
@@ -193,18 +195,19 @@ final class Folders {
         try {
             p = Pack.read(dir);
         } catch (IOException e) {
-            a.error("Not a pack folder: " + e.getMessage());
+            a.error(a.getString(R.string.settings_folders_not_pack, e.getLocalizedMessage()));
             return;
         }
-        String why = Profile.missing(p.titleId, "That pack's game");
-        if (why != null) { a.error(why); return; }
+        Msg why = Profile.missingMsg(p.titleId, new Msg("settings_folders_that_pack_game"));
+        if (why != null) { a.error(why.text()); return; }
         Game g = current;
-        if (g != null && !p.titleId.equals(g.titleId)) { a.error("That pack is for " + p.titleId + ", not " + g.name + " (" + g.titleId + ")."); return; }
+        if (g != null && !p.titleId.equals(g.titleId)) { a.error(a.getString(R.string.settings_folders_pack_other_game, p.titleId, g.name, g.titleId)); return; }
         pickedPack(a, p.titleId, dir.getPath());
         setPack(a, p.titleId, dir);
         String lp = Pack.libraryProblem(dir, p.titleId);
-        new AlertDialog.Builder(a).setTitle("Pack folder set").setMessage(dir + "\n\n" + (lp == null ? "It has this app's shader library (" + BuildConfig.NX_DMSH_VK_CHAIN + "): ready to play." : lp))
-                .setPositiveButton("OK", (x, w) -> { if (g != null) dialog(a, g); }).show();
+        new AlertDialog.Builder(a).setTitle(a.getString(R.string.settings_folders_pack_set))
+                .setMessage(lp == null ? a.getString(R.string.settings_folders_pack_set_ready, dir, BuildConfig.NX_DMSH_VK_CHAIN) : a.getString(R.string.settings_folders_pack_set_problem, dir, lp))
+                .setPositiveButton(android.R.string.ok, (x, w) -> { if (g != null) dialog(a, g); }).show();
     }
 
     private static void savePicked(MainActivity a, File dir) {
@@ -214,24 +217,24 @@ final class Folders {
         File old = save(a, g);
         if (old != null && old.getAbsolutePath().equals(dir.getAbsolutePath())) { dialog(a, g); return; }
         if (isEmpty(dir) && old != null && !isEmpty(old)) {
-            new AlertDialog.Builder(a).setTitle("Copy the save?")
-                    .setMessage("The folder you picked is empty. Your current save is in " + old + ".\n\nCopy it into " + dir + "? The current folder stays as it is: nothing is deleted.")
-                    .setPositiveButton("Copy and use", (x, w) -> new Thread(() -> {
+            new AlertDialog.Builder(a).setTitle(a.getString(R.string.settings_folders_copy_title))
+                    .setMessage(a.getString(R.string.settings_folders_copy_message, old, dir))
+                    .setPositiveButton(a.getString(R.string.settings_folders_copy_use), (x, w) -> new Thread(() -> {
                         String err = null;
                         try {
                             copyTree(old, dir);
                         } catch (IOException | RuntimeException e) {
-                            err = e.getMessage();
+                            err = e.getLocalizedMessage();
                         }
                         String fe = err;
                         a.runOnUiThread(() -> {
-                            if (fe != null) { a.error("The copy failed (" + fe + "); the save folder was not changed."); return; }
+                            if (fe != null) { a.error(a.getString(R.string.settings_folders_copy_failed, fe)); return; }
                             Prefs.folder(a, key, dir.getPath());
                             dialog(a, g);
                         });
                     }, "nx-save-copy").start())
-                    .setNeutralButton("Use it empty", (x, w) -> { Prefs.folder(a, key, dir.getPath()); dialog(a, g); })
-                    .setNegativeButton("Cancel", null).show();
+                    .setNeutralButton(a.getString(R.string.settings_folders_use_empty), (x, w) -> { Prefs.folder(a, key, dir.getPath()); dialog(a, g); })
+                    .setNegativeButton(android.R.string.cancel, null).show();
             return;
         }
         Prefs.folder(a, key, dir.getPath());
@@ -243,7 +246,7 @@ final class Folders {
     /** Copies, never overwrites: a file already in the target stays */
     private static void copyTree(File from, File to) throws IOException {
         if (from.isDirectory()) {
-            if (!to.isDirectory() && !to.mkdirs()) throw new IOException("cannot create " + to);
+            if (!to.isDirectory() && !to.mkdirs()) throw new LocalizedIOException("settings_folders_cannot_create", to);
             File[] l = from.listFiles();
             if (l != null) for (File f : l) copyTree(f, new File(to, f.getName()));
         } else if (!to.exists()) Files.copy(from.toPath(), to.toPath());   // no attributes: FUSE /sdcard has no xattrs
