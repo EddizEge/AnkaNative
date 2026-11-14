@@ -77,4 +77,34 @@ final class ShaderResults {
         }
         return out;
     }
+
+    /**
+     * Moves the result files (&lt;key&gt;.r) of one results folder into another (an older build's ondevice/xlate on shared storage into Job.xlate, the app's own
+     * storage), each by Files.move: a copy and a delete between two storages. A file the target already has stays the target's (the source's copy is left to be
+     * deleted with its folder). It stops at the first file that cannot be moved (no room in the app's storage, an unreadable file) and adds why to problems: the
+     * others are translated again. The translator's working files (.work/) and unfinished results (.tmp) are not moved. Whether a moved result is still good is the
+     * tool's to decide (vk_android_build.py stale_kept, result_head). → how many were moved
+     */
+    static int move(File from, File to, List<String> problems) {
+        File[] l = from.listFiles((d, name) -> name.endsWith(".r") && new File(d, name).isFile());
+        if (l == null || l.length == 0) return 0;
+        Arrays.sort(l);
+        if (!to.isDirectory() && !to.mkdirs()) {
+            problems.add("cannot make " + to);
+            return 0;
+        }
+        int n = 0;
+        for (File f : l) {
+            File t = new File(to, f.getName());
+            if (t.exists()) continue;
+            try {
+                java.nio.file.Files.move(f.toPath(), t.toPath());
+                n++;
+            } catch (IOException e) {
+                problems.add(f + ": " + e);
+                break;
+            }
+        }
+        return n;
+    }
 }

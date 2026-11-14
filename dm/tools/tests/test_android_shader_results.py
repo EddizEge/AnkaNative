@@ -66,6 +66,40 @@ class Retry(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in d.iterdir()), ['00000000000000aa.r', '00000000000000ee.r', '00000000000000ff.r', 'x.r.tmp'])
         self.assertEqual(self.run_on(d), [])   # a second Retry finds nothing more to drop
 
+    def test_move_older_results(self):   # 0.2.2's ondevice/xlate into the app's storage (PackService.work, ShaderResults.move)
+        old, new = self.tmp / 'old-xlate', self.tmp / 'no_backup' / 'xlate' / '0400486024DEC000'
+        old.mkdir()
+        write_result(old, '00000000000000a1', 'ok', '', {'x': 1}, [('', b'\x03\x02\x23\x07' * 4)])
+        write_result(old, '00000000000000a2', 'translation failed', 'e')
+        write_result(old, '00000000000000a3', 'ok', '', {'x': 3}, [('', b'\x03\x02\x23\x07' * 4)])
+        (old / 'x.r.tmp').write_bytes(b'half')
+        (old / '.work').mkdir(); (old / '.work' / 'job.bin').write_bytes(b'w')
+        new.mkdir(parents=True)
+        (new / '00000000000000a3.r').write_bytes(b'newer')   # one the app's folder already has stays its own
+        r = subprocess.run(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.ShaderResultsJvmTest', 'move', str(old), str(new)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines(), ['moved 2'])
+        self.assertEqual(sorted(p.name for p in new.iterdir()), ['00000000000000a1.r', '00000000000000a2.r', '00000000000000a3.r'])
+        self.assertEqual((new / '00000000000000a3.r').read_bytes(), b'newer')
+        self.assertTrue((new / '00000000000000a1.r').read_bytes().startswith(magic()))
+        self.assertEqual(sorted(p.name for p in old.iterdir()), ['.work', '00000000000000a3.r', 'x.r.tmp'])   # left for the folder's delete
+        r = subprocess.run(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.ShaderResultsJvmTest', 'move', str(self.tmp / 'none'), str(new)], capture_output=True, text=True)
+        self.assertEqual(r.stdout.splitlines(), ['moved 0'])
+
+    def test_move_stops_at_a_failure(self):   # the target cannot take a file (here: a folder in its place): the move stops and says so
+        old, new = self.tmp / 'old2', self.tmp / 'new2'
+        old.mkdir(); new.mkdir()
+        write_result(old, '00000000000000b1', 'ok', '', {'x': 1}, [('', b'\x03\x02\x23\x07' * 4)])
+        new.chmod(0o500)
+        try:
+            r = subprocess.run(['java', TR_RES, '-cp', str(self.classes), 'dev.nxnative.android.ShaderResultsJvmTest', 'move', str(old), str(new)], capture_output=True, text=True)
+        finally:
+            new.chmod(0o700)
+        lines = r.stdout.splitlines()
+        self.assertEqual(lines[0], 'moved 0')
+        self.assertTrue(lines[1].startswith('problem ') and '00000000000000b1.r' in lines[1], lines)
+        self.assertTrue((old / '00000000000000b1.r').is_file())
+
     def test_no_folder(self):   # a first run: the tool has made no results yet
         self.assertEqual(self.run_on(self.tmp / 'missing'), [])
 

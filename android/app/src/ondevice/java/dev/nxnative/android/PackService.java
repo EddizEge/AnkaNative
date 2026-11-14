@@ -278,8 +278,17 @@ public final class PackService extends Service {
         wake.acquire(7 * 3600_000L);
         try {
             dropOtherGames(j);
-            File oldXlate = new File(j.dir(), "xlate");   // where an older build kept the results, on shared storage: stale for this build's tools in any case
+            File oldXlate = new File(j.dir(), "xlate");   // where an older build (0.2.2) kept the results, on shared storage
             if (oldXlate.exists()) {
+                // Stamped with that build's tools, but the build keeps each one whose library entry is the manifest's (vk_android_build.py stale_kept): a Prepare an
+                // app update stopped in its shaders step keeps what it translated. Moved into the app's storage (Job.xlate) unless this APK translates every shader
+                // again anyway (apkChanged: another chain); the rest goes with the folder
+                if (!j.apkChanged()) {
+                    List<String> problems = new ArrayList<>();
+                    int moved = ShaderResults.move(oldXlate, j.xlate(this), problems);
+                    Log.i(TAG, "moved " + moved + " translated shaders an older build kept in " + oldXlate + " to " + j.xlate(this));
+                    for (String p : problems) Log.w(TAG, "moving the older build's translated shaders: " + p + "; the rest are translated again");
+                }
                 Log.i(TAG, "deleting the translated shaders an older build kept in " + oldXlate);
                 Job.deleteTree(oldXlate);
             }
