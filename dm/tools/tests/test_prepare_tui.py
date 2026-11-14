@@ -414,12 +414,21 @@ class Output(unittest.TestCase):
         self.assertNotIn('(+/-)', plain); self.assertNotIn('v: another', plain)
 
     def test_whole_job_on_resume(self):
-        """A resumed translation's count includes what the earlier run translated: the whole job's bar starts the step at this run's share, not ahead of it"""
+        """A resumed run's whole-job bar goes on from where the stopped run's was (what it finished counts as done), never back towards 0 (the review's round 1
+        stopped at 21.7 %, round 2 then showed 2.2 %); a resumed translation's count includes the earlier run's shaders, counted once"""
+        fresh = FakePlan()
+        a, _ = live_at(fresh, ['step identify', 'step rewrite', 'progress 3/3 main', 'step split', 'progress: 9/9', 'step shaders', 'progress 0 42854 translate',
+                               'progress 3384 42854 translate'])
         p = FakePlan(translated=3384, kept=('main', 'subsdk0', 'sdk'), split=False)
-        a, _ = live_at(p, ['step identify', 'step rewrite', 'step shaders', 'progress 3384 42854 translate'])
-        b, _ = live_at(p, ['step identify', 'step rewrite', 'step shaders', 'progress 23119 42854 translate'])
-        self.assertLess(a.overall(), 0.01)
-        self.assertAlmostEqual(b.overall(), (b.weights[0] + 0.5 * (42854 - 3384) * p.shader_s()) / sum(b.weights), places=3)   # half of this run's translation
+        b0, _ = live_at(p, [])
+        b, _ = live_at(p, ['step identify', 'step rewrite', 'step shaders', 'progress 3384 42854 translate'])
+        self.assertGreater(a.overall(), 0.05)
+        self.assertAlmostEqual(b0.overall(), a.overall(), delta=0.01); self.assertAlmostEqual(b.overall(), a.overall(), delta=0.01)
+        c, _ = live_at(p, ['step identify', 'step rewrite', 'step shaders', 'progress 23119 42854 translate'])
+        mid = (c.kept + c.weights[0] + 0.5 * (42854 - 3384) * p.shader_s()) / (sum(c.weights) + c.kept)   # half of this run's translation
+        self.assertAlmostEqual(c.overall(), mid, places=3)
+        d, _ = live_at(FakePlan(kept=('main',)), ['step identify', 'step rewrite', 'progress 0/2 sdk'])
+        self.assertAlmostEqual(d.overall(), (d.kept + 2.0) / (sum(d.weights) + d.kept), places=6); self.assertAlmostEqual(d.weights[1], eta.REWRITE_S * 2 / 3)
 
 
 # ---- the packer as a child process

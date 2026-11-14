@@ -288,8 +288,14 @@ class Live:
         self.step_t = {}  # step → its start
         self.minutes, self.guess = -1, False
         self.log_error = None   # the run's log could not be written on (runner.Run.log_error)
-        self.weights = [2.0, eta.REWRITE_S if plan.rewrite else 0.0, eta.SPLIT_S if plan.split else 0.0,
+        mods = max(1, len(plan.x.mods))
+        left = (len(plan.x.mods) - len(plan.kept_mods)) / mods if plan.rewrite else 0.0
+        self.weights = [2.0, eta.REWRITE_S * left, eta.SPLIT_S if plan.split else 0.0,
                         ((plan.shaders - plan.translated) * plan.shader_s() + plan.shaders * eta.LIBRARY_S) if plan.build else 0.0, eta.PACK_S]
+        # what an earlier run finished, by the same figures, counted as done in the whole job's bar: a resumed run's bar goes on from where the stopped one was,
+        # not back to the start (this run's own steps are what the bar's remaining part is made of)
+        self.kept = eta.REWRITE_S * (1 - left) + (0.0 if plan.split else eta.SPLIT_S) + (
+            plan.translated * plan.shader_s() if plan.build else plan.shaders * (plan.shader_s() + eta.LIBRARY_S))
 
     def feed(self, t, line):
         """A line of the run at time t (the interface's monotonic clock) → its progress.Event"""
@@ -324,12 +330,12 @@ class Live:
         return d / tot if tot > 0 else None
 
     def overall(self):
-        """The whole job's share done, by the steps' weights"""
+        """The whole job's share done, by the steps' weights, with what an earlier run finished (kept) counted as done"""
         w = self.weights; s = self.state.step
-        if s < 0: return 0.0
-        tot = sum(w)
+        tot = sum(w) + self.kept
         if tot <= 0: return 0.0
-        before = sum(w[:s])
+        if s < 0: return self.kept / tot
+        before = sum(w[:s]) + self.kept
         f = self.step_frac() or 0.0
         cur = w[s]
         if s == progress.STEPS.index('shaders') and self.plan.build:   # the translation, then the library's write and check
