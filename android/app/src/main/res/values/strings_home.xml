@@ -23,6 +23,10 @@
     <string name="home_frontend_no_card">No game with title ID %1$s is on Home. Add it in %2$s first, or send the game\'s file instead.</string>
     <string name="home_frontend_fail_title">Cannot start the game</string>
 
+    <!-- Ui: the words Ui adds itself (OK and Cancel are android.R.string.ok / cancel) -->
+    <string name="home_tap_for_details">%1$s: tap for details</string>
+    <string name="home_back">Back</string>
+
     <!-- MainActivity: Home's header, the Settings page -->
     <string name="home_settings">Settings</string>
     <string name="home_section_updates">Updates</string>

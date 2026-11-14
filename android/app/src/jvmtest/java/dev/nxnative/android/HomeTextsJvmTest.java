@@ -33,6 +33,9 @@ public final class HomeTextsJvmTest {
         same(Tr.s("home_nup_wrong_case", "OOT.NUP"), "OOT.NUP" + ": rename it so that its name ends in \".nup\" (lower case); the game and the tools read only that name.", "wrong case");
         same(Tr.s("home_frontend_no_card", id, "Anka Native"), "No game with title ID " + id + " is on Home. Add it in " + "Anka Native" + " first, or send the game's file instead.", "no card");
 
+        // Ui
+        same(Tr.s("home_tap_for_details", "Pack from other tools"), "Pack from other tools" + ": tap for details", "warn chip description");
+
         // MainActivity: Settings, About, the rows' values
         same(Tr.s("home_about", "0400486024DEC000, 040074A01BF12000", Tr.s("home_license_gpl", Tr.s("home_license_lsfg")), "o/r"),
                 "Title IDs: " + "0400486024DEC000, 040074A01BF12000" + "\n" + "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: LSFG frame generation)."
