@@ -28,10 +28,10 @@
     <string name="settings_game_gpu_timing">GPU zamanlaması</string>
     <string name="settings_game_pause_on_return">Dönüşte duraklat</string>
     <string name="settings_game_pause_on_return_about">Arka plandan dönünce oyun duraklatılmış olarak bir dokunuş bekler</string>
-    <string name="settings_game_intro_skip">Girişi atla (hata ayıklama)</string>
-    <string name="settings_game_intro_skip_about">Oyunda − ve + tuşlarını birlikte 1 sn basılı tut: videolarda ve menülerde A tuşuna basar, videoları erken bitirir, oynanışa gelince durur. Durdurmak için yeniden basılı tut</string>
-    <string name="settings_game_ram_saver">RAM tasarrufu (depolama kullanır)</string>
-    <string name="settings_game_ram_saver_about">Oyunun doku verisini sıkıştırılmış RAM yerine bir dosyada tutar: telefonun RAM\'i yetmediğinde yaklaşık 1 GB daha fazla boş RAM sağlar, ama her bölge yüklemesinde bu veri depolamaya yazılır (Ocarina of Time için yaklaşık 2 GB) ve o kadar boş alan gerekir. Kapalı: eskisi gibi</string>
+    <string name="settings_game_intro_skip">Girişi atla</string>
+    <string name="settings_game_intro_skip_about">Hata ayıklama aracı. Oyunda − ve + tuşlarını birlikte 1 sn basılı tut: videolarda ve menülerde A tuşuna basar, videoları erken bitirir, oynanışa gelince durur. Durdurmak için yeniden basılı tut</string>
+    <string name="settings_game_ram_saver">RAM tasarrufu</string>
+    <string name="settings_game_ram_saver_about">Oyunun doku verisini sıkıştırılmış RAM yerine depolamadaki bir dosyada tutar: telefonun RAM\'i yetmediğinde yaklaşık 1 GB daha fazla boş RAM sağlar, ama her bölge yüklemesinde bu veri depolamaya yazılır (Ocarina of Time için yaklaşık 2 GB) ve o kadar boş alan gerekir. Kapalı: eskisi gibi</string>
     <string name="settings_game_env">Ek ortam değişkenleri</string>
     <string name="settings_game_env_none">Yok (host için KEY=VALUE satırları, env.txt dosyasından sonra)</string>
     <plurals name="settings_game_env_lines">
