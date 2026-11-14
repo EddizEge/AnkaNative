@@ -100,9 +100,9 @@ public final class LauncherJvmTest {
         check(Profile.parse("0400C3F00006E000\tM\t0\tx\t\t\t\t\t\tscale:original=1/console").get(0).resolutionEnv("original").equals(List.of("DM_GRAPHICS_SCALE=1", "DM_OPMODE=1")), "console");
         // 3D resolution (res_choice rows, column 13): the choices in order, their labels, DM_RES_LEVEL for a choice, nothing for the game's own or a value no longer offered
         check(!l.get(0).hasResLevel() && l.get(0).resLevels().isEmpty() && l.get(0).resLevelEnv("fixed:1").isEmpty(), "no column: no 3D resolution");
-        Profile oot = Profile.parse("0400486024DEC000\tO\t0\tx\t\t\t\t\t\t\t\tsegment\t\tfixed:0=Max;fixed:lowest=Lowest: coolest (33 %, about 683x384);cap:1=Dynamic, never above High;bad;=x").get(0);
+        Profile oot = Profile.parse("0400486024DEC000\tO\t0\tx\t\t\t\t\t\t\t\tsegment\t\tfixed:0=Max;fixed:lowest=Lowest: the least sharp level (33 %, about 683x384);cap:1=Dynamic, never above High;bad;=x").get(0);
         check(oot.hasResLevel() && oot.resLevels().size() == 3 && oot.resLevels().get(1)[0].equals("fixed:lowest")
-                && oot.resLevels().get(1)[1].equals("Lowest: coolest (33 %, about 683x384)") && oot.resLevels().get(2)[1].equals("Dynamic, never above High"), "3D resolution choices, malformed ones skipped");
+                && oot.resLevels().get(1)[1].equals("Lowest: the least sharp level (33 %, about 683x384)") && oot.resLevels().get(2)[1].equals("Dynamic, never above High"), "3D resolution choices, malformed ones skipped");
         check(oot.gpuTs.equals("segment"), "the columns before it still read");
         check(oot.resLevelEnv("cap:1").equals(List.of("DM_RES_LEVEL=cap:1")) && oot.resLevelEnv("fixed:lowest").equals(List.of("DM_RES_LEVEL=fixed:lowest")), "DM_RES_LEVEL for a choice");
         check(oot.resLevelEnv(null).isEmpty() && oot.resLevelEnv("fixed:7").isEmpty(), "nothing for the game's own or a value no longer offered");

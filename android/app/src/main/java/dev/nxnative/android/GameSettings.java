@@ -138,9 +138,8 @@ final class GameSettings {
         LinearLayout box = new LinearLayout(a);
         box.setOrientation(LinearLayout.VERTICAL);
         AlertDialog[] d = new AlertDialog[1];
-        box.addView(Ui.small(a, "The game changes the sharpness of its 3D picture by itself. Lowest keeps its least sharp level; \"never above\" lets the game lower it "
-                + "under load but not raise it past that level. Sharper fixed levels are not offered: they ran in slow motion on phones. From the next start; a DM_RES_LEVEL "
-                + "line in env.txt wins."));
+        box.addView(Ui.small(a, "The game changes the sharpness of its 3D picture by itself. A fixed level keeps it there: a lower level is less work for the GPU, a higher one "
+                + "is sharper. \"Never above\" lets the game lower it under load but not raise it past that level. From the next start; a DM_RES_LEVEL line in env.txt wins."));
         android.widget.RadioGroup rg = new android.widget.RadioGroup(a);
         for (int k = 0; k < labels.length; k++) {
             android.widget.RadioButton rb = new android.widget.RadioButton(a);
