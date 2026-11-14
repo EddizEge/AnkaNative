@@ -129,6 +129,9 @@ final class Readiness {
      *  placed memory maps, update-after-bind texture tables or a swapchain it runs but draws or shows nothing (its [RED] lines say so) */
     static final List<Req> HOST = Collections.unmodifiableList(List.of(
             new Req(true, "android.sdk", "31", "Android 12 or newer: the app is built for it", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            // Android 12 and 12L (API 31, 32) install but nobody has run a game on them yet (android/README.md "Android versions"): a warning until a phone run
+            // confirms them. Below 31 the required row fails and this one is left out
+            new Req(false, "android.sdk", "33", "Android 13 or newer: Android 12 and 12L are untested; the game may not start or may draw wrongly there"),
             new Req(true, "vk.instance", "1.1", "Vulkan 1.1 loader or newer: Android 12's loader reports 1.1 and 13's 1.3; the replay's Vulkan 1.3 is the GPU driver's (the next row)", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
             new Req(true, "vk.api", "1.3", "Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
             new Req(true, "queue.graphicsCompute", "1", "A graphics and compute queue: everything is submitted to one such queue", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
