@@ -21,6 +21,12 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   dialog with no question in front; its buttons ignore taps through another app's overlay, and a game it starts ("Start anyway") also brings the
   frontend back. Play itself now refuses a pack of another title with its pack dialog. A file that is not on Home still asks "Add this game?"
   (android/FRONTENDS.md). Checked on the JVM and in a build, not yet on a phone.
+- **The zstd-compressed code of newer games (ZBIC, Ocarina of Time's) is read with Banana Native's decoder, `libzbicdec`** (`dm/third_party/zstd-zbic`:
+  Zstandard's decoder, BSD, with an MIT reader of ZBIC's tables), in place of the zbic package (GPLv2), which the on-phone packer carried up to 0.2.2 and
+  whose license did not fit the GPL-3.0-or-later translator in the same process. On Ocarina of Time it gives the same bytes: its code modules, the rewrite and
+  the shader split's outputs are identical, so finished packs stay valid and are not rewritten. The APK carries `libzbicdec.so` (about 100 KB instead of the
+  590 KB extension). Preparing on a computer no longer installs zbic but needs a C compiler for these games: the decoder is built once, the first time one is
+  read (android/README.md).
 - **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
   cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
   faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped
