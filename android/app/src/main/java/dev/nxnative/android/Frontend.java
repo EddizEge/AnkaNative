@@ -4,11 +4,12 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * What an emulator frontend (ES-DE, Daijisho, iiSU, Beacon, Pegasus…) asks FrontendLaunch for, as plain Java (no Android, checked on the JVM by FrontendJvmTest):
  * the game's path from a file:// URI or from a content:// URI that carries a /storage path, the phone's aliases of its shared storage made one, the paths another
- * app may name (shared storage only), the card a request names, and a title ID. FRONTENDS.md says what each frontend sends and what the app does with it.
+ * app may name (shared storage only), the card a request names, a title ID, and the one-time token that hands Home a game. FRONTENDS.md says what each frontend sends and what the app does with it.
  */
 final class Frontend {
     private Frontend() {}
@@ -189,6 +190,28 @@ final class Frontend {
     }
 
     static final int SHOWN = 200;
+
+    // ---- What FrontendLaunch hands Home (MainActivity.fromFrontend): kept in this process and named by a one-time token in the intent, so no other app can
+    // make Home run Play for a card, or ask about a file, by an extra of its own (MainActivity is exported) ----
+    private static String handToken, handPath;
+    private static boolean handCard;
+
+    /** A frontend's game for Home: path is the card's game path (card) or the new file's; the token for MainActivity's "frontend_token" extra. A newer one replaces it */
+    static synchronized String handOff(String path, boolean card) {
+        handToken = UUID.randomUUID().toString();
+        handPath = path;
+        handCard = card;
+        return handToken;
+    }
+
+    /** The game handed to Home under this token, once: { path, "card" or "new" }; null for any other token (or none) */
+    static synchronized String[] take(String token) {
+        if (token == null || handToken == null || !handToken.equals(token)) return null;
+        String[] r = {handPath, handCard ? "card" : "new"};
+        handToken = null;
+        handPath = null;
+        return r;
+    }
 
     /** A title ID as the cards keep it (16 hex digits, upper case), or null */
     static String titleId(String s) {

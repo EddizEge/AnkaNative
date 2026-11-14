@@ -70,14 +70,11 @@
     <string name="home_no_pack_next_to">%1$s için paket bulunamadı (şunun yanında arandı: %2$s).</string>
 
     <!-- MainActivity: a game a frontend sent -->
-    <string name="home_frontend_start_title">%1$s başlatılsın mı?</string>
     <string name="home_frontend_add_title">Bu oyun eklensin mi?</string>
-    <string name="home_frontend_start_body">Başka bir uygulama %1$s oyununu başlatmak istedi. Oyun hemen başlayamaz: %2$s düğmesi gerekenleri kontrol eder ve bir şeyi değiştirmeden önce sorar.</string>
     <string name="home_frontend_add_body">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi:\n\n%2$s\n\nBu oyun listende yok. %4$s işlemi onu kontrol eder ve ana ekrana ekler; %3$s düğmesine dokunmadıkça hiçbir şey eklenmez.</string>
     <string name="home_play">Oyna</string>
     <string name="home_add">Ekle</string>
     <string name="home_frontend_not_one_game">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi: %2$s. Bu tek bir oyun değil: tek bir .nup ya da oyun klasörü gönder. Hiçbir şey eklenmedi.</string>
-    <string name="home_frontend_same_build_body">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi:\n\n%2$s\n\nBu, listendeki %3$s kartıyla aynı oyun sürümü (%4$s). %5$s düğmesi kartını kendi dosyaları ve paketiyle başlatır; bu dosya eklenmez ve kartın değişmez.</string>
     <string name="home_frontend_add_body_others">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi:\n\n%2$s\n\nBu oyun listende yok. %5$s işlemi onu kontrol eder ve ana ekrana ekler; %3$s düğmesine dokunmadıkça hiçbir şey eklenmez.\n\nListende bu oyunun başka bir dökümü var:\n%4$s\n\nArdından %5$s işlemi, bu dosyanın onun yerine mi geçeceğini yoksa ikisinin de mi tutulacağını sorar.</string>
     <string name="home_frontend_other_dump_item">• %1$s (paket: %2$s)</string>
 

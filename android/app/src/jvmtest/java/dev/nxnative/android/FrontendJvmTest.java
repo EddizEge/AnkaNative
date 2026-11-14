@@ -1,11 +1,15 @@
 package dev.nxnative.android;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
  * What an emulator frontend sends FrontendLaunch, read by Frontend on the JVM (no Android): file:// URIs, provider URIs that carry a /storage path, the shared
- * storage's aliases, the card a path names, title IDs. Run by dm/tools/tests/test_android_frontend.py; prints "ok <n>" and exits 0, or the first failure and exits 1.
+ * storage's aliases, the card a path names, title IDs, the one-time token that hands Home a game; and PlayRule, the decision Play and FrontendLaunch both take.
+ * Run by dm/tools/tests/test_android_frontend.py; prints "ok <n>" and exits 0, or the first failure and exits 1.
  */
 public final class FrontendJvmTest {
     private static int n;
@@ -122,6 +126,98 @@ public final class FrontendJvmTest {
         eq(null, Frontend.titleId("040074A01BF1200"), "15 digits");
         eq(null, Frontend.titleId("040074A01BF1200G"), "not hex");
         eq(null, Frontend.titleId(null), "null");
+        token();
+        play();
         System.out.println("ok " + n);
+    }
+
+    /** The one-time token that hands Home a frontend's game (Frontend.handOff / take): only the newest token, once; no other value names a game */
+    private static void token() {
+        eq(null, Frontend.take(null), "no token, nothing handed");
+        String t = Frontend.handOff("/storage/emulated/0/Games/a.nup", true);
+        eq(null, Frontend.take(null), "no token");
+        eq(null, Frontend.take(""), "an empty token");
+        eq(null, Frontend.take(t.toUpperCase(java.util.Locale.ROOT).equals(t) ? t + "x" : t.toUpperCase(java.util.Locale.ROOT)), "a token of another case");
+        eq(null, Frontend.take(t.substring(1)), "a part of the token");
+        eq(null, Frontend.take("/storage/emulated/0/Games/a.nup"), "the path as the token");
+        eq(Arrays.asList("/storage/emulated/0/Games/a.nup", "card"), Arrays.asList(Frontend.take(t)), "the token, once");
+        eq(null, Frontend.take(t), "used: never again");
+        String old = Frontend.handOff("/storage/emulated/0/Games/b.nup", false), now = Frontend.handOff("/storage/emulated/0/Games/c.nup", false);
+        eq(false, old.equals(now), "a new token each hand-off");
+        eq(null, Frontend.take(old), "a replaced token is dead");
+        eq(Arrays.asList("/storage/emulated/0/Games/c.nup", "new"), Arrays.asList(Frontend.take(now)), "the newest token: a new file");
+        eq(null, Frontend.take(now), "the newest, used");
+    }
+
+    /** A card's facts as PlayRule reads them; asked records what it asked, in order */
+    private static final class Card implements PlayRule.Facts {
+        boolean access = true, saveBusy, packBusy, placeholder, playable, legacy;
+        Msg noProfile, otherTitle, blocking, library;
+        IOException unreadable;
+        final List<String> asked = new ArrayList<>();
+
+        @Override public boolean access() { asked.add("access"); return access; }
+        @Override public Msg noProfile() { asked.add("profile"); return noProfile; }
+        @Override public boolean saveBusy() { asked.add("save"); return saveBusy; }
+        @Override public boolean packBusy() { asked.add("packop"); return packBusy; }
+        @Override public void readPack() throws IOException { asked.add("read"); if (unreadable != null) throw unreadable; }
+        @Override public boolean placeholder() { asked.add("placeholder"); return placeholder; }
+        @Override public Msg otherTitle() { asked.add("title"); return otherTitle; }
+        @Override public Msg blocking() { asked.add("build"); return blocking; }
+        @Override public Msg libraryProblem() { asked.add("library"); return library; }
+        @Override public boolean playableLibrary() { asked.add("playable"); return playable; }
+        @Override public boolean legacyLibrary() { asked.add("legacy"); return legacy; }
+    }
+
+    private static PlayRule.Kind kind(Card c) { return PlayRule.decide(c).kind; }
+
+    /**
+     * PlayRule, the one decision of Home's Play (MainActivity.launch) and a frontend's request (FrontendLaunch): which libraries start straight away, and that
+     * everything else is one of Play's steps; the busy and access checks come before anything of the pack is read
+     */
+    private static void play() {
+        Msg older = new Msg("x_older"), noLib = new Msg("x_none");
+        Card c = new Card();
+        eq(PlayRule.Kind.START, kind(c), "this version's library");
+        eq(Arrays.asList("access", "profile", "save", "packop", "read", "placeholder", "title", "build", "library"), c.asked, "Play's order");
+        c = new Card(); c.library = older; c.playable = true;
+        PlayRule.Verdict v = PlayRule.decide(c);
+        eq(PlayRule.Kind.START_OLDER, v.kind, "an older library that plays while it updates (the owner's iiSU start, 2026-11-14)");
+        eq(older, v.why, "the library's problem is kept for the log");
+        c = new Card(); c.library = older; c.legacy = true;
+        eq(PlayRule.Kind.START_LEGACY, kind(c), "a library from before versioned updates");
+        c = new Card(); c.library = older; c.playable = true; c.legacy = true;
+        eq(PlayRule.Kind.START_OLDER, kind(c), "playable wins over legacy, as in Play");
+        c = new Card(); c.library = noLib;
+        v = PlayRule.decide(c);
+        eq(PlayRule.Kind.NO_LIBRARY, v.kind, "no library it can play with");
+        eq(noLib, v.why, "why, for Play's dialog");
+        c = new Card(); c.access = false;
+        eq(PlayRule.Kind.NO_ACCESS, kind(c), "no All files access");
+        eq(Arrays.asList("access"), c.asked, "nothing else asked without access");
+        c = new Card(); c.noProfile = new Msg("x_profile");
+        eq(PlayRule.Kind.NO_PROFILE, kind(c), "a game this APK has no host for");
+        c = new Card(); c.saveBusy = true;
+        eq(PlayRule.Kind.SAVE_BUSY, kind(c), "a save backup or restore working");
+        eq(false, c.asked.contains("read"), "a busy save: the pack is not read");
+        c = new Card(); c.packBusy = true;
+        eq(PlayRule.Kind.PACK_BUSY, kind(c), "a pack export or import working");
+        eq(false, c.asked.contains("read"), "a busy pack: the pack is not read");
+        c = new Card(); c.unreadable = new IOException("no pack.tsv");
+        v = PlayRule.decide(c);
+        eq(PlayRule.Kind.PACK_UNREADABLE, v.kind, "no pack");
+        eq("no pack.tsv", v.error.getMessage(), "the read error, for Play's dialog");
+        eq(false, c.asked.contains("placeholder"), "nothing of an unread pack is asked");
+        c = new Card(); c.placeholder = true; c.library = null;
+        eq(PlayRule.Kind.PLACEHOLDER, kind(c), "a placeholder pack, even with a library");
+        c = new Card(); c.otherTitle = new Msg("x_title");
+        eq(PlayRule.Kind.OTHER_TITLE, kind(c), "a pack of another title");
+        c = new Card(); c.blocking = new Msg("x_build"); c.library = older; c.playable = true;
+        eq(PlayRule.Kind.PACK_BLOCKED, kind(c), "a pack of another game build, even with a playable library");
+        eq(false, c.asked.contains("library"), "a blocked pack: its library is not asked");
+        // straight: exactly the three starts
+        EnumSet<PlayRule.Kind> straight = EnumSet.noneOf(PlayRule.Kind.class);
+        for (PlayRule.Kind k : PlayRule.Kind.values()) if (k.straight()) straight.add(k);
+        eq(EnumSet.of(PlayRule.Kind.START, PlayRule.Kind.START_OLDER, PlayRule.Kind.START_LEGACY), straight, "what starts with no dialog");
     }
 }

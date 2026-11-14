@@ -69,14 +69,11 @@
     <string name="home_no_pack_next_to">No se encontró un paquete para %1$s junto a %2$s.</string>
 
     <!-- MainActivity: a game a frontend sent -->
-    <string name="home_frontend_start_title">¿Iniciar %1$s?</string>
     <string name="home_frontend_add_title">¿Agregar este juego?</string>
-    <string name="home_frontend_start_body">Otra app pidió iniciar %1$s. No puede iniciarse de inmediato: al tocar %2$s, la app revisa lo que necesita y pregunta antes de cambiar algo.</string>
     <string name="home_frontend_add_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %4$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.</string>
     <string name="home_play">Jugar</string>
     <string name="home_add">Agregar</string>
     <string name="home_frontend_not_one_game">Otra app pidió a %1$s abrir %2$s, que no es un solo juego: envía un único .nup o una sola carpeta de juego. No se agregó nada.</string>
-    <string name="home_frontend_same_build_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque es la misma versión del juego (build) que tu tarjeta de %3$s (%4$s). Al tocar %5$s, se inicia el juego de tu tarjeta con sus propios archivos y su paquete; ese archivo no se agrega y tu tarjeta no cambia.</string>
     <string name="home_frontend_add_body_others">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %5$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.\n\nTu lista ya tiene otro volcado de este juego:\n%4$s\n\nAl agregarlo con %5$s, se te preguntará si este archivo lo reemplaza o si conservas los dos.</string>
     <string name="home_frontend_other_dump_item">• %1$s (paquete %2$s)</string>
 
