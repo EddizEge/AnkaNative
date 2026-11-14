@@ -15,7 +15,7 @@ import java.util.Locale;
  */
 public final class EtaJvmTest {
     private static int failed;
-    private static final double S = 0.080;   // ShaderLibs.SHADER_S_HI, as PackService passes it
+    private static final double S = Eta.SHADER_S;   // as PackService passes it
     private static final int SPLIT = 2, SHADERS = 3, PACK = 4;
 
     private static void check(String name, boolean ok, String why) {
@@ -60,6 +60,9 @@ public final class EtaJvmTest {
 
     static boolean near(double got, double want, double rel) { return !Double.isNaN(got) && Math.abs(got - want) <= rel * want; }
 
+    /** The measured Prepares: 6 and 8 workers on the 11-14 morning's build, 6 on the current one (work/big at 7a33169, the results in the app's storage) */
+    static final String[] TRACES = {"6w", "8w", "6w-current"};
+
     public static void main(String[] a) throws IOException {
         steady();
         falling();
@@ -72,7 +75,12 @@ public final class EtaJvmTest {
         library();
         words();
         mix();
-        for (String w : new String[] {"6w", "8w"}) replay(new File(a[0], "prepare-eta-" + w + ".trace.txt"), w);
+        zero();
+        trickle();
+        unweighted();
+        takeover();
+        for (String w : TRACES) hostile(new File(a[0], "prepare-eta-" + w + ".trace.txt"), w);
+        for (String w : TRACES) replay(new File(a[0], "prepare-eta-" + w + ".trace.txt"), w);
         if (failed > 0) {
             System.out.println(failed + " failed");
             System.exit(1);
@@ -128,14 +136,36 @@ public final class EtaJvmTest {
         check("pause", r.min() == -1, "an estimate while paused: " + r.min());
         r.at(t + 1800);
         check("pause", r.min() == -1, "an estimate while paused: " + r.min());
-        // resumed: the tool's first line counts a batch it finished while stopping, then 10 a second again
+        // resumed: the tool's first line at once (the results already there), then 70 s of set-up (its workers, the delta check, the results scan) and the
+        // first batch, then 10 a second again. The set-up is no translating: the time left holds through it and is the true one after it
+        r.at(t + 1800);
         r.e.running(true, r.now);
         r.e.step(SHADERS, r.now);
-        t = translate(r, t + 1800 + 15, 3264, 3264 + 128, 20000, x -> 10, SHADERS, "translate");
-        // (a little more than the true time: the restart's 15 s count, the batch its first line brought does not)
-        double after = r.sec(), want = (20000 - 3392) / 10.0 + lib(20000) + pack();
-        // (with the 30 minutes counted the rate would be a sixth of the true one and the estimate hours)
-        check("resume", near(after, want, 0.05) && after < 1.1 * before, "got " + after + " s, want " + want + " (before the pause " + before + ")");
+        r.e.progress(SHADERS, 3200, 20000, "translate", r.now);
+        double resumed = r.sec();
+        check("resume", near(resumed, before, 0.02), "at the resume " + resumed + " s, before the pause " + before);
+        r.at(t + 1800 + 60);
+        check("resume", near(r.sec(), resumed, 0.05), "60 s into the set-up " + r.sec() + " s, at the resume " + resumed);
+        int top = r.min();
+        t = translate(r, t + 1800 + 70, 3264, 3264 + 640, 20000, x -> 10, SHADERS, "translate");
+        double after = r.sec(), want = (20000 - 3904) / 10.0 + lib(20000) + pack();
+        // (with the 30 minutes counted the rate would be a sixth of the true one and the estimate hours; with the 70 s set-up counted, a fifth over)
+        check("resume", near(after, want, 0.03), "got " + after + " s, want " + want + " (before the pause " + before + ")");
+        check("resume", r.min() <= top, "the shown minutes rose from " + top + " to " + r.min());
+        // a slower phone, a line every 21 s: a 70 s set-up is within the gap a line may take (Eta.GAP_LINES), so only the restart of the timing at the first
+        // batch keeps it out of the rate (counted, the estimate was a sixth over)
+        Run q = new Run(new Eta(20000, 20000, S));
+        q.e.running(true, q.now);
+        q.e.step(SHADERS, q.now);
+        double u = translate(q, 0, 0, 1280, 20000, x -> 3, SHADERS, "translate");
+        q.e.running(false, q.now);
+        q.at(u + 600);
+        q.e.running(true, q.now);
+        q.e.step(SHADERS, q.now);
+        q.e.progress(SHADERS, 1280, 20000, "translate", q.now);
+        u = translate(q, u + 600 + 70, 1344, 1344 + 192, 20000, x -> 3, SHADERS, "translate");
+        double slow = q.sec(), wantSlow = (20000 - 1536) / 3.0 + lib(20000) + pack();
+        check("resume", near(slow, wantSlow, 0.04), "a line every 21 s: got " + slow + " s, want " + wantSlow);
         ok("pause and resume");
     }
 
@@ -158,12 +188,22 @@ public final class EtaJvmTest {
         r.e.running(true, r.now);
         r.e.step(SHADERS, r.now);
         double t = translate(r, 0, 0, 3000, 20000, x -> 10, SHADERS, "translate");
-        r.at(t + 120);
-        check("stall", r.min() > 0, "no estimate 2 min after the last line");
+        double v0 = r.sec();
+        for (double x = t + 10; x <= t + 170; x += 10) { r.at(x); r.min(); }   // asked every 10 s, as the service does
+        check("stall", r.min() > 0, "no estimate 170 s after the last line");
+        // no progress is no work done: the time left counts down for the gap a line may take, then holds, not through the whole stall (the smoothing,
+        // which follows the finish time, still takes off about 85 s of the 145 s it held)
+        check("stall", r.sec() >= v0 - 125, "170 s after the last line " + r.sec() + " s, at it " + v0);
         r.at(t + 200);
         check("stall", r.min() == -1, "an estimate 200 s after the last line: " + r.min());
-        translate(r, t + 200, 3000, 3128, 20000, x -> 10, SHADERS, "translate");
-        check("stall", r.min() > 0, "no estimate once progress goes on");
+        t = translate(r, t + 200, 3000, 3128, 20000, x -> 10, SHADERS, "translate");
+        // the 200 s without work are not slow work: the time left is what the rate says, give or take the Eta.GAP_LINES line gaps the stall may add to the
+        // window's working time (with the whole gap counted it was 2.5 times the true time)
+        double want = (20000 - 3128) / 10.0 + lib(20000) + pack();
+        check("stall", near(r.sec(), want, 0.08), "after the stall " + r.sec() + " s, want " + want);
+        t = translate(r, t, 3128, 6200, 20000, x -> 10, SHADERS, "translate");   // the stall out of the window
+        want = (20000 - 6200) / 10.0 + lib(20000) + pack();
+        check("stall", near(r.sec(), want, 0.03), "later " + r.sec() + " s, want " + want);
         ok("stall");
     }
 
@@ -184,7 +224,7 @@ public final class EtaJvmTest {
 
     /**
      * A shader update (0.2.2's library to this one): a delta split of a few files, 584 shaders at 10 a second, then the whole library written. An estimate once
-     * a fifth is done, and never "less than a minute" while the library is still being written
+     * a fifth is done, and one all through the library's write
      */
     static void tinyUpdate() {
         Run r = new Run(new Eta(584, 42346, S));
@@ -204,9 +244,10 @@ public final class EtaJvmTest {
         check("tiny", near(r.sec(), want, 0.05), "got " + r.sec() + " s, want " + want);
         t = translate(r, t, 448, 584, 584, x -> 10, SHADERS, "translate");
         r.e.progress(SHADERS, 584, 584, "library", r.now);
-        int lowest = Integer.MAX_VALUE;
-        for (double x = t; x < t + lib(42346); x += 5) { r.at(x); lowest = Math.min(lowest, r.min()); }
-        check("tiny", lowest >= 2, "while the library is written: " + lowest + " minutes");
+        int lowest = Integer.MAX_VALUE, highest = -1;
+        for (double x = t; x < t + lib(42346); x += 5) { r.at(x); lowest = Math.min(lowest, r.min()); highest = Math.max(highest, r.min()); }
+        // the whole library is written (55 s for 42,346 entries) and the pack made: an estimate all along, of a minute or two
+        check("tiny", lowest >= 0 && highest <= 2, "while the library is written: " + lowest + "-" + highest + " minutes");
         ok("tiny update");
     }
 
@@ -231,23 +272,36 @@ public final class EtaJvmTest {
 
     /** The shaders step's two stages: when the translation ends the library's minutes are still to come, counted down through "check", then the pack */
     static void library() {
-        Run r = new Run(new Eta(42346, 42346, S));
+        int L = 300000;   // a library of 6.5 minutes (a bigger game's): the stages' times are well apart
+        Run r = new Run(new Eta(42346, L, S));
         r.e.running(true, r.now);
         r.e.step(SHADERS, r.now);
         double t = translate(r, 0, 40000, 42346, 42346, x -> 15, SHADERS, "translate");
         double end = r.sec();
-        check("library", end >= lib(42346) + pack() - 10, "at the translation's end " + end + " s");
+        check("library", end >= lib(L) + pack() - 10, "at the translation's end " + end + " s");
         r.e.progress(SHADERS, 42346, 42346, "library", r.now);
-        check("library", r.min() >= 5, "the library stage starts at " + r.min() + " minutes");
+        check("library", r.min() >= 5, "the library stage starts at " + r.min() + " minutes");   // (6.5 minutes and the pack)
         r.at(t + 200);
         r.e.progress(SHADERS, 42346, 42346, "check", r.now);
-        double c = r.sec(), want = lib(42346) - 200 + pack();
+        double c = r.sec(), want = lib(L) - 200 + pack();
         check("library", near(c, want, 0.05), "in check " + c + " s, want " + want);
-        r.at(t + lib(42346) + 5);
-        check("library", r.min() == -1, "an estimate after the library's time ran out: " + r.min());
+        // a library a little slower than its figure: "a moment more" (Eta.LATE_S), not nothing (asked every 10 s, as the service does)
+        for (double x = t + 210; x <= t + lib(L); x += 10) { r.at(x); r.min(); }
+        r.at(t + lib(L) + 5);
+        double late = r.sec();   // (the smoothing follows the held figure a little behind)
+        check("library", r.min() >= 0 && late <= Eta.LATE_S + pack() + 1, "5 s after the library's time ran out: " + late);
+        double p0 = t + lib(L) + 10;
+        r.at(p0);
         r.e.step(PACK, r.now);
-        r.at(t + lib(42346) + 30);
-        check("library", near(r.sec(), pack() - 25, 0.1), "in the pack step " + r.sec());
+        for (double x = p0; x <= p0 + pack() / 2; x += 10) { r.at(x); r.min(); }
+        check("library", r.sec() >= pack() / 2 - 5 && r.sec() <= pack() / 2 + Eta.LATE_S, "half way through the pack step " + r.sec());
+        // one far slower than its figure: nothing
+        Run q = new Run(new Eta(42346, L, S));
+        q.e.running(true, q.now);
+        q.e.step(SHADERS, q.now);
+        q.e.progress(SHADERS, 42346, 42346, "library", q.now);
+        q.at(Math.max(2 * lib(L), lib(L) + 60) + 1);
+        check("library", q.min() == -1, "an estimate after twice the library's time: " + q.min());
         ok("two-stage shaders step");
     }
 
@@ -261,6 +315,15 @@ public final class EtaJvmTest {
         check("keep", Eta.keep(41.9 * 60, 45) == 40, "41.9 min after 45: " + Eta.keep(41.9 * 60, 45));
         check("keep", Eta.keep(55, 1) == 1 && Eta.keep(50, 1) == 0, "55 s / 50 s after 1 minute: " + Eta.keep(55, 1) + " / " + Eta.keep(50, 1));
         check("keep", Eta.keep(30 * 60, -1) == 30, "the first value");
+        // a time read before another caller's later one (the Tail thread against the main thread's ask): no interval counted twice
+        Eta e = new Eta(100, 100, S);
+        e.running(true, 0);
+        e.minutes(10_000);
+        e.progress(SHADERS, 0, 100, "translate", 5_000);
+        e.minutes(20_000);
+        check("clock", e.runMs() == 20_000, "20 s of running counted as " + e.runMs() + " ms");
+        check("round", Eta.round(1e12) == 600 && Eta.round(Double.POSITIVE_INFINITY) == 600 && Eta.round(Double.NaN) == 0,
+                "1e12 s / infinity / NaN -> " + Eta.round(1e12) + " / " + Eta.round(Double.POSITIVE_INFINITY) + " / " + Eta.round(Double.NaN));
         String[][] en = {{"0", "Less than a minute left"}, {"1", "About 1 minute left"}, {"7", "About 7 minutes left"}, {"45", "About 45 minutes left"},
                 {"60", "About 1 hour left"}, {"75", "About 1 hour 15 minutes left"}, {"120", "About 2 hours left"}, {"125", "About 2 hours 5 minutes left"}};
         for (String[] c : en) {
@@ -277,16 +340,215 @@ public final class EtaJvmTest {
     static void mix() throws IOException {
         File f = File.createTempFile("eta_map", ".tsv");
         try {
+            // as vk_android_build.py counts: each key once (k1 twice), a vertex shader by its package file's "vs" prefix, rows of five columns and more
             Files.write(f.toPath(), ("# kind: evidence\npackage\tindex\tstage\tdm_ctl_sha16\tsource\nps_effect.bin\t0\tpixel\tk1\ts\nvs_effect.bin\t0\tvertex\tk2\ts\n"
-                    + "cs_shader.bin\t0\tcompute\tk3\ts\nvs_shader.bin\t1\tvertex\tk4\ts\n").getBytes(StandardCharsets.UTF_8));
+                    + "cs_shader.bin\t0\tcompute\tk3\ts\nvs_shader.bin\t1\tvertex\tk4\ts\nps_other.bin\t3\tpixel\tk1\ts\nvs_short.bin\t0\tvertex\tk5\n")
+                    .getBytes(StandardCharsets.UTF_8));
             int[] m = Eta.shaderMix(f);
             check("mix", m != null && m[0] == 4 && m[1] == 2, "got " + Arrays.toString(m));
             Files.write(f.toPath(), "package\tindex\n".getBytes(StandardCharsets.UTF_8));
-            check("mix", Eta.shaderMix(f) == null, "a map without a stage column");
+            check("mix", Eta.shaderMix(f) == null, "a map without shaders");
         } finally {
             f.delete();
         }
         ok("mix");
+    }
+
+    /** Totals of 0, or a count past its total: nothing to go on, no estimate (the fixed figures alone are no estimate of this job) */
+    static void zero() {
+        Run r = new Run(new Eta(42346, 42346, S));
+        r.e.running(true, r.now);
+        r.e.step(SPLIT, r.now);
+        double t = translate(r, 0, 0, 400, 0, x -> 1, SPLIT, "");
+        check("zero", r.min() == -1, "the split's scan of 0: " + r.min());
+        r.e.step(SHADERS, r.now);
+        t = translate(r, t, 0, 4000, 0, x -> 10, SHADERS, "translate");
+        check("zero", r.min() == -1, "a translation of 0: " + r.min());
+        Run q = new Run(new Eta(1000, 1000, S));
+        q.e.running(true, q.now);
+        q.e.step(SHADERS, q.now);
+        double u = translate(q, 0, 0, 1000, 1000, x -> 2, SHADERS, "translate");
+        translate(q, u, 1000, 1640, 1000, x -> 2, SHADERS, "translate");
+        check("zero", q.min() == -1, "a count past its total: " + q.min());
+        ok("zero");
+    }
+
+    /** A trickle (64 shaders every 170 s): a true figure of many hours is no use to anyone, so none above Eta.MAX_S */
+    static void trickle() {
+        Run r = new Run(new Eta(42346, 42346, S));
+        r.e.running(true, r.now);
+        r.e.step(SHADERS, r.now);
+        translate(r, 0, 0, 64 * 12, 42346, x -> 64 / 170.0, SHADERS, "translate");
+        check("trickle", r.min() == -1, "a trickle's estimate: " + r.min() + " minutes");
+        ok("trickle");
+    }
+
+    /** A full build whose total is not the profile map's count: Eta says so once (PackService logs it) and counts every shader alike */
+    static void unweighted() {
+        Eta e = new Eta(1200, 1200, S);
+        e.mix(new int[] {1000, 600});
+        e.running(true, 0);
+        e.step(SHADERS, 0);
+        boolean first = e.progress(SHADERS, 0, 1200, "translate", 0), second = e.progress(SHADERS, 64, 1200, "translate", 1000);
+        check("unweighted", first && !second, "told " + first + ", then " + second);
+        Eta f = new Eta(1000, 1000, S);
+        f.mix(new int[] {1000, 600});
+        f.running(true, 0);
+        f.step(SHADERS, 0);
+        check("unweighted", !f.progress(SHADERS, 0, 1000, "translate", 0), "a full build of the map's count");
+        Eta g = new Eta(300, 1000, S);
+        g.mix(new int[] {1000, 600});
+        g.running(true, 0);
+        g.step(SHADERS, 0);
+        check("unweighted", !g.progress(SHADERS, 0, 300, "translate", 0), "an update (fewer shaders than the map)");
+        ok("unweighted");
+    }
+
+    /**
+     * The translation's own rate takes over from the fixed figure (here 5 a second, against Eta.SHADER_S's 11.6): the shown time follows it over the smoothing's
+     * minutes, never in one jump between two of the service's 10 s asks
+     */
+    static void takeover() {
+        Run r = new Run(new Eta(20000, 20000, S));
+        r.e.running(true, r.now);
+        r.e.step(SPLIT, r.now);
+        double t = translate(r, 0, 0, 30000, 30000, x -> 100, SPLIT, "");   // a measured split: the fixed figures stand in at the shaders step's start
+        check("takeover", r.min() > 0, "no estimate at the split's end");
+        r.e.step(SHADERS, r.now);
+        r.e.progress(SHADERS, 0, 20000, "translate", r.now);
+        double prev = r.sec(), worst = 0;
+        long d = 0;
+        for (double x = t + 10; x < t + 600; x += 10) {
+            while (d < 20000 && t + 10 + (d + 64) / 5.0 <= x) { d += 64; r.at(t + 10 + d / 5.0); r.e.progress(SHADERS, d, 20000, "translate", r.now); }
+            r.at(x);
+            double s = r.sec();
+            check("takeover", !Double.isNaN(s), "no estimate at " + (x - t) + " s");
+            worst = Math.max(worst, Math.abs(s - prev) / prev);
+            prev = s;
+        }
+        check("takeover", worst <= 0.2, String.format(Locale.ROOT, "the estimate moved %.0f %% between two asks", 100 * worst));
+        double want = (20000 - d) / 5.0 + lib(20000) + pack();
+        check("takeover", near(prev, want, 0.1), "after 10 minutes " + prev + " s, want " + want);
+        ok("takeover");
+    }
+
+    /** A trace's events: {seconds, step, done, total} and the stage */
+    private record Ev(double t, int step, String stage, long done, long total) {}
+
+    /** The trace as the tool prints it: the translation's 30 s samples filled in with a line every 64 shaders (vk_android_build.py BATCH), at the sample's rate */
+    static List<Ev> fine(List<String> lines) {
+        List<String> steps = Arrays.asList("identify", "rewrite", "split", "shaders", "pack");
+        List<Ev> ev = new ArrayList<>(), out = new ArrayList<>();
+        for (String l : lines) {
+            if (l.startsWith("#") || l.isEmpty() || l.startsWith("end") || l.startsWith("mix") || l.startsWith("build")) continue;
+            String[] c = l.trim().split("\\s+");
+            ev.add(new Ev(Double.parseDouble(c[0]), steps.indexOf(c[1]), c[2].equals("-") ? "" : c[2], Long.parseLong(c[3]), Long.parseLong(c[4])));
+        }
+        for (int k = 0; k < ev.size(); k++) {
+            Ev b = ev.get(k);
+            Ev a = k > 0 ? ev.get(k - 1) : null;
+            if (a != null && b.stage().equals("translate") && a.stage().equals("translate") && a.total() == b.total() && b.done() > a.done()) {
+                for (long d = (a.done() / 64 + 1) * 64; d < b.done(); d += 64)
+                    out.add(new Ev(a.t() + (b.t() - a.t()) * (d - a.done()) / (b.done() - a.done()), b.step(), b.stage(), d, b.total()));
+            }
+            out.add(b);
+        }
+        return out;
+    }
+
+    static double end(List<String> lines) {
+        for (String l : lines) if (l.startsWith("end")) return Double.parseDouble(l.trim().split("\\s+")[1]);
+        throw new IllegalStateException("no end line");
+    }
+
+    /** An Eta for the trace's run: its "build" line gives an older build's figures (seconds a shader, a library entry, the pack's ms), else the current ones */
+    static Eta etaOf(List<String> lines, int[] mx) {
+        for (String l : lines)
+            if (l.startsWith("build")) {
+                String[] c = l.trim().split("\\s+");
+                return new Eta(mx[0], mx[0], Double.parseDouble(c[1]), Double.parseDouble(c[2]), Long.parseLong(c[3]));
+            }
+        return new Eta(mx[0], mx[0], S);
+    }
+
+    /** The trace's "mix" line: the map's shaders (also the library's entries) and its non-vertex shaders */
+    static int[] mixOf(List<String> lines) {
+        for (String l : lines) if (l.startsWith("mix")) { String[] c = l.trim().split("\\s+"); return new int[] {Integer.parseInt(c[1]), Integer.parseInt(c[2])}; }
+        throw new IllegalStateException("no mix line");
+    }
+
+    /**
+     * The trace at the tool's own cadence with a gap at 40 minutes, in the translation's first phase: no line for gap seconds while the job runs (a stall), or,
+     * with pause, the job paused for gap seconds and then the tool's restart: its first line at once, its first batch after setup seconds. Returns the worst
+     * error of the estimate against the true time left in the 15 minutes after the gap (a gap of 0: the same minutes of the run without one), and checks that the shown minutes never
+     * rise by more than one rounding step from one ask to the next
+     */
+    static double gap(List<String> lines, String name, double gap, boolean pause, double setup) {
+        List<Ev> ev = fine(lines);
+        double at = 2400, shift = gap + (pause ? setup : 0), end = end(lines) + shift;
+        int[] mx = mixOf(lines);
+        Run r = new Run(etaOf(lines, mx));
+        r.e.running(true, r.now);
+        int k = 0, step = -1, last = -1;
+        long lastDone = 0;
+        boolean paused = false, resumed = false;
+        double worst = 0;
+        String rise = null;
+        for (double t = 0; t < end; t += 10) {
+            while (k < ev.size()) {
+                Ev e = ev.get(k);
+                double et = e.t() < at ? e.t() : e.t() + shift;
+                if (pause && !paused && t >= at) {   // the user pauses: the worker stops at once
+                    paused = true;
+                    r.at(at);
+                    r.e.running(false, r.now);
+                }
+                if (pause && paused && !resumed && t >= at + gap) {   // resumed: the worker starts the step again, the tool prints its first line at once
+                    resumed = true;
+                    r.at(at + gap);
+                    r.e.running(true, r.now);
+                    r.e.step(SHADERS, r.now);
+                    r.e.progress(SHADERS, lastDone, mx[0], "translate", r.now);
+                }
+                if (et > t) break;
+                k++;
+                r.at(et);
+                if (e.step() != step) {
+                    step = e.step();
+                    r.e.step(step, r.now);
+                    if (step == SHADERS) r.e.mix(mx);
+                }
+                r.e.progress(e.step(), e.done(), e.total(), e.stage(), r.now);
+                if (e.step() == SHADERS) lastDone = e.done();
+            }
+            r.at(t);
+            int m = r.min();
+            double s = r.e.lastSeconds(), truth = end - t;
+            // (the job truly lost the stall's time: the shown minutes may rise by that much after it, else by one rounding step at most)
+            if (m >= 0 && last >= 0 && m > last + Math.max(last < 20 ? 1 : 5, (int) Math.ceil(pause ? 0 : gap / 60)) && rise == null) rise = last + " -> " + m + " at " + t + " s";
+            if (m >= 0) last = m;
+            if (m >= 0 && t >= at + shift && t < at + shift + 900) worst = Math.max(worst, Math.abs(s - truth) / truth);
+        }
+        String what = String.format(Locale.ROOT, "%s %s %.0f s%s", name, pause ? "pause" : "stall", gap, pause ? String.format(Locale.ROOT, " + %.0f s set-up", setup) : "");
+        check("gap", rise == null, what + ": the shown minutes rose " + rise);
+        System.out.println(String.format(Locale.ROOT, "gap %s: worst error after it %.1f %%", what, 100 * worst));
+        return worst;
+    }
+
+    /**
+     * Gaps in the progress at the tool's real cadence (a line every 64 shaders): stalls of 90 s, 150 s, 4 and 10 minutes, and a pause of an hour with the
+     * tool's 70 s set-up after it. The estimate after the gap stays as near as it is without one (no rate measured across idle time)
+     */
+    static void hostile(File f, String name) throws IOException {
+        List<String> lines = Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
+        double none = gap(lines, name, 0, false, 0);
+        for (double g : new double[] {90, 150, 240, 600}) {
+            double w = gap(lines, name, g, false, 0);
+            check("gap", w <= none + 0.05, String.format(Locale.ROOT, "%s stall %.0f s: worst error %.1f %%, %.1f %% without one", name, g, 100 * w, 100 * none));
+        }
+        double w = gap(lines, name, 3600, true, 70);
+        check("gap", w <= none + 0.05, String.format(Locale.ROOT, "%s pause: worst error %.1f %%, %.1f %% without one", name, 100 * w, 100 * none));
+        ok("gaps " + name);
     }
 
     /**
@@ -298,13 +560,14 @@ public final class EtaJvmTest {
         double end = -1;
         List<String[]> ev = new ArrayList<>();
         for (String l : lines) {
-            if (l.startsWith("#") || l.isEmpty()) continue;
+            if (l.startsWith("#") || l.isEmpty() || l.startsWith("mix") || l.startsWith("build")) continue;
             String[] c = l.trim().split("\\s+");
             if (c[0].equals("end")) end = Double.parseDouble(c[1]);
             else ev.add(c);
         }
+        int[] mx = mixOf(lines);
         List<String> steps = Arrays.asList("identify", "rewrite", "split", "shaders", "pack");
-        Run r = new Run(new Eta(42346, 42346, S));
+        Run r = new Run(etaOf(lines, mx));
         r.e.running(true, r.now);
         int k = 0, step = -1, shown = 0, asked = 0, ups = 0, last = -1;
         double worstAt = -1;
@@ -320,7 +583,7 @@ public final class EtaJvmTest {
                 if (i != step) {
                     step = i;
                     r.e.step(i, r.now);
-                    if (i == SHADERS) r.e.mix(new int[] {42346, 26494});   // the split's map: 15,852 of the 42,346 are vertex shaders
+                    if (i == SHADERS) r.e.mix(mx);   // the profile's map: 15,852 vertex shaders
                 }
                 r.e.progress(i, Long.parseLong(c[3]), Long.parseLong(c[4]), c[2].equals("-") ? "" : c[2], r.now);
             }

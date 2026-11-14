@@ -2,8 +2,11 @@
 # Eta.java gets it, for dm/tools/tests/test_android_eta.py's replay. Timestamps and counts only.
 # Lines: <seconds since the job started> <step> <stage, - for none> <done> <total>. The counted parts are the job.json samples taken every 30 s
 # (split scan, translation); the steps' and stages' starts are from the step logs and logcat. The translation ran its 26,494 non-vertex shaders first, then
-# its 15,852 vertex shaders. "end": the job was done.
+# its 15,852 vertex shaders. "end": the job was done; "mix": the shaders and non-vertex shaders of the map; "build": this build's figures for
+# Eta, measured on this run (seconds a shader, seconds a library entry, the pack and its cleanup in ms; the current build is faster at all three).
 end 4614.1
+mix 42346 26494
+build 0.086 0.0053 128000
 0.0 identify identify 1 1
 0.3 rewrite main 0 3
 164.1 split main 0 1

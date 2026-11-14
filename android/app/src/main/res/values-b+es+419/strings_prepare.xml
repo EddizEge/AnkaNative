@@ -31,7 +31,7 @@
         <item quantity="other">Quedan unas %1$d horas</item>
     </plurals>
     <plurals name="prepare_eta_hours_minutes">
-        <item quantity="one">Queda alrededor de %1$d hora y %2$d minutos</item>
+        <item quantity="one">Quedan alrededor de %1$d hora y %2$d minutos</item>
         <item quantity="other">Quedan unas %1$d horas y %2$d minutos</item>
     </plurals>
     <string name="prepare_button_pause">Pausar</string>

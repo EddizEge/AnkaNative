@@ -12,27 +12,32 @@ import java.util.ArrayDeque;
  * minutes to show on the launcher's Preparing card and in the notification. It estimates the whole job from the step in hand to the end, never only that step.
  * <p>
  * Running time only: the clock runs while the service's worker runs the job ({@link #running}); a pause, a wait for the battery or the heat, and a dead service
- * add nothing. After a resume or a new process the first progress line is a baseline: shaders translated before it are not work done in this run.
+ * add nothing. After a resume or a new process the first progress line is a baseline: shaders translated before it are not work done in this run, and the first
+ * step forward after it starts the timing again (the tool's set-up before it, a minute or so of workers and checks, is no translating).
  * <p>
  * Each part of the job is one of:
  * <ul>
- * <li>counted: the split's scan of the dump's files and the shaders step's "translate" stage. Its rate is the work done in the last {@link #WINDOW_MS} of running
+ * <li>counted: the split's scan of the dump's files and the shaders step's "translate" stage. Its rate is the work done in the last {@link #WINDOW_MS} of working
  *     time, so it follows a phone that heats up and throttles (the POCO F8 Pro's cores fell to 1.4 GHz and phase 1 from 9.9 to 8.6 shaders a second), and the
- *     finish time is smoothed over {@link #SMOOTH_MS} so it does not jump with each line. The translation runs the non-vertex shaders first and the vertex ones
- *     after them (vk_android_build.py's two phases); a vertex shader counts as {@link #VERTEX_COST} of another (21 against 9.3 a second on that phone), when the
- *     split's shader_map.tsv gives the count of each ({@link #shaderMix}) and the tool translates all of them (a full build);</li>
+ *     finish time is smoothed over {@link #SMOOTH_MS} so it does not jump with each line. Working time is running time with each gap between two steps forward
+ *     cut to a few of the usual gaps ({@link #GAP_LINES}): a stall, or a phone that sleeps while the job runs, is not slow work. The translation runs the
+ *     non-vertex shaders first and the vertex ones after them (vk_android_build.py's two phases); a vertex shader counts as {@link #VERTEX_COST} of another,
+ *     when the profile's shader_map.tsv, which the tool takes its shaders from, gives the count of each ({@link #shaderMix}) and the tool translates all of
+ *     them (a full build; its total is then the map's count);</li>
  * <li>timed: the shaders step's "library" and "check" stages (no count: the library is written from every result, then read back) and the pack step with the
  *     job's cleanup after it: a fixed time each, counted down;</li>
  * <li>unknown: identify, the rewrite (three modules of very different sizes) and the split's start before its scan ("main"): no estimate.</li>
  * </ul>
- * The steps still to come are added from what is known: the shaders after a split at {@code shaderS} each (the launcher's own figure, ShaderLibs.SHADER_S_HI),
- * the library at {@link #LIBRARY_S} an entry and the pack at {@link #PACK_MS}. A counted part says nothing until it has its own measurement ({@link #MIN_MS} of
- * running time with progress, or {@link #MIN_SMALL_MS} and {@link #MIN_SMALL_SHARE} of it for a small job such as a shader update), unless an earlier part of
- * this run had one: then the fixed figure stands in meanwhile. It says nothing either when progress stalls ({@link #STALL_MS}), when a part's total changes or
- * its count goes back, or when a timed part runs over its time: no estimate rather than a wrong one.
+ * The steps still to come are added from what is known: the shaders after a split at {@code shaderS} each ({@link #SHADER_S}), the library at
+ * {@link #LIBRARY_S} an entry and the pack at {@link #PACK_MS}; a timed part that runs past its figure says {@link #LATE_S} more until it has taken twice it.
+ * A counted part says nothing until it has its own measurement ({@link #MIN_MS} of running time with progress, or {@link #MIN_SMALL_MS} and
+ * {@link #MIN_SMALL_SHARE} of it for a small job such as a shader update), unless an earlier part of this run had one: then the fixed figure stands in
+ * meanwhile. It says nothing either when progress stalls ({@link #STALL_MS}), when a part's total is 0, changes or is passed, or its count goes back, when a
+ * timed part has taken twice its figure, or when more than {@link #MAX_S} is left: no estimate rather than a wrong or useless one.
  * <p>
- * The constants were picked by replaying the two full Prepares measured on the POCO F8 Pro on 2026-11-14 (dm/tools/tests/test_android_eta.py, the trace in
- * android/app/src/jvmtest/prepare-eta-6w.trace.txt). No Android classes: the JVM test runs it.
+ * The figures are the POCO F8 Pro's on the current build (work/big at 7a33169, 2026-11-14 15:16, 6 workers: android/app/src/jvmtest/prepare-eta-6w-current.trace.txt);
+ * dm/tools/tests/test_android_eta.py replays that run and the morning's two (6 and 8 workers, results on shared storage), also with stalls and a pause put in.
+ * No Android classes: the JVM test runs it.
  */
 final class Eta {
     /** The window of running time the rate is measured over */
@@ -47,14 +52,34 @@ final class Eta {
     /** The finish time follows a new estimate with this time constant */
     static final long SMOOTH_MS = 2 * 60_000L;
     /**
-     * A vertex shader's translation time against a non-vertex one's: 0.43 with 6 workers (9.3 against 21.5 a second), 0.67 with 8, whose vertex phase was held up
-     * by I/O. Of 0.43, 0.5, 0.6 and 0.67 replayed on both traces, 0.5 had the smallest mean error on the 6-worker run (the default; 0.6 on the 8-worker one)
+     * The rate is measured over working time: a gap between two steps forward adds at most GAP_LINES times the window's usual gap between lines to it (and at
+     * least GAP_MIN_MS, GAP_START_MS before the window has its usual gap), so a pause in the progress that the job does not know of (a phone that sleeps, a tool
+     * that waits) does not count as slow work. The translation's longest real gap, its vertex phase's set-up, was about 40 s with a line every 6-7 s
      */
-    static final double VERTEX_COST = 0.5;
-    /** The library's write and check, seconds per entry of the library (all of the game's shaders, also for an update): 3.8-4.2 min for 42,346 on the phone */
-    static final double LIBRARY_S = 0.006;
-    /** The pack step and the job's cleanup after it: 2 min 8 s and 2 min 12 s on the phone */
-    static final long PACK_MS = 120_000L;
+    static final double GAP_LINES = 4;
+    static final long GAP_MIN_MS = 20_000L, GAP_START_MS = 60_000L;
+    /** More than this left: no estimate (a trickle of progress gives a true but useless figure of many hours) */
+    static final double MAX_S = 10 * 3600;
+    /**
+     * A vertex shader's translation time against a non-vertex one's: 0.37-0.40 with 6 workers on the build with the results in the app's storage (10-11 against
+     * about 28 a second), 0.43 with 6 and 0.67 with 8 when they were on shared storage (8 workers' vertex phase was held up by I/O). Replayed on the current
+     * build's run (android/app/src/jvmtest/prepare-eta-6w-current.trace.txt), 0.35, 0.4, 0.45 and 0.5 had mean errors of 6.2, 6.8, 11.2 and 15.8 %
+     */
+    static final double VERTEX_COST = 0.4;
+    /**
+     * The library's write and check, seconds per entry of the library (all of the game's shaders, also for an update): 50-60 s for 42,854 on the phone with the
+     * results in the app's storage (work/big at 7a33169, 2026-11-14 15:16; 3.8-4.2 min when they were on shared storage)
+     */
+    static final double LIBRARY_S = 0.0013;
+    /** The pack step and the job's cleanup after it: 6.9 s on the phone, the same run (2 min 8 s and 2 min 12 s when the results were on shared storage) */
+    static final long PACK_MS = 10_000L;
+    /** A timed part that runs over its figure says this much is left (at most its figure) until it has taken twice its figure */
+    static final double LATE_S = 30;
+    /**
+     * A shader's translation before the translation has its own rate (the shaders after a split, the translation's first minutes), seconds, both phases and the
+     * set-up: 3,011 s for 42,854 on the phone, the same run (70 ms; 86 and 95 ms with 6 and 8 workers when the results were on shared storage)
+     */
+    static final double SHADER_S = 0.070;
 
     static final int SPLIT = 2, SHADERS = 3, PACK = 4;   // Job.STEPS' indexes
 
@@ -63,8 +88,9 @@ final class Eta {
     /** Shaders the job's shaders step translates, as known before it says (the update's count, else the game's), its library's entries, the seconds a shader */
     private int shaders;
     private final int library;
-    private final double shaderS;
-    /** The split's map: its rows and the non-vertex shaders among them (-1: not known) */
+    private final double shaderS, libraryEntryS;
+    private final long packMs;
+    /** The profile's map: its shaders and the non-vertex shaders among them (-1: not known) */
     private int mapRows = -1, slow = -1;
 
     private boolean running;
@@ -79,9 +105,16 @@ final class Eta {
     private double lastUnits, work;
     private int increments;
     private long firstInc = -1, lastInc;
+    /** The working-time clock the samples are taken on (ms), and the running time it last caught up with (the last sample, or a baseline) */
+    private double workMs;
+    private long lastWorkAt;
+    /** After a baseline, until the first step forward: that step's work began before it could be timed (the tool's set-up), so it starts the timing again */
+    private boolean awaiting = true;
     private final ArrayDeque<double[]> samples = new ArrayDeque<>();
     /** The part's total changed or its count went back: no estimate until it has its own rate again */
     private boolean disturbed;
+    /** progress() said that this part's vertex shaders cannot be weighted */
+    private boolean told;
     /** A counted part of this run had its own rate, or the library was reached: the fixed figures may stand in */
     private boolean known;
     private double finish = Double.NaN;
@@ -89,33 +122,39 @@ final class Eta {
     private int shown = -1;
 
     /** shaders: what the shaders step will translate as far as known; library: the entries of the library it writes; shaderS: seconds a shader before measuring */
-    Eta(int shaders, int library, double shaderS) {
+    Eta(int shaders, int library, double shaderS) { this(shaders, library, shaderS, LIBRARY_S, PACK_MS); }
+
+    /** …with another build's library and pack figures (the JVM test's replay of a run on an older build) */
+    Eta(int shaders, int library, double shaderS, double libraryEntryS, long packMs) {
         this.shaders = Math.max(0, shaders);
         this.library = Math.max(0, library);
         this.shaderS = shaderS;
+        this.libraryEntryS = libraryEntryS;
+        this.packMs = packMs;
     }
 
-    /** The split's shader_map.tsv: {rows, non-vertex rows} (the "stage" column), null when it has no such column or a row lacks it */
+    /**
+     * The profile's shader_map.tsv, the table vk_android_build.py takes its shaders from: {shaders, non-vertex shaders}, as the tool counts them (its "loc" and
+     * STAGE_OF): a row of more than four columns whose package file ends in .bin is a shader, each key (the fourth column) once, at its first row; a vertex shader
+     * is one whose package file's name starts with "vs". null when the map has no shader
+     */
     static int[] shaderMix(File map) throws IOException {
         try (BufferedReader r = Files.newBufferedReader(map.toPath(), StandardCharsets.UTF_8)) {
-            int rows = 0, slow = 0, col = -1;
+            java.util.HashSet<String> keys = new java.util.HashSet<>();
+            int slow = 0;
             for (String l; (l = r.readLine()) != null; ) {
-                if (l.isEmpty() || l.startsWith("#")) continue;
-                String[] c = l.split("\t");
-                if (col < 0) {   // the header row names the columns
-                    col = java.util.Arrays.asList(c).indexOf("stage");
-                    if (col < 0) return null;
-                    continue;
-                }
-                if (c.length <= col) return null;
-                rows++;
-                if (!c[col].equals("vertex")) slow++;
+                String[] c = l.split("\t", -1);
+                if (c.length <= 4 || !c[0].endsWith(".bin") || !keys.add(c[3])) continue;
+                if (!c[0].startsWith("vs")) slow++;
             }
-            return col < 0 ? null : new int[] {rows, slow};
+            return keys.isEmpty() ? null : new int[] {keys.size(), slow};
         }
     }
 
-    /** The split's map as shaderMix read it: the translation's two phases are weighted when the tool translates every row of it */
+    /**
+     * The profile's map as shaderMix read it: the translation's two phases are weighted when the tool translates every shader of it (a full build; its total
+     * is then the map's count). An update, which translates only some, counts every shader alike
+     */
     synchronized void mix(int[] m) {
         if (m == null) { mapRows = slow = -1; return; }
         mapRows = m[0];
@@ -124,7 +163,7 @@ final class Eta {
 
     private void clock(long now) {
         if (running && now > lastNow) runMs += now - lastNow;
-        lastNow = now;
+        lastNow = Math.max(lastNow, now);   // a caller's time read before it took the lock may be older than the last one: no interval twice
     }
 
     /**
@@ -135,6 +174,7 @@ final class Eta {
         clock(now);
         if (on && !running) {
             baseline = true;
+            awaiting = true;
             finish = Double.NaN;
             shown = -1;
             lastInc = runMs;
@@ -148,6 +188,7 @@ final class Eta {
         String s = i == SHADERS ? "translate" : i == SPLIT ? "main" : "";
         if (i == step && kindOf(i, s) == kind && kind == Kind.COUNTED) {
             baseline = true;
+            awaiting = true;
             lastInc = runMs;
             phaseStart = runMs;
             return;
@@ -155,13 +196,16 @@ final class Eta {
         enter(i, s);
     }
 
-    /** A progress line of step i: its count, total and stage (the tools' "progress" lines) */
-    synchronized void progress(int i, long d, long t, String st, long now) {
+    /**
+     * A progress line of step i: its count, total and stage (the tools' "progress" lines). true once a part when the translation's total is the whole game's
+     * (a full build) but not the profile map's count, so its vertex shaders cannot be weighted: the caller logs it
+     */
+    synchronized boolean progress(int i, long d, long t, String st, long now) {
         clock(now);
         String s = st == null ? "" : st;
         if (i != step || kindOf(i, s) != kind || kind == Kind.UNKNOWN && !s.equals(stage)) enter(i, s);
         stage = s;
-        if (kind != Kind.COUNTED) return;
+        if (kind != Kind.COUNTED) return false;
         if (started && (t != total || d < done)) {   // another total (a new run of the part), or the count went back: start over, say nothing meanwhile
             disturbed = true;
             baseline = true;
@@ -169,28 +213,44 @@ final class Eta {
             samples.clear();
             work = 0;
             increments = 0;
+            told = false;
         }
         started = true;
         done = d;
         total = t;
+        boolean unweighted = false;
+        if (!told && step == SHADERS && mapRows >= 0 && t != mapRows && (t == library || t > mapRows)) told = unweighted = true;
         double u = units(d);
         if (baseline) {   // the first line of the part or of this run: what was done before is not this run's work
             baseline = false;
+            awaiting = true;
             lastUnits = u;
             lastInc = runMs;
-            return;
+            lastWorkAt = runMs;   // the time since the last sample (a pause's start, a resumed tool's set-up) is no working time
+            return unweighted;
         }
-        if (u <= lastUnits) return;
-        if (firstInc < 0) {   // the first step forward: its work began before we could time it (a worker's set-up), so the rate starts here
-            firstInc = runMs;
+        if (u <= lastUnits) return unweighted;
+        if (awaiting) {   // the first step forward after a baseline: its work began before it could be timed (the tool's set-up), so the timing starts again here
+            awaiting = false;
+            if (firstInc < 0) firstInc = runMs;
+            if (samples.isEmpty()) samples.addLast(new double[] {workMs, work});
         } else {
+            workMs += Math.min(runMs - lastWorkAt, gapCap());
             work += u - lastUnits;
             increments++;
+            samples.addLast(new double[] {workMs, work});
+            while (samples.size() > 2 && samples.peekFirst()[0] < workMs - WINDOW_MS && secondTime() <= workMs - WINDOW_MS) samples.removeFirst();
         }
         lastUnits = u;
         lastInc = runMs;
-        samples.addLast(new double[] {runMs, work});
-        while (samples.size() > 2 && samples.peekFirst()[0] < runMs - WINDOW_MS && secondTime() <= runMs - WINDOW_MS) samples.removeFirst();
+        lastWorkAt = runMs;
+        return unweighted;
+    }
+
+    /** The most a gap between two steps forward adds to the working time: GAP_LINES times the window's mean gap, at least GAP_MIN_MS (GAP_START_MS at first) */
+    private double gapCap() {
+        if (samples.size() < 3) return GAP_START_MS;
+        return Math.max(GAP_MIN_MS, GAP_LINES * (samples.peekLast()[0] - samples.peekFirst()[0]) / (samples.size() - 1));
     }
 
     private double secondTime() {
@@ -215,8 +275,11 @@ final class Eta {
         total = -1;
         started = false;
         baseline = true;
+        awaiting = true;
+        told = false;
         firstInc = -1;
         lastInc = runMs;
+        lastWorkAt = runMs;
         work = 0;
         increments = 0;
         samples.clear();
@@ -230,24 +293,34 @@ final class Eta {
         return slow + (d - slow) * VERTEX_COST;
     }
 
-    private double libraryS() { return library * LIBRARY_S; }
+    private double libraryS() { return library * libraryEntryS; }
+
+    /**
+     * A timed part's seconds left: its budget counted down, then, once it runs over, LATE_S (at most the budget) until it has taken twice its budget (and at
+     * least a minute more): a part a little slower than its figure says "a moment more", one far slower says nothing
+     */
+    private static double timed(double budget, double el) {
+        if (el > Math.max(2 * budget, budget + 60)) return Double.NaN;
+        return Math.max(budget - el, Math.min(budget, LATE_S));
+    }
 
     /** Seconds left in the whole job, unsmoothed; NaN for none */
     private double raw() {
         if (!running) return Double.NaN;
         long sinceInc = runMs - Math.max(lastInc, phaseStart);
+        double packS = packMs / 1000.0;
         switch (kind) {
             case LIBRARY: {
-                double el = (runMs - phaseStart) / 1000.0;
-                return el > libraryS() ? Double.NaN : libraryS() - el + PACK_MS / 1000.0;
+                double lib = timed(libraryS(), (runMs - phaseStart) / 1000.0);
+                return lib + packS;
             }
             case PACK: {
                 if (!known) return Double.NaN;
-                long el = runMs - phaseStart;
-                return el > PACK_MS ? Double.NaN : (PACK_MS - el) / 1000.0;
+                return timed(packS, (runMs - phaseStart) / 1000.0);
             }
             case COUNTED: {
                 if (sinceInc > STALL_MS) return Double.NaN;
+                if (started && (total <= 0 || done > total)) return Double.NaN;   // no count to go on
                 double rest;
                 long span = firstInc < 0 ? 0 : runMs - firstInc;
                 boolean own = increments >= 3 && (span >= MIN_MS || span >= MIN_SMALL_MS && work >= MIN_SMALL_SHARE * units(Math.max(total, 0)));
@@ -255,14 +328,17 @@ final class Eta {
                     double[] a = samples.peekFirst(), b = samples.peekLast();
                     double rate = (b[1] - a[1]) / Math.max(1.0, (b[0] - a[0]) / 1000.0);
                     if (rate <= 0) return Double.NaN;
-                    rest = Math.max(0, (units(total) - units(done)) / rate - (runMs - b[0]) / 1000.0);
+                    // the time since the last step forward counts down, as working time: not past the gap's cap, and not while a tool sets up after a baseline
+                    double since = awaiting || baseline ? 0 : Math.min(runMs - lastWorkAt, gapCap()) / 1000.0;
+                    rest = Math.max(0, (units(total) - units(done)) / rate - since);
                     known = true;
                 } else if (known && !disturbed && step == SHADERS) {   // the translation's start: the launcher's figure until its own rate
                     long t = started ? total : shaders;
                     rest = Math.max(0, t - (started ? done : 0)) * shaderS;
                 } else return Double.NaN;
                 if (step == SPLIT) rest += shaders * shaderS;
-                return rest + libraryS() + PACK_MS / 1000.0;
+                rest += libraryS() + packS;
+                return rest > MAX_S ? Double.NaN : rest;
             }
             default:
                 return Double.NaN;
@@ -297,6 +373,9 @@ final class Eta {
 
     synchronized double lastSeconds() { return lastSeconds; }
 
+    /** The running time counted so far (ms): the JVM test checks the clock */
+    synchronized long runMs() { return runMs; }
+
     /** The shaders the shaders step translates, once known better (the tool's own total) */
     synchronized void shaders(int n) { if (n >= 0) shaders = n; }
 
@@ -304,8 +383,8 @@ final class Eta {
      * Seconds as minutes to show: 0 under a minute, whole minutes under 20 (at least 1), then multiples of 5 (an hour and more is said as hours and minutes)
      */
     static int round(double s) {
-        if (s < 60) return 0;
-        double m = s / 60;
+        if (!(s >= 60)) return 0;
+        double m = Math.min(s, MAX_S) / 60;   // (no int overflow; raw() gives nothing above MAX_S)
         if (m < 19.5) return (int) Math.max(1, Math.round(m));
         return (int) Math.round(m / 5) * 5;
     }

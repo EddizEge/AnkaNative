@@ -90,7 +90,8 @@ public final class PackService extends Service {
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (worker == null) return;
-            publish(job, false);
+            Job j = job;
+            if (j != null && "running".equals(j.state())) publish(j, false);   // a wait for the battery or the heat has no time left to show: its notification stands
             main.postDelayed(this, TICK_MS);
         }
     };
@@ -405,7 +406,7 @@ public final class PackService extends Service {
         int all = p != null ? p.shaderTotal : (int) Math.max(0, j.shadersTotal());
         long told = j.stepTotal(Job.SHADERS);
         int delta = told > 1 ? -1 : Pack.deltaShaders(j.pack(), j.titleId());
-        eta = new Eta(told > 1 ? (int) told : delta >= 0 ? delta : all, all, ShaderLibs.SHADER_S_HI);
+        eta = new Eta(told > 1 ? (int) told : delta >= 0 ? delta : all, all, Eta.SHADER_S);
         etaKey = key;
         return eta;
     }
@@ -487,15 +488,16 @@ public final class PackService extends Service {
                 if (bad != null) return bad;
                 bad = resultsRoom(xlate);
                 if (bad != null) return bad;
-                // the time left weighs the translation's two phases (non-vertex shaders, then vertex ones) by the split's map
+                // the time left weighs the translation's two phases (non-vertex shaders, then vertex ones) by the profile's map, the one the tool takes its
+                // shaders and its total from (a delta split's own map lists only the files it read)
                 Eta est = eta;
                 if (est != null) {
                     int[] mix = null;
                     try {
-                        mix = Eta.shaderMix(new File(split, "shader_map.tsv"));
-                        if (mix == null) Log.w(TAG, "time left: the split's shader_map.tsv has no stage column: every shader counts alike");
+                        mix = Eta.shaderMix(profileMap(j));
+                        if (mix == null) Log.w(TAG, "time left: the profile's shader_map.tsv lists no shader: every shader counts alike");
                     } catch (IOException e) {
-                        Log.w(TAG, "time left: the split's shader_map.tsv: " + e + ": every shader counts alike");   // the estimate still works, a little less well
+                        Log.w(TAG, "time left: the profile's shader_map.tsv: " + e + ": every shader counts alike");   // the estimate still works, a little less well
                     }
                     est.mix(mix);
                 }
@@ -741,7 +743,8 @@ public final class PackService extends Service {
                     long d = Long.parseLong(m.group(1)), t = Long.parseLong(m.group(2));
                     j.stepProgress(step, d, t, m.group(3));
                     Eta est = eta;
-                    if (est != null) est.progress(index, d, t, m.group(3), SystemClock.elapsedRealtime());
+                    if (est != null && est.progress(index, d, t, m.group(3), SystemClock.elapsedRealtime()))
+                        Log.w(TAG, "time left: the translation's total " + t + " is not the profile shader_map.tsv's shader count: its vertex shaders count as much as the others");
                     changed = true;
                 } else if (line.startsWith("[RED] ")) lastRed = line.substring(6);
                 // the tools' word on their subinterpreter workers (vk_android_build.py, shader_split.py): how many, or that they are not usable here and the
@@ -848,7 +851,7 @@ public final class PackService extends Service {
             long d = j.stepDone(i), t = j.stepTotal(i);
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
-            if (etaMin >= 0) {   // the time left beside the step; in full when the notification is expanded
+            if (etaMin >= 0) {   // the time left first, where a collapsed notification's one line keeps it; the step and its count after it, and in full when expanded
                 String left = Eta.text(etaMin).text();
                 b.setContentText(getString(R.string.prepare_note_running_eta, step, left))
                         .setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_running_eta_big, step, left)));

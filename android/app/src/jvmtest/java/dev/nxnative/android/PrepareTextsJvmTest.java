@@ -209,7 +209,7 @@ public final class PrepareTextsJvmTest {
         eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + " %", "prepare_note_step", 3 + 1, 5, 57);
         eq(stepOld + " · " + 57 + " %", "prepare_note_progress", step, 57);
         eq(stepOld + " · " + 57 + " %\n" + "battery below 20 %: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
-        eq(stepOld + " · About 45 minutes left", "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
+        eq("About 45 minutes left · " + stepOld, "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
         eq(stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", step, Msg.plural("prepare_eta_minutes", 45, 45));
 
         // PackService: job.json's errors (English)
