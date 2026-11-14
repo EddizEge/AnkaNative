@@ -15,14 +15,16 @@ package dev.nxnative.android;
  * dump_free_unknown  folder                     the free space beside the dump cannot be read
  * dump_space         GB needed, folder, GB free not enough free space beside the dump
  * dump_not_writable  folder                     the working folder beside the dump cannot be made
+ * results_free_unknown folder                   the free space of the app's own storage (Job.xlate's folder) cannot be read
+ * results_space      GB needed, GB free          not enough free space in the app's own storage for the shaders step's results
  * </pre>
  * The codes are never the packer's (JobErrors.CODES; the JVM test checks): Job asks this class first, then JobErrors.
  */
 final class PrepareErrors {
     /** The codes and their number of arguments, at the same index */
     static final String[] CODES = {"step_killed", "dump_changed", "tool_exit", "tool_exit_red", "compare_failed", "shader_map", "dump_free_unknown", "dump_space",
-            "dump_not_writable"};
-    static final int[] ARGS = {3, 2, 3, 4, 1, 3, 1, 3, 1};
+            "dump_not_writable", "results_free_unknown", "results_space"};
+    static final int[] ARGS = {3, 2, 3, 4, 1, 3, 1, 3, 1, 1, 2};
 
     private PrepareErrors() {}
 
@@ -63,6 +65,8 @@ final class PrepareErrors {
                 case "dump_free_unknown": return new Msg("prepare_dump_free_unknown", a[0]);
                 case "dump_space": return new Msg("prepare_dump_space", Double.parseDouble(a[0]), a[1], Double.parseDouble(a[2]));
                 case "dump_not_writable": return new Msg("prepare_dump_not_writable", a[0]);
+                case "results_free_unknown": return new Msg("prepare_results_free_unknown", a[0]);
+                case "results_space": return new Msg("prepare_error_results_space", Double.parseDouble(a[0]), Double.parseDouble(a[1]), new Msg("prepare_button_retry"));
                 default: return null;
             }
         } catch (NumberFormatException e) {
@@ -70,8 +74,10 @@ final class PrepareErrors {
         }
     }
 
-    /** Whether the code's text is a whole sentence ending in a full stop (DumpCheck's refusals), which the status line takes as it is, else a phrase that it ends */
-    static boolean sentence(String code) { return code.equals("dump_free_unknown") || code.equals("dump_space") || code.equals("dump_not_writable"); }
+    /** Whether the code's text is a whole sentence ending in a full stop (DumpCheck's refusals, PackService's unreadable free space), which the status line takes as it is, else a phrase that it ends */
+    static boolean sentence(String code) {
+        return code.equals("dump_free_unknown") || code.equals("dump_space") || code.equals("dump_not_writable") || code.equals("results_free_unknown");
+    }
 
     /** A step (Job.STEPS' name) in words inside a sentence ("Stopped at checking the dump: …"): a resource of its own, never a heading lower-cased; null for a step this
      *  build does not have */

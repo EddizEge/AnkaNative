@@ -80,14 +80,10 @@
     <string name="prepare_manage_title">Preparando %1$s</string>
     <string name="prepare_button_done">Concluído</string>
     <string name="prepare_forget_title">Esquecer esta tarefa?</string>
-    <string name="prepare_forget_body">Excluído: nada. A tela deixa de mostrar a tarefa.\n\nMantidos: os arquivos dela em %1$s, o pacote, seu dump e seus saves. Escolher o mesmo dump de novo encontra a tarefa.\n\nO progresso guardado da busca pelos shaders (uma cópia no armazenamento do próprio app) é excluído quando começa uma tarefa de outro jogo; até lá, uma busca inacabada continua a partir dele.</string>
     <string name="prepare_button_forget">Esquecer</string>
     <string name="prepare_not_deleted_dump">Não excluído: %1$s contém o seu dump ou está dentro dele.</string>
     <string name="prepare_not_deleted_save">Não excluído: %1$s contém a sua pasta de saves ou está dentro dela.</string>
     <!-- Delete working files: the question's paragraphs (what goes, what stays, what follows) -->
-    <string name="prepare_deleted_work">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados e traduzidos, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders, uma cópia no armazenamento do próprio app</string>
-    <string name="prepare_deleted_work_pack_inside">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados e traduzidos, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders, uma cópia no armazenamento do próprio app com o pacote dentro dela</string>
-    <string name="prepare_deleted_work_and_pack">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados e traduzidos, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders, uma cópia no armazenamento do próprio app\n· o pacote preparado e a biblioteca de shaders dele em %2$s</string>
     <string name="prepare_kept">Mantidos: seu dump (%1$s) e seus saves. Os saves nunca são excluídos aqui.</string>
     <string name="prepare_kept_save">Mantidos: seu dump (%1$s) e seus saves (%2$s). Os saves nunca são excluídos aqui.</string>
     <string name="prepare_kept_pack">Mantidos: seu dump (%1$s), seus saves e o pacote (%2$s). Os saves nunca são excluídos aqui.</string>

@@ -55,6 +55,7 @@ public final class PrepareErrorsJvmTest {
         File log = new File("/storage/emulated/0/Switch/0400486024DEC000-work/ondevice/logs/rewrite.log"), probe = new File("/storage/emulated/0/Switch");
         Msg rewrite = new Msg("prepare_step_rewrite_in_sentence"), identify = new Msg("prepare_step_identify_in_sentence"), shaders = new Msg("prepare_step_shaders_in_sentence");
         Msg retry = new Msg("prepare_button_retry");
+        File xlateDir = new File("/data/user/0/dev.ankanative.android/no_backup/xlate");
         // {the code with its arguments as PackService / DumpCheck pass them, the Msg they built before, the step it fails in}
         Object[][] cases = {
             {PrepareErrors.coded("step_killed", "rewrite", 2, "2.7"), new Msg("prepare_error_step_killed", rewrite, 2, 2.7, retry), rewrite},
@@ -71,6 +72,9 @@ public final class PrepareErrorsJvmTest {
             {PrepareErrors.coded("dump_space", (2048L << 20) / 1073741824.0, probe, 1234567890L / 1073741824.0),
                     new Msg("prepare_dump_space", (2048L << 20) / 1073741824.0, probe, 1234567890L / 1073741824.0), identify},
             {PrepareErrors.coded("dump_not_writable", new File(probe, "0400486024DEC000-work/ondevice")), new Msg("prepare_dump_not_writable", new File(probe, "0400486024DEC000-work/ondevice")), identify},
+            {PrepareErrors.coded("results_free_unknown", xlateDir), new Msg("prepare_results_free_unknown", xlateDir), shaders},
+            {PrepareErrors.coded("results_space", (1164L << 20) / 1073741824.0, 123456789L / 1073741824.0),
+                    new Msg("prepare_error_results_space", (1164L << 20) / 1073741824.0, 123456789L / 1073741824.0, retry), shaders},
         };
         Set<String> seen = new HashSet<>();
         for (Object[] c : cases) {
@@ -95,6 +99,12 @@ public final class PrepareErrorsJvmTest {
         same(PrepareErrors.message("step_killed", new String[] {"rewrite", "2", "2.7"}).english(), "Android stopped rewriting the game code 2 times before it finished, most likely"
                 + " for memory (it needs up to 2.7 GB). Close other apps, then tap Retry", "step_killed's English (reworded 2026-11-14: the step is the object)");
         check(PrepareErrors.message("dump_space", new String[] {"2.0", "/x", "free"}) == null, "a size that is no number");
+        // PackService.resultsRoom's English as work/shader-speed wrote it (String.format, Locale.ROOT), before it became a code
+        same(PrepareErrors.message(PrepareErrors.coded("results_space", (1164L << 20) / 1073741824.0, 123456789L / 1073741824.0)).english(),
+                String.format(Locale.ROOT, "Translating the shaders needs %.1f GB free in the phone's internal storage; it has %.2f GB free. Free some space, then tap Retry",
+                        (1164L << 20) / 1073741824.0, 123456789L / 1073741824.0), "results_space's English");
+        same(PrepareErrors.message(PrepareErrors.coded("results_free_unknown", xlateDir)).english(), "Cannot read the free space of the app's storage (" + xlateDir + ").",
+                "results_free_unknown's English");
         check(PrepareErrors.message((String[]) null) == null && PrepareErrors.message(new String[0]) == null, "nothing stored");
         try {
             PrepareErrors.coded("dump_changed", "only one");

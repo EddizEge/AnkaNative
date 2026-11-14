@@ -69,13 +69,9 @@
     <string name="prepare_manage_title">Preparando %1$s</string>
     <string name="prepare_button_done">Listo</string>
     <string name="prepare_forget_title">¿Olvidar esta preparación?</string>
-    <string name="prepare_forget_body">Se elimina: nada. La pantalla deja de mostrar la preparación.\n\nSe conserva: sus archivos en %1$s, el paquete, tu volcado y tus partidas guardadas. Si vuelves a elegir el mismo volcado, la preparación aparece de nuevo.\n\nEl progreso guardado de la división de shaders (una copia en el almacenamiento propio de la app) se elimina cuando empieza la preparación de otro juego; hasta entonces, una división sin terminar se reanuda desde ahí.</string>
     <string name="prepare_button_forget">Olvidar</string>
     <string name="prepare_not_deleted_dump">No se eliminó: %1$s contiene tu volcado o está dentro de él.</string>
     <string name="prepare_not_deleted_save">No se eliminó: %1$s contiene tu carpeta de partidas o está dentro de ella.</string>
-    <string name="prepare_deleted_work">Se elimina:\n· los archivos de trabajo en %1$s (código reescrito, shaders divididos y traducidos, el progreso de la preparación)\n· el progreso guardado de la división de shaders, una copia en el almacenamiento propio de la app</string>
-    <string name="prepare_deleted_work_pack_inside">Se elimina:\n· los archivos de trabajo en %1$s (código reescrito, shaders divididos y traducidos, el progreso de la preparación)\n· el progreso guardado de la división de shaders, una copia en el almacenamiento propio de la app que contiene el paquete</string>
-    <string name="prepare_deleted_work_and_pack">Se elimina:\n· los archivos de trabajo en %1$s (código reescrito, shaders divididos y traducidos, el progreso de la preparación)\n· el progreso guardado de la división de shaders, una copia en el almacenamiento propio de la app\n· el paquete preparado y su biblioteca de shaders en %2$s</string>
     <string name="prepare_kept">Se conserva: tu volcado (%1$s) y tus partidas guardadas. Las partidas guardadas nunca se eliminan desde aquí.</string>
     <string name="prepare_kept_save">Se conserva: tu volcado (%1$s) y tus partidas guardadas (%2$s). Las partidas guardadas nunca se eliminan desde aquí.</string>
     <string name="prepare_kept_pack">Se conserva: tu volcado (%1$s), tus partidas guardadas y el paquete (%2$s). Las partidas guardadas nunca se eliminan desde aquí.</string>

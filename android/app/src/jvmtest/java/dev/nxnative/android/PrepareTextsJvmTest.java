@@ -112,7 +112,8 @@ public final class PrepareTextsJvmTest {
         eq("Forget this job?", "prepare_forget_title");
         eq("Deleted: nothing. The screen stops showing the job.\n\nKept: its files in " + dir
                 + ", the pack, your dump and your saves. Picking the same dump again finds the job.\n\nThe split's kept progress (a copy in the app's own storage) "
-                + "is deleted when a job of another game starts; until then an unfinished split resumes from it.", "prepare_forget_body", dir);
+                + "and the translated shaders (up to about 1 GB, also in the app's own storage) are deleted when a job of another game starts; until then an "
+                + "unfinished job resumes from them.", "prepare_forget_body", dir);   // work/shader-speed's English (the translated shaders moved to the app's storage)
         eq("Forget", "prepare_button_forget");
         eq("Not deleted: " + dir + " holds or is inside " + "your dump" + ".", "prepare_not_deleted_dump", dir);
         eq("Not deleted: " + dir + " holds or is inside " + "your save folder" + ".", "prepare_not_deleted_save", dir);
@@ -121,8 +122,8 @@ public final class PrepareTextsJvmTest {
             for (boolean hasSave : new boolean[] {false, true}) {
                 File pk = pkCase == 0 ? null : pkCase == 1 ? new File(dir, "fake-pack") : pack;
                 boolean inside = pkCase == 1;
-                StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split and translated shaders, the job's progress)"
-                        + "\n· the split's kept progress, a copy in the app's own storage");
+                StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split shaders, the job's progress)"   // work/shader-speed's English
+                        + "\n· the split's kept progress and the translated shaders, in the app's own storage");
                 if (pk != null) m.append(inside ? " with the pack inside it" : "\n· the prepared pack and its shader library in " + pk);
                 m.append("\n\nKept: your dump (" + dump + ") and your saves").append(hasSave ? " (" + save + ")" : "")
                         .append(pk == null ? ", and the pack (" + pack + ")" : "").append(". Saves are never deleted here.");

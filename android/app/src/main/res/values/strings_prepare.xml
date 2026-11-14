@@ -82,14 +82,14 @@
     <string name="prepare_manage_title">Preparing %1$s</string>
     <string name="prepare_button_done">Done</string>
     <string name="prepare_forget_title">Forget this job?</string>
-    <string name="prepare_forget_body">Deleted: nothing. The screen stops showing the job.\n\nKept: its files in %1$s, the pack, your dump and your saves. Picking the same dump again finds the job.\n\nThe split\'s kept progress (a copy in the app\'s own storage) is deleted when a job of another game starts; until then an unfinished split resumes from it.</string>
+    <string name="prepare_forget_body">Deleted: nothing. The screen stops showing the job.\n\nKept: its files in %1$s, the pack, your dump and your saves. Picking the same dump again finds the job.\n\nThe split\'s kept progress (a copy in the app\'s own storage) and the translated shaders (up to about 1 GB, also in the app\'s own storage) are deleted when a job of another game starts; until then an unfinished job resumes from them.</string>
     <string name="prepare_button_forget">Forget</string>
     <string name="prepare_not_deleted_dump">Not deleted: %1$s holds or is inside your dump.</string>
     <string name="prepare_not_deleted_save">Not deleted: %1$s holds or is inside your save folder.</string>
     <!-- Delete working files: the question's paragraphs (what goes, what stays, what follows) -->
-    <string name="prepare_deleted_work">Deleted:\n· the working files in %1$s (rewritten code, split and translated shaders, the job\'s progress)\n· the split\'s kept progress, a copy in the app\'s own storage</string>
-    <string name="prepare_deleted_work_pack_inside">Deleted:\n· the working files in %1$s (rewritten code, split and translated shaders, the job\'s progress)\n· the split\'s kept progress, a copy in the app\'s own storage with the pack inside it</string>
-    <string name="prepare_deleted_work_and_pack">Deleted:\n· the working files in %1$s (rewritten code, split and translated shaders, the job\'s progress)\n· the split\'s kept progress, a copy in the app\'s own storage\n· the prepared pack and its shader library in %2$s</string>
+    <string name="prepare_deleted_work">Deleted:\n· the working files in %1$s (rewritten code, split shaders, the job\'s progress)\n· the split\'s kept progress and the translated shaders, in the app\'s own storage</string>
+    <string name="prepare_deleted_work_pack_inside">Deleted:\n· the working files in %1$s (rewritten code, split shaders, the job\'s progress)\n· the split\'s kept progress and the translated shaders, in the app\'s own storage with the pack inside it</string>
+    <string name="prepare_deleted_work_and_pack">Deleted:\n· the working files in %1$s (rewritten code, split shaders, the job\'s progress)\n· the split\'s kept progress and the translated shaders, in the app\'s own storage\n· the prepared pack and its shader library in %2$s</string>
     <string name="prepare_kept">Kept: your dump (%1$s) and your saves. Saves are never deleted here.</string>
     <string name="prepare_kept_save">Kept: your dump (%1$s) and your saves (%2$s). Saves are never deleted here.</string>
     <string name="prepare_kept_pack">Kept: your dump (%1$s) and your saves, and the pack (%2$s). Saves are never deleted here.</string>
@@ -178,6 +178,10 @@
     <string name="prepare_dump_free_unknown">Cannot read the free space of %1$s.</string>
     <string name="prepare_dump_space">Preparing needs %1$.1f GB free beside the dump; %2$s has %3$.2f GB free.</string>
     <string name="prepare_dump_not_writable">Cannot make %1$s: the folder beside the dump is not writable.</string>
+    <!-- PackService before the shaders step (PrepareErrors results_free_unknown, a whole sentence; results_space, a phrase): the translated shaders' results live in the
+         app's own storage (the phone's internal storage). results_free_unknown's %1$s: that folder; results_space's %1$.1f: GB needed, %2$.2f: GB free, tap %3$s: the button's label -->
+    <string name="prepare_results_free_unknown">Cannot read the free space of the app\'s storage (%1$s).</string>
+    <string name="prepare_error_results_space">Translating the shaders needs %1$.1f GB free in the phone\'s internal storage; it has %2$.2f GB free. Free some space, then tap %3$s</string>
     <!-- Job.statusMsg: a failure the packer gave an error code (JobErrors); %1$s: a step (prepare_step_*_in_sentence), %2$s: the code's text (errors_*, whole
          sentences ending in a full stop), Tap %3$s: the button's label -->
     <string name="prepare_status_failed_coded">Stopped at %1$s. %2$s Tap %3$s to go on.</string>

@@ -509,8 +509,8 @@ public final class PackService extends Service {
     static final long XLATE_BYTES = 1100L << 20;
 
     /**
-     * null when the app's own storage has room for the results still to come (Job.xlate), else what to do. DumpCheck counts the free space beside the dump;
-     * the results are in the phone's internal storage, which is another place when the dump is on a memory card.
+     * null when the app's own storage has room for the results still to come (Job.xlate), else what to do (PrepareErrors results_free_unknown, results_space).
+     * DumpCheck counts the free space beside the dump; the results are in the phone's internal storage, which is another place when the dump is on a memory card.
      */
     private String resultsRoom(File xlate) {
         File dir = xlate.getParentFile();
@@ -522,12 +522,10 @@ public final class PackService extends Service {
         try {
             free = new StatFs(dir != null ? dir.getPath() : xlate.getPath()).getAvailableBytes();
         } catch (IllegalArgumentException e) {
-            return "Cannot read the free space of the app's storage (" + dir + ").";
+            return failed("results_free_unknown", dir);
         }
-        long need = XLATE_BYTES - have;
-        if (free < need + (64L << 20))
-            return String.format(Locale.ROOT, "Translating the shaders needs %.1f GB free in the phone's internal storage; it has %.2f GB free. Free some space, then tap Retry",
-                    (need + (64L << 20)) / 1073741824.0, free / 1073741824.0);
+        long need = XLATE_BYTES - have + (64L << 20);
+        if (free < need) return failed("results_space", need / 1073741824.0, free / 1073741824.0);
         return null;
     }
 
