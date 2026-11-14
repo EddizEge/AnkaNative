@@ -55,12 +55,12 @@
     <string name="settings_game_fps_cap_title">Kare hızı sınırı · %1$s</string>
     <string name="settings_game_driver_default">Varsayılan (ana ekrandaki: %1$s)</string>
     <string name="settings_game_gpu_driver_title">GPU sürücüsü · %1$s</string>
-    <string name="settings_game_env_about">host için KEY=VALUE satırları, her satıra bir tane (# yorum başlatır). env.txt dosyasından sonra gelir ve ondan önceliklidir; yalnızca %1$s için.</string>
+    <string name="settings_game_env_about">Host için KEY=VALUE satırları, her satıra bir tane (# yorum başlatır). env.txt dosyasından sonra gelir ve ondan önceliklidir; yalnızca %1$s için.</string>
     <string name="settings_game_env_title">Ek ortam değişkenleri · %1$s</string>
     <!-- Folders -->
     <string name="settings_folders_save_default_old">%1$s (varsayılan: önceki bir sürümden kalan, oyunun yanındaki kaydın. Oyunun bir sonraki başlatılışında kayıt uygulamanın depolamasına (%2$s) kopyalanır ve oradan oynanır; bu klasör hiç değiştirilmez)</string>
-    <string name="settings_folders_save_default_app">%1$s (varsayılan: uygulamanın depolamasında). %3$s, kopyaları paylaşılan depolamadaki %2$s klasörüne koyar: uygulama kaldırılınca da silinmezler.</string>
-    <string name="settings_folders_save_default_copied">%1$s (varsayılan: uygulamanın depolamasında; şuradan kopyalandı ve orası olduğu gibi tutuluyor: %2$s). %4$s, kopyaları paylaşılan depolamadaki %3$s klasörüne koyar: uygulama kaldırılınca da silinmezler.</string>
+    <string name="settings_folders_save_default_app">%1$s (varsayılan: uygulamanın depolamasında). %3$s seçeneği kopyaları paylaşılan depolamadaki %2$s klasörüne koyar: uygulama kaldırılınca da silinmezler.</string>
+    <string name="settings_folders_save_default_copied">%1$s (varsayılan: uygulamanın depolamasında; şuradan kopyalandı ve orası olduğu gibi tutuluyor: %2$s). %4$s seçeneği kopyaları paylaşılan depolamadaki %3$s klasörüne koyar: uygulama kaldırılınca da silinmezler.</string>
     <string name="settings_folders_no_games">Henüz oyun yok: önce + %1$s. Her oyunun kendi klasörleri vardır (kartındaki ⋯ › %2$s…).</string>
     <string name="settings_folders_which_game">Hangi oyunun klasörleri?</string>
     <string name="settings_folders_library_present">Shader kütüphanesi %1$s: mevcut.</string>
@@ -97,7 +97,7 @@
     <string name="settings_gpu_installing_unnamed">Sürücü yükleniyor…</string>
     <string name="settings_gpu_install_failed">GPU sürücüsü yüklenmedi: %1$s</string>
     <string name="settings_gpu_installed">GPU sürücüsü yüklendi ve seçildi: %1$s</string>
-    <string name="settings_gpu_picked_system">GPU sürücüsü: sistem</string>
+    <string name="settings_gpu_picked_system">GPU sürücüsü: Sistem</string>
     <string name="settings_gpu_picked">GPU sürücüsü: %1$s</string>
     <string name="settings_gpu_recommended">%1$s (önerilen)</string>
     <string name="settings_gpu_title">GPU sürücüsü (bir sonraki oyun başlatılışında geçerli olur)</string>
@@ -141,7 +141,7 @@
     <string name="settings_driverfetch_installed">Yüklendi ve seçildi: %1$s</string>
     <!-- Updater -->
     <string name="settings_update_title">Güncellemeler</string>
-    <string name="settings_update_release_only">Güncellemeleri yalnızca yayın sürümü uygulama (dev.ankanative.android) kontrol eder. Bir test uygulaması, dosyalar klasöründeki update.txt içinde repo= ya da url= varsa kontrol eder.</string>
+    <string name="settings_update_release_only">Güncellemeleri yalnızca uygulamanın yayın sürümü (dev.ankanative.android) kontrol eder. Bir test uygulaması, dosyalar klasöründeki update.txt içinde repo= ya da url= varsa kontrol eder.</string>
     <string name="settings_update_not_release">Bu derlemenin sürümü (%1$s) bir yayın sürümü değil: karşılaştırılacak bir şey yok.</string>
     <string name="settings_update_checking">Güncellemeler kontrol ediliyor…</string>
     <string name="settings_update_check_failed">Güncelleme kontrolü başarısız oldu: %1$s</string>
