@@ -4,8 +4,12 @@ names, Tr's JVM backend (TrJvmTest), and the ratchet that counts the English tex
   python3 dm/tools/tests/test_android_i18n.py                     the rules and the ratchet (prints each language's completeness)
   python3 dm/tools/tests/test_android_i18n.py --list File.java    the texts of that file the ratchet counts, with their lines
   python3 dm/tools/tests/test_android_i18n.py --ratchet <area>    writes that area's current counts (lower only: it refuses a count that grew)
+  python3 dm/tools/tests/test_android_i18n.py --rebaseline <area> "<why>" [File.java ...]
+                                                                  the integrator's step after a merge: writes the current counts even when one grew, adds the
+                                                                  named files to the area, and records the date, the reason and what grew in the tsv
 """
 import collections
+import datetime
 import re
 import shutil
 import subprocess
@@ -457,6 +461,29 @@ class Ratchet(unittest.TestCase):
             print('ratchet can go lower: ' + '; '.join(lower), file=sys.stderr)
         self.assertEqual(grew, [])
 
+    def test_rebaseline(self):
+        """--ratchet refuses a count that grew; --rebaseline writes it, joins named files to the area and says so in the tsv (on a scratch copy)"""
+        global RATCHET
+        keep = RATCHET
+        with tempfile.TemporaryDirectory() as d:
+            try:
+                RATCHET = Path(d)
+                n = len(texts(next(p for p in java_files() if p.name == 'Ui.java')))
+                self.assertGreater(n, 0, 'Ui.java has texts to count')
+                (RATCHET / 'home.tsv').write_text(f'# head\nUi.java\t{n - 1}\n', encoding='utf-8')
+                with self.assertRaises(SystemExit):
+                    write_ratchet('home')
+                self.assertEqual((RATCHET / 'home.tsv').read_text(encoding='utf-8'), f'# head\nUi.java\t{n - 1}\n', '--ratchet wrote nothing')
+                with self.assertRaises(SystemExit):
+                    write_ratchet('home', 'merge of x', ['NoSuch.java'])
+                write_ratchet('home', 'merge of x', ['Streams.java'])
+                rows = (RATCHET / 'home.tsv').read_text(encoding='utf-8').splitlines()
+                self.assertEqual(rows[0], '# head')
+                self.assertRegex(rows[1], rf'^# Re-baselined \d{{4}}-\d\d-\d\d: merge of x \(Ui.java {n - 1} -> {n}\)$')
+                self.assertEqual(rows[2:], [f'Ui.java\t{n}', 'Streams.java\t0'])
+            finally:
+                RATCHET = keep
+
     def test_ratchet_lists_files_that_exist(self):
         names = {p.name for p in java_files()}
         self.assertEqual(sorted(set(read_ratchet()) - names), [], 'ratchet rows of files that are gone')
@@ -475,23 +502,38 @@ class TrJvm(unittest.TestCase):
             self.assertEqual((r.returncode, r.stdout.strip()), (0, 'ok'), r.stdout + r.stderr)
 
 
-def write_ratchet(area):
-    """--ratchet <area>: the area's files at their current counts; refuses a count above the list's"""
+def write_ratchet(area, why=None, add=()):
+    """--ratchet <area>: the area's files at their current counts; refuses a count above the list's.
+    --rebaseline <area> <why> [File.java ...]: the integrator's step after merging a branch (docs/i18n.md "After a merge"): the same, but a count may grow, the
+    named files join the area, and a comment line in the tsv says when, why and what grew, so the raise is explicit in the diff and the commit"""
     f = RATCHET / f'{area}.tsv'
     if not f.is_file():
         sys.exit(f'no {f}')
-    rows, head = [], [r for r in f.read_text(encoding='utf-8').splitlines() if r.startswith('#')]
+    text = f.read_text(encoding='utf-8').splitlines()
+    rows, head, raised = [], [r for r in text if r.startswith('#')], []
     byname = {p.name: p for p in java_files()}
-    for row in f.read_text(encoding='utf-8').splitlines():
-        if not row.strip() or row.startswith('#'):
-            continue
-        name, count = row.split('\t')
+    names = [r.split('\t') for r in text if r.strip() and not r.startswith('#')]
+    others = {n: a for n, (a, _) in read_ratchet().items() if a != area}
+    for name in add:
+        if name not in byname:
+            sys.exit(f'{name}: no such Java file')
+        if name in others:
+            sys.exit(f'{name} is in {others[name]}.tsv: a file has one area')
+        if name not in (n for n, _ in names):
+            names.append((name, '0'))
+    for name, count in names:
         n = len(texts(byname[name])) if name in byname else 0
         if n > int(count):
-            sys.exit(f'{name}: {n} texts, more than the {count} allowed: the ratchet only goes down')
+            if why is None:
+                sys.exit(f'{name}: {n} texts, more than the {count} allowed: the ratchet only goes down (after a merge: --rebaseline {area} "<why>")')
+            raised.append(f'{name} {count} -> {n}')
         rows.append(f'{name}\t{n}')
+    if why is not None:
+        head.append(f'# Re-baselined {datetime.date.today().isoformat()}: {why}' + (f' ({"; ".join(raised)})' if raised else ' (nothing grew)'))
     f.write_text('\n'.join(head + rows) + '\n', encoding='utf-8')
     print('\n'.join(rows))
+    if raised:
+        print(f'raised: {"; ".join(raised)}. Say so in the commit message.', file=sys.stderr)
 
 
 if __name__ == '__main__':
@@ -503,5 +545,9 @@ if __name__ == '__main__':
             print(f'{p.name}:{ln}\t{v}')
     elif len(sys.argv) == 3 and sys.argv[1] == '--ratchet':
         write_ratchet(sys.argv[2])
+    elif len(sys.argv) >= 4 and sys.argv[1] == '--rebaseline':
+        if not sys.argv[3].strip():
+            sys.exit('--rebaseline <area> "<why>" [File.java ...]: say why (the merge it follows)')
+        write_ratchet(sys.argv[2], sys.argv[3].strip(), sys.argv[4:])
     else:
         unittest.main()
