@@ -378,8 +378,39 @@ static void chunk(void) {
 // same targets (loadOp LOAD, after the pass end's barrier), so its contents and the draws' order are kept. A pass of 1,700 draws whose GPU work (14-18 ms) only began after
 // all of it was recorded then starts on the GPU while the rest is recorded. Donkey Kong Bananza's level (Adreno 840, DM_VK_GPUPROF): the extra splits cost no measurable GPU
 // time (20.2-20.5 ms a frame with them, 20.8-21.0 without); with the GPU clock floor the GPU finished 6-10 ms after recording instead of 10-33
-// DM_VK_BIGDEPTH_SYNC (vka_bigdepth.c): the part recorded so far goes to the queue (chunk) and the queue is waited for, so a lost device shows which step of a big depth
-// target's first use the GPU did not finish. Outside a pass only (the caller ended it); no part left in the slot (NCHUNK) or a hang already declared: not waited for, logged
+// DM_VK_BIGDEPTH_SYNC (vka_bigdepth.c): the part recorded so far goes to the queue (chunk) and the GPU is waited for, so a lost device shows which step of a big depth
+// target's first use the GPU did not finish. Outside a pass only (the caller ended it); no part left in the slot (NCHUNK) or a hang already declared: not waited for, logged.
+// The wait is bounded by the hang time like every wait on this queue (vka_queue_idle, the upload and sparse batches): an unbounded vkQueueWaitIdle under V.qmu would stop the
+// present and the uploads with it, and on the Adreno 840 unbounded queue waits ended in a soft reboot (vka_dev.c "GPU hangs"). An empty vkQueueSubmit with a fence of its own
+// goes to the queue under V.qmu (by queue order it signals once everything submitted before it has run), and the fence is waited for outside the lock for DM_VK_HANG_S. A
+// "waiting for" line is written and synced to flash first: when the GPU never gets there, that line, with no "sync after" line after it, names the step. A timeout or a lost
+// device ends the syncs (the completion thread declares the hang; the fence, still pending, is left alone)
+static int g_bd_gaveup;
+static void bigdepth_wait(const char *what, uint64_t serial) {
+    static VkFence f;
+    if (g_bd_gaveup || vka_hung()) { VLOG("bigdepth: sync after %s of serial %llu: not waited for (%s)", what, (unsigned long long)serial,
+                                          g_bd_gaveup ? "an earlier sync did not finish" : "a GPU hang was already declared"); return; }
+    double lim = vka_hang_ns() / 1e9;
+    VLOG("bigdepth: waiting for %s of serial %llu (frame %llu; at most %.1f s, DM_VK_HANG_S; DM_VK_BIGDEPTH_SYNC)", what, (unsigned long long)serial, (unsigned long long)g_frame, lim);
+    fflush(stderr); fsync(STDERR_FILENO);   // (stderr is the run's log file; EINVAL on a pipe, harmless)
+    uint64_t t0 = now_ns(); const char *step = "vkCreateFence"; VkResult r = VK_SUCCESS;
+    if (!f) { VkFenceCreateInfo fi = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO}; if ((r = vk.vkCreateFence(V.dev, &fi, NULL, &f))) f = VK_NULL_HANDLE; }
+    if (!r) {
+        step = "vkQueueSubmit";
+        pthread_mutex_lock(&V.qmu); r = vka_hung() ? VK_ERROR_DEVICE_LOST : vk.vkQueueSubmit(V.q, 0, NULL, f); pthread_mutex_unlock(&V.qmu);
+    }
+    if (!r) {
+        step = "vkWaitForFences";
+        if (!(r = vk.vkWaitForFences(V.dev, 1, &f, VK_TRUE, vka_hang_ns()))) vk.vkResetFences(V.dev, 1, &f);
+        else f = VK_NULL_HANDLE;   // (submitted and not signalled: it may not be reset or destroyed; a later sync makes another, if any)
+    }
+    if (r) g_bd_gaveup = 1;
+    VLOG("bigdepth: sync after %s of serial %llu (frame %llu): %s (%s %d, %.1f ms; DM_VK_BIGDEPTH_SYNC)", what, (unsigned long long)serial, (unsigned long long)g_frame,
+         !r ? "the GPU finished it" : r == VK_TIMEOUT ? "the GPU did NOT finish it in the hang time" : r == VK_ERROR_DEVICE_LOST ? "the device is lost: the GPU did NOT finish it"
+                                                                                                   : "not known (the wait failed)", step, r, (now_ns() - t0) / 1e6);
+    if (r) VLOG("bigdepth: no more syncs this run (DM_VK_BIGDEPTH_SYNC)");
+    fflush(stderr); fsync(STDERR_FILENO);
+}
 void vka_bigdepth_sync(const char *what, uint64_t serial) {
     if (!vka_bigdepth_sync_on() || !g_cb) return;
     if (vka_hung()) { vka_bigdepth_log("sync after %s of serial %llu: a GPU hang was already declared", what, (unsigned long long)serial); return; }
@@ -387,17 +418,24 @@ void vka_bigdepth_sync(const char *what, uint64_t serial) {
     VkCommandBuffer before = g_cb; chunk();
     if (g_cb == before) { VLOG("bigdepth: sync after %s of serial %llu: not waited for (no command buffer left for a part of this submission)", what, (unsigned long long)serial); return; }
     vka_enc_sync();   // the part's end and submit are made (on the encoder thread when it is on)
-    uint64_t t0 = now_ns();
-    pthread_mutex_lock(&V.qmu); VkResult r = vk.vkQueueWaitIdle(V.q); pthread_mutex_unlock(&V.qmu);
-    VLOG("bigdepth: sync after %s of serial %llu (frame %llu): %s (vkQueueWaitIdle %d, %.1f ms; DM_VK_BIGDEPTH_SYNC)", what, (unsigned long long)serial, (unsigned long long)g_frame,
-         r ? "the GPU did NOT finish it" : "the GPU finished it", r, (now_ns() - t0) / 1e6);
-    fflush(stderr); fsync(STDERR_FILENO);
+    bigdepth_wait(what, serial);
+}
+// A pass over a big depth target ended (vka_draw.c; only with DM_VK_BIGDEPTH_SYNC): its serial when this is one of the first DM_VK_BIGDEPTH_SYNC_PASSES (taken), else 0.
+// (One replay thread: the count needs no lock)
+static uint64_t bigdepth_pass_due(void) {
+    static int np; uint64_t sr = vka_bigdepth_pass_serial;
+    if (!sr) return 0;
+    vka_bigdepth_pass_serial = 0;
+    if (np >= VKA_ENV("DM_VK_BIGDEPTH_SYNC_PASSES", 4)) return 0;
+    np++; return sr;
 }
 static inline void chunk_check(void) {
     if (!g_cb) return;
-    if (vka_bigdepth_pass_serial && !vka_rp_is_open()) {   // a pass over a big depth target ended (vka_draw.c; only with DM_VK_BIGDEPTH_SYNC): its first DM_VK_BIGDEPTH_SYNC_PASSES waited for
-        static int np; uint64_t sr = vka_bigdepth_pass_serial; vka_bigdepth_pass_serial = 0;
-        if (np < VKA_ENV("DM_VK_BIGDEPTH_SYNC_PASSES", 4)) { np++; vka_bigdepth_sync("a pass with it as the depth attachment (and what was recorded after it up to this draw)", sr); }
+    // Before the next pass opens; not while clears wait for that pass (vka_rp_clear: loadOp CLEAR or vkCmdClearAttachments in it): the sync's end of the part would do them
+    // outside it instead, and change the clear path under test. Then it waits until a draw with none pending, or the end of the submission (sub_commit)
+    if (vka_bigdepth_pass_serial && !vka_rp_is_open() && !vka_rp_clears_pending()) {
+        uint64_t sr = bigdepth_pass_due();
+        if (sr) vka_bigdepth_sync("a pass with it as the depth attachment (and what was recorded after it up to this draw)", sr);
     }
     uint64_t in = g_stat_draws - g_chunk_d0;
     if (g_chunk_draws > 0 && in >= (uint64_t)g_chunk_draws && vka_rp_split_ok(&S.rt, S.has_rt)) { vka_rp_end(); chunk(); return; }
@@ -446,6 +484,10 @@ static uint64_t sub_commit(uint64_t reserved) {
     if (atomic_load_explicit(&g_synclog, memory_order_relaxed) > 0)
         VLOG("sync sub: frame %llu fence %llu: %llu draws, %d parts, recorded %.2f-%.2f ms, queued", (unsigned long long)g_frame, (unsigned long long)fence,
              (unsigned long long)(g_stat_draws - g_sub_draws0), g_nx + 1, (g_sub_t0 % 1000000000000ull) / 1e6, ms_now());
+    // DM_VK_BIGDEPTH_SYNC: a pass over a big depth target that ended in this submission and was not waited for at a draw (the last pass, or clears pending after it) is
+    // waited for here, with the submission it ends, so its step never runs on into the next submission
+    { uint64_t bs = vka_bigdepth_sync_on() ? bigdepth_pass_due() : (vka_bigdepth_pass_serial = 0);
+      if (bs) bigdepth_wait("a pass with it as the depth attachment (and the rest of its submission)", bs); }
     g_cb = VK_NULL_HANDLE;
     return fence;
 }

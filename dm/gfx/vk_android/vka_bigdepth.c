@@ -12,8 +12,11 @@
 //   DM_VK_BIGDEPTH_NOCOMP=1 (restart): VK_EXT_image_compression_control enabled on the device and big depth images made with VK_IMAGE_COMPRESSION_DISABLED_EXT: no UBWC and
 //     no flag buffer for those images only (TU_DEBUG=noubwc for one image). Logged once at the device and at each such image.
 //   DM_VK_BIGDEPTH_SYNC=1 (live): after a big depth image's clear (outside a pass: with DM_VK_BIGDEPTH_CLEAR 1-4) and after the first DM_VK_BIGDEPTH_SYNC_PASSES (live, 4)
-//     passes that have it as their depth attachment, the submission's part so far is handed to the queue and the queue waited for (vkQueueWaitIdle), with a line saying
-//     whether it finished: the last such line before a loss names the step the GPU did not finish. Costs a GPU drain each time (a stutter), so a test only.
+//     passes that have it as their depth attachment, the submission's part so far is handed to the queue and the GPU waited for, at most DM_VK_HANG_S (an empty submission's
+//     fence, vka_exec.c bigdepth_wait). A pass is waited for at the next draw that opens a pass with no clear waiting for it (a sync there would move those clears out of
+//     that pass), else at the end of its submission. Each wait writes "bigdepth: waiting for <step> of serial N", synced to flash, then "bigdepth: sync after <step> ...":
+//     finished, not finished in the hang time, or the device lost. A "waiting for" line with no "sync after" line after it, or a "sync after" line that did not finish,
+//     names the step the GPU did not finish; after such a one no more syncs are made. Costs a GPU drain each time (a stutter), so a test only.
 //   DM_VK_BIGDEPTH_LOG=1 (live): at most 64 "[vk] bigdepth" lines: each big depth image's create info and memory requirements, how its clears are recorded, each pass over it
 //     (render area, load and store ops, clear value). Each line is followed by an fsync of the log, so the last ones before a lost device or a stopped process are on flash.
 // They choose a method the Vulkan specification allows for the same result (a clear is a clear); none hides an error. Default behaviour, with none of them set, is unchanged

@@ -336,6 +336,7 @@ void vka_rp_bar_stats(char *b, size_t n, double frames) {
     i0 = g_bar_in; k0 = g_bar_kept; l0 = g_bar_late;
 }
 int vka_rp_is_open(void) { return R.on; }
+int vka_rp_clears_pending(void) { return PC.n; }
 int vka_rp_open_for(const p_set_rt *rt, int has_rt) { return R.on && rt_same(rt, has_rt, &R.rt, R.has_rt); }
 // The draw about to come may start a new part of the submission: no pass is open over its targets and no clear waits for them (an open pass over other targets ends at it anyway)
 int vka_rp_split_ok(const p_set_rt *rt, int has_rt) { return R.on ? !rt_same(rt, has_rt, &R.rt, R.has_rt) : PC.n ? has_rt && !rt_same(rt, has_rt, &PC.rt, 1) : 1; }
