@@ -214,9 +214,10 @@ MACHINERY = {'Tr.java', 'TrAndroid.java', 'Msg.java', 'LocalizedIOException.java
 
 def literal_tables(t):
     """A file's key tables (docs/i18n.md "Label arrays and fact tables"): {name: [literal, ...]} for each `static final String[] NAME = {"a", "b"}` whose every
-    element is a string literal and whose elements are never assigned (`NAME[i] = ...`); a name declared so with any other element maps to None"""
+    element is a string literal, whose elements are never assigned (`NAME[i] = ...`) and whose name is used only as `NAME[i]` or `NAME.length` (no local of
+    the same name, no alias, no `Arrays.fill(NAME, ...)`); a name declared so with any other element or use maps to None"""
     v = [x[1] for x in t]
-    out = {}
+    out, decl = {}, set()
     for k in range(len(t)):
         if v[k:k + 4] != ['final', 'String', '[', ']'] or 'static' not in v[max(0, k - 3):k]:
             continue
@@ -226,6 +227,7 @@ def literal_tables(t):
         while j < len(t):   # declarators: NAME = { "a", "b" } [, NAME2 = {...}] ;
             if t[j][0] != 'id' or v[j + 1:j + 3] != ['=', '{']:
                 break
+            decl.add(j)
             name, j, ok, items = v[j], j + 3, True, []
             while j < len(t) and v[j] != '}':
                 if t[j][0] == 'str':
@@ -248,6 +250,9 @@ def literal_tables(t):
                 j += 1
             if v[j + 1:j + 2] == ['='] and v[j + 2:j + 3] != ['=']:
                 out[v[k]] = None
+    for k in range(len(t)):   # used other than NAME[i] or NAME.length (a local of the same name, an alias, Arrays.fill(NAME, ...)): not a table of literals
+        if t[k][0] == 'id' and v[k] in out and k not in decl and (k == 0 or v[k - 1] != '.') and v[k + 1:k + 2] != ['['] and v[k + 1:k + 3] != ['.', 'length']:
+            out[v[k]] = None
     return out
 
 
@@ -417,8 +422,10 @@ class KeyPatterns(unittest.TestCase):
             static final String[] POKED = {"home_a"};
             String[] loose = {"home_a"};
             static final String[][] ROWS = {{"fact", "home_a"}};
+            static final String[] SHADOWED = {"home_a"}, FILLED = {"home_a"}, COUNTED = {"home_a"};
             void f(int i, String fact) {
                 POKED[0] = fact;
+                if (i < COUNTED.length) { String[] SHADOWED = {fact}; java.util.Arrays.fill(FILLED, fact); }
                 %s;
             }
         }'''
@@ -432,7 +439,7 @@ class KeyPatterns(unittest.TestCase):
     def test_accepted(self):
         for call in ('Tr.s("home_a")', 'Tr.s("home_a", i)', 'Tr.p("home_n", i, i)', 'new Msg("home_a", fact)', 'Msg.plural("home_n", i, i)',
                      'new LocalizedIOException("home_a", fact)', 'new LocalizedIOException(new Msg("home_a"), null)', 'Tr.s(WINDOW_KEYS[i])',
-                     'Tr.english(REQ_KEYS[i], fact)', 'new Msg(WINDOW_KEYS[Math.max(0, i)])'):
+                     'Tr.english(REQ_KEYS[i], fact)', 'new Msg(WINDOW_KEYS[Math.max(0, i)])', 'Tr.s(COUNTED[i])'):
             self.assertEqual(self.problems(call), [], call)
         self.assertEqual(self.keys('Tr.s(WINDOW_KEYS[i])'), [('string', ['home_window_1080p', 'home_window_original'])], 'every element is checked to exist')
         self.assertEqual(self.keys('Tr.p(REQ_KEYS[i], i)'), [('plurals', ['readiness_req_a', 'readiness_req_b'])], 'as plurals when the call is Tr.p')
@@ -440,7 +447,7 @@ class KeyPatterns(unittest.TestCase):
     def test_refused(self):
         for call in ('Tr.s("readiness_req_" + fact)', 'Tr.s(fact)', 'new Msg(fact)', 'Msg.plural(fact, i)', 'new LocalizedIOException(fact)',
                      'Tr.s(MIXED[i])', 'Tr.s(POKED[i])', 'Tr.s(loose[i])', 'Tr.s(ROWS[i][1])', 'Tr.s(Prefs.WINDOW_KEYS[i])', 'Tr.s(WINDOW_KEYS[i] + "x")',
-                     'Tr.s(NOWHERE[i])', 'getIdentifier(fact, "string", "p")'):
+                     'Tr.s(NOWHERE[i])', 'Tr.s(SHADOWED[i])', 'Tr.s(FILLED[i])', 'getIdentifier(fact, "string", "p")'):
             self.assertEqual(len(self.problems(call)), 1, call)
 
 
