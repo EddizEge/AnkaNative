@@ -324,7 +324,7 @@ public final class MainActivity extends Activity {
             Game s = same;
             runOnUiThread(() -> {
                 if (isFinishing()) return;
-                if (f == null) { error("Another app asked " + getString(R.string.app_name) + " to open " + game + ", which is not one game: send a single .nup or game folder. Nothing was added."); return; }
+                if (f == null) { error(getString(R.string.home_frontend_not_one_game, getString(R.string.app_name), game)); return; }
                 if (s != null) { askFrontend(s, f, null); return; }
                 askFrontend(null, f, others);
             });
@@ -338,18 +338,15 @@ public final class MainActivity extends Activity {
     private void askFrontend(Game card, File file, List<Game> others) {
         String msg;
         if (card != null && file == null)
-            msg = "Another app asked to start " + card.name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything.";
+            msg = getString(R.string.home_frontend_start_body, card.name);
         else if (card != null)
-            msg = "Another app asked " + getString(R.string.app_name) + " to open\n\n" + file.getPath() + "\n\nwhich is the same game build as your card of " + card.name
-                    + " (" + card.gameDir + "). Play starts your card with its own files and pack; that file is not added and your card is not changed.";
+            msg = getString(R.string.home_frontend_same_build_body, getString(R.string.app_name), file.getPath(), card.name, card.gameDir);
+        else if (others.isEmpty())
+            msg = getString(R.string.home_frontend_add_body, getString(R.string.app_name), file.getPath(), getString(R.string.home_add));
         else {
-            StringBuilder s = new StringBuilder("Another app asked " + getString(R.string.app_name) + " to open\n\n" + file.getPath() + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add.");
-            if (!others.isEmpty()) {
-                s.append("\n\nYour list has another dump of this game:");
-                for (Game o : others) s.append("\n• ").append(o.gameDir).append(" (pack ").append(o.packDir).append(")");
-                s.append("\n\nAdd game then asks whether this file replaces it or both are kept.");
-            }
-            msg = s.toString();
+            StringBuilder list = new StringBuilder();
+            for (Game o : others) list.append(list.length() == 0 ? "" : "\n").append(getString(R.string.home_frontend_other_dump_item, o.gameDir, o.packDir));
+            msg = getString(R.string.home_frontend_add_body_others, getString(R.string.app_name), file.getPath(), getString(R.string.home_add), list.toString());
         }
         AlertDialog d = new AlertDialog.Builder(this)
                 .setTitle(card != null ? getString(R.string.home_frontend_start_title, card.name) : getString(R.string.home_frontend_add_title))

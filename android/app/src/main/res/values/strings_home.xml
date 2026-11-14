@@ -84,6 +84,14 @@
     <string name="home_frontend_add_body">Another app asked %1$s to open\n\n%2$s\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap %3$s.</string>
     <string name="home_play">Play</string>
     <string name="home_add">Add</string>
+    <!-- %1$s: the app's name, %2$s: the path another app sent -->
+    <string name="home_frontend_not_one_game">Another app asked %1$s to open %2$s, which is not one game: send a single .nup or game folder. Nothing was added.</string>
+    <!-- %1$s: the app's name, %2$s: the file another app sent, %3$s: the card's name, %4$s: the card's game path -->
+    <string name="home_frontend_same_build_body">Another app asked %1$s to open\n\n%2$s\n\nwhich is the same game build as your card of %3$s (%4$s). Play starts your card with its own files and pack; that file is not added and your card is not changed.</string>
+    <!-- home_frontend_add_body, then the other dumps of the title on Home. %1$s: the app's name, %2$s: the file, %3$s: home_add (the button), %4$s: home_frontend_other_dump_item rows, one a line -->
+    <string name="home_frontend_add_body_others">Another app asked %1$s to open\n\n%2$s\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap %3$s.\n\nYour list has another dump of this game:\n%4$s\n\nAdd game then asks whether this file replaces it or both are kept.</string>
+    <!-- %1$s: the dump's game path, %2$s: its pack folder -->
+    <string name="home_frontend_other_dump_item">• %1$s (pack %2$s)</string>
 
     <!-- MainActivity: Home's games, the empty card, a game's card -->
     <string name="home_your_games">Your games</string>
