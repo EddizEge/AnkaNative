@@ -155,6 +155,7 @@ TEXTS = {
     'end.failed': 'Preparing failed.',
     'end.exit': 'The packer stopped with exit code {}.',
     'end.detail': 'The packer said: {}',
+    'end.tool_log': '(its log: {})',
     'end.retry': 'Fix what it says, then start this again: what was finished is kept. If it fails again, report it with the log.',
     'end.report': 'This is a failure the interface has no advice for: start this again (what was finished is kept), and if it fails again, report it with the log.',
     'end.signal': 'The packer was ended from outside (signal {}).',

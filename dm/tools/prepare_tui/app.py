@@ -506,17 +506,49 @@ def end_lines(o):
         if o.rc is not None and o.rc < 0: code, red = signal_failure(-o.rc)   # killed: no line of its own says why (an earlier [RED] line is not it)
         perm = None if code else no_permission(live.state.lines)
         out += [(T('end.failed'), RED | BOLD), ('', 0)]
-        if code: out.append((model.plain_error(code[0], code[1], red or ''), BOLD))
+        if code and code[0] == 'no_space': code = (code[0], [tool_folder(plan, a) for a in code[1]])
+        said = code and model.plain_error(code[0], code[1], '')   # the code's own text, which says what to do ('' for a code this interface has no text for)
+        if said: out.append((said, BOLD))
         elif perm: out.append((T('end.no_permission', perm), BOLD))
-        elif red: out.append((red, BOLD))
+        elif red: out.append((tool_log(plan, red), BOLD))
         else: out.append((T('end.exit', o.rc), BOLD))
-        if code and red: out.append((T('end.detail', red), DIM))
-        out.append((T('end.retry') if code or perm else T('end.report'), 0))
+        if said and red: out.append((T('end.detail', tool_log(plan, red)), DIM))
+        if not said and not perm: out.append((T('end.retry') if code else T('end.report'), 0))
         out.append((T('end.log', o.log), DIM))
-        out.append(('', 0)); out.append((T('end.last'), BOLD))
-        tail = [l for l in live.state.lines if not progress.PROGRESS.match(l) and not progress.STEP.match(l)][-8:]
-        out += [(l, RED if l.startswith('[RED] ') else DIM) for l in tail]
+        tail = plain_tail(live.state.lines)[-8:]
+        if tail: out.append(('', 0)); out.append((T('end.last'), BOLD))
+        out += [(tool_log(plan, l), RED if l.startswith('[RED] ') else DIM) for l in tail]
     if live.log_error: out.insert(2, (T('run.log_error', live.log_error.strerror or live.log_error), RED))
+    return out
+
+
+# The folder (a Plan attribute) each tool writes in: a 'no_space' failure whose tool's output named no path has the tool's name as its argument (pack_errors)
+TOOL_FOLDER = {'patch_nso.py': 'out', 'shader_split.py': 'pkg', 'vk_android_build.py': 'cache', 'pack_android.py': 'out'}
+
+
+def tool_folder(plan, a):
+    """A failure code's argument as the end shows it: a tool's name, which the packer gives when the tool's output names no path ('no_space patch_nso.py'), as
+    the folder that tool writes in"""
+    f = getattr(plan, TOOL_FOLDER.get(a, ''), None)
+    return str(f) if f is not None else a
+
+
+def tool_log(plan, red):
+    """The packer's sentence with its pointer to lines 'above' (in its own output, which the end does not show whole) made the tool's log in the pack folder"""
+    return re.sub(r' \(the last lines of (\S+) above\)', lambda m: ' ' + T('end.tool_log', Path(plan.out) / m.group(1)), red)
+
+
+def plain_tail(lines):
+    """The packer's lines as the end shows them: no progress, step or error: lines (read above), and of a Python traceback only its last line, what was raised
+    (its frames say nothing the user can act on; the log has them all)"""
+    out, tb = [], False
+    for l in lines:
+        if progress.PROGRESS.match(l) or progress.STEP.match(l) or progress.pack_errors.parse(l) is not None: continue
+        if l.startswith(('Traceback (most recent call last):', 'During handling of the above exception', 'The above exception was the direct cause')):
+            tb = True; continue
+        if tb and (not l.strip() or l.startswith((' ', '\t'))): continue   # its frames, their source lines and markers
+        tb = False
+        out.append(l)
     return out
 
 
@@ -637,7 +669,7 @@ def plain_run_on(ui, plan, proc, live, log):
             lines, _ = proc.lines()
             for t, l in lines:
                 e = live.feed(live.t0 + t, l)
-                if e.kind == 'red' or e.kind == 'error': ui.say('  ' + l)
+                if e.kind == 'red': ui.say('  ' + tool_log(plan, l))   # (an error: line is for the end, which says its code in words)
                 if e.kind == 'step' and live.state.step != last_step:   # each step as it starts
                     last_step, last_said = live.state.step, time.monotonic()
                     ui.say(f'[{model.duration(t)}] {T(STEP_KEYS[last_step])}')

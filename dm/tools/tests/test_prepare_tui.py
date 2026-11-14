@@ -384,10 +384,27 @@ class Output(unittest.TestCase):
         self.assertIn('signal SIGTERM', end(-15)); self.assertNotIn('older library', end(-15).split('Its last lines')[0])
         lp, _ = live_at(p, RUN_LINES + ['Traceback (most recent call last):', "PermissionError: [Errno 13] Permission denied: '/games/ro/pack/rewrite_main.log'"])
         txt = '\n'.join(t for t, _ in app.end_lines(app.Outcome('failed', lp, p, 1, 100.0, Path('/x.log'))))
-        self.assertIn('does not let the packer use /games/ro/pack/rewrite_main.log', txt); self.assertIn('Fix what it says', txt)
+        self.assertIn('does not let the packer use /games/ro/pack/rewrite_main.log', txt); self.assertNotIn('Fix what it says', txt)   # (its own advice)
+        self.assertNotIn('Traceback', txt)
         lb, _ = live_at(p, RUN_LINES[:-1] + ['Traceback (most recent call last):', 'AssertionError'])
         txt = '\n'.join(t for t, _ in app.end_lines(app.Outcome('failed', lb, p, 1, 100.0, Path('/x.log'))))
         self.assertIn('no advice for', txt); self.assertNotIn('Fix what it says', txt)
+
+    def test_no_space_in_plain_words(self):
+        """A failure the user can fix (no space, in the rewrite: the packer names only the tool): its own text with the folder, the packer's sentence pointing
+        at the tool's log, no second advice, and of the traceback before it only what was raised"""
+        p = FakePlan()
+        lv, _ = live_at(p, RUN_LINES[:5] + ['  sdk: rewriting /x/sdk (in process)', "function patch 'x' skipped: 0 matching functions", 'Traceback (most recent call last):',
+                                           '  File "/r/dm/tools/patch_nso.py", line 9, in <module>', '    out.write(b)', '    ~~~~~~~~~^^^',
+                                           "OSError: [Errno 28] No space left on device: '/games/pack/sdk.staging/x'", 'error: no_space\tpatch_nso.py',
+                                           '[RED] patch_nso.py exit code 1 on sdk (the last lines of rewrite_sdk.log above)'])
+        for mode in ('lines', 'screen'):
+            if mode == 'lines': txt = '\n'.join(t for t, _ in app.end_lines(app.Outcome('failed', lv, p, 1, 100.0, Path('/x.log'))))
+            else: sc = scr.Screen(80, 24, scr.Glyphs(True)); app.draw_end(sc, app.Outcome('failed', lv, p, 1, 100.0, Path('/x.log'))); txt = sc.text()
+            self.assertIn(f'Not enough free space ({p.out})', txt); self.assertIn(f'its log: {p.out}/rewrite_sdk.log', txt.replace('\n  ', ' '))
+            self.assertNotIn('above', txt); self.assertNotIn('Fix what it says', txt); self.assertNotIn('report it', txt)
+            self.assertNotIn('Traceback', txt); self.assertNotIn('File "', txt); self.assertNotIn('~~~', txt); self.assertNotIn('error: no_space', txt)
+            self.assertIn('OSError: [Errno 28] No space left on device', txt); self.assertIn('0 matching functions', txt)
 
     def test_plain_confirm_has_no_keys(self):
         p = FakePlan()
