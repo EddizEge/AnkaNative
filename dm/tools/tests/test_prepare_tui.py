@@ -714,12 +714,13 @@ class Prereq(unittest.TestCase):
             (self.d / brew_home / 'bin').mkdir(parents=True, exist_ok=True); (self.d / brew_home / 'bin/brew').write_text('')
             self.checks.BREW_PREFIXES = (str(self.d / brew_home),)
 
-    def fixes(self, sysname):
-        """Every fix of the checks on sysname: the environment's (also as pkg_fix outside an environment), and each install"""
+    def fixes(self, sysname, arm=True):
+        """Every fix of the checks on sysname: the environment's (also as pkg_fix outside an environment), and each install (arm: an Apple silicon Mac)"""
         from unittest import mock
-        with mock.patch.object(self.checks, 'in_venv', return_value=False): out = {'venv': self.checks.venv_fix(sysname), 'pkg': self.checks.pkg_fix(sysname)}
-        with mock.patch.object(self.checks, 'in_venv', return_value=True): out['pkg_in_venv'] = self.checks.pkg_fix(sysname)
-        for w in ('dotnet', 'spirv', 'cc'): out[w] = self.checks.install(sysname, w)
+        with mock.patch.object(self.checks, 'mac_arm', return_value=arm):
+            with mock.patch.object(self.checks, 'in_venv', return_value=False): out = {'venv': self.checks.venv_fix(sysname), 'pkg': self.checks.pkg_fix(sysname)}
+            with mock.patch.object(self.checks, 'in_venv', return_value=True): out['pkg_in_venv'] = self.checks.pkg_fix(sysname)
+            for w in ('dotnet', 'spirv', 'cc'): out[w] = self.checks.install(sysname, w)
         return out
 
     def test_mac(self):
@@ -740,6 +741,10 @@ class Prereq(unittest.TestCase):
         self.path('python3.14'); self.assertEqual(self.fixes('mac')['venv'][0], 'python3.14 -m venv <dump folder>/.venv-anka')
         self.path('python3.14', 'micromamba'); self.assertEqual(self.fixes('mac')['venv'][0], c.MAMBA_CREATE)   # micromamba first on the Mac
         self.assertEqual(self.fixes('mac')['cc'], ['xcode-select --install'])
+        self.path('brew')
+        f = self.fixes('mac', arm=False)   # an Intel Mac: Homebrew builds spirv-tools from source, and the fix says so first
+        self.assertIn('Intel Mac', f['spirv'][0]); self.assertEqual(f['spirv'][1:], ['brew install spirv-tools'])
+        self.path(); self.assertIn('Intel Mac', self.fixes('mac', arm=False)['spirv'][0])
 
     def test_linux(self):
         c = self.checks
@@ -812,8 +817,8 @@ class Prereq(unittest.TestCase):
         for k in range(len(TOOLS) + 1):
             for on in itertools.combinations(TOOLS, k):
                 self.path(*on)
-                for sysname in SYSTEMS:
-                    for name, fix in self.fixes(sysname).items():
+                for sysname, arm in [(s, True) for s in SYSTEMS] + [('mac', False)]:   # (and an Intel Mac)
+                    for name, fix in self.fixes(sysname, arm).items():
                         for i, line in enumerate(fix):
                             if any(w.match(line) for w in words): continue
                             n += 1

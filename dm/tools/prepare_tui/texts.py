@@ -61,6 +61,7 @@ TEXTS = {
     'fix.dotnet_script': '{} has no .NET package: install the .NET 10 Runtime with Microsoft\'s script or by hand as {} says (with the lines that put it on '
                          'the PATH), then open a new terminal',
     'fix.python_none': '{} has no Python 3.14 package: use micromamba:',
+    'fix.spirv_intel': 'Homebrew has no ready-made spirv-tools for an Intel Mac: brew builds it from source, which takes a while:',
     'fix.curl': 'There is no curl here, which the next command needs: install it first:',
     'fix.curl_other': "There is no curl here, which the next command needs: install the distribution's curl package first.",
     'fix.not_venv': 'This Python is not in an environment of its own: make one (android/README.md), then start this with it:',

@@ -106,6 +106,13 @@ def brew(args):
     return [T('fix.brew_get'), BREW_GET, T('fix.brew_then'), f'brew {args}']
 
 
+def mac_arm():
+    """Whether this Mac is Apple silicon, also when this Python runs as Intel code under Rosetta (which says x86_64)"""
+    if platform.machine() == 'arm64': return True
+    try: return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], capture_output=True, text=True, timeout=10).stdout.strip() == '1'
+    except (OSError, subprocess.SubprocessError): return False
+
+
 def mamba(sysname):
     """micromamba's line that makes the environment, after how to get micromamba when it is not on the PATH (its installer is fetched with curl, which a
     small Linux install may lack: Debian's has wget only)"""
@@ -148,7 +155,9 @@ def install(sysname, what):
     .NET package at all (Microsoft's script or a runtime unpacked by hand); on the Mac from Microsoft's installer (Homebrew's dotnet-sdk cask is .NET 11
     now, whose runtime does not run the translator, built for 10)"""
     if sysname == 'windows': return [T({'dotnet': 'fix.dotnet_win', 'spirv': 'fix.spirv_win', 'cc': 'fix.cc_win'}[what])]
-    if sysname == 'mac': return {'dotnet': [T('fix.dotnet_mac')], 'spirv': brew('install spirv-tools'), 'cc': ['xcode-select --install']}[what]
+    if sysname == 'mac':   # (Homebrew builds spirv-tools for Apple silicon only: formulae.brew.sh; an Intel Mac is its Tier 3, which builds it from source)
+        spirv = ([] if mac_arm() else [T('fix.spirv_intel')]) + brew('install spirv-tools') if what == 'spirv' else []
+        return {'dotnet': [T('fix.dotnet_mac')], 'spirv': spirv, 'cc': ['xcode-select --install']}[what]
     if sysname in PKG_INSTALL:
         pkg = {'dotnet': 'dotnet-runtime-10.0', 'spirv': 'spirv-tools', 'cc': 'build-essential' if sysname == 'debian' else 'gcc'}[what]
         out = [root(f'{PKG_INSTALL[sysname]} {pkg}')]
