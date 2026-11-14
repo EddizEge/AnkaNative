@@ -30,6 +30,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / 'scripts')); sys.path.insert(0, str(REPO / 'dm/games'))
 import pack_dump
 import game
+sys.path.insert(0, str(REPO / 'dm/tools'))
+import pack_errors   # the error: lines before a [RED] line (dm/tools/pack_errors.py)
 sys.path.insert(0, str(REPO / 'dm/gfx/tools'))
 import dmsh_chain
 
@@ -37,7 +39,7 @@ REWRITER = ('patch_nso.py', 'nso.py', 'nso_code.py', 'nso_asm.py', 'nso_match.py
 FORMAT = 1   # pack.tsv format; the launcher refuses another
 
 
-class Error(Exception): pass
+class Error(pack_errors.Coded): pass   # Error(message[, code, args...])
 
 
 # The rewrite key, <module>.android.key: SHA-256 over name\0bytes of the REWRITER files, the module, the profile's patches.py (when there is one) and the part of the
@@ -124,7 +126,7 @@ def upgrade_keys(srcs, out, g):
 
 def nso_build_id(path):   # the module's build ID (NSO header +0x40), as the profile's build rows name it
     b = path.read_bytes()[:0x60]
-    if b[:4] != b'NSO0': raise Error(f'{path}: not an NSO')
+    if b[:4] != b'NSO0': raise Error(f'{path}: not an NSO', 'unreadable_file', path)
     return b[0x40:0x50].hex()
 
 
@@ -202,7 +204,7 @@ def rewrite(py, srcs, out, jobs, g, in_process=False):
             rc = run_in_process(REPO / 'dm/tools/patch_nso.py', [str(rewriter_src(src, out, m)), staging(out, m), m, '--target', 'android'], {'DM_GAME': g.id, 'DM_REWRITE_J': '1'}, out / f'rewrite_{m}.log')
             if rc:
                 tail = (out / f'rewrite_{m}.log').read_text(errors='replace').splitlines()[-20:]
-                raise Error(f'patch_nso.py exit code {rc} on {m}:\n' + '\n'.join(tail))
+                raise Error(f'patch_nso.py exit code {rc} on {m}:\n' + '\n'.join(tail), *pack_errors.flat(pack_errors.of_log('\n'.join(tail), 'patch_nso.py')))
             swap_in(out, m, key)
             print(f'  {m}: done ({time.monotonic() - t0:.1f} s)', flush=True)
             print(f'progress {i + 1}/{n} {m}', flush=True)
@@ -222,7 +224,8 @@ def rewrite(py, srcs, out, jobs, g, in_process=False):
                 log.close(); del procs[m]
                 if p.returncode:
                     tail = (out / f'rewrite_{m}.log').read_text(errors='replace').splitlines()[-20:]
-                    raise Error(f'patch_nso.py exit code {p.returncode} on {m}:\n' + '\n'.join(tail))
+                    c = pack_errors.of_exit(p.returncode, 'patch_nso.py') or pack_errors.of_log('\n'.join(tail), 'patch_nso.py')
+                    raise Error(f'patch_nso.py exit code {p.returncode} on {m}:\n' + '\n'.join(tail), *pack_errors.flat(c))
                 swap_in(out, m, todo[m][1])
                 print(f'  {m}: done', flush=True)
             if procs: time.sleep(0.2)
@@ -318,12 +321,12 @@ def split_shaders(a, g, vdir, pkg, parts=None):   # parts: the version's (romfs,
     print(f'shaders: splitting the shaders out of {rd} into {pkg} with {py} (a few minutes)', flush=True)
     env = tool_env(DM_GAME=g.id)
     r = subprocess.run(tool_argv(py, SPLIT, rd, ed / 'main', tmp / 'pkg', *[tmp / f for f in ('shader_map.tsv', 'shader_facts.tsv', 'shader_pairs.tsv', 'pso_pairs.tsv')]), env=env)
-    if r.returncode: raise Error(f'shader_split.py exit code {r.returncode}')
+    if r.returncode: raise Error(f'shader_split.py exit code {r.returncode}', *pack_errors.flat(pack_errors.of_exit(r.returncode, 'shader_split.py')))
     if (g.dir / 'shader_map.tsv').is_file():
         want, have = map_keys(g.dir / 'shader_map.tsv'), map_keys(tmp / 'shader_map.tsv')
         if missing := sorted(want - have):
             raise Error(f'the dump\'s shaders lack {len(missing)} of the {len(want)} in the profile\'s shader_map.tsv (e.g. {", ".join(missing[:3])}): the dump is of another version '
-                        f'or incomplete, and the profile\'s shader library cannot be built from it (the split is in {tmp})')
+                        f'or incomplete, and the profile\'s shader library cannot be built from it (the split is in {tmp})', 'shaders_other_build', len(missing), len(want))
         for f in ('shader_map.tsv', 'shader_facts.tsv', 'shader_pairs.tsv'):
             if (g.dir / f).is_file() and (g.dir / f).read_bytes() != (tmp / f).read_bytes():
                 print(f'shaders: the dump\'s {f} differs from the profile\'s ({len(have - want)} shaders more); the library is the profile\'s, its shaders found in the package by key')
@@ -347,7 +350,8 @@ def pack_shaders(a, g, work, out, vdir, parts=None):
         (work / 'android-shaders' / 'work').mkdir(parents=True, exist_ok=True)
         env = tool_env(DM_GAME=g.id, J=str(a.J), WORK=str(work / 'android-shaders' / 'work'))
         r = subprocess.run(tool_argv(py, VK_BUILD, '--target', 'vulkan', pkg, cache), env=env)
-        if r.returncode: raise Error(f'vk_android_build.py exit code {r.returncode} (a package that lacks the profile\'s shaders stops it: delete {pkg} and the split runs again)')
+        if r.returncode: raise Error(f'vk_android_build.py exit code {r.returncode} (a package that lacks the profile\'s shaders stops it: delete {pkg} and the split runs again)',
+                                     *pack_errors.flat(pack_errors.of_exit(r.returncode, 'vk_android_build.py')))
         if not library_current(lib, g): raise Error(f'vk_android_build.py finished but {lib} is not a full library of {g.id} with the current inputs')
     else: print(f'shaders: {lib} is current (game {g.id}, inputs {dmsh_chain.inputs(g)})')
     dst.mkdir(parents=True, exist_ok=True)
@@ -392,16 +396,16 @@ def main():
         if capstone.cs_version()[0] != 5: raise Error(f'Capstone {capstone.__version__}: the rewriter needs Capstone 5')
         app, vers, dlc = pack_dump.scan(folder)
         try: g = game.load(f'{app:016X}')
-        except SystemExit: raise Error(f'no profile dm/games/{app:016X}: the Android pack needs one (build_ipa_from_nsp.py makes a provisional one)') from None
+        except SystemExit: raise Error(f'no profile dm/games/{app:016X}: the Android pack needs one (build_ipa_from_nsp.py makes a provisional one)', 'no_profile', f'{app:016X}') from None
         ver = a.version if a.version is not None else max(vers, default=0)
-        if ver and ver not in vers: raise Error(f'no updates/{ver} (have: {", ".join(map(str, sorted(vers))) or "none"})')
+        if ver and ver not in vers: raise Error(f'no updates/{ver} (have: {", ".join(map(str, sorted(vers))) or "none"})', 'version_missing', ver)
         vdir = pack_dump.version_dir(folder, vers, ver)
         exe, romfs = pack_dump.version_part(folder, vers, ver, 'exefs'), pack_dump.version_part(folder, vers, ver, 'romfs')   # its own, else the base's
-        if not (exe / 'main.npdm').is_file() or not romfs.is_dir(): raise Error(f'{vdir}: no exefs/main.npdm and romfs (neither its own nor the base\'s)')
-        if (pid := pack_dump.program_id(exe / 'main.npdm')) != app: raise Error(f'{vdir}: program ID {pid:016X}, the base is {app:016X}')
+        if not (exe / 'main.npdm').is_file() or not romfs.is_dir(): raise Error(f'{vdir}: no exefs/main.npdm and romfs (neither its own nor the base\'s)', 'dump_incomplete', vdir)
+        if (pid := pack_dump.program_id(exe / 'main.npdm')) != app: raise Error(f'{vdir}: program ID {pid:016X}, the base is {app:016X}', 'wrong_title', vdir, f'{pid:016X}', f'{app:016X}')
         mods = g.words('modules')
         srcs = {m: exe / m for m in mods}
-        if missing := [m for m in mods if not srcs[m].is_file()]: raise Error(f'{exe}: no {", ".join(missing)} (the profile\'s modules are {" ".join(mods)})')
+        if missing := [m for m in mods if not srcs[m].is_file()]: raise Error(f'{exe}: no {", ".join(missing)} (the profile\'s modules are {" ".join(mods)})', 'module_missing', exe, ' '.join(missing))
         out = (a.out or folder.parent / f'{app:016X}-work' / 'android-pack').resolve()
         try: out.relative_to(REPO); raise Error(f'{out} is inside the repository: packs never go there')
         except ValueError: pass
@@ -431,7 +435,9 @@ def main():
         tmp = out / 'pack.tsv.partial'
         tmp.write_text(''.join(f'{k}\t{v}\n' for k, v in rows)); tmp.replace(out / 'pack.tsv')
         size = sum(f.stat().st_size for f in out.rglob('*') if f.is_file())
-    except (Error, pack_dump.Error) as e: sys.exit(f'[RED] {e}')
+    except (Error, pack_dump.Error) as e: pack_errors.fail(e)
+    except MemoryError: pack_errors.fail_memory('pack_android.py')
+    except OSError as e: pack_errors.fail_os(e); raise
     print(f'done: {out} ({size / 2**20:.1f} MiB); RomFS {rel(romfs)} and {len(dlc)} DLC stay in the game folder')
 
 
