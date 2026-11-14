@@ -136,9 +136,11 @@ public final class PrepareTextsJvmTest {
             for (boolean hasSave : new boolean[] {false, true}) {
                 File pk = pkCase == 0 ? null : pkCase == 1 ? new File(dir, "fake-pack") : pack;
                 boolean inside = pkCase == 1;
-                StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split shaders, the job's progress)"   // work/shader-speed's English
-                        + "\n· the split's kept progress and the translated shaders, in the app's own storage");
-                if (pk != null) m.append(inside ? " with the pack inside it" : "\n· the prepared pack and its shader library in " + pk);
+                // work/shader-speed's English, with "with the pack inside" on the working files' bullet, whose folder holds the pack (Ondevice inside(pk, dir)): 0.1.0
+                // appended it to the message's last line, which the split's bullet became
+                StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + (inside ? ", with the pack inside them" : "")
+                        + " (rewritten code, split shaders, the job's progress)" + "\n· the split's kept progress and the translated shaders, in the app's own storage");
+                if (pk != null && !inside) m.append("\n· the prepared pack and its shader library in " + pk);
                 m.append("\n\nKept: your dump (" + dump + ") and your saves").append(hasSave ? " (" + save + ")" : "")
                         .append(pk == null ? ", and the pack (" + pack + ")" : "").append(". Saves are never deleted here.");
                 m.append(pk != null ? "\n\nThe game will not start until it is prepared again (about 30-45 minutes)." : "\n\nA new Prepare starts from the beginning.");
