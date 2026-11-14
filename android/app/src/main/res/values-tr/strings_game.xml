@@ -141,4 +141,9 @@
     <string name="game_selftest_running">Grafik öz testi çalışıyor (%1$d kare, yaklaşık %2$d sn)</string>
     <string name="game_selftest_pass">BAŞARILI (dönüş kodu %1$d)\nÇıkmak için geri git; bu çalıştırmanın günlüğünü %2$s ile gönderebilirsin.</string>
     <string name="game_selftest_fail">BAŞARISIZ (dönüş kodu %1$d)\nÇıkmak için geri git; bu çalıştırmanın günlüğünü %2$s ile gönderebilirsin.</string>
+    <plurals name="game_mesh_making">
+        <item quantity="one">Bu telefon için %1$d mesh shader yapılıyor (güncellemeden sonraki ilk açılış): bitene kadar sahnenin bir kısmı çizilmez.</item>
+        <item quantity="other">Bu telefon için %1$d mesh shader yapılıyor (güncellemeden sonraki ilk açılış): bitene kadar sahnenin bir kısmı çizilmez.</item>
+    </plurals>
+    <string name="game_mesh_ready">Mesh shader\'lar hazır: artık her şey çiziliyor.</string>
 </resources>

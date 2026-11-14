@@ -205,15 +205,16 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * The About screen's license line. Anka Native is GPL-3.0-or-later as a whole: this APK's GPL-3.0-or-later parts are LSFG frame generation
-     * (dm/gfx/vk_android/lsfg, unless built with -PnxLsfg=false) and, with the on-phone packer, the shader translator (libdmsh_xlate.so, InstEmitAmpereMesh.cs)
+     * The About screen's license line. Anka Native is GPL-3.0-or-later as a whole: this APK's GPL-3.0-or-later parts are mesh draws through compute
+     * (dm/gfx/vk_android/vka_memu*, in every libnxhost.so), LSFG frame generation (dm/gfx/vk_android/lsfg, unless built with -PnxLsfg=false) and, with the
+     * on-phone packer, the shader translator (libdmsh_xlate.so, InstEmitAmpereMesh.cs). The four home_license_* lists all name mesh draws through compute
      */
     static String aboutLicense() {
         boolean xlate = "native".equals(BuildConfig.NX_PACK_ENGINE);
         if (BuildConfig.NX_LSFG && xlate) return Tr.s("home_license_gpl", Tr.s("home_license_lsfg_xlate"));
         if (BuildConfig.NX_LSFG) return Tr.s("home_license_gpl", Tr.s("home_license_lsfg"));
         if (xlate) return Tr.s("home_license_gpl", Tr.s("home_license_xlate"));
-        return Tr.s("home_license");
+        return Tr.s("home_license_gpl", Tr.s("home_license_memu"));
     }
 
     /** A settings group's card of rows, under its section label */
@@ -286,21 +287,21 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * A game a frontend sent that FrontendLaunch could not start at once: Home asks first, as nothing another app sends may act on its own. A card (card: the
-     * game path is the card's): Play, whose steps then say what is missing and offer the fix (a pack, Prepare, a shader update). A file that is no card must be
-     * one game (not a folder of several, which Add game would add all of), and it never takes the place of a card the user has without being named:
-     * a card of the same title and build (which Add game would replace with no question, GameList.matches) is that game, so Home asks to start that card, with
-     * its own files and pack, and the file is not added; another dump of the title on Home is named in the question, and Add game then asks whether this one
-     * replaces it or both stay. Else Add game, whose own steps check the file and add it. The buttons ignore taps through an overlay another app draws
+     * A game a frontend sent that FrontendLaunch could not start at once. A card (card: the game path is the card's): Play, as its button runs it, with no question
+     * in front: Play's own steps say what is missing and offer the fix (a pack, Prepare, a shader update), and a game it starts brings the frontend back when it
+     * stops. A file that is no card must be one game (not a folder of several, which Add game would add all of), and it never takes the place of a card the user
+     * has without being named: a card of the same title and build (which Add game would replace with no question, GameList.matches) is that game, so that card
+     * plays, with its own files and pack, and the file is not added; else Home asks before Add game (askAdd), naming another dump of the title on Home, and Add
+     * game then asks whether this one replaces it or both stay
      */
     private void fromFrontend(File game, boolean card) {
         if (settingsPage) page(false);
         refresh();
-        if (needAccess()) return;
         if (card) {
-            for (Game x : games) if (GameList.samePath(x.gameDir, game.getPath())) { askFrontend(x, null, null); return; }
+            for (Game x : games) if (GameList.samePath(x.gameDir, game.getPath())) { launch(x, true); return; }
             return;   // the card went in the meantime
         }
+        if (needAccess()) return;
         new Thread(() -> {   // reads the file (a .nup's TOC is hashed for its build): off the main thread
             File one = Pack.npdmOf(game) != null || Nup.isNup(game) || Nup.wrongCase(game) ? game : null;
             if (one == null) {
@@ -325,23 +326,16 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (isFinishing()) return;
                 if (f == null) { error(getString(R.string.home_frontend_not_one_game, getString(R.string.app_name), game)); return; }
-                if (s != null) { askFrontend(s, f, null); return; }
-                askFrontend(null, f, others);
+                if (s != null) { launch(s, true); return; }
+                askAdd(f, others);
             });
         }, "nx-frontend-add").start();
     }
 
-    /**
-     * Home's question for a frontend's game. card: Start that card (file: the other app named another copy of the same game build, which is not added).
-     * Else Add file, naming the other dumps of its title on Home (others)
-     */
-    private void askFrontend(Game card, File file, List<Game> others) {
+    /** Home's question before Add game takes a frontend's file that is no card, naming the other dumps of its title on Home (others) */
+    private void askAdd(File file, List<Game> others) {
         String msg;
-        if (card != null && file == null)
-            msg = getString(R.string.home_frontend_start_body, card.name, getString(R.string.home_play));
-        else if (card != null)
-            msg = getString(R.string.home_frontend_same_build_body, getString(R.string.app_name), file.getPath(), card.name, card.gameDir, getString(R.string.home_play));
-        else if (others.isEmpty())
+        if (others.isEmpty())
             msg = getString(R.string.home_frontend_add_body, getString(R.string.app_name), file.getPath(), getString(R.string.home_add), getString(R.string.home_add_game));
         else {
             StringBuilder list = new StringBuilder();
@@ -349,15 +343,27 @@ public final class MainActivity extends Activity {
             msg = getString(R.string.home_frontend_add_body_others, getString(R.string.app_name), file.getPath(), getString(R.string.home_add), list.toString(), getString(R.string.home_add_game));
         }
         AlertDialog d = new AlertDialog.Builder(this)
-                .setTitle(card != null ? getString(R.string.home_frontend_start_title, card.name) : getString(R.string.home_frontend_add_title))
+                .setTitle(getString(R.string.home_frontend_add_title))
                 .setMessage(msg)
-                .setPositiveButton(card != null ? getString(R.string.home_play) : getString(R.string.home_add), (x, w) -> { if (card != null) launch(card); else gamePicked(file); })
+                .setPositiveButton(getString(R.string.home_add), (x, w) -> gamePicked(file))
                 .setNegativeButton(android.R.string.cancel, null).create();
         d.setOnShowListener(x -> {
-            for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
+            filterTaps(d);
             Button n = d.getButton(AlertDialog.BUTTON_NEGATIVE);
             if (n != null) n.requestFocus();
         });
+        d.show();
+    }
+
+    /** A dialog another app opened (a frontend's request): its buttons ignore taps that land through another app's overlay, so no hidden tap gets past it */
+    private static void filterTaps(AlertDialog d) {
+        for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
+    }
+
+    /** One of Play's dialogs; frontend: a frontend's request opened it (launch(g, true)), so its buttons filter taps as askAdd's do (filterTaps) */
+    private static void showPlay(AlertDialog.Builder b, boolean frontend) {
+        AlertDialog d = b.create();
+        if (frontend) d.setOnShowListener(x -> filterTaps(d));
         d.show();
     }
 
@@ -922,77 +928,64 @@ public final class MainActivity extends Activity {
                 });
     }
 
-    void launch(Game g) {
-        if (needAccess()) return;
-        Msg why = Profile.missingMsg(g.titleId, g.name);
-        if (why != null) { error(why.text()); return; }
-        if (SaveUi.busy(g.titleId)) { error(getString(R.string.home_busy_save, g.name, getString(R.string.home_play))); return; }
-        if (PackUi.busy(g.titleId)) { error(getString(R.string.home_busy_pack, g.name, getString(R.string.home_play))); return; }
+    void launch(Game g) { launch(g, false); }
+
+    /**
+     * Play: PlayRule's decision (Play.check, the same one FrontendLaunch takes), then the game, or the step that comes first with its dialog. frontend: a frontend
+     * asked for this card (fromFrontend), so a game started here, also by "Start anyway", brings the frontend back when it stops
+     */
+    void launch(Game g, boolean frontend) {
+        PlayRule.Verdict v = Play.check(this, g);
+        if (v.kind.straight()) { Play.start(this, g, v.kind, frontend); return; }
         File gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
         Runnable pickPack = () -> { pendingGame = gd; pendingId = g.titleId; pickFolder(PICK_PACK, getString(R.string.home_pick_pack_folder)); };
-        Pack p;
-        try {
-            p = Pack.read(new File(g.packDir));
-        } catch (IOException e) {
-            if (dump) packProblem(g, getString(R.string.home_pack_unusable, e.getLocalizedMessage()), pickPack);
-            else error(e.getLocalizedMessage());
-            return;
+        switch (v.kind) {
+            case NO_ACCESS: needAccess(); return;
+            case NO_PROFILE: error(v.why.text()); return;
+            case SAVE_BUSY: error(getString(R.string.home_busy_save, g.name, getString(R.string.home_play))); return;
+            case PACK_BUSY: error(getString(R.string.home_busy_pack, g.name, getString(R.string.home_play))); return;
+            case PACK_UNREADABLE:
+                if (dump) packProblem(g, getString(R.string.home_pack_unusable, v.error.getLocalizedMessage()), pickPack, frontend);
+                else error(v.error.getLocalizedMessage());
+                return;
+            case PLACEHOLDER:   // a placeholder of the simulated engine (Anka Native 0.1.0's Prepare made one): it has no game code and no shaders, so it never starts
+                if (dump) packProblem(g, getString(R.string.home_pack_placeholder), pickPack, frontend);
+                else showPlay(new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.unavailableText(), g.packDir))
+                        .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()), frontend);
+                return;
+            case OTHER_TITLE:
+            case PACK_BLOCKED:   // a plain message, and Prepare again from the dump, instead of a start that cannot work
+                packProblem(g, v.why.text(), pickPack, frontend);
+                return;
+            case NO_LIBRARY:
+                break;
+            default:   // the straight kinds started above
+                throw new IllegalStateException("Play's steps for " + v.kind);   // i18n-keep: a caller's bug, never shown
         }
-        if (p.simulated) {   // a placeholder of the simulated engine (Anka Native 0.1.0's Prepare made one): it has no game code and no shaders, so it never starts
-            if (dump) packProblem(g, getString(R.string.home_pack_placeholder), pickPack);
-            else new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.unavailableText(), g.packDir))
-                    .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).show();
-            return;
-        }
-        // The pack's code must be of the game build in the folder (else the game crashes at once), and of a build this app supports: a plain message, and Prepare
-        // again from the dump, instead of a start that cannot work
-        Msg bad = PackCheck.blockingMsg(this, p, gd);
-        if (bad != null) { packProblem(g, bad.text(), pickPack); return; }
-        // The host loads <pack>/shaders/v-<its DMSH_VK_CHAIN>/dmsh_vk.lib: without it the game runs but draws nothing. Say so, and offer to prepare the shaders
-        // (a dump) or another pack folder
-        String lp = text(Pack.libraryProblemMsg(new File(g.packDir), g.titleId));
-        if (lp != null && Pack.playableLibrary(new File(g.packDir), g.titleId, dump) != null) {   // the older library plays while the update makes this version's (vka_shader.c lib_load)
-            if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
-            start(g);
-            return;
-        }
-        if (lp != null && Pack.legacyLibrary(new File(g.packDir), g.titleId) != null) {   // made before versioned updates: never blocks Play, says so (the host warns in its log too)
-            if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
-            Toast.makeText(this, ShaderLibs.legacyWarning(), Toast.LENGTH_LONG).show();
-            start(g);
-            return;
-        }
-        if (lp != null) {
-            // This version's library of older shader tables, with no dump to update it from (a pack made on a computer): the game plays, without the shaders the app's
-            // tables added (Ocarina of Time's mesh draws), until the pack is made again with this version's tools
-            boolean older = !dump && Pack.ownInputsDelta(new File(g.packDir), g.titleId) >= 0;
-            AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(older ? R.string.home_shaders_out_of_date : R.string.home_shaders_missing)
-                    .setMessage(dump ? getString(R.string.home_shaders_missing_prepare, Ondevice.prepareShadersMsg(new File(g.packDir), g.titleId).text(), lp)
-                            : older ? getString(R.string.home_shaders_out_of_date_body, lp) : getString(R.string.home_shaders_missing_body, lp))
-                    .setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).setNegativeButton(android.R.string.cancel, null);
-            if (dump) b.setPositiveButton(R.string.home_prepare, (d, w) -> Ondevice.prepare(this, gd, false));
-            else b.setPositiveButton(R.string.home_start_anyway, (d, w) -> start(g));
-            b.show();
-            return;
-        }
-        start(g);
+        // NO_LIBRARY: without a library it can play, the game runs but draws nothing. Say so, and offer to prepare the shaders (a dump) or another pack folder.
+        // This version's library of older shader tables, with no dump to update it from (a pack made on a computer): the game plays, without the shaders the app's
+        // tables added (Ocarina of Time's mesh draws), until the pack is made again with this version's tools
+        String lp = v.why.text();
+        boolean older = !dump && Pack.ownInputsDelta(new File(g.packDir), g.titleId) >= 0;
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(older ? R.string.home_shaders_out_of_date : R.string.home_shaders_missing)
+                .setMessage(dump ? getString(R.string.home_shaders_missing_prepare, Ondevice.prepareShadersMsg(new File(g.packDir), g.titleId).text(), lp)
+                        : older ? getString(R.string.home_shaders_out_of_date_body, lp) : getString(R.string.home_shaders_missing_body, lp))
+                .setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).setNegativeButton(android.R.string.cancel, null);
+        if (dump) b.setPositiveButton(R.string.home_prepare, (d, w) -> Ondevice.prepare(this, gd, false));
+        else b.setPositiveButton(R.string.home_start_anyway, (d, w) -> Play.go(this, g, frontend));
+        showPlay(b, frontend);
     }
 
-    /** A pack that cannot run with this game folder: why, then Prepare again from the dump (the default), or another pack folder */
-    private void packProblem(Game g, String why, Runnable pickPack) {
+    /** A pack that cannot run with this game folder: why, then Prepare again from the dump (the default), or another pack folder; frontend as for showPlay */
+    private void packProblem(Game g, String why, Runnable pickPack, boolean frontend) {
         File gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
         AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(R.string.home_pack_cannot_start)
                 .setMessage(dump ? getString(R.string.home_pack_problem_dump, getString(R.string.home_prepare_again), why, g.packDir) : getString(R.string.home_pack_problem, why, g.packDir))
                 .setNegativeButton(android.R.string.cancel, null).setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run());
         if (dump) b.setPositiveButton(R.string.home_prepare_again, (d, w) -> Ondevice.prepare(this, gd, false));
-        b.show();
-    }
-
-    private void start(Game g) {
-        Game.touch(this, g);   // the entry played last is the one kept if the list ever holds this game twice
-        startActivity(new Intent(this, GameActivity.class).putExtra("title_id", g.titleId).putExtra("name", g.name).putExtra("game", g.gameDir).putExtra("pack", g.packDir));
+        showPlay(b, frontend);
     }
 
     /** The overlay's master switch and its items (Overlay.rows); the main screen's switch follows the master switch */

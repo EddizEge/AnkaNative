@@ -5,9 +5,13 @@
 
     <!-- Ondevice: a build without the packer (also shown by the home screen) -->
     <string name="prepare_unavailable">Esta versão do Anka Native não consegue preparar um jogo no celular. Prepare-o uma vez em um computador (Linux ou Mac), como dizem os passos de \"Install\" do README (github.com/EddizEge/AnkaNative), copie o pacote para junto do dump como &lt;title ID&gt;-work/android-pack e depois adicione o jogo de novo ou escolha essa pasta de pacote.</string>
+    <string name="prepare_shaders_update_quick">Atualiza os shaders a partir do seu dump: %1$,d dos %2$,d são novos ou mudaram nesta versão do app; os outros ficam como estão. Só as partes do seu dump que contêm os novos são lidas: %3$s no total, em segundo plano.</string>
+    <string name="prepare_shaders_update_full">Atualiza os shaders a partir do seu dump: %1$,d dos %2$,d são novos ou mudaram nesta versão do app; os outros ficam como estão. Primeiro os shaders do dump são lidos de novo, o que leva a maior parte do tempo: %3$s no total, em segundo plano.</string>
     <!-- Ondevice.shadersText: what making a pack's shaders does; %3$s / %1$s: the time it takes ("about 20-35 minutes") -->
     <string name="prepare_shaders_make">Cria os shaders a partir do seu dump (%1$s, em segundo plano).</string>
     <string name="prepare_shaders_make_default">Cria os shaders a partir do seu dump (cerca de 20-35 minutos, em segundo plano).</string>
+    <string name="prepare_shaders_update_quick_step">A preparação atualiza os shaders a partir do seu dump: %1$,d dos %2$,d são novos ou mudaram nesta versão do app; os outros ficam como estão. Só as partes do seu dump que contêm os novos são lidas: %3$s no total, em segundo plano.</string>
+    <string name="prepare_shaders_update_full_step">A preparação atualiza os shaders a partir do seu dump: %1$,d dos %2$,d são novos ou mudaram nesta versão do app; os outros ficam como estão. Primeiro os shaders do dump são lidos de novo, o que leva a maior parte do tempo: %3$s no total, em segundo plano.</string>
     <!-- Ondevice.prepareShadersMsg: the same as one sentence after the word Prepare (the home screen's shader dialog) -->
     <string name="prepare_shaders_make_step">A preparação cria os shaders a partir do seu dump (%1$s, em segundo plano).</string>
     <string name="prepare_shaders_make_step_default">A preparação cria os shaders a partir do seu dump (cerca de 20-35 minutos, em segundo plano).</string>
@@ -25,6 +29,19 @@
     <!-- a test build's simulated engine; %1$s: the line above -->
     <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
     <string name="prepare_card_progress">%1$d%%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
+    <string name="prepare_eta_less">Falta menos de um minuto</string>
+    <plurals name="prepare_eta_minutes">
+        <item quantity="one">Falta cerca de %1$d minuto</item>
+        <item quantity="other">Faltam cerca de %1$d minutos</item>
+    </plurals>
+    <plurals name="prepare_eta_hours">
+        <item quantity="one">Falta cerca de %1$d hora</item>
+        <item quantity="other">Faltam cerca de %1$d horas</item>
+    </plurals>
+    <plurals name="prepare_eta_hours_minutes">
+        <item quantity="one">Faltam cerca de %1$d hora e %2$d minutos</item>
+        <item quantity="other">Faltam cerca de %1$d horas e %2$d minutos</item>
+    </plurals>
     <string name="prepare_button_pause">Pausar</string>
     <string name="prepare_button_prepare_again">Preparar de novo</string>
     <string name="prepare_button_retry">Tentar novamente</string>
@@ -78,9 +95,13 @@
     <string name="prepare_manage_title">Preparando %1$s</string>
     <string name="prepare_button_done">Concluído</string>
     <string name="prepare_forget_title">Esquecer esta tarefa?</string>
+    <string name="prepare_forget_body">Excluído: nada. A tela deixa de mostrar a tarefa.\n\nMantidos: os arquivos dela em %1$s, o pacote, seu dump e seus saves. Escolher o mesmo dump de novo encontra a tarefa.\n\nO progresso guardado da busca pelos shaders (uma cópia no armazenamento do próprio app) e os shaders traduzidos (até cerca de 1 GB, também no armazenamento do próprio app) são excluídos quando começa uma tarefa de outro jogo; até lá, uma tarefa inacabada continua a partir deles.</string>
     <string name="prepare_button_forget">Esquecer</string>
     <string name="prepare_not_deleted_dump">Não excluído: %1$s contém o seu dump ou está dentro dele.</string>
     <string name="prepare_not_deleted_save">Não excluído: %1$s contém a sua pasta de saves ou está dentro dela.</string>
+    <string name="prepare_deleted_work">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders e os shaders traduzidos, no armazenamento do próprio app</string>
+    <string name="prepare_deleted_work_pack_inside">Excluídos:\n· os arquivos de trabalho em %1$s, com o pacote dentro (código reescrito, shaders separados, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders e os shaders traduzidos, no armazenamento do próprio app</string>
+    <string name="prepare_deleted_work_and_pack">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders e os shaders traduzidos, no armazenamento do próprio app\n· o pacote preparado e a biblioteca de shaders dele em %2$s</string>
     <!-- Delete working files: the question's paragraphs (what goes, what stays, what follows) -->
     <string name="prepare_kept">Mantidos: seu dump (%1$s) e seus saves. Os saves nunca são excluídos aqui.</string>
     <string name="prepare_kept_save">Mantidos: seu dump (%1$s) e seus saves (%2$s). Os saves nunca são excluídos aqui.</string>
@@ -117,6 +138,8 @@
     <string name="prepare_status_paused">Pausado: %1$s. %2$s.</string>
     <string name="prepare_status_running">%1$s (etapa %2$d de %3$d).</string>
     <string name="prepare_status_interrupted">Interrompido: %1$s. Toque em %2$s para continuar.</string>
+    <string name="prepare_notice_inputs_changed">Esta versão do app conhece mais shaders do jogo, então eles são procurados de novo no seu dump primeiro.</string>
+    <string name="prepare_notice_split_full">A leitura rápida do seu dump não encontrou um shader de que esta atualização precisa, então todos os shaders do dump estão sendo lidos agora.</string>
     <!-- Job.reasonMsg: why a job is paused; tap %1$s: the button's label -->
     <string name="prepare_reason_user">por você</string>
     <string name="prepare_reason_battery">bateria abaixo de 20%: conecte o carregador para continuar</string>
@@ -160,6 +183,8 @@
     <string name="prepare_dump_free_unknown">Não é possível ler o espaço livre de %1$s.</string>
     <string name="prepare_dump_space">A preparação precisa de %1$.1f GB livres ao lado do dump; %2$s tem %3$.2f GB livres.</string>
     <string name="prepare_dump_not_writable">Não é possível criar %1$s: não é possível gravar na pasta ao lado do dump.</string>
+    <string name="prepare_results_free_unknown">Não é possível ler o espaço livre do armazenamento do app (%1$s).</string>
+    <string name="prepare_error_results_space">traduzir os shaders precisa de %1$.1f GB livres no armazenamento interno do celular, e há %2$.2f GB livres. Libere espaço e depois toque em %3$s</string>
     <!-- Job.statusMsg: a failure the packer gave an error code (JobErrors); %2$s: the code's text (whole sentences), Tap %3$s: the button's label -->
     <string name="prepare_status_failed_coded">Parou durante %1$s. %2$s Toque em %3$s para continuar.</string>
     <!-- Job.statusMsg: a failure of Prepare's own that is a whole sentence -->

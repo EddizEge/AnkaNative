@@ -53,11 +53,11 @@
     <string name="home_adb_turn_on">Activar</string>
     <string name="home_section_about">Acerca de</string>
     <string name="home_about">Title IDs: %1$s\n%2$s Créditos y licencias de sus componentes: NOTICE.md en el código fuente, github.com/%3$s.</string>
-    <string name="home_license">Licencia: GPL-3.0-or-later en su conjunto.</string>
     <string name="home_license_gpl">Licencia: GPL-3.0-or-later en su conjunto (esta compilación incluye código GPL-3.0-or-later: %1$s).</string>
-    <string name="home_license_lsfg_xlate">generación de cuadros LSFG y el traductor de shaders</string>
-    <string name="home_license_lsfg">generación de cuadros LSFG</string>
-    <string name="home_license_xlate">el traductor de shaders</string>
+    <string name="home_license_lsfg_xlate">generación de cuadros LSFG, dibujo de mallas mediante compute y el traductor de shaders</string>
+    <string name="home_license_lsfg">generación de cuadros LSFG y dibujo de mallas mediante compute</string>
+    <string name="home_license_xlate">dibujo de mallas mediante compute y el traductor de shaders</string>
+    <string name="home_license_memu">dibujo de mallas mediante compute</string>
     <string name="home_update_version_release_only">Anka Native %1$s · solo en la versión publicada</string>
     <string name="home_overlay_on">Activado · %1$d de %2$d elementos</string>
     <string name="home_off">Desactivado</string>
@@ -69,14 +69,11 @@
     <string name="home_no_pack_next_to">No se encontró un paquete para %1$s junto a %2$s.</string>
 
     <!-- MainActivity: a game a frontend sent -->
-    <string name="home_frontend_start_title">¿Iniciar %1$s?</string>
     <string name="home_frontend_add_title">¿Agregar este juego?</string>
-    <string name="home_frontend_start_body">Otra app pidió iniciar %1$s. No puede iniciarse de inmediato: al tocar %2$s, la app revisa lo que necesita y pregunta antes de cambiar algo.</string>
     <string name="home_frontend_add_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %4$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.</string>
     <string name="home_play">Jugar</string>
     <string name="home_add">Agregar</string>
     <string name="home_frontend_not_one_game">Otra app pidió a %1$s abrir %2$s, que no es un solo juego: envía un único .nup o una sola carpeta de juego. No se agregó nada.</string>
-    <string name="home_frontend_same_build_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque es la misma versión del juego (build) que tu tarjeta de %3$s (%4$s). Al tocar %5$s, se inicia el juego de tu tarjeta con sus propios archivos y su paquete; ese archivo no se agrega y tu tarjeta no cambia.</string>
     <string name="home_frontend_add_body_others">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %5$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.\n\nTu lista ya tiene otro volcado de este juego:\n%4$s\n\nAl agregarlo con %5$s, se te preguntará si este archivo lo reemplaza o si conservas los dos.</string>
     <string name="home_frontend_other_dump_item">• %1$s (paquete %2$s)</string>
 
@@ -201,6 +198,8 @@
     <string name="home_shaders_missing">Faltan shaders</string>
     <string name="home_shaders_missing_body">Sin ellos, el juego no muestra ninguna imagen.\n\n%1$s</string>
     <string name="home_start_anyway">Iniciar de todos modos</string>
+    <string name="home_shaders_out_of_date">Shaders desactualizados</string>
+    <string name="home_shaders_out_of_date_body">El juego inicia con los shaders que tiene el paquete. Los que agregó esta versión de la app faltan hasta que el paquete se vuelva a crear con las herramientas de esta versión (scripts/pack_android.py en una computadora) o hasta que el juego se agregue a partir de su volcado para que la app los actualice.\n\n%1$s</string>
     <string name="home_pack_cannot_start">El paquete no puede iniciar este juego</string>
     <string name="home_pack_problem_dump">Con %1$s se corrige a partir de tu volcado, en este teléfono.\n\n%2$s\n\nPaquete: %3$s</string>
     <string name="home_pack_problem">%1$s\n\nPaquete: %2$s</string>

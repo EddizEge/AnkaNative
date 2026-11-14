@@ -14,3 +14,5 @@ dm/games/*/cb_extent.tsv
 # Release signing keys never go into the repository (docs/RELEASING.md)
 *.jks
 *.keystore
+# libzbicdec as nso.py builds it on a computer (dm/third_party/zstd-zbic/build/<sources digest>-<CPU>/)
+dm/third_party/zstd-zbic/build/

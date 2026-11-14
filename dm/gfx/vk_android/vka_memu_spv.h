@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the compute mesh emulation: pavelgajdo/Hokkaido #569)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden and yuzu lines are those of Lichii's emit_spirv.h (EmitMeshEmulationVertex), as zortos293/Lichii #569 left it (Hokkaido is a fork of Lichii)
 //
 // NVN2 task and mesh programs as compute shaders, and the vertex shaders that draw what they wrote (vka_memu_spv.c). Plain C, no Vulkan: unit-tested on the Mac
 // (dm/host/tests t_android_memu). The record and arena layout is vka_memu_abi.h's. GPL-3.0-or-later: see vka_memu_abi.h.

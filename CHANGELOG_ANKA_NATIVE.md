@@ -15,6 +15,26 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   12-thread Linux PC. The packer prints a line as each step starts, which the interface reads; `scripts/pack_android.py` stays the way to script a run. On
   Windows Ctrl+Break now stops the packer and its tools as Ctrl+C does, and the shader build's temporary files are now kept in the library's result folder,
   where the next build removes what a stopped one left. Tried on Linux only so far.
+- **Prepare says how long it has left.** While a game is being prepared on the phone, the Preparing card (under its progress line) and the notification
+  (first, before the step) show the time the whole job has left: "About 45 minutes left", "About 1 hour 15 minutes left", "Less than a minute left". It
+  follows the last minutes' speed, so it keeps up when a hot phone slows down, counts only the time the job runs (not a pause or a wait for the battery or
+  the heat), and stays quiet when it has nothing to go on: during the dump check, the code rewrite and the start of the shader scan, while paused, and when
+  progress stops. Replayed on three full Ocarina of Time Prepares measured on a POCO F8 Pro, it was about 7-16 % off on average, at times up to about 30 %
+  (more in the last few minutes). Not yet seen on a phone.
+- **A game started from a frontend no longer asks "Start …?"** (found with iiSU 0.1.6.1). The play intent had its own copy of Play's checks, stricter
+  than Play: a pack whose shader library was this version's but made from older shader inputs, which Play starts while the automatic update runs, was
+  "not ready", so Home asked first and the game started only from Home's Play, without bringing the frontend back when it stopped. Play and the
+  frontend's request now take one decision (`PlayRule`): whatever Play starts at once, the frontend starts at once (with the automatic shader update of a
+  dump's pack, as Play, when Home is running and no Prepare job is; else when Home next shows the card), and a game that needs a pack, Prepare or shaders gets Play's own
+  dialog with no question in front; its buttons ignore taps through another app's overlay, and a game it starts ("Start anyway") also brings the
+  frontend back. Play itself now refuses a pack of another title with its pack dialog. A file that is not on Home still asks "Add this game?"
+  (android/FRONTENDS.md). Checked on the JVM and in a build, not yet on a phone.
+- **The zstd-compressed code of newer games (ZBIC, Ocarina of Time's) is read with Banana Native's decoder, `libzbicdec`** (`dm/third_party/zstd-zbic`:
+  Zstandard's decoder, BSD, with an MIT reader of ZBIC's tables), in place of the zbic package (GPLv2), which the on-phone packer carried up to 0.2.2 and
+  whose license did not fit the GPL-3.0-or-later translator in the same process. On Ocarina of Time it gives the same bytes: its code modules, the rewrite and
+  the shader split's outputs are identical, so finished packs stay valid and are not rewritten. The APK carries `libzbicdec.so` (about 100 KB instead of the
+  590 KB extension). Preparing on a computer no longer installs zbic but needs a C compiler for these games: the decoder is built once, the first time one is
+  read (android/README.md).
 - **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
   cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
   faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped

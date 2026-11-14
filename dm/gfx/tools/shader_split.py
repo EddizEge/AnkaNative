@@ -2827,7 +2827,7 @@ def nso_image(path):   # an NSO's image (dm/tools/nso.py); nso.Error (a ValueErr
 
 class NeedsMain(BaseException):
     """Raised in a subinterpreter worker (InterpPool) by an import of a module that cannot load in a subinterpreter: an extension module with single-phase
-    initialisation, as python-lz4 4.4 and zbic are ('module ... does not support loading in subinterpreters'). A BaseException, so no reader's `except Exception`
+    initialisation, as python-lz4 4.4 is ('module ... does not support loading in subinterpreters'). A BaseException, so no reader's `except Exception`
     takes it for an unreadable file or another format (unsized's would read an LZ4 frame as it is, scan_file's would leave the file's shaders out): the batch
     ends, and the pool scans it again in the main interpreter"""
 
@@ -2862,7 +2862,7 @@ class InterpPool:
     the scan's Python runs on n cores where the process may not fork (the phone's packer: android/SHADERS.md, The phone's form). Each worker imports this file as a
     module and runs _pool_init with the pool's arguments; a batch goes in and its results come back pickled (bytes cross interpreters as they are), with what the
     batch printed (its red lines), which is printed here. Results are taken in job order by pooled, so the outputs are those of InProcess.
-    - A module that cannot load in a subinterpreter (python-lz4 and zbic, which the phone's Python bundles, are single-phase extensions) raises NeedsMain in the
+    - A module that cannot load in a subinterpreter (python-lz4, which the phone's Python bundles, is a single-phase extension) raises NeedsMain in the
       worker (its __import__ is wrapped), and that batch is scanned again in this interpreter, one such batch at a time: its results are those of InProcess too.
       The first line says which of these decoders the workers lack.
     - When no worker can be made or set up (no concurrent.interpreters, an import of the tool that fails in a subinterpreter), pool() prints one line saying so and
@@ -2891,7 +2891,7 @@ class InterpPool:
             '    except _ss.Stopped as e: r = ("stopped", str(e))\n'
             '    finally: text, sys.stdout = sys.stdout.getvalue(), out\n'
             '    return pickle.dumps(r + (text,), pickle.HIGHEST_PROTOCOL)\n')
-    PROBE = ('lz4.block', 'lz4.frame', 'zbic')   # the optional decoders the scan imports when a file needs them (nso.py: zbic)
+    PROBE = ('lz4.block', 'lz4.frame')   # the optional decoders the scan imports when a file needs them (nso.py's ZBIC decoder is libzbicdec through ctypes, which loads in a subinterpreter)
 
     def __init__(self, n, initializer, initargs):
         import queue, threading

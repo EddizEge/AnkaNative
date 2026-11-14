@@ -53,14 +53,14 @@
     <string name="home_adb_confirm_body">Enquanto estiver ativado, o adb, e qualquer outro app deste celular, pode adicionar jogos, iniciar a preparação e instalar ou escolher um driver de GPU pelo launcher do Anka Native, sem perguntar a você. Um driver de GPU é código que roda dentro do jogo. Ative só enquanto estiver usando o adb e depois desative de novo.</string>
     <string name="home_adb_turn_on">Ativar</string>
     <string name="home_section_about">Sobre</string>
-    <!-- %1$s: the title IDs, %2$s: home_license or home_license_gpl, %3$s: the repository (owner/name) -->
+    <!-- %1$s: the title IDs, %2$s: home_license_gpl, %3$s: the repository (owner/name) -->
     <string name="home_about">Title IDs: %1$s\n%2$s Créditos e as licenças das partes: NOTICE.md no código-fonte, github.com/%3$s.</string>
-    <string name="home_license">Licença: GPL-3.0-or-later como um todo.</string>
-    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg or home_license_xlate -->
+    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg, home_license_xlate or home_license_memu (mesh draws through compute are in every build) -->
     <string name="home_license_gpl">Licença: GPL-3.0-or-later como um todo (este build inclui código GPL-3.0-or-later: %1$s).</string>
-    <string name="home_license_lsfg_xlate">geração de quadros LSFG e o tradutor de shaders</string>
-    <string name="home_license_lsfg">geração de quadros LSFG</string>
-    <string name="home_license_xlate">o tradutor de shaders</string>
+    <string name="home_license_lsfg_xlate">geração de quadros LSFG, desenho de malhas via compute e o tradutor de shaders</string>
+    <string name="home_license_lsfg">geração de quadros LSFG e desenho de malhas via compute</string>
+    <string name="home_license_xlate">desenho de malhas via compute e o tradutor de shaders</string>
+    <string name="home_license_memu">desenho de malhas via compute</string>
     <!-- %1$s: the app's version -->
     <string name="home_update_version_release_only">Anka Native %1$s · só no app oficial</string>
     <!-- %1$d of %2$d: the overlay items that are on, of all -->
@@ -76,18 +76,13 @@
     <string name="home_no_pack_next_to">Nenhum pacote encontrado para %1$s ao lado de %2$s.</string>
 
     <!-- MainActivity: a game a frontend sent (fromFrontend) -->
-    <string name="home_frontend_start_title">Iniciar %1$s?</string>
     <string name="home_frontend_add_title">Adicionar este jogo?</string>
-    <!-- %2$s: home_play (the dialog's button) -->
-    <string name="home_frontend_start_body">Outro app pediu para iniciar %1$s. O jogo não começa direto: o botão %2$s verifica o que é preciso e pergunta antes de mudar qualquer coisa.</string>
     <!-- %1$s: the app's name, %2$s: the file, %3$s: home_add (the button), %4$s: home_add_game -->
     <string name="home_frontend_add_body">Outro app pediu ao %1$s para abrir\n\n%2$s\n\nque não está na sua lista. Como em %4$s, o app verifica o arquivo e o adiciona à tela inicial; nada é adicionado se você não tocar em %3$s.</string>
     <string name="home_play">Jogar</string>
     <string name="home_add">Adicionar</string>
     <!-- %1$s: the app's name, %2$s: the path another app sent -->
     <string name="home_frontend_not_one_game">Outro app pediu ao %1$s para abrir %2$s, que não é um único jogo: envie um único .nup ou uma única pasta de jogo. Nada foi adicionado.</string>
-    <!-- %1$s: the app's name, %2$s: the file another app sent, %3$s: the card's name, %4$s: the card's game path, %5$s: home_play (the dialog's button) -->
-    <string name="home_frontend_same_build_body">Outro app pediu ao %1$s para abrir\n\n%2$s\n\nque é a mesma versão do jogo do seu cartão de %3$s (%4$s). O botão %5$s inicia o seu cartão com os próprios arquivos e pacote dele; esse arquivo não é adicionado e o seu cartão não muda.</string>
     <!-- home_frontend_add_body, then the other dumps of the title on Home. %1$s: the app's name, %2$s: the file, %3$s: home_add (the button), %4$s: home_frontend_other_dump_item rows, one a line, %5$s: home_add_game -->
     <string name="home_frontend_add_body_others">Outro app pediu ao %1$s para abrir\n\n%2$s\n\nque não está na sua lista. Como em %5$s, o app verifica o arquivo e o adiciona à tela inicial; nada é adicionado se você não tocar em %3$s.\n\nSua lista tem outro dump deste jogo:\n%4$s\n\nDepois, o app pergunta se este arquivo substitui o outro ou se os dois são mantidos.</string>
     <!-- %1$s: the dump's game path, %2$s: its pack folder -->
@@ -237,6 +232,8 @@
     <string name="home_shaders_missing">Faltam shaders</string>
     <string name="home_shaders_missing_body">Sem eles, o jogo não mostra imagem nenhuma.\n\n%1$s</string>
     <string name="home_start_anyway">Iniciar mesmo assim</string>
+    <string name="home_shaders_out_of_date">Shaders desatualizados</string>
+    <string name="home_shaders_out_of_date_body">O jogo inicia com os shaders que o pacote tem. Os que esta versão do app adicionou ficam faltando até o pacote ser criado de novo com as ferramentas desta versão (scripts/pack_android.py em um computador) ou até o jogo ser adicionado a partir do dump, para que o app os atualize.\n\n%1$s</string>
     <string name="home_pack_cannot_start">O pacote não consegue iniciar este jogo</string>
     <!-- %1$s: home_prepare_again, %2$s: why (PackCheck), %3$s: the pack folder -->
     <string name="home_pack_problem_dump">A opção %1$s corrige isso a partir do seu dump, neste celular.\n\n%2$s\n\nPacote: %3$s</string>

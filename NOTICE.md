@@ -19,10 +19,16 @@ Anka Native is built on other people's work. This file is where they are credite
   contributors", kept in [LICENSE](LICENSE)): small fixes ported from it after Anka Native's base, each naming its Banana Native commit in the code and the commit
   message: the `VK_EXT_device_fault` report of a lost device (`vka_dev.c`, 65745297, with `vka_device_lost` from ad509ad8); the variable-rate shading calls as empty implementations (`hle_nvn.c`,
   1d2aec48); SDK 22's `IsOunceVibrationDeviceMounted` (`hle_hid.c`, b39bf8b5); the audio focus asked for again
-  after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish); one prewarm build at a time
-  on Turnip (`vka_pso.c`, d393736c and 84d1b9df by wraphs); the asynchronous pipeline queue's cheapest-first
+  after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish); one prewarm build at a time,
+  here a switch that is off by default (`DM_VK_PREWARM_OVERLAP=0`, `vka_pso.c`, d393736c and 84d1b9df by wraphs); the asynchronous pipeline queue's cheapest-first
   order, fitted to Anka Native's need order (`vka_aspick.h`, after 49fa341d); the texture-use feedback bitmap in a
   set of its own (their finding of v0.2.9, ad509ad8, re-implemented as a SPIR-V set rewrite at module creation).
+  The NVN2 task and mesh work ported from it: `nvnCommandBufferDrawMeshTasksIndirect` and its `{count, 1, 1}` copies (`hle_nvn.c`, `vka_exec.c` `mdx_*`,
+  1d2aec48 and d1180632); the task and mesh shaders of BNSH program slots 7 and 8 in the shader split (`shader_split.py`, 1d2aec48); a depth / stencil
+  image's first clear in the submission (`vka_tex.c` `ds_here`, 1d2aec48); the specialization-constant fold `vka_spv_spec_freeze` (`vka_spvpatch.c`, 1d2aec48);
+  mesh draws through compute (b39bf8b5, 624c267e): its hooks in `vka_draw.c`, `vka_exec.c`, `vka_pso.c`, `vka_shader.c` and `vka_dev.c` are MIT, its
+  `vka_memu*` files and `memu/` passes are GPL-3.0-or-later (below and in [android/NOTICE.md](android/NOTICE.md)); and the ZBIC decoder libzbicdec
+  (`dm/third_party/zstd-zbic`, f86575b0: its MIT files in `zbic/` and its build script, around Zstandard's BSD decoder). All by moceure unless named.
 
 ## Code and findings from other projects
 
@@ -41,14 +47,25 @@ Anka Native is built on other people's work. This file is where they are credite
 - **[Banana Native](https://git.eden-emu.dev/moceure/BananaNative)** (MIT): the targeted shader split of an update (f86575b0, 7f09ca1f: read only the
   dump's files that the profile's shader map names for the shaders an update needs), followed in `dm/gfx/tools/split_delta.py` with its own proof and a full
   split as the fallback.
-- **Lichii** (Android emulator): Ocarina of Time findings. The game's 4-byte cut at `main+0x805bd0` uses the same offset and bytes as Lichii's built-in
-  patch, and the frame-rate division the frame step replaces was found there first (as nxnative credits). Ideas only: no Lichii code is in this repository.
+- **[Lichii](https://github.com/zortos293/Lichii)** (an Eden-based emulator, GPL-3.0-or-later): Ocarina of Time findings. The game's 4-byte cut at
+  `main+0x805bd0` uses the same offset and bytes as Lichii's built-in patch, and the frame-rate division the frame step replaces was found there first (as
+  nxnative credits). The 3D resolution option (`DM_RES_LEVEL`, `dm/host/drs_level.h`) is Anka Native's own code; the dynamic-resolution controller it
+  acts on was first patched by Lichii's Max Resolution add-on (carried into Banana Native by sutormin.kirill, 2fab0634), and its palette of levels is the one
+  Banana Native's profile lists (849d2fb3). Ideas only, apart from the next entry.
+- **Mesh draws through compute** (`dm/gfx/vk_android/vka_memu*` and the passes in `memu/`, GPL-3.0-or-later): Lichii's compute emulation of task and mesh programs
+  (pull requests #569 by zortos293 and #642 by RomainROCH; Lichii's files: "Copyright 2026 Eden Emulator Project", most also a "yuzu Emulator Project" line, GPL-3.0-or-later), as carried in
+  [Hokkaido](https://github.com/pavelgajdo/Hokkaido) (pavelgajdo's fork of Lichii) and ported to this replay by Banana Native (b39bf8b5, 624c267e), with
+  the finding of nebadasSwifty's Banana Native pull request #170 (Function-scope booleans start false). The files keep their SPDX headers, with the Eden and
+  yuzu lines of the Lichii files each one follows; its build script `memu/spv.py` and its tests are MIT, as in Banana Native. Details in
+  [android/NOTICE.md](android/NOTICE.md).
+- **ColdFir5** (Michael Williams), pull request #11 to Anka Native (open, not merged): a parallel finding. It found the same Ocarina of Time level selector,
+  `main+0x8065e0`, on its own and holds it at the last level (`DM_OOT_FLOOR_RES=1`); none of its code is used.
 - **[Atmosphere](https://github.com/Atmosphere-NX/Atmosphere)** (the reference for Horizon's synchronization), **[LibHac](https://github.com/Thealexbarney/LibHac)**,
   **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)**, **[glslang](https://github.com/KhronosGroup/glslang)**,
   **[MacNativeGames](https://github.com/ly05010419/MacNativeGames)** (MIT) and deko3d (zlib): used by the Mac and iPhone builds and the shared tools, as
   listed in [docs/mac-and-iphone.md](docs/mac-and-iphone.md#acknowledgements).
-- Third-party code shipped in `dm/third_party` (AMD FidelityFX FSR 1, NVIDIA FLIP, libadrenotools, libvpx, stb_vorbis, Ryujinx, Vulkan-Headers, zstd and
-  MacNativeGames' adapted parts): each keeps its license file in its own directory, listed in [dm/third_party/README.md](dm/third_party/README.md).
+- Third-party code shipped in `dm/third_party` (AMD FidelityFX FSR 1, NVIDIA FLIP, libadrenotools, libvpx, stb_vorbis, Ryujinx, Vulkan-Headers, zstd,
+  zstd-zbic and MacNativeGames' adapted parts): each keeps its license file in its own directory, listed in [dm/third_party/README.md](dm/third_party/README.md).
 - Prebuilt tools committed for the Mac shader chain: `dm/gfx/tools/spirv_cross_bin/spirv-cross` (SPIRV-Cross, Apache-2.0, license texts beside it) and
   the translator `dm/gfx/tools/dmsh_xlate_bin` (a GPL-3.0-or-later combined work, see above). The translator folder also carries the .NET packages it
   was built with, unmodified from NuGet: Gommon 2.8.1.2 (MIT), Humanizer 3.0.10 with its language resources (MIT), MsgPack.Cli 1.0.1 (Apache-2.0),
@@ -58,16 +75,20 @@ Anka Native is built on other people's work. This file is where they are credite
 - The **on-phone packer** in the APK (`android/ondevice/build.sh` builds it, unmodified from each project's release): **[CPython](https://www.python.org)**
   3.14.6 for Android (PSF License), **[Capstone](https://github.com/capstone-engine/capstone)** 5.0.7 (BSD-3-Clause),
   **[python-lz4](https://github.com/python-lz4/python-lz4)** 4.4.5 with LZ4 (BSD-3-Clause, BSD-2-Clause),
-  **[zbic](https://github.com/kinnay/zbic)** 1.0.1.post1 by Yannik Marchand (GPLv2; it carries Zstandard, BSD-3-Clause or GPLv2) for the
-  zstd-compressed code of newer games, **[SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools)** (Apache-2.0) and the
-  **[.NET](https://github.com/dotnet/runtime)** runtime the translator is compiled with (NativeAOT, MIT).
+  **[SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools)** (Apache-2.0) and the **[.NET](https://github.com/dotnet/runtime)** runtime the
+  translator is compiled with (NativeAOT, MIT). Beside them, built from this repository, `libzbicdec.so` reads the zstd-compressed (ZBIC) code of newer
+  games: **Banana Native's ZBIC decoder** (`dm/third_party/zstd-zbic`, from Banana Native f86575b0, v0.2.2), Zstandard 1.5.7's decoder (BSD-3-Clause,
+  unmodified) with Banana Native's MIT reader of ZBIC's tables. The notice texts of the BSD parts the APK carries (Zstandard, also in `libnxhost.so`;
+  Capstone with LLVM's for its AArch64 disassembler; python-lz4 and LZ4) are in [android/NOTICE.md](android/NOTICE.md#the-packers-bsd-parts-their-notices).
 
 ## Licenses
 
-- The repository's own code is MIT ([LICENSE](LICENSE): seedds' copyright and Anka Native's), except the files marked GPL-3.0-or-later: the frame
-  generation port (`dm/gfx/vk_android/lsfg`), the shader translator's `InstEmitAmpereMesh.cs` and the Anka mark's script (`android/tools/anka_logo.py`).
-- **The Android app is GPL-3.0-or-later as a whole.** The APK links the frame generation port (`dm/gfx/vk_android/lsfg`, GPL-3.0-or-later) unless built
-  with `-PnxLsfg=false`, and an APK that carries the on-phone packer also carries the GPL shader translator. Whoever passes such an APK on must offer its
+- The repository's own code is MIT ([LICENSE](LICENSE): seedds' copyright, the Swap2-Native contributors' and Anka Native's), except the files marked
+  GPL-3.0-or-later: the frame generation port (`dm/gfx/vk_android/lsfg`), mesh draws through compute (`dm/gfx/vk_android/vka_memu*` and the passes in `memu/`), the
+  shader translator's `InstEmitAmpereMesh.cs` and the Anka mark's script (`android/tools/anka_logo.py`).
+- **The Android app is GPL-3.0-or-later as a whole.** Every host library (`libnxhost.so`) links mesh draws through compute (GPL-3.0-or-later), the APK
+  links the frame generation port (`dm/gfx/vk_android/lsfg`, GPL-3.0-or-later) unless built with `-PnxLsfg=false`, and an APK that carries the on-phone
+  packer also carries the GPL shader translator. So every APK is a GPL-3.0-or-later work, whatever `nxLsfg` says. Whoever passes one on must offer its
   complete source: this repository at the commit in the app's build tag. Details: [android/NOTICE.md](android/NOTICE.md).
 - The Anka mark (the phoenix) is EddizEge's own design, the same mark as the Anka emulator's. Its script `android/tools/anka_logo.py` is
   Copyright 2026 EddizEge, GPL-3.0-or-later, as in the Anka project (the license text: [dm/gfx/vk_android/lsfg/COPYING](dm/gfx/vk_android/lsfg/COPYING)).

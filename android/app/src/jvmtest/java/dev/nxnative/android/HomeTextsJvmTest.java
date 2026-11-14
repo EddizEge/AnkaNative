@@ -38,9 +38,15 @@ public final class HomeTextsJvmTest {
 
         // MainActivity: Settings, About, the rows' values
         same(Tr.s("home_about", "0400486024DEC000, 040074A01BF12000", Tr.s("home_license_gpl", Tr.s("home_license_lsfg")), "o/r"),
-                "Title IDs: " + "0400486024DEC000, 040074A01BF12000" + "\n" + "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: LSFG frame generation)."
-                        + " Credits and the licenses of its parts: NOTICE.md in the source, github.com/" + "o/r" + ".", "about");
-        same(Tr.s("home_license"), "License: GPL-3.0-or-later as a whole" + ".", "license, no GPL part");
+                "Title IDs: " + "0400486024DEC000, 040074A01BF12000" + "\n" + "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: LSFG frame generation"
+                        + " and mesh draws through compute). Credits and the licenses of its parts: NOTICE.md in the source, github.com/" + "o/r" + ".", "about");
+        // MainActivity.aboutLicense: mesh draws through compute are in every build, so every list names them
+        same(Tr.s("home_license_gpl", Tr.s("home_license_lsfg_xlate")), "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: "
+                + "LSFG frame generation, mesh draws through compute and the shader translator).", "license, LSFG and translator");
+        same(Tr.s("home_license_gpl", Tr.s("home_license_xlate")), "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: "
+                + "mesh draws through compute and the shader translator).", "license, translator");
+        same(Tr.s("home_license_gpl", Tr.s("home_license_memu")), "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: "
+                + "mesh draws through compute).", "license, no LSFG, no translator");
         same(Tr.s("home_update_version_release_only", "0.2"), "Anka Native " + "0.2" + " · release app only", "update row");
         same(Tr.s("home_overlay_on", 3, 5), "On · " + 3 + " of " + 5 + " items", "overlay row");
         same(Tr.s("home_lsfg_on_no_dll", 2), "On · " + 2 + "x" + " · Lossless.dll missing", "frame generation row");
@@ -54,11 +60,6 @@ public final class HomeTextsJvmTest {
         same(Tr.s("home_frontend_add_body_others", "Anka Native", path, Tr.s("home_add"), "• /a (pack /p)", Tr.s("home_add_game")), "Another app asked " + "Anka Native" + " to open\n\n" + path
                 + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add." + "\n\nYour list has another dump of this game:\n"
                 + "• /a (pack /p)" + "\n\nAdd game then asks whether this file replaces it or both are kept.", "frontend add body, other dumps");
-        same(Tr.s("home_frontend_start_body", name, Tr.s("home_play")),
-                "Another app asked to start " + name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything.", "frontend start body");
-        same(Tr.s("home_frontend_same_build_body", "Anka Native", path, name, "/g", Tr.s("home_play")), "Another app asked " + "Anka Native" + " to open\n\n" + path
-                + "\n\nwhich is the same game build as your card of " + name + " (" + "/g" + "). Play starts your card with its own files and pack; that file is not added and your card is not changed.",
-                "frontend same build");
         same(Tr.s("home_control_ignored", Tr.s("home_settings"), Tr.s("home_adb")), "A command from another app was ignored (Settings › ADB control is off)", "control ignored");
         same(Tr.s("home_adb_debug", Tr.s("home_adb")), "ADB control (debug)", "adb row");
         same(Tr.s("home_busy_save", name, Tr.s("home_play")), "A save backup or restore of " + name + " is still working: Play waits for it.", "busy save");

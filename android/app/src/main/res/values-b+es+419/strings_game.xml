@@ -135,4 +135,9 @@
     <string name="game_selftest_running">Autoprueba gráfica en curso (%1$d cuadros, unos %2$d s)</string>
     <string name="game_selftest_pass">ÉXITO (código de retorno %1$d)\nUsa Atrás para volver; %2$s envía el registro de esta prueba.</string>
     <string name="game_selftest_fail">FALLO (código de retorno %1$d)\nUsa Atrás para volver; %2$s envía el registro de esta prueba.</string>
+    <plurals name="game_mesh_making">
+        <item quantity="one">Creando %1$d shader de malla para este teléfono (el primer inicio después de una actualización): hasta que esté listo, parte del escenario no se dibuja.</item>
+        <item quantity="other">Creando %1$d shaders de malla para este teléfono (el primer inicio después de una actualización): hasta que estén listos, parte del escenario no se dibuja.</item>
+    </plurals>
+    <string name="game_mesh_ready">Shaders de malla listos: ahora se dibuja todo.</string>
 </resources>

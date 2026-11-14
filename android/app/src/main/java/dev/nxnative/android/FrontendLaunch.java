@@ -12,7 +12,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * The play intent for emulator frontends (FRONTENDS.md), reached by the exported alias <application ID>.Launch (and .Open for file managers): an intent of any
@@ -20,35 +19,17 @@ import java.util.UUID;
  * {@code title_id}. Draws nothing of its own.
  * <p>
  * It can only start a game the user already has on Home, and only with that card's own game and pack paths: a card named by its title ID, or the card that holds
- * the file the frontend sent (by any alias or link), or else the card of the same title and game build as that file (another copy of it). Such a game starts
- * at once when it is ready to play (the checks of Play, ready), and when it stops the frontend comes back (GameActivity's "frontend" extra). Anything else goes to Home, which asks first (MainActivity.fromFrontend): a card that needs something (a pack, Prepare, a
- * shader update, a pack that does not fit) asks before Play's steps run, and a file that is no card asks before Add game's own steps add it. So another app can
- * never add or replace a card, pick a pack, start Prepare or a shader update, touch a driver, a setting, env.txt or a save, or run a pack the user did not add.
- * It returns nothing to the caller (no result, no URI grant is passed on), reads nothing through the caller's URI (a URI only names a path, which must be on
- * shared storage: Frontend.sharedPath), and never forwards the caller's intent. The adb control extras stay MainActivity's, behind Prefs.adbControl.
+ * the file the frontend sent (by any alias or link), or else the card of the same title and game build as that file (another copy of it). Such a card is Play's,
+ * as if its button was tapped (Play.check, the decision Home's Play takes too): when Play starts it with no dialog it starts from here at once, and when it stops
+ * the frontend comes back (GameActivity's "frontend" extra); else Home opens and runs Play for it (MainActivity.fromFrontend), whose own dialogs are the only
+ * questions. A file that is no card goes to Home, which asks before Add game's own steps add it. So another app can never add or replace a card, pick a pack,
+ * touch a driver, a setting, env.txt or a save, or run a pack the user did not add; it can start what Play starts without asking (FRONTENDS.md, "What another
+ * app can do"). It returns nothing to the caller (no result, no URI grant is passed on), reads nothing through the caller's URI (a URI only names a path, which
+ * must be on shared storage: Frontend.sharedPath), and never forwards the caller's intent. The adb control extras stay MainActivity's, behind Prefs.adbControl.
  */
 public final class FrontendLaunch extends Activity {
-    // ---- What FrontendLaunch hands Home (MainActivity.fromFrontend): kept in this process and named by a one-time token in the intent, so no other app can
-    // send Home a game to ask about by an extra of its own (MainActivity is exported) ----
-    private static String handToken, handPath;
-    private static boolean handCard;
-
-    /** A frontend's game for Home: path is the card's game path (card) or the new file's; the token for MainActivity's "frontend_token" extra */
-    private static synchronized String handOff(String path, boolean card) {
-        handToken = UUID.randomUUID().toString();
-        handPath = path;
-        handCard = card;
-        return handToken;
-    }
-
-    /** The game handed to Home under this token, once: { path, "card" or "new" }; null for any other token (or none) */
-    static synchronized String[] take(String token) {
-        if (token == null || handToken == null || !handToken.equals(token)) return null;
-        String[] r = {handPath, handCard ? "card" : "new"};
-        handToken = null;
-        handPath = null;
-        return r;
-    }
+    /** The game handed to Home under this token (Frontend.take: once, and only the newest): { path, "card" or "new" }; null for any other token (or none) */
+    static String[] take(String token) { return Frontend.take(token); }
 
     /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
     @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
@@ -107,8 +88,9 @@ public final class FrontendLaunch extends Activity {
     }
 
     /**
-     * The card the request names (Frontend.target: by title ID, else by its file, else by its title and build: sameBuild), started when it is ready; a card that is not ready, and a file that is no card,
-     * go to Home, which asks first
+     * The card the request names (Frontend.target: by title ID, else by its file, else by its title and build: sameBuild), started at once when Play would start
+     * it with no dialog (Play.check); any other card goes to Home, which runs Play for it, and a file that is no card goes to Home, which asks first. Which of
+     * these it is, is Frontend.route's (plain Java, checked on the JVM for every PlayRule.Kind)
      */
     private void byCard(String path, String tid) {
         File file = path != null ? new File(path) : null;
@@ -124,16 +106,28 @@ public final class FrontendLaunch extends Activity {
             int at = Frontend.target(dirs, ids, tid, path != null ? GameList.canon(path) : null);
             if (at < 0 && tid == null) at = sameBuild(list, file);
             Game card = at < 0 ? null : list.get(at);
-            Game r = card != null && ready(card) ? card : null;
+            PlayRule.Verdict v = card != null ? Play.check(this, card) : null;
             runOnUiThread(() -> {
                 if (isFinishing()) return;
-                if (card == null && tid != null) {
-                    fail(getString(R.string.home_frontend_no_card, tid, getString(R.string.app_name)));
-                    return;
+                switch (Frontend.route(card != null, tid != null, v != null ? v.kind : null)) {
+                    case NO_CARD:
+                        fail(getString(R.string.home_frontend_no_card, tid, getString(R.string.app_name)));
+                        return;
+                    case START:
+                        android.util.Log.i("nxnative", "frontend launch: " + card.titleId + " " + card.gameDir + " starts (" + v.kind + ")");
+                        Play.start(this, card, v.kind, true);
+                        finish();
+                        return;
+                    case PLAY_ON_HOME:
+                        android.util.Log.i("nxnative", "frontend launch: " + card.titleId + " " + card.gameDir + " goes to Play's steps on Home (" + v.kind + ")");
+                        home(Frontend.handOff(card.gameDir, true));   // Home runs Play for it, with no question in front
+                        return;
+                    case ADD_ON_HOME:
+                        home(Frontend.handOff(path, false));   // a file that is no card: Home asks before Add game's steps
+                        return;
+                    default:
+                        throw new IllegalStateException("frontend route");   // i18n-keep: every Route has its case
                 }
-                if (r != null) play(r);
-                else if (card != null) home(handOff(card.gameDir, true));
-                else home(handOff(path, false));   // a file that is no card: Home asks before Add game's steps
             });
         }, "nx-frontend").start();
     }
@@ -151,34 +145,7 @@ public final class FrontendLaunch extends Activity {
         return m.isEmpty() ? -1 : m.get(0);
     }
 
-    /**
-     * Whether a card can start now, as Play would start it without asking: a game this APK has, no save backup or restore and no pack export or import working,
-     * a pack that reads, is no placeholder, is of this title and of this game build (PackCheck.blocking), has a RomFS for it and this version's shader library.
-     * Reads only; false: Home asks (Play's steps)
-     */
-    private boolean ready(Game card) {
-        String id = card.titleId;
-        if (Profile.missing(id, card.name) != null || SaveUi.busy(id) || PackUi.busy(id)) return false;
-        File game = new File(card.gameDir), packDir = new File(card.packDir);
-        Pack p;
-        try {
-            p = Pack.read(packDir);
-            if (p.simulated || !p.titleId.equalsIgnoreCase(id)) return false;
-            if (Nup.isNup(game) ? p.romfsPath(game) == null : p.romfs(game) == null) return false;
-        } catch (IOException e) {
-            return false;
-        }
-        return PackCheck.blocking(this, p, game) == null && Pack.libraryProblem(packDir, id) == null;
-    }
-
-    /** The card's game, with the card's own paths (never the caller's), in GameActivity (singleTask: a game already running stays, and says so) */
-    private void play(Game g) {
-        startActivity(new Intent(this, GameActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra("title_id", g.titleId).putExtra("name", g.name).putExtra("game", g.gameDir).putExtra("pack", g.packDir).putExtra("frontend", true));
-        finish();
-    }
-
-    /** Home, with the game handed over under token when there is one (MainActivity.fromFrontend asks the user) */
+    /** Home, with the game handed over under token when there is one (MainActivity.fromFrontend: Play for a card, the question before Add game for a new file) */
     private void home(String token) {
         Intent h = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         if (token != null) h.putExtra("frontend_token", token);

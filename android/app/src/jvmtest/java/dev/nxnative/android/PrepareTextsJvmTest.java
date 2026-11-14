@@ -59,6 +59,16 @@ public final class PrepareTextsJvmTest {
         eq("Update " + version, "prepare_card_update", String.valueOf(version));
         eq("Update " + version + "  (simulated engine)", "prepare_card_simulated", "Update " + version);
         eq(String.format(Locale.ROOT, "%d %%  ·  shaders %,d of %,d", Math.round(0.4567 * 100), 12345L, 22852L), "prepare_card_progress", Math.round(0.4567 * 100), 12345L, 22852L);
+        // the time left (Eta, added 2026-11-14): the progress line, then the estimate on a line of its own
+        String progress = String.format(Locale.ROOT, "%d %%  ·  shaders %,d of %,d", 46, 19264L, 42854L);
+        eq(progress + "\nAbout 45 minutes left", "prepare_card_progress_eta", progress, Msg.plural("prepare_eta_minutes", 45, 45));
+        eq("Less than a minute left", "prepare_eta_less");
+        check("prepare_eta_minutes", Msg.plural("prepare_eta_minutes", 1, 1).english(), "About 1 minute left");
+        check("prepare_eta_minutes", Msg.plural("prepare_eta_minutes", 7, 7).english(), "About 7 minutes left");
+        check("prepare_eta_hours", Msg.plural("prepare_eta_hours", 1, 1).english(), "About 1 hour left");
+        check("prepare_eta_hours", Msg.plural("prepare_eta_hours", 2, 2).english(), "About 2 hours left");
+        check("prepare_eta_hours_minutes", Msg.plural("prepare_eta_hours_minutes", 1, 1, 15).english(), "About 1 hour 15 minutes left");
+        check("prepare_eta_hours_minutes", Msg.plural("prepare_eta_hours_minutes", 2, 2, 5).english(), "About 2 hours 5 minutes left");
         eq("Pause", "prepare_button_pause");
         eq("Prepare again", "prepare_button_prepare_again");
         eq("Retry", "prepare_button_retry");
@@ -126,9 +136,11 @@ public final class PrepareTextsJvmTest {
             for (boolean hasSave : new boolean[] {false, true}) {
                 File pk = pkCase == 0 ? null : pkCase == 1 ? new File(dir, "fake-pack") : pack;
                 boolean inside = pkCase == 1;
-                StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split shaders, the job's progress)"   // work/shader-speed's English
-                        + "\n· the split's kept progress and the translated shaders, in the app's own storage");
-                if (pk != null) m.append(inside ? " with the pack inside it" : "\n· the prepared pack and its shader library in " + pk);
+                // work/shader-speed's English, with "with the pack inside" on the working files' bullet, whose folder holds the pack (Ondevice inside(pk, dir)): 0.1.0
+                // appended it to the message's last line, which the split's bullet became
+                StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + (inside ? ", with the pack inside them" : "")
+                        + " (rewritten code, split shaders, the job's progress)" + "\n· the split's kept progress and the translated shaders, in the app's own storage");
+                if (pk != null && !inside) m.append("\n· the prepared pack and its shader library in " + pk);
                 m.append("\n\nKept: your dump (" + dump + ") and your saves").append(hasSave ? " (" + save + ")" : "")
                         .append(pk == null ? ", and the pack (" + pack + ")" : "").append(". Saves are never deleted here.");
                 m.append(pk != null ? "\n\nThe game will not start until it is prepared again (about 30-45 minutes)." : "\n\nA new Prepare starts from the beginning.");
@@ -199,6 +211,8 @@ public final class PrepareTextsJvmTest {
         eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + " %", "prepare_note_step", 3 + 1, 5, 57);
         eq(stepOld + " · " + 57 + " %", "prepare_note_progress", step, 57);
         eq(stepOld + " · " + 57 + " %\n" + "battery below 20 %: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
+        eq("About 45 minutes left · " + stepOld, "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
+        eq(stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", step, Msg.plural("prepare_eta_minutes", 45, 45));
 
         // PackService: job.json's errors (English)
         for (String s : new String[] {"rewrite", "shaders"}) {
