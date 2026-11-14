@@ -42,16 +42,63 @@ def py_cmd():   # this Python as it is typed
     return f'"{sys.executable}"' if ' ' in sys.executable else sys.executable
 
 
+# A fix never leaves a newcomer at "command not found": a command that needs a tool the system may lack (Homebrew, micromamba, python3.14, sudo) is shown as
+# it is only when that tool is found on the PATH; else the fix says how to get the tool first (its own page and install line), or takes a way that does not
+# need it (an installer from the official download page). test_prepare_tui.py Prereq holds every system's fixes to that, with and without each tool.
+VENV = '<dump folder>/.venv-anka'
+BREW_PREFIXES = ('/opt/homebrew', '/usr/local')   # where Homebrew installs itself: Apple silicon, Intel Macs (docs.brew.sh/Installation)
+BREW_GET = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'   # as https://brew.sh gives it
+MAMBA_GET = '"${SHELL}" <(curl -L micro.mamba.pm)'   # as https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html gives it
+MAMBA_CREATE = f'micromamba create -p {VENV} python=3.14 -c conda-forge'
+# The distribution's own Python 3.14 (Ubuntu 26.04 and later, Debian testing, Fedora, Arch's python, openSUSE Tumbleweed); Debian's venv module is a
+# package of its own. Where the distribution has none, micromamba brings it.
+PY_PKG = {'debian': 'apt install python3.14 python3.14-venv', 'fedora': 'dnf install python3.14', 'arch': 'pacman -S python', 'suse': 'zypper install python314'}
+PKG_INSTALL = {'debian': 'apt install', 'fedora': 'dnf install', 'arch': 'pacman -S', 'suse': 'zypper install'}
+DOTNET_LINUX = 'https://learn.microsoft.com/dotnet/core/install/linux'
+DOTNET_NO_PKG = {'debian': 'Debian, Ubuntu before 24.04', 'suse': 'openSUSE Leap'}   # where dotnet-runtime-10.0 is not in the distribution's own source
+
+
+def found(tool): return shutil.which(tool) is not None
+
+
+def root(cmd):
+    """A package manager's command as root: with sudo when there is one, else with su (a Debian installed with a root password has no sudo)"""
+    return f'sudo {cmd}' if found('sudo') else f"su -c '{cmd}'"
+
+
+def brew(args):
+    """The lines that run `brew args` on the Mac: the command when Homebrew is on the PATH; when it is installed but not on the PATH (its installer's last
+    step not done), the line that puts it there first; else how to get Homebrew"""
+    if found('brew'): return [f'brew {args}']
+    for p in BREW_PREFIXES:
+        b = Path(p) / 'bin' / 'brew'
+        if b.is_file(): return [T('fix.brew_path', b), f'eval "$({b} shellenv)"', f'brew {args}']
+    return [T('fix.brew_get'), BREW_GET, T('fix.brew_then'), f'brew {args}']
+
+
+def mamba(sysname):
+    """micromamba's line that makes the environment, after how to get micromamba when it is not on the PATH (its installer is fetched with curl, which a
+    small Linux install may lack: Debian's has wget only)"""
+    if found('micromamba'): return [MAMBA_CREATE]
+    curl = [] if found('curl') else [T('fix.curl'), root(PKG_INSTALL[sysname] + ' curl')] if sysname in PKG_INSTALL else [T('fix.curl_other')]
+    return curl + [T('fix.mamba_get'), MAMBA_GET, T('fix.mamba_then'), MAMBA_CREATE]
+
+
 def venv_fix(sysname):
-    """The commands that make the packer's environment (android/README.md) and start this interface with it"""
+    """The commands that make the packer's environment (android/README.md) and start this interface with it: with python3.14 when it is on the PATH, else
+    micromamba when it is (first on the Mac, where a python3.14 may be an Intel Homebrew's, which starts the translator as Intel code), else how to get one"""
     if sysname == 'windows':
         return [T('fix.python_win'), r'py -3.14 -m venv D:\Switch2\.venv-anka',
                 rf'D:\Switch2\.venv-anka\Scripts\python {PIP}', r'D:\Switch2\.venv-anka\Scripts\python scripts\prepare.py']
+    venv = f'python3.14 -m venv {VENV}'
     if sysname == 'mac':
-        return ['micromamba create -p <dump folder>/.venv-anka python=3.14 -c conda-forge', f'<dump folder>/.venv-anka/bin/python {PIP}',
-                '<dump folder>/.venv-anka/bin/python scripts/prepare.py']
-    return ['python3.14 -m venv <dump folder>/.venv-anka   ' + T('fix.python_unix'), f'<dump folder>/.venv-anka/bin/python {PIP}',
-            '<dump folder>/.venv-anka/bin/python scripts/prepare.py']
+        head = [MAMBA_CREATE] if found('micromamba') else [venv] if found('python3.14') else [T('fix.python_mac'), venv]
+    elif found('python3.14'): head = [venv]
+    elif found('micromamba'): head = [MAMBA_CREATE]
+    else:
+        pkg = PY_PKG.get(sysname)
+        head = ([T('fix.python_pkg'), root(pkg), T('fix.python_mamba')] if pkg else [T('fix.python_other')]) + mamba(sysname)
+    return head + [f'{VENV}/bin/python {PIP}', f'{VENV}/bin/python scripts/prepare.py']
 
 
 def pkg_fix(sysname):
@@ -60,15 +107,17 @@ def pkg_fix(sysname):
 
 
 def install(sysname, what):
-    """The command that installs what ('dotnet', 'spirv' or 'cc', a C compiler: android/README.md's gcc or clang on Linux, Xcode's command line tools on the
-    Mac, LLVM-MinGW on Windows) on this system. Debian's is build-essential: its gcc only recommends libc6-dev, the C library's headers the decoder needs"""
+    """The lines that install what ('dotnet', 'spirv' or 'cc', a C compiler: android/README.md's gcc or clang on Linux, Xcode's command line tools on the
+    Mac, LLVM-MinGW on Windows) on this system. Debian's is build-essential: its gcc only recommends libc6-dev, the C library's headers the decoder needs.
+    .NET 10 comes from the distribution's dotnet-runtime-10.0 (Arch's versioned package: its dotnet-runtime moves on to the next .NET), which Debian, Ubuntu
+    before 24.04 and openSUSE Leap do not carry (Microsoft's or Ubuntu's package source, DOTNET_LINUX); on the Mac from Microsoft's installer (Homebrew's
+    dotnet-sdk cask is .NET 11 now, whose runtime does not run the translator, built for 10)"""
     if sysname == 'windows': return [T({'dotnet': 'fix.dotnet_win', 'spirv': 'fix.spirv_win', 'cc': 'fix.cc_win'}[what])]
-    if sysname == 'mac': return {'dotnet': ['brew install --cask dotnet-sdk'], 'spirv': ['brew install spirv-tools'], 'cc': ['xcode-select --install']}[what]
-    pkgs = {'debian': ('sudo apt install dotnet-runtime-10.0', 'sudo apt install spirv-tools', 'sudo apt install build-essential'),
-            'fedora': ('sudo dnf install dotnet-runtime-10.0', 'sudo dnf install spirv-tools', 'sudo dnf install gcc'),
-            'arch': ('sudo pacman -S dotnet-runtime', 'sudo pacman -S spirv-tools', 'sudo pacman -S gcc'),
-            'suse': ('sudo zypper install dotnet-runtime-10.0', 'sudo zypper install spirv-tools', 'sudo zypper install gcc')}
-    if sysname in pkgs: return [pkgs[sysname][('dotnet', 'spirv', 'cc').index(what)]]
+    if sysname == 'mac': return {'dotnet': [T('fix.dotnet_mac')], 'spirv': brew('install spirv-tools'), 'cc': ['xcode-select --install']}[what]
+    if sysname in PKG_INSTALL:
+        pkg = {'dotnet': 'dotnet-runtime-10.0', 'spirv': 'spirv-tools', 'cc': 'build-essential' if sysname == 'debian' else 'gcc'}[what]
+        out = [root(f'{PKG_INSTALL[sysname]} {pkg}')]
+        return out + [T('fix.dotnet_source', DOTNET_NO_PKG[sysname], DOTNET_LINUX)] if what == 'dotnet' and sysname in DOTNET_NO_PKG else out
     return [T({'dotnet': 'fix.dotnet_other', 'spirv': 'fix.spirv_other', 'cc': 'fix.cc_other'}[what])]
 
 

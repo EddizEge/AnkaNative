@@ -11,6 +11,8 @@
 - the ZBIC decoder's check (checks.check_zbic) on a copy of its sources: built with the C compiler found, then cached (at once), no compiler (each system's
   install line), a compiler that fails (its lines), a DM_ZBIC_LIB that does not load, a $CC with an unclosed quote, a build folder that cannot be written,
   a compiler that writes junk (removed), junk an earlier compiler left (built again), a library that loads but does not decode, and run_all including it
+- the fixes on each system (Windows, the Mac, the Linux families) with and without Homebrew, micromamba, python3.14, py, sudo and curl on a faked PATH: the
+  lines shown, and that no command needs a tool that is neither found nor got by an earlier line (every system, fix and set of those tools)
 - the packer as a child process (runner.Run): a worker left behind holding the output (the run still ends), a log that cannot be written (the run goes on),
   a folder that cannot be written, the lock against a second run; a failure without a code in words (a signal, a permission error, else a bug to report)
 - the estimator (eta.py, the phone's Eta.java on the computer's steps): steady, a falling rate, a stall, the translation's end and the library's countdown, a
@@ -585,7 +587,7 @@ class ZbicCheck(unittest.TestCase):
 
     def test_missing(self):
         self.no_compiler()
-        for sysname, line in (('debian', 'sudo apt install build-essential'), ('fedora', 'sudo dnf install gcc'), ('arch', 'sudo pacman -S gcc'), ('mac', 'xcode-select --install'),
+        for sysname, line in (('debian', 'apt install build-essential'), ('fedora', 'dnf install gcc'), ('arch', 'pacman -S gcc'), ('mac', 'xcode-select --install'),
                               ('windows', 'LLVM-MinGW'), ('linux', "distribution's gcc or clang")):
             c = self.checks.check_zbic(sysname)
             self.assertFalse(c.ok); self.assertIn('no C compiler', c.found)
@@ -598,7 +600,7 @@ class ZbicCheck(unittest.TestCase):
         os.environ['CC'] = str(cc)
         c = self.checks.check_zbic('fedora')
         self.assertFalse(c.ok); self.assertIn('does not build', c.found); self.assertIn('badcc: error: this compiler builds nothing', c.detail)   # (its own line)
-        self.assertIn('did not build', c.fix[0]); self.assertIn('sudo dnf install gcc', c.fix)
+        self.assertIn('did not build', c.fix[0]); self.assertTrue(any(f.endswith('dnf install gcc') for f in c.fix), c.fix)
 
     def test_named_library_does_not_load(self):
         os.environ[nso.ZBIC_LIB_ENV] = str(self.d / 'nothere.so')
@@ -671,6 +673,121 @@ class ZbicCheck(unittest.TestCase):
         os.environ.pop('CC'); os.environ[nso.ZBIC_LIB_ENV] = str(lib)
         c = self.checks.check_zbic('arch')
         self.assertFalse(c.ok); self.assertIn('does not decode ZBIC', c.found); self.assertIn('DM_ZBIC_LIB', c.fix[0])
+
+
+SYSTEMS = ('windows', 'mac', 'debian', 'fedora', 'arch', 'suse', 'linux')
+TOOLS = ('brew', 'micromamba', 'python3.14', 'py', 'sudo', 'curl')   # what a fix line may need that a computer may lack
+
+
+class Prereq(unittest.TestCase):
+    """The fixes the checks show (checks.venv_fix, pkg_fix, install) on each system with and without the tools they may need on a faked PATH (a folder of
+    empty programs; Homebrew's own folders faked too): the lines shown, and the rule that no command needs a tool that is neither found nor got by an earlier
+    line of the same fix (its page and install line), over every system, every fix and every set of those tools"""
+    def setUp(self):
+        from prepare_tui import checks
+        self.checks = checks
+        self.d = Path(tempfile.mkdtemp(prefix='prereq_'))
+        self.saved = (os.environ.get('PATH'), checks.BREW_PREFIXES, os.environ.get('VIRTUAL_ENV'))
+
+    def tearDown(self):
+        import shutil
+        if self.saved[0] is None: os.environ.pop('PATH', None)
+        else: os.environ['PATH'] = self.saved[0]
+        self.checks.BREW_PREFIXES = self.saved[1]
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def path(self, *tools, brew_home=None):
+        """PATH = a folder with only these tools (empty programs); brew_home: a Homebrew folder (bin/brew) off the PATH, as an installer whose last step was
+        not done leaves it"""
+        d = self.d / ('p-' + '-'.join(tools))
+        d.mkdir(exist_ok=True)
+        for t in tools:
+            exe = d / (t + ('.exe' if os.name == 'nt' else ''))
+            exe.write_text('#!/bin/sh\n'); exe.chmod(0o755)
+        os.environ['PATH'] = str(d)
+        self.checks.BREW_PREFIXES = ()
+        if brew_home:
+            (self.d / brew_home / 'bin').mkdir(parents=True, exist_ok=True); (self.d / brew_home / 'bin/brew').write_text('')
+            self.checks.BREW_PREFIXES = (str(self.d / brew_home),)
+
+    def fixes(self, sysname):
+        """Every fix of the checks on sysname: the environment's (also as pkg_fix outside an environment), and each install"""
+        from unittest import mock
+        with mock.patch.object(self.checks, 'in_venv', return_value=False): out = {'venv': self.checks.venv_fix(sysname), 'pkg': self.checks.pkg_fix(sysname)}
+        with mock.patch.object(self.checks, 'in_venv', return_value=True): out['pkg_in_venv'] = self.checks.pkg_fix(sysname)
+        for w in ('dotnet', 'spirv', 'cc'): out[w] = self.checks.install(sysname, w)
+        return out
+
+    def test_mac(self):
+        c = self.checks
+        self.path()   # no Homebrew, no micromamba, no python3.14
+        f = self.fixes('mac')
+        self.assertIn('https://brew.sh', f['spirv'][0]); self.assertEqual(f['spirv'][1], c.BREW_GET); self.assertEqual(f['spirv'][-1], 'brew install spirv-tools')
+        self.assertIn('https://www.python.org/downloads/macos/', f['venv'][0]); self.assertEqual(f['venv'][1], 'python3.14 -m venv <dump folder>/.venv-anka')
+        for k in ('dotnet', 'venv', 'cc'): self.assertNotIn('brew', ' '.join(f[k]).replace('https://brew.sh', ''), k)   # only spirv-val takes Homebrew
+        self.assertIn('https://dotnet.microsoft.com/download/dotnet/10.0', f['dotnet'][0]); self.assertNotIn('dotnet-sdk', ' '.join(f['dotnet']))   # (.NET 11)
+        self.path('brew')
+        f = self.fixes('mac')
+        self.assertEqual(f['spirv'], ['brew install spirv-tools'])
+        self.path(brew_home='homebrew')   # installed, not on the PATH
+        f = self.fixes('mac')
+        self.assertEqual(f['spirv'][1:], [f'eval "$({self.d / "homebrew/bin/brew"} shellenv)"', 'brew install spirv-tools'])
+        self.assertIn('not on the PATH', f['spirv'][0])
+        self.path('python3.14'); self.assertEqual(self.fixes('mac')['venv'][0], 'python3.14 -m venv <dump folder>/.venv-anka')
+        self.path('python3.14', 'micromamba'); self.assertEqual(self.fixes('mac')['venv'][0], c.MAMBA_CREATE)   # micromamba first on the Mac
+        self.assertEqual(self.fixes('mac')['cc'], ['xcode-select --install'])
+
+    def test_linux(self):
+        c = self.checks
+        self.path()   # no python3.14, micromamba, sudo or curl
+        f = self.fixes('debian')
+        self.assertEqual(f['venv'][1], "su -c 'apt install python3.14 python3.14-venv'")
+        self.assertIn("su -c 'apt install curl'", f['venv']); self.assertIn(c.MAMBA_GET, f['venv']); self.assertIn(c.MAMBA_CREATE, f['venv'])
+        self.assertEqual(f['dotnet'][0], "su -c 'apt install dotnet-runtime-10.0'"); self.assertIn('Debian, Ubuntu before 24.04', f['dotnet'][1])
+        self.assertIn('https://learn.microsoft.com/dotnet/core/install/linux', f['dotnet'][1])
+        self.assertEqual(self.fixes('arch')['dotnet'], ["su -c 'pacman -S dotnet-runtime-10.0'"])   # the versioned package: dotnet-runtime moves to .NET 11
+        self.assertEqual(self.fixes('suse')['venv'][1], "su -c 'zypper install python314'")
+        self.assertIn('openSUSE Leap', self.fixes('suse')['dotnet'][1]); self.assertEqual(len(self.fixes('fedora')['dotnet']), 1)
+        self.assertIn('install the distribution', self.fixes('linux')['venv'][0]); self.assertIn('curl package', ' '.join(self.fixes('linux')['venv']))
+        self.path('sudo', 'curl')
+        f = self.fixes('debian')
+        self.assertEqual(f['venv'][1], 'sudo apt install python3.14 python3.14-venv'); self.assertNotIn('curl', ' '.join(f['venv']).replace(c.MAMBA_GET, ''))
+        self.assertEqual(f['cc'], ['sudo apt install build-essential']); self.assertEqual(self.fixes('fedora')['spirv'], ['sudo dnf install spirv-tools'])
+        self.path('micromamba'); self.assertEqual(self.fixes('fedora')['venv'][0], c.MAMBA_CREATE)
+        self.path('python3.14', 'micromamba'); self.assertEqual(self.fixes('arch')['venv'][0], 'python3.14 -m venv <dump folder>/.venv-anka')
+
+    def test_windows(self):
+        self.path()
+        f = self.fixes('windows')
+        self.assertIn('https://www.python.org/downloads/', f['venv'][0]); self.assertTrue(f['venv'][1].startswith('py -3.14 '))
+        for w in ('dotnet', 'spirv', 'cc'): self.assertIn('https://', f[w][0], w)
+
+    def test_no_tool_without_a_way(self):
+        """For every system, every fix and every set of TOOLS on the PATH: each line is either a text of texts.TEXTS (words) or a command; a command's first
+        word is a known one; and a tool it runs (as the command, after sudo or su -c, or in $(…) / <(…)) is on the PATH or got by an earlier line of the
+        fix: its page named, or an install line for it. A new fix line that runs a tool without either fails here."""
+        import itertools
+        words = [re.compile(re.escape(v).replace(r'\{\}', '.*') + '$', re.S) for v in texts.TEXTS.values()]
+        gets = {'brew': r'https://brew\.sh', 'micromamba': r'mamba\.readthedocs\.io', 'curl': r"(?:install|-S) curl'?$|curl package",
+                'python3.14': r'python\.org', 'py': r'python\.org', 'sudo': r'(?!)'}   # sudo: only when found (root() takes su without it)
+        first_words = {'brew', 'micromamba', 'python3.14', 'py', 'sudo', 'su', 'xcode-select', 'eval', '<dump', '"${SHELL}"', '/bin/bash', 'D:\\Switch2\\.venv-anka\\Scripts\\python',
+                       self.checks.py_cmd().split()[0]}
+        n = 0
+        for k in range(len(TOOLS) + 1):
+            for on in itertools.combinations(TOOLS, k):
+                self.path(*on)
+                for sysname in SYSTEMS:
+                    for name, fix in self.fixes(sysname).items():
+                        for i, line in enumerate(fix):
+                            if any(w.match(line) for w in words): continue
+                            n += 1
+                            where = f'{sysname} {name} with {on or "nothing"} on the PATH: {line!r} in {fix}'
+                            self.assertIn(line.split()[0], first_words, where)
+                            for t in TOOLS:
+                                if not re.search(rf"(?:^|sudo |su -c '|\$\(|<\(){re.escape(t)}(?:\s|$)", line): continue
+                                if t in on or sysname == 'mac' and t == 'curl': continue   # (macOS has curl: /usr/bin/curl)
+                                self.assertTrue(any(re.search(gets[t], l) for l in fix[:i]), f'{t} neither found nor got: {where}')
+        self.assertGreater(n, 1000)
 
 
 # ---- the estimator
