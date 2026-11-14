@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Español (Latinoamérica): the errors area (JobErrors: the packer's error codes). docs/i18n.md: keys start with errors_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- JobErrors: one whole sentence per packer error code -->
+    <string name="errors_dump_incomplete">El volcado está incompleto: a %1$s le falta el código del juego (exefs con main y main.npdm) o el RomFS. Vuelve a volcar el juego.</string>
+    <string name="errors_module_missing">El volcado está incompleto: %1$s no tiene %2$s. Vuelve a volcar el juego.</string>
+    <string name="errors_version_missing">El volcado no tiene la actualización %1$s. Elige una versión que contenga el volcado o vuelca esa actualización.</string>
+    <string name="errors_wrong_title">%1$s no forma parte de este juego: su program ID es %2$s y el juego base es %3$s.</string>
+    <string name="errors_not_base_title">%1$s: %2$s no es el title ID de un juego base. Elige el volcado del juego base o de su actualización.</string>
+    <string name="errors_no_profile">Esta app no tiene un perfil para el juego %1$s, así que no puede prepararlo.</string>
+    <string name="errors_shaders_other_build">Al volcado le faltan %1$s de los %2$s shaders que esta app conoce para el juego: es de otra versión del juego o está incompleto. Vuelve a volcar el juego.</string>
+    <string name="errors_unreadable_file">No se puede leer %1$s: el archivo está dañado o no es lo que indica su nombre. Vuelve a volcar el juego.</string>
+    <string name="errors_no_space">No hay suficiente espacio libre (%1$s). Libera espacio y vuelve a intentarlo.</string>
+    <string name="errors_out_of_memory">No hay suficiente memoria: se detuvo %1$s. Cierra otras apps y vuelve a intentarlo.</string>
+    <string name="errors_translator_crashed">El traductor de shaders dejó de funcionar. Vuelve a intentarlo; si vuelve a fallar, repórtalo junto con el registro.</string>
 </resources>
