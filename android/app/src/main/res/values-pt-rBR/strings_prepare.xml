@@ -136,6 +136,7 @@
     <string name="prepare_status_failed">Parou durante %1$s: %2$s. Toque em %3$s para continuar.</string>
     <string name="prepare_status_pending">Ainda não iniciado.</string>
     <string name="prepare_status_paused">Pausado: %1$s. %2$s.</string>
+    <string name="prepare_status_pausing">Pausando após o trabalho em andamento. %1$s.</string>
     <string name="prepare_status_running">%1$s (etapa %2$d de %3$d).</string>
     <string name="prepare_status_interrupted">Interrompido: %1$s. Toque em %2$s para continuar.</string>
     <string name="prepare_notice_inputs_changed">Esta versão do app conhece mais shaders do jogo, então eles são procurados de novo no seu dump primeiro.</string>
@@ -162,6 +163,7 @@
     <string name="prepare_note_done_text">Abra o Anka Native e toque em %1$s.</string>
     <string name="prepare_note_running">Preparando %1$s</string>
     <string name="prepare_note_waiting">Aguardando: %1$s</string>
+    <string name="prepare_note_pausing">Pausando: %1$s</string>
     <string name="prepare_note_failed">Não foi possível preparar %1$s</string>
     <string name="prepare_note_paused">Pausado: %1$s</string>
     <string name="prepare_note_step">Etapa %1$d de %2$d · %3$d%%</string>

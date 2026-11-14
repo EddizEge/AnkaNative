@@ -124,6 +124,7 @@
     <string name="prepare_status_failed">Hazırlama, %1$s sırasında durdu: %2$s. Devam etmek için %3$s düğmesine dokun.</string>
     <string name="prepare_status_pending">Henüz başlamadı.</string>
     <string name="prepare_status_paused">Duraklatıldı: %1$s. %2$s.</string>
+    <string name="prepare_status_pausing">Eldeki iş bitince duraklatılıyor. %1$s.</string>
     <string name="prepare_status_running">%1$s (adım %2$d / %3$d).</string>
     <string name="prepare_status_interrupted">Yarıda kesildi: %1$s. Devam etmek için %2$s düğmesine dokun.</string>
     <string name="prepare_notice_inputs_changed">Bu uygulama sürümü oyunun shader\'larından daha fazlasını biliyor, bu yüzden önce dökümünde yeniden aranıyorlar.</string>
@@ -148,6 +149,7 @@
     <string name="prepare_note_done_text">Anka Native uygulamasını aç ve %1$s düğmesine dokun.</string>
     <string name="prepare_note_running">Hazırlanıyor: %1$s</string>
     <string name="prepare_note_waiting">Bekliyor: %1$s</string>
+    <string name="prepare_note_pausing">Duraklatılıyor: %1$s</string>
     <string name="prepare_note_failed">Hazırlanamadı: %1$s</string>
     <string name="prepare_note_paused">Duraklatıldı: %1$s</string>
     <string name="prepare_note_step">Adım %1$d / %2$d · %%%3$d</string>

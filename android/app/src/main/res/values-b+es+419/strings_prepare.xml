@@ -121,6 +121,7 @@
     <string name="prepare_status_failed">Se detuvo durante %1$s: %2$s. Toca %3$s para continuar.</string>
     <string name="prepare_status_pending">Aún no se inició.</string>
     <string name="prepare_status_paused">En pausa: %1$s. %2$s.</string>
+    <string name="prepare_status_pausing">Pausando después del trabajo en curso. %1$s.</string>
     <string name="prepare_status_running">%1$s (paso %2$d de %3$d).</string>
     <string name="prepare_status_interrupted">Se interrumpió (%1$s). Toca %2$s para continuar.</string>
     <string name="prepare_notice_inputs_changed">Esta versión de la app conoce más shaders del juego, así que primero se vuelven a buscar en tu volcado.</string>
@@ -144,6 +145,7 @@
     <string name="prepare_note_done_text">Abre Anka Native y toca %1$s.</string>
     <string name="prepare_note_running">Preparando %1$s</string>
     <string name="prepare_note_waiting">En espera: %1$s</string>
+    <string name="prepare_note_pausing">Pausando: %1$s</string>
     <string name="prepare_note_failed">No se pudo preparar %1$s</string>
     <string name="prepare_note_paused">En pausa: %1$s</string>
     <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>

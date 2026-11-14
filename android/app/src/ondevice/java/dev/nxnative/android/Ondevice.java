@@ -172,6 +172,7 @@ final class Ondevice {
         long resumedAt;
         Job job;
         boolean jobAlive;   // the service said its worker runs this job
+        boolean jobStopping;   // the service said a pause was asked for and its worker is stopping (PackService "stopping", JobForm STOPPING)
         /** The minutes the running job has left, as the service last sent them (PackService "eta_min", Eta), -1 for none: an older service sends none */
         int etaMin = -1;
 
@@ -240,7 +241,7 @@ final class Ondevice {
                 a.unbindService(this);
                 bound = false;
                 service = null;
-                jobAlive = false;
+                jobAlive = jobStopping = false;
             }
         }
 
@@ -271,14 +272,14 @@ final class Ondevice {
 
         @Override public void onServiceDisconnected(ComponentName n) {   // the :pack process died
             service = null;
-            jobAlive = false;
+            jobAlive = jobStopping = false;
             etaMin = -1;
             show();
         }
 
         @Override public void onBindingDied(ComponentName n) {
             service = null;
-            jobAlive = false;
+            jobAlive = jobStopping = false;
             if (bound) { a.unbindService(this); bound = false; }
             if (resumed) bound = a.bindService(new Intent(a, PackService.class), this, 0);
         }
@@ -289,6 +290,7 @@ final class Ondevice {
             Job j = Job.of(new File(d.getString("file", "")), d.getString("job", "{}"));
             if (j != null) job = j;
             jobAlive = d.getBoolean("alive");
+            jobStopping = d.getBoolean("stopping");
             etaMin = d.getInt("eta_min", -1);
             show();
             return true;
@@ -320,7 +322,9 @@ final class Ondevice {
                     : R.string.prepare_head_running, job.name()));
             String update = a.getString(R.string.prepare_card_update, String.valueOf(job.version()));
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
-            status.setText(job.statusMsg(alive).text());
+            // a pause asked for while the tool stops: said so, with no time left and Resume not yet tappable (the service would not take it while its worker runs)
+            boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping) == JobForm.Form.STOPPING;
+            status.setText(job.statusMsg(alive, stopping).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
             String progress = a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal());
             // the time left (Eta) under it, only while the service's worker runs the job and has an estimate: none while paused, waiting or stopped
@@ -330,7 +334,7 @@ final class Ondevice {
             goPauses = running;
             go.setText(running ? R.string.prepare_button_pause : "done".equals(st) && !job.apkChanged() ? R.string.prepare_button_prepare_again
                     : "failed".equals(st) ? R.string.prepare_button_retry : "pending".equals(st) ? R.string.prepare_button_start : R.string.prepare_button_resume);
-            go.setEnabled(!"done".equals(st) || job.apkChanged());
+            go.setEnabled((!"done".equals(st) || job.apkChanged()) && !stopping);
             play.setEnabled(ready && !running);
         }
 

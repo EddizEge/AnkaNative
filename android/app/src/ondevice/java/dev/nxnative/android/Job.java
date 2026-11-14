@@ -393,8 +393,11 @@ final class Job {
      * One line for the screen and the notification: what the job is doing or why it stopped, with the job's notice after it while it is not done (why a step runs
      * again, noticeMsg)
      */
-    synchronized Msg statusMsg(boolean serviceAlive) {
-        Msg s = statusMsg0(serviceAlive), n = noticeMsg();
+    synchronized Msg statusMsg(boolean serviceAlive) { return statusMsg(serviceAlive, false); }
+
+    /** stopping: a pause was asked for and the service's worker is stopping its tool (JobForm STOPPING): "Pausing", with the step it stops in */
+    synchronized Msg statusMsg(boolean serviceAlive, boolean stopping) {
+        Msg s = stopping ? new Msg("prepare_status_pausing", stepMsg()) : statusMsg0(serviceAlive), n = noticeMsg();
         return n == null ? s : new Msg("prepare_status_notice", s, n);
     }
 

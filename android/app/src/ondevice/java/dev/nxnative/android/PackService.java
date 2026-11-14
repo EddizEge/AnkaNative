@@ -45,8 +45,9 @@ import java.util.regex.Pattern;
  * Pause action, and goes on when the app is swiped away. Every change goes to job.json, so a killed process loses at most the step in hand (the translation not even
  * that): START_STICKY brings the service back and it resumes a job that was running; the launcher's Resume does the same after a reboot or a force stop.
  * <ul>
- * <li>Pause (the notification or the launcher): the tool is interrupted (the translation stops after the shader in hand), the job is written paused, the service
- *     stops and leaves a notification with Resume.</li>
+ * <li>Pause (the notification or the launcher): the job is written paused at once, the tool is interrupted (the split and the translation stop at the file or
+ *     shader in hand, within seconds), and while it stops the card and the notification say so ("Pausing", no time left); then the service stops and leaves a
+ *     notification with Resume. A tool that has not stopped within 20 s ends with the process, which leaves the same paused job and notification.</li>
  * <li>Battery below 20 % and not charging, or thermal status SEVERE or worse: the tool is interrupted, the job waits (paused, wake lock released) and goes on by
  *     itself when charging / cooled (thermal MODERATE or better).</li>
  * <li>Android 14+'s 6 hours a day for dataSync services (onTimeout): paused like Pause, reason "timeout"; the launcher's Resume, once the app is open, goes on.</li>
@@ -79,6 +80,8 @@ public final class PackService extends Service {
     private volatile String stopReason;   // user, timeout: the job pauses and the service stops
     private volatile String autoReason;   // battery, thermal: the job waits and goes on by itself
     private volatile boolean inTool;
+    /** The notification left for after this service (leaveNote: the 20-s fallback, onTimeout): the worker's updates no longer replace it */
+    private volatile boolean noteLeft;
     private int batteryPct = 100, thermal;
     private boolean charging = true;
     private long lastNote, lastSave, lastSend;
@@ -180,20 +183,17 @@ public final class PackService extends Service {
     /** Android 14+'s daily dataSync limit (6 h): pause cleanly and stop within the seconds Android gives (else it ends the app) */
     @Override public void onTimeout(int startId, int fgsType) {
         Log.w(TAG, "onTimeout: the daily dataSync limit is reached; pausing");
+        requestStop("timeout");   // the job is paused, reason timeout
         Job j = job;
-        if (j != null) {
-            j.state("paused", "timeout", null);
-            save(j, true);
-        }
-        requestStop("timeout");
-        stopForeground(STOP_FOREGROUND_DETACH);
-        if (j != null) nm.notify(NOTE, note(j));
+        if (j != null) leaveNote(j);   // Android ends the service within seconds: the paused job's notification, not the stopping one
+        else stopForeground(STOP_FOREGROUND_DETACH);
         stopSelf();
     }
 
     private boolean startForeground(Job j) {
         try {
             startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            noteLeft = false;
             return true;
         } catch (RuntimeException e) {   // ForegroundServiceStartNotAllowedException, or the type's time limit used up
             Log.w(TAG, "startForeground refused: " + e);
@@ -222,25 +222,48 @@ public final class PackService extends Service {
         }
     }
 
+    /**
+     * A pause the job does not go on from by itself (user, timeout). The job is written paused with that reason at once, before the tool has stopped: while it stops
+     * the card and the notification say so (JobForm STOPPING), and a process that dies meanwhile (the fallback below, a low-memory kill) leaves the job paused, which
+     * neither a sticky restart nor the launcher resumes by itself
+     */
     private void requestStop(String reason) {
         stopReason = reason;
+        Job j = job;
+        if (pausable(j)) {
+            j.state("paused", reason, null);
+            save(j, true);
+        }
         engine.interrupt();
         synchronized (lock) { lock.notifyAll(); }
         Thread w = worker;
-        // a tool that does not stop within 20 s goes with the process: every step is restartable, and the job says paused
+        // a tool that does not stop within 20 s goes with the process: every step is restartable, and the job is paused as after a clean stop (the tools stop at the
+        // file or shader in hand, a few seconds on the phone: vk_android_build.py run_batches, shader_split.py pooled; 20 s covers a translator call or a large
+        // file in hand on a slow phone)
         main.postDelayed(() -> {
             if (w != null && w.isAlive() && worker == w) {
                 Log.w(TAG, "the tool did not stop within 20 s: ending the process");
-                Job j = job;
-                if (j != null) {
-                    j.state("paused", reason, null);
-                    save(j, true);
-                    stopForeground(STOP_FOREGROUND_DETACH);
-                    nm.notify(NOTE, note(j));
+                Job jj = job;
+                if (jj != null) {
+                    if (pausable(jj)) jj.state("paused", reason, null);
+                    save(jj, true);
+                    leaveNote(jj);
                 }
                 Process.killProcess(Process.myPid());
             }
         }, 20_000);
+    }
+
+    /** A job a pause applies to: running, or waiting for the battery or the heat (not one already done, failed or paused for good) */
+    private static boolean pausable(Job j) {
+        return j != null && ("running".equals(j.state()) || "paused".equals(j.state()) && JobForm.waitsByItself(j.reason()));
+    }
+
+    /** The job's notification as it stands once this service is gone (paused: Resume; failed: Retry), detached from the service, which no later update replaces */
+    private void leaveNote(Job j) {
+        noteLeft = true;
+        stopForeground(STOP_FOREGROUND_DETACH);
+        nm.notify(NOTE, note(j, -1, false));
     }
 
     // ---- Battery and heat ----
@@ -776,9 +799,10 @@ public final class PackService extends Service {
     private void publish(Job j, boolean force) {
         if (j == null) return;
         long now = SystemClock.elapsedRealtime();
-        // the time left, asked once here for both (it smooths and rounds as it is asked); none unless the worker runs the job
+        // the time left, asked once here for both (it smooths and rounds as it is asked); none unless the worker runs the job and no pause was asked for
         Eta est = eta;
-        int etaMin = est != null && worker != null && "running".equals(j.state()) ? est.minutes(now) : -1;
+        boolean stopping = worker != null && stopReason != null;
+        int etaMin = est != null && worker != null && !stopping && "running".equals(j.state()) ? est.minutes(now) : -1;
         if (force || now - lastSend >= 250) {
             lastSend = now;
             Message m = Message.obtain(null, MSG_STATE);
@@ -786,6 +810,7 @@ public final class PackService extends Service {
             b.putString("job", j.json());
             b.putString("file", j.file.getPath());
             b.putBoolean("alive", worker != null);
+            b.putBoolean("stopping", stopping);   // a pause was asked for and the tool is stopping (JobForm STOPPING)
             b.putInt("eta_min", etaMin);
             m.setData(b);
             for (Messenger c : clients) {
@@ -796,9 +821,9 @@ public final class PackService extends Service {
                 }
             }
         }
-        if (worker != null && (force || now - lastNote >= 1000)) {
+        if (worker != null && !noteLeft && (force || now - lastNote >= 1000)) {
             lastNote = now;
-            nm.notify(NOTE, note(j, etaMin));
+            nm.notify(NOTE, note(j, etaMin, true));
         }
     }
 
@@ -818,10 +843,10 @@ public final class PackService extends Service {
         }
     }
 
-    private Notification note(Job j) { return note(j, -1); }
+    private Notification note(Job j) { return note(j, -1, worker != null); }
 
-    /** etaMin: the minutes the running job has left (Eta), -1 for none */
-    private Notification note(Job j, int etaMin) {
+    /** etaMin: the minutes the running job has left (Eta), -1 for none; live: this service's worker runs the job and goes on (false: the service is ending) */
+    private Notification note(Job j, int etaMin, boolean live) {
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         Notification.Builder b = new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.anka_notify).setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_PROGRESS).setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
@@ -834,10 +859,11 @@ public final class PackService extends Service {
         int i = j.current();
         if (state.equals("done")) return b.setContentTitle(simulated(getString(R.string.prepare_note_done, name), sim))
                 .setContentText(getString(R.string.prepare_note_done_text, getString(R.string.prepare_button_play))).setAutoCancel(true).build();
-        boolean running = state.equals("running") && worker != null;
-        boolean waiting = state.equals("paused") && worker != null;   // the policy's pause: it goes on by itself
-        b.setContentTitle(simulated(getString(running ? R.string.prepare_note_running : waiting ? R.string.prepare_note_waiting
-                : state.equals("failed") ? R.string.prepare_note_failed : R.string.prepare_note_paused, name), sim));
+        JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null);
+        boolean running = form == JobForm.Form.RUNNING, stopping = form == JobForm.Form.STOPPING;
+        boolean waiting = form == JobForm.Form.WAITING;   // the policy's pause: it goes on by itself
+        b.setContentTitle(simulated(getString(running ? R.string.prepare_note_running : stopping ? R.string.prepare_note_pausing : waiting ? R.string.prepare_note_waiting
+                : form == JobForm.Form.FAILED ? R.string.prepare_note_failed : R.string.prepare_note_paused, name), sim));
         Intent pause = new Intent(this, PackService.class).setAction(ACTION_PAUSE).putExtra(EXTRA_FROM, "notification");
         Notification.Action pauseAction = new Notification.Action.Builder(null, getString(R.string.prepare_button_pause),
                 PendingIntent.getService(this, 1, pause, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build();
@@ -847,10 +873,11 @@ public final class PackService extends Service {
             return b.setContentText(reason).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_progress_why, step, pct, reason)))
                     .setSubText(steps).setOngoing(true).addAction(pauseAction).build();
         }
-        if (running) {
+        if (running || stopping) {
             long d = j.stepDone(i), t = j.stepTotal(i);
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
+            if (stopping) return b.setContentText(step).setSubText(steps).setOngoing(true).build();   // no time left, no action: the tool stops at the shader in hand
             if (etaMin >= 0) {   // the time left first, where a collapsed notification's one line keeps it; the step and its count after it, and in full when expanded
                 String left = Eta.text(etaMin).text();
                 b.setContentText(getString(R.string.prepare_note_running_eta, step, left))

@@ -182,6 +182,7 @@ public final class PrepareTextsJvmTest {
                 new Msg("prepare_step_shaders_in_sentence"), new Msg("errors_no_space", "/storage/emulated/0"), new Msg("prepare_button_retry"));
         eq("Not started yet.", "prepare_status_pending");
         eq("Paused: " + "by you" + ". " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_user"), step);
+        eq("Pausing after the work in hand. " + stepOld + ".", "prepare_status_pausing", step);
         eq(stepOld + " (" + ("step " + 4 + " of " + 5) + ").", "prepare_status_running", step, 4, 5);
         eq("Interrupted (" + stepOld + "). Tap Resume to go on.", "prepare_status_interrupted", step, new Msg("prepare_button_resume"));
         eq("adopting", "prepare_status_raw", "adopting");
@@ -206,6 +207,7 @@ public final class PrepareTextsJvmTest {
         eq("Open Anka Native and tap Play.", "prepare_note_done_text", new Msg("prepare_button_play"));
         eq("Preparing " + name, "prepare_note_running", name);
         eq("Waiting: " + name, "prepare_note_waiting", name);
+        eq("Pausing: " + name, "prepare_note_pausing", name);
         eq("Could not prepare " + name, "prepare_note_failed", name);
         eq("Paused: " + name, "prepare_note_paused", name);
         eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + " %", "prepare_note_step", 3 + 1, 5, 57);

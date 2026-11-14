@@ -147,6 +147,8 @@
     <string name="prepare_status_failed">Stopped at %1$s: %2$s. Tap %3$s to go on.</string>
     <string name="prepare_status_pending">Not started yet.</string>
     <string name="prepare_status_paused">Paused: %1$s. %2$s.</string>
+    <!-- Job.statusMsg while a pause was asked for and the tool stops (seconds): %1$s the step's line, as in paused -->
+    <string name="prepare_status_pausing">Pausing after the work in hand. %1$s.</string>
     <string name="prepare_status_running">%1$s (step %2$d of %3$d).</string>
     <!-- %1$s in paused, running and interrupted: the step's line as the card shows it (Job.stepMsg: "Translating shaders: 1,234 of 5,000"), not a noun phrase -->
     <string name="prepare_status_interrupted">Interrupted (%1$s). Tap %2$s to go on.</string>
@@ -180,6 +182,7 @@
     <string name="prepare_note_done_text">Open Anka Native and tap %1$s.</string>
     <string name="prepare_note_running">Preparing %1$s</string>
     <string name="prepare_note_waiting">Waiting: %1$s</string>
+    <string name="prepare_note_pausing">Pausing: %1$s</string>
     <string name="prepare_note_failed">Could not prepare %1$s</string>
     <string name="prepare_note_paused">Paused: %1$s</string>
     <string name="prepare_note_step">Step %1$d of %2$d · %3$d %%</string>
