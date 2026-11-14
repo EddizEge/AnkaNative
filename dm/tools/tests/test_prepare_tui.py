@@ -695,6 +695,22 @@ class Estimator(unittest.TestCase):
         e.raw(); self.assertFalse(e.guess)
         self.assertTrue(model.eta_words(20, now=0, guess=True).endswith(': a first guess'))
 
+    def test_guess_not_carried(self):
+        """A time still mostly the figure's is called a guess, also after the translation's own rate replaced the figure, until it is near the measured one: the
+        review's run, a computer 30 % slower than the figure, showed 19 minutes without the label while 24 were measured"""
+        e = eta.Eta(42854, 42854, 0.034); e.start(0); e.step_to(eta.SPLIT, 0)
+        feed_rate(e, eta.SPLIT, 30, 300, 186583, 0, 700, stage='')
+        self.assertTrue(e.seconds(300) > 0 and e.guess)   # (the split's own rate, then the shaders at the figure)
+        e.step_to(eta.SHADERS, 300)
+        t, was = 300.0, None
+        while t < 800:
+            e.progress(eta.SHADERS, int((t - 300) * 22), 42854, 'translate', t)   # 22 a second, against the figure's 29
+            s = e.seconds(t)
+            if was and not e.guess:
+                r = e.raw(); self.assertLessEqual(abs(s - r), eta.GUESS_NEAR * r + 1); break
+            was = e.guess; t += 5
+        else: self.fail('the label never went')
+
     def test_no_total(self):
         e = eta.Eta(0, 0, 0.1); e.start(0); e.step_to(eta.SHADERS, 0)
         feed_rate(e, eta.SHADERS, 0, 300, 0, 0, 0)

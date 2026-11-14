@@ -14,7 +14,8 @@
 # The steps still to come are added from what is known: the shaders after a split at shader_s each, the library at LIBRARY_S an entry, the pack at PACK_S. A counted
 # part says nothing until it has its own measurement (MIN_S of running time with progress, or MIN_SMALL_S and MIN_SMALL_SHARE of it for a small job), unless an
 # earlier part of this run had one: then the fixed figure stands in meanwhile. While the translation's time is the figure (the split, and the translation before its
-# own rate), the estimate is marked a guess (Eta.guess), and the screens say so: a computer busier than the figures' was 40 % slower. It says nothing either when progress stalls (STALL_S), when a part's total is 0,
+# own rate), the estimate is marked a guess (Eta.guess), and the screens say so: a computer busier than the figures' was 40 % slower. The finish time is smoothed
+# from the guess to the measured time, and stays called a guess until it is within GUESS_NEAR of the measured one. It says nothing either when progress stalls (STALL_S), when a part's total is 0,
 # changes or is passed, or its count goes back, when a timed part has taken twice its figure, or when more than MAX_S is left.
 # The figures are those of a run on a computer (FIGURES below); dm/tools/tests/test_prepare_tui.py replays that run's trace (prepare_data/prepare-pc-oot.trace.txt)
 # with them and checks the estimate's error along it.
@@ -28,6 +29,7 @@ STALL_S = 180.0        # no progress for this long: no estimate
 SMOOTH_S = 120.0       # the finish time follows a new estimate with this time constant
 GAP_LINES, GAP_MIN_S, GAP_START_S = 4.0, 20.0, 60.0   # the most a gap between two steps forward adds to the working time (Eta.java)
 MAX_S = 10 * 3600.0    # more than this left: no estimate
+GUESS_NEAR = 0.1      # a smoothed time within this share of the measured one is no longer called a guess
 LATE_S = 30.0          # a timed part over its figure says this much is left (at most its figure) until it has taken twice its figure
 
 # FIGURES: Ocarina of Time from its .nup on Linux, 12 CPU threads, -J 11, other builds running beside it (2026-11-14, the trace's header): the rewrite 68 s, the
@@ -94,6 +96,7 @@ class Eta:
         self.shown = -1
         self.last_seconds = math.nan
         self.guess = False
+        self.carried = False   # the finish time is still on its way from a guess to the measured time (seconds)
 
     def mix(self, m):
         """The profile map's (shaders, non-vertex shaders) from shader_mix, or None"""
@@ -203,12 +206,17 @@ class Eta:
         r = self.raw()
         if math.isnan(r): self.finish = math.nan; return r
         f = self.run + r
-        if math.isnan(self.finish): self.finish = f
+        if math.isnan(self.finish): self.finish = f; self.carried = False
         else:
             dt = max(0.0, self.run - self.finish_at)
             self.finish += (f - self.finish) * dt / (SMOOTH_S + dt)
         self.finish_at = self.run
-        return max(0.0, self.finish - self.run)
+        left = max(0.0, self.finish - self.run)
+        # a guess smoothed into the measured time is still called one until it is within GUESS_NEAR of the measured time (once there, never again)
+        if self.guess: self.carried = True
+        elif self.carried and abs(left - r) <= GUESS_NEAR * r: self.carried = False
+        self.guess = self.guess or self.carried
+        return left
 
     def minutes(self, now):
         """The minutes to show (0: less than a minute), -1 for none, kept while the estimate stays near them"""
