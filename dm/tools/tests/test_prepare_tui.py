@@ -1117,6 +1117,27 @@ class EndToEnd(unittest.TestCase):
             finally: t.close()
 
     @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
+    def test_full_screen_window_closed(self):
+        """The window really closes (the pty is the controlling terminal and its master side is closed): exit code 129 as for SIGHUP, not Python's 120 for an
+        output it could not flush at exit, and the packer and its worker stopped"""
+        from prepare_vt import Pty
+        (self.d / 'pids').unlink(missing_ok=True)
+        t = Pty([sys.executable, str(self.d / 'run.py'), str(self.game), *self.args], 100, 30, dict(self.env, TERM='xterm', FAKE_MODE='slow', FAKE_SLOW='5'),
+                ctty=True)
+        try:
+            t.wait_for('Everything is there', 30); t.send('\r')
+            t.wait_for('Prepare this game?', 30); t.send('\r')
+            for _ in range(300):
+                if (self.d / 'pids').is_file() and (self.d / 'pids').read_text(): break
+                time.sleep(0.1)
+            pids = [int(x) for x in (self.d / 'pids').read_text().split()]
+            t.hang_up(); t.p.wait(60)
+            self.assertEqual(t.p.returncode, 129)
+            for pid in pids:
+                with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
+        finally: t.close()
+
+    @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
     def test_full_screen_suspend(self):
         """kill -TSTP and then SIGCONT (fg): the terminal is given back before the process stops, and taken again, the screen drawn whole, when it goes on"""
         import signal

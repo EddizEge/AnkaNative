@@ -843,7 +843,21 @@ def main(a):
             say(T('run.stopping_plain'))
             app.proc.stop(wait=10)
             app.proc.close()
+        let_output_go()
     return {'done': 0, 'failed': 1, 'stopped': 3}[o.kind]
+
+
+def let_output_go():
+    """Output that can no longer be written (the window closed: its terminal is gone) goes to the null device: Python flushes it once more at exit, and a
+    failed flush there would make the exit code 120 instead of this one's (128 + SIGHUP)"""
+    for f in (sys.stdout, sys.stderr):
+        try: f.flush()
+        except (OSError, ValueError):
+            try:
+                null = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(null, f.fileno()); os.close(null)
+                f.flush()   # (what was waiting goes to the null device now)
+            except (OSError, ValueError): pass   # no descriptor to replace (a closed stream): Python's own exit then says so
 
 
 def say(s):

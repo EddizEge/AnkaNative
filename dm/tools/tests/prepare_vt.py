@@ -67,24 +67,29 @@ class VT:
 
 
 class Pty:
-    """argv run on a pty of w x h with env; its screen in self.vt, everything it wrote in self.raw"""
-    def __init__(self, argv, w=80, h=24, env=None, cwd=None):
+    """argv run on a pty of w x h with env; its screen in self.vt, everything it wrote in self.raw. ctty: the pty is the program's controlling terminal, as a
+    terminal window's is (hang_up then closes the window: the kernel sends SIGHUP, and the terminal is gone for good)"""
+    def __init__(self, argv, w=80, h=24, env=None, cwd=None, ctty=False):
         import fcntl, struct, termios
         self.master, self.slave = os.openpty()
         fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', h, w, 0, 0))
         self.before = termios.tcgetattr(self.slave)
-        self.p = subprocess.Popen(argv, stdin=self.slave, stdout=self.slave, stderr=self.slave, env=env, cwd=cwd, start_new_session=True, close_fds=True)
+        pre = (lambda: fcntl.ioctl(0, termios.TIOCSCTTY, 0)) if ctty else None   # (after the new session's setsid)
+        self.p = subprocess.Popen(argv, stdin=self.slave, stdout=self.slave, stderr=self.slave, env=env, cwd=cwd, start_new_session=True, close_fds=True,
+                                  preexec_fn=pre)
         self.vt, self.raw, self.lock = VT(w, h), [], threading.Lock()
         self.t = threading.Thread(target=self.read, daemon=True); self.t.start()
 
     def read(self):
         while True:
-            r, _, _ = select.select([self.master], [], [], 0.1)
+            if self.master is None: break
+            try: r, _, _ = select.select([self.master], [], [], 0.1)
+            except (OSError, ValueError): break   # (hang_up closed it)
             if not r:
                 if self.p.poll() is not None: break
                 continue
             try: b = os.read(self.master, 65536)
-            except OSError: break   # the slave side closed (the program ended)
+            except (OSError, TypeError): break   # the slave side closed (the program ended), or the master (hang_up)
             if not b: break
             s = b.decode('utf-8', 'replace')
             with self.lock: self.raw.append(s); self.vt.feed(s)
@@ -116,7 +121,12 @@ class Pty:
         import termios
         return termios.tcgetattr(self.slave)
 
+    def hang_up(self):
+        """The window closes: the master side is closed (with ctty, the kernel hangs the terminal up and sends the program SIGHUP)"""
+        if self.master is not None: os.close(self.master); self.master = None
+
     def close(self):
         if self.p.poll() is None: self.p.kill(); self.p.wait()
         self.t.join(timeout=5)
-        os.close(self.master); os.close(self.slave)
+        if self.master is not None: os.close(self.master)
+        os.close(self.slave)
