@@ -185,6 +185,20 @@ class RawOnly(Fixture):
         n = nup.open_nup(self.nup)
         self.assertEqual({nup.FILE.unpack_from(n.toc, n.o_file + nup.FILE.size * i)[6] for i in range(n.nf)}, {nup.RAW})
 
+    def test_stream_outlives_the_cached_nup(self):   # a raw file's stream reads through the Nup's descriptor; open_nup's cache drops the Nup (9 other identities of the file): its open streams still read their own bytes
+        import gc, time
+        f = self.root / 'Evict.nup'; shutil.copyfile(self.nup, f); self.addCleanup(f.unlink)
+        other = self.root / 'other.bin'; other.write_bytes(b'X' * 4096); self.addCleanup(other.unlink)
+        n = nup.open_nup(f); k = n.node('base/romfs/random.bin'); want = n.read(k)
+        s = n.open(k); self.addCleanup(s.close); del n
+        t = time.time_ns()
+        for i in range(9): os.utime(f, ns=(t, t + (i + 1) * 10**9)); nup.open_nup(f)
+        gc.collect()
+        fds = [os.open(other, os.O_RDONLY) for _ in range(4)]   # what a closed descriptor's number would be given to next
+        try: self.assertEqual(s.read(), want)
+        finally:
+            for d in fds: os.close(d)
+
 
 class Damaged(Fixture):
     def bad(self, data, name):

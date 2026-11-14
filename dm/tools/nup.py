@@ -296,9 +296,10 @@ class Nup:
 
 class _Raw(io.RawIOBase):
     """A file's bytes as a slice of the .nup (codec 0); fileno() is the .nup's descriptor and the slice is in regions. nup: the Nup it is a file of; it reads through
-    the Nup's descriptor (Nup.reader) and opens one of its own only for fileno(). Without one, it opens its own at once, as before"""
+    the Nup's descriptor (Nup.reader) and opens one of its own only for fileno(). Without one, it opens its own at once, as before. The stream holds the Nup:
+    open_nup's cache may drop it while the stream is open, and the Nup closes its descriptor when it goes (its number may then name another file)"""
     def __init__(self, path, start, length, regions=None, nup=None):
-        self.path, self.own = path, None
+        self.path, self.own, self.nup = path, None, nup
         self.start, self.length, self.pos, self.regions = start, length, 0, regions
         if nup is not None: self.fd = nup.reader()
         else: self.fileno()
