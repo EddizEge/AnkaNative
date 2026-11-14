@@ -36,10 +36,27 @@ final class SaveMigrate {
 
     static final class Result {
         final State state;
+        /** Why (FAILED), in English: logs and the game's notes */
         final String message;
+        /** message as a Msg, for the screen (messageText); null when there is none or it came from an exception without one */
+        final Msg msg;
         final SaveStore.Manifest copied;   // COPIED: what was copied (main/…, device/…)
 
-        Result(State s, String m, SaveStore.Manifest c) { state = s; message = m; copied = c; }
+        Result(State s, String m, SaveStore.Manifest c) { this(s, null, m, c); }
+
+        private Result(State s, Msg msg, String m, SaveStore.Manifest c) { state = s; this.msg = msg; message = m; copied = c; }
+
+        /** A failure with its reason */
+        static Result failed(Msg why) { return new Result(State.FAILED, why, why.english(), null); }
+
+        /** A failure from an exception: a LocalizedIOException keeps its Msg, any other keeps its (English) message */
+        static Result failed(Exception e) {
+            Msg m = e instanceof LocalizedIOException ? ((LocalizedIOException) e).msg : null;
+            return new Result(State.FAILED, m, e.getMessage(), null);
+        }
+
+        /** message in the user's language, for the screen */
+        String messageText() { return msg != null ? msg.text() : message; }
 
         @Override public String toString() { return state + (message != null ? ": " + message : ""); }
     }
@@ -79,43 +96,43 @@ final class SaveMigrate {
             // again under the locks: a restore or a game may have written either before they were taken
             if (SaveStore.hasFiles(app) || SaveStore.pending(app)) return new Result(State.APP_HAS_SAVE, null, null);
             if (!hasSave(old)) return new Result(State.NO_OLD_SAVE, null, null);
-            if (oldPending(old)) return new Result(State.FAILED, "the save in " + old + " has an unfinished commit or restore: it is finished at this start, and copied at the next", null);
+            if (oldPending(old)) return Result.failed(new Msg("saves_migrate_old_pending", old));
             Map<String, File> parts = SaveStore.parts(old);
             if (!old.isDirectory()) parts.remove(SaveStore.MAIN);
             SaveStore.Manifest want = SaveStore.scanParts(parts);
             want.source = old.getAbsolutePath();
             File appDevice = SaveStore.device(app);
             if (SaveStore.hasFiles(appDevice)) {   // left by a copy that stopped between its two renames: the old device save's exact copy, made again below
-                String d = parts.containsKey(SaveStore.DEVICE) ? want.sub(SaveStore.DEVICE).diff(SaveStore.scan(appDevice)) : "the old save has none";
-                if (d != null) return new Result(State.FAILED, appDevice + " holds a device save but " + app + " has no save, and it is not a copy of " + SaveStore.device(old) + " (" + d + ")", null);
+                Msg d = parts.containsKey(SaveStore.DEVICE) ? want.sub(SaveStore.DEVICE).diffMsg(SaveStore.scan(appDevice)) : new Msg("saves_migrate_old_has_no_device");
+                if (d != null) return Result.failed(new Msg("saves_migrate_device_foreign", appDevice, app, SaveStore.device(old), d));
             }
             if (stage.exists()) SaveStore.deleteTree(stage);   // a copy that stopped before its renames: only the launcher writes here
-            if (stage.exists() || !stage.mkdirs()) throw new IOException("cannot create " + stage);
+            if (stage.exists() || !stage.mkdirs()) throw new LocalizedIOException("saves_cannot_create", stage);
             for (Map.Entry<String, File> e : parts.entrySet()) SaveStore.copyTree(e.getValue(), new File(stage, e.getKey()));
-            String d = want.diff(SaveStore.scan(stage));
-            if (d != null) throw new IOException("the copy does not match the save (" + d + ")");
-            String changed = want.diff(SaveStore.scanParts(parts));
-            if (changed != null) throw new IOException("the save changed while it was copied (" + changed + ")");
+            Msg d = want.diffMsg(SaveStore.scan(stage));
+            if (d != null) throw new LocalizedIOException("saves_copy_mismatch", d);
+            Msg changed = want.diffMsg(SaveStore.scanParts(parts));
+            if (changed != null) throw new LocalizedIOException("saves_changed", changed);
             // device first, main last: the main save appearing is the commit
             File sd = new File(stage, SaveStore.DEVICE), sm = new File(stage, SaveStore.MAIN);
             if (appDevice.exists()) SaveStore.deleteTree(appDevice);   // empty folders, or the checked copy above
-            if (sd.isDirectory() && !sd.renameTo(appDevice)) throw new IOException("cannot move " + sd + " to " + appDevice);
+            if (sd.isDirectory() && !sd.renameTo(appDevice)) throw new LocalizedIOException("saves_cannot_move", sd, appDevice);
             if (app.exists()) SaveStore.deleteTree(app);   // no file in it (checked under the lock)
-            if (app.exists()) throw new IOException("cannot clear the empty " + app);
-            if (sm.isDirectory()) { if (!sm.renameTo(app)) throw new IOException("cannot move " + sm + " to " + app); }
-            else if (!app.mkdirs()) throw new IOException("cannot create " + app);
+            if (app.exists()) throw new LocalizedIOException("saves_migrate_cannot_clear_empty", app);
+            if (sm.isDirectory()) { if (!sm.renameTo(app)) throw new LocalizedIOException("saves_cannot_move", sm, app); }
+            else if (!app.mkdirs()) throw new LocalizedIOException("saves_cannot_create", app);
             SaveStore.dirSync(app);
             Map<String, File> now = new java.util.LinkedHashMap<>();
             for (String k : parts.keySet()) now.put(k, k.equals(SaveStore.MAIN) ? app : appDevice);
-            String after = want.diff(SaveStore.scanParts(now));
+            Msg after = want.diffMsg(SaveStore.scanParts(now));
             if (after != null) {   // never seen: a rename is atomic. The app copy goes (the old save is untouched), so nothing half is played
                 SaveStore.deleteTree(app);
                 SaveStore.deleteTree(appDevice);
-                throw new IOException("the app's copy does not match the save after the move (" + after + ")");
+                throw new LocalizedIOException("saves_migrate_mismatch_after_move", after);
             }
             return new Result(State.COPIED, null, want);
         } catch (IOException | RuntimeException e) {
-            return new Result(State.FAILED, e.getMessage(), null);
+            return Result.failed(e);
         } finally {
             if (stage.exists()) SaveStore.deleteTree(stage);
         }
