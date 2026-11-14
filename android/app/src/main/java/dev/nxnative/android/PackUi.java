@@ -145,7 +145,7 @@ final class PackUi {
             Pack p = PackZip.stage(source, packs, g.titleId);
             try {
                 Msg bad = PackCheck.blockingMsg(a, p, new File(g.gameDir));
-                if (bad != null) throw new LocalizedIOException(new Msg("packs_as_is", bad), null);
+                if (bad != null) throw new LocalizedIOException(bad, null);
                 if (SaveUi.gameRunning(a, g)) throw new IOException(a.getString(R.string.packs_ui_started_meanwhile, g.name));
                 PackZip.swapIn(p.dir, target);
             } finally {

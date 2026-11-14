@@ -93,7 +93,7 @@ final class BuildCheck {
 
         /** The first n bytes (fewer when it is shorter) */
         byte[] head(int n) throws IOException {
-            if (errorMsg != null) throw new LocalizedIOException(new Msg("packs_as_is", errorMsg), null);
+            if (errorMsg != null) throw new LocalizedIOException(errorMsg, null);
             if (nup != null) return nup.read(node, n);
             try (java.io.RandomAccessFile r = new java.io.RandomAccessFile(file, "r")) {
                 byte[] b = new byte[(int) Math.min(n, r.length())];
@@ -104,7 +104,7 @@ final class BuildCheck {
 
         /** Its bytes into the hash */
         void hash(MessageDigest h) throws IOException {
-            if (errorMsg != null) throw new LocalizedIOException(new Msg("packs_as_is", errorMsg), null);
+            if (errorMsg != null) throw new LocalizedIOException(errorMsg, null);
             if (nup != null) { h.update(nup.read(node, -1)); return; }
             try (InputStream in = new FileInputStream(file)) {
                 byte[] buf = new byte[1 << 16];
