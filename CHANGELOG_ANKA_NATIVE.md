@@ -13,6 +13,9 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   ([#13](https://github.com/EddizEge/AnkaNative/issues/13)). The libraries are the same bytes (version `v-0dd4341ae6ce`): finished packs stay valid. Where
   subinterpreters do not work, each step says so in its log and runs as before; `ondevice/env.txt` with `DMSH_VK_INTERPS=1` and `DM_SPLIT_INTERPS=1`
   turns them off (android/SHADERS.md).
+- **Prepare keeps its translated shaders in the app's own storage**, not beside the dump on shared storage, where each of about 42,000 files went
+  through Android's FUSE layer (Ocarina of Time: about 2 minutes only to delete them at the end). The shaders step checks that the phone's internal storage has
+  room for them (about 1 GB).
 - **A Prepare in progress translates its shaders again after this update:** the shaders already translated are stamped with the tools that made them, so
   a job in the middle of the shaders step when the APK is updated starts that step over (hours on a phone). Finish a running Prepare first, or let it
   start over. Finished packs are not affected.

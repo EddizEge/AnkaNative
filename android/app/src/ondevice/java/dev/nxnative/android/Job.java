@@ -333,6 +333,17 @@ final class Job {
         return new File(c.getNoBackupFilesDir(), "split.scan/" + titleId());
     }
 
+    /**
+     * The shaders step's per-shader results (vk_android_build.py DMSH_VK_RESULTS: one file a shader, about 42,000 and 1 GB for Ocarina of Time, and the
+     * translator's working files beside them), kept across pauses, kills and reboots until the job is done. In the app's own storage like splitScan: on shared
+     * storage every one of those files was created, renamed, read back and deleted through FUSE, which took about 2 minutes just to delete them at the end
+     * and held the one-at-a-time translator call while it wrote its files. One folder a game; the results carry their tools digest and inputs, so stale ones
+     * are made again.
+     */
+    synchronized File xlate(Context c) {
+        return new File(c.getNoBackupFilesDir(), "xlate/" + titleId());
+    }
+
     /** Deletes a folder of the job's own outputs: ondevice/ paths, and the pack the job made itself (Ondevice's Manage, asked first; never the dump or the saves) */
     static void deleteTree(File f) { Outputs.deleteTree(f); }
 

@@ -589,8 +589,8 @@ final class Ondevice {
                     return;
                 }
             }
-            StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split and translated shaders, the job's progress)"
-                    + "\n· the split's kept progress, a copy in the app's own storage");
+            StringBuilder m = new StringBuilder("Deleted:\n· the working files in " + dir + " (rewritten code, split shaders, the job's progress)"
+                    + "\n· the split's kept progress and the translated shaders, in the app's own storage");
             if (pk != null) m.append(inside(pk, dir) ? " with the pack inside it" : "\n· the prepared pack and its shader library in " + pk);
             m.append("\n\nKept: your dump (" + j.dump() + ") and your saves").append(save != null ? " (" + save + ")" : "")
                     .append(pk == null ? ", and the pack (" + j.pack() + ")" : "").append(". Saves are never deleted here.");
@@ -599,7 +599,8 @@ final class Ondevice {
                 android.app.AlertDialog wait = new android.app.AlertDialog.Builder(a).setMessage("Deleting…").setCancelable(false).show();
                 new Thread(() -> {
                     for (File g : gone) Job.deleteTree(g);
-                    Job.deleteTree(j.splitScan(a));   // the split's kept scan results, in the app's own storage
+                    Job.deleteTree(j.splitScan(a));   // the split's kept scan results and the translated shaders' results, in the app's own storage
+                    Job.deleteTree(j.xlate(a));
                     h.post(() -> {
                         wait.dismiss();
                         Job.remember(a, null);
