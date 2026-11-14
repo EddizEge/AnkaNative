@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Türkçe: the errors area (JobErrors: the packer's error codes). docs/i18n.md: keys start with errors_, one file per area, translations keep the English file's name -->
 <resources>
+    <string name="errors_dump_incomplete">Döküm eksik: %1$s içinde oyun kodu (main ve main.npdm içeren exefs) ya da RomFS yok. Oyunun dökümünü yeniden al.</string>
+    <string name="errors_module_missing">Döküm eksik: %1$s içinde %2$s yok. Oyunun dökümünü yeniden al.</string>
+    <string name="errors_version_missing">Dökümde şu güncelleme yok: %1$s. Dökümde bulunan bir sürümü seç ya da o güncellemenin dökümünü al.</string>
+    <string name="errors_wrong_title">%1$s bu oyunun parçası değil: program ID değeri %2$s, temel oyun ise %3$s.</string>
+    <string name="errors_not_base_title">%1$s: %2$s bir temel oyunun title ID değeri değil. Temel oyunun ya da güncellemesinin dökümünü seç.</string>
+    <string name="errors_no_profile">Bu uygulamada şu oyun için profil yok: %1$s. Bu yüzden hazırlanamıyor.</string>
+    <string name="errors_shaders_other_build">Dökümde, bu uygulamanın bu oyun için bildiği %2$s shader içinden %1$s tanesi eksik: döküm başka bir oyun sürümüne ait ya da eksik. Oyunun dökümünü yeniden al.</string>
+    <string name="errors_unreadable_file">Okunamıyor: %1$s. Dosya hasarlı ya da adının gösterdiği türde değil. Oyunun dökümünü yeniden al.</string>
+    <string name="errors_no_space">Yeterli boş alan yok (%1$s). Biraz yer aç, sonra yeniden dene.</string>
+    <string name="errors_out_of_memory">Yeterli bellek yok: %1$s durduruldu. Diğer uygulamaları kapat, sonra yeniden dene.</string>
+    <string name="errors_translator_crashed">Shader çevirici çöktü. Yeniden dene; yine çökerse günlükle birlikte bildir.</string>
 </resources>

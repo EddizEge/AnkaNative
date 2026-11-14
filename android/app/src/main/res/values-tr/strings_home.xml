@@ -2,5 +2,210 @@
 <!-- Türkçe: the home area (MainActivity, Ui, Prefs, FrontendLaunch). docs/i18n.md: keys start with home_, one file per area, translations keep the English file's name -->
 <resources>
     <string name="home_access_title">Dosya erişimine izin ver</string>
-    <string name="home_access_body">Oyun dökümünüzü okumak için gerekli.</string>
+    <string name="home_access_body">Oyun dökümünü okumak için gerekli.</string>
+
+    <!-- Prefs: the window sizes -->
+    <string name="home_window_1080p">Telefon 1080p (1920x1080)</string>
+    <string name="home_window_original">Orijinal (oyunun kendi boyutu)</string>
+    <string name="home_window_720p">Telefon 720p (1280x720)</string>
+    <string name="home_window_original_short">Orijinal</string>
+
+    <!-- FrontendLaunch -->
+    <string name="home_frontend_no_access">%1$s için Tüm dosyalara erişim iznini aç, sonra oyunu yeniden başlat.</string>
+    <string name="home_frontend_bad_link">Frontend uygulaması, bu telefonun depolamasındaki bir dosyayı uygulamanın okuyabileceği bir yolla göstermeyen bir bağlantı gönderdi. Frontend uygulamasını dosyanın yolunu ya da telefonun kendi depolamasından depolama (SAF) URI adresini gönderecek şekilde ayarla.</string>
+    <string name="home_frontend_not_shared">Frontend uygulaması \"%1$s\" gönderdi; bu, telefonun paylaşılan depolamasındaki bir dosya değil.</string>
+    <string name="home_frontend_no_game">Frontend uygulaması oyun göndermedi: .nup dosyasını (ya da oyun klasörünü) intent verisi olarak ya da yolunu \"game\" ek verisiyle gönder.</string>
+    <string name="home_nup_wrong_case">%1$s: adını \".nup\" (küçük harf) ile bitecek şekilde değiştir; oyun ve araçlar yalnızca bu adı okur.</string>
+    <string name="home_file_missing">Bulunamadı: %1$s</string>
+    <string name="home_file_unreadable">Okunamıyor: %1$s. Tüm dosyalara erişimin açık olduğunu kontrol et.</string>
+    <string name="home_frontend_no_card">%2$s listesinde bu title ID ile bir oyun yok: %1$s. Önce oyunu %2$s uygulamasına ekle ya da bunun yerine oyunun dosyasını gönder.</string>
+    <string name="home_frontend_fail_title">Oyun başlatılamıyor</string>
+
+    <!-- Ui -->
+    <string name="home_tap_for_details">%1$s: ayrıntılar için dokun</string>
+    <string name="home_back">Geri</string>
+
+    <!-- MainActivity: Home's header, the Settings page -->
+    <string name="home_settings">Ayarlar</string>
+    <string name="home_section_updates">Güncellemeler</string>
+    <string name="home_check_updates">Güncellemeleri kontrol et</string>
+    <string name="home_section_game_defaults">Oyun varsayılanları</string>
+    <string name="home_overlay">Performans göstergesi</string>
+    <string name="home_resolution">Çözünürlük</string>
+    <string name="home_fps_cap">Kare hızı sınırı</string>
+    <string name="home_frame_gen">Kare üretimi</string>
+    <string name="home_defaults_hint">Bir oyunun kendi ayarları (kartındaki ⋯) bunların önüne geçer.</string>
+    <string name="home_section_system">Sistem</string>
+    <string name="home_gpu_driver">GPU sürücüsü</string>
+    <string name="home_folders">Klasörler</string>
+    <string name="home_folders_value">Oyun, paket ve kayıt klasörleri</string>
+    <string name="home_section_help">Yardım</string>
+    <string name="home_readiness">Uyumluluk denetimi</string>
+    <string name="home_readiness_value">Bu telefon oyunlarını çalıştırabilir mi?</string>
+    <string name="home_selftest">Grafik öz testi</string>
+    <string name="home_selftest_value">Oyun gerekmez</string>
+    <string name="home_share_log">Günlüğü paylaş</string>
+    <string name="home_share_log_value">En yeni günlük</string>
+    <string name="home_adb">ADB kontrolü</string>
+    <string name="home_adb_debug">%1$s (hata ayıklama)</string>
+    <string name="home_adb_value">adb komutlarının oyun eklemesine, hazırlamayı başlatmasına ve GPU sürücüsü yüklemesine izin verir. Kapalı: yalnızca sen, uygulamanın içinden</string>
+    <string name="home_adb_confirm_title">ADB kontrolü açılsın mı?</string>
+    <string name="home_adb_confirm_body">Açıkken adb ve bu telefondaki başka herhangi bir uygulama, Anka Native başlatıcısı üzerinden sana sormadan oyun ekleyebilir, hazırlamayı başlatabilir, GPU sürücüsü yükleyebilir ya da seçebilir. GPU sürücüsü, oyunun içinde çalışan koddur. Yalnızca adb kullanırken aç, sonra yeniden kapat.</string>
+    <string name="home_adb_turn_on">Aç</string>
+    <string name="home_section_about">Hakkında</string>
+    <string name="home_about">Title ID: %1$s\n%2$s Emeği geçenler ve bileşenlerin lisansları: kaynak koddaki NOTICE.md, github.com/%3$s.</string>
+    <string name="home_license">Lisans: bütün olarak GPL-3.0-or-later.</string>
+    <string name="home_license_gpl">Lisans: bütün olarak GPL-3.0-or-later (bu derleme GPL-3.0-or-later kod içerir: %1$s).</string>
+    <string name="home_license_lsfg_xlate">LSFG kare üretimi ve shader çevirici</string>
+    <string name="home_license_lsfg">LSFG kare üretimi</string>
+    <string name="home_license_xlate">shader çevirici</string>
+    <string name="home_update_version_release_only">Anka Native %1$s · yalnızca yayın sürümünde</string>
+    <string name="home_overlay_on">Açık · %1$d / %2$d öğe</string>
+    <string name="home_off">Kapalı</string>
+    <string name="home_lsfg_not_built">Bu derlemede yok</string>
+    <string name="home_lsfg_on">Açık · %1$dx</string>
+    <string name="home_lsfg_on_no_dll">Açık · %1$dx · Lossless.dll eksik</string>
+    <string name="home_gpu_system">Sistem</string>
+    <string name="home_control_ignored">Başka bir uygulamadan gelen bir komut yok sayıldı (%1$s › %2$s kapalı)</string>
+    <string name="home_no_pack_next_to">%1$s için paket bulunamadı (şunun yanında arandı: %2$s).</string>
+
+    <!-- MainActivity: a game a frontend sent -->
+    <string name="home_frontend_start_title">%1$s başlatılsın mı?</string>
+    <string name="home_frontend_add_title">Bu oyun eklensin mi?</string>
+    <string name="home_frontend_start_body">Başka bir uygulama %1$s oyununu başlatmak istedi. Oyun hemen başlayamaz: %2$s düğmesi gerekenleri kontrol eder ve bir şeyi değiştirmeden önce sorar.</string>
+    <string name="home_frontend_add_body">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi:\n\n%2$s\n\nBu oyun listende yok. %4$s işlemi onu kontrol eder ve ana ekrana ekler; %3$s düğmesine dokunmadıkça hiçbir şey eklenmez.</string>
+    <string name="home_play">Oyna</string>
+    <string name="home_add">Ekle</string>
+    <string name="home_frontend_not_one_game">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi: %2$s. Bu tek bir oyun değil: tek bir .nup ya da oyun klasörü gönder. Hiçbir şey eklenmedi.</string>
+    <string name="home_frontend_same_build_body">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi:\n\n%2$s\n\nBu, listendeki %3$s kartıyla aynı oyun sürümü (%4$s). %5$s düğmesi kartını kendi dosyaları ve paketiyle başlatır; bu dosya eklenmez ve kartın değişmez.</string>
+    <string name="home_frontend_add_body_others">Başka bir uygulama, %1$s uygulamasının şunu açmasını istedi:\n\n%2$s\n\nBu oyun listende yok. %5$s işlemi onu kontrol eder ve ana ekrana ekler; %3$s düğmesine dokunmadıkça hiçbir şey eklenmez.\n\nListende bu oyunun başka bir dökümü var:\n%4$s\n\nArdından %5$s işlemi, bu dosyanın onun yerine mi geçeceğini yoksa ikisinin de mi tutulacağını sorar.</string>
+    <string name="home_frontend_other_dump_item">• %1$s (paket: %2$s)</string>
+
+    <!-- MainActivity: Home's games, the empty card, a game's card -->
+    <string name="home_your_games">Oyunların</string>
+    <string name="home_add_game">Oyun ekle</string>
+    <string name="home_empty_title">Oyununu ekle</string>
+    <string name="home_empty_body">Döküm klasörünü (base/ ve varsa updates/ içeren) ya da oyunun .nup dosyasını seç.</string>
+    <string name="home_empty_body_pc">Oyunu bir kez bilgisayarda hazırla (README dosyasındaki Install adımları), paketi dökümün yanına kopyala, sonra döküm klasörünü ya da .nup dosyasını seç.</string>
+    <string name="home_step_pick_dump">Döküm seç</string>
+    <string name="home_step_prepare">Hazırla</string>
+    <string name="home_step_play">Oyna</string>
+    <string name="home_step_prepare_pc">PC\'de hazırla</string>
+    <string name="home_state_unsupported">Desteklenmiyor</string>
+    <string name="home_state_checking">Kontrol ediliyor…</string>
+    <string name="home_state_needs_prepare">Hazırlanmalı</string>
+    <string name="home_state_no_pack">Paket yok</string>
+    <string name="home_state_pack_unfinished">Paket tamamlanmamış</string>
+    <string name="home_state_preparing">Hazırlanıyor…</string>
+    <string name="home_state_shaders_needed">Shader\'lar gerekli</string>
+    <string name="home_state_ready">Hazır</string>
+    <string name="home_state_ready_updating">Hazır · shader\'lar güncelleniyor</string>
+    <string name="home_state_ready_legacy">Hazır · shader\'lar bir kez güncellenmeli</string>
+    <string name="home_manage_game">Yönet: %1$s</string>
+    <string name="home_legacy_chip">Shader\'lar bir kez güncellenmeli</string>
+    <string name="home_prepare_shaders">Shader\'ları hazırla</string>
+    <string name="home_prepare">Hazırla</string>
+    <string name="home_foreign_pack">Başka araçlarla yapılmış paket</string>
+    <string name="home_foreign_pack_body">Bu oyunun paketi, bu uygulamanınkinden farklı araçlarla yapılmış. Genellikle yine de çalışır. Oyun düzgün çalışmazsa ⋯ › %1$s ile paket dökümden yeniden yapılabilir.</string>
+
+    <!-- MainActivity: a game's Manage sheet -->
+    <string name="home_game_settings">Oyun ayarları</string>
+    <string name="home_backup_saves">Kayıtları yedekle</string>
+    <string name="home_backup_to">Hedef: %1$s</string>
+    <string name="home_restore_saves">Kayıtları geri yükle</string>
+    <string name="home_import_save">Kayıt içe aktar</string>
+    <string name="home_prepare_again">Yeniden hazırla</string>
+    <string name="home_prepare_again_value">Uygun olmayanı yeniden yapar</string>
+    <string name="home_export_pack">Paketi dışa aktar…</string>
+    <string name="home_export_pack_value">Seçtiğin klasöre tek bir .zip</string>
+    <string name="home_import_pack">Paketi içe aktar…</string>
+    <string name="home_import_pack_value">.zip ya da paket klasörü</string>
+    <string name="home_manage_facts">Title ID: %1$s\nOyun: %2$s\nPaket: %3$s\nShader\'lar: %4$s\nKayıtlar: %5$s</string>
+    <string name="home_manage_shaders_present">mevcut (%1$s)</string>
+    <string name="home_manage_saves_not_set">ayarlanmadı</string>
+    <string name="home_remove">Listeden kaldır</string>
+    <string name="home_done">Bitti</string>
+
+    <!-- MainActivity: file access, Add game, the pickers -->
+    <string name="home_access_needed">Uygulamanın oyun dökümünü okuyabilmesi için Tüm dosyalara erişim izni gerekiyor. İzin ver, sonra geri dön.</string>
+    <string name="home_open_settings">Ayarları aç</string>
+    <string name="home_add_game_kind">Oyun ekle: döküm türü</string>
+    <string name="home_add_game_folder">Klasör (base/ ve varsa updates/ içeren)</string>
+    <string name="home_add_game_nup">.nup dosyası</string>
+    <string name="home_pick_dump_folder">Döküm klasörünü seç (base/ ve varsa updates/ içeren)</string>
+    <string name="home_pick_nup">Oyunun .nup dosyasını seç</string>
+    <string name="home_nup_not_on_storage">Bu dosya, telefonun depolamasında uygulamanın okuyabileceği bir yolda değil (%1$s). Dosyayı Son kullanılanlar ya da İndirilenler bölümünden değil, telefonun depolamasından seç (☰ › telefonun adı).</string>
+    <string name="home_dll_installed">Lossless.dll yüklendi</string>
+    <string name="home_dll_not_installed">Lossless.dll yüklenmedi: %1$s</string>
+    <string name="home_folder_not_on_storage">Bu klasör telefonun depolamasında değil (%1$s).</string>
+    <string name="home_no_game_in_folder">%1$s içinde main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ ya da exefs/), .nup dosyası ya da oyun klasörü yok. Oyunun kendi klasörünü, .nup dosyasını ya da oyunlarını içeren klasörü seç.</string>
+    <string name="home_checking_game">Kontrol ediliyor: %1$s…</string>
+    <plurals name="home_checking_games">
+        <item quantity="one">%1$d oyun kontrol ediliyor…</item>
+        <item quantity="other">%1$d oyun kontrol ediliyor…</item>
+    </plurals>
+    <string name="home_nup_wrong_case_short">%1$s: adını \".nup\" (küçük harf) ile bitecek şekilde değiştir.</string>
+    <string name="home_this_game">Bu oyun</string>
+    <string name="home_no_pack_nup_unavailable">Bu .nup için paket bulunamadı. %1$s</string>
+    <string name="home_no_pack_folder_unavailable">Bu klasör için paket bulunamadı. %1$s</string>
+    <string name="home_no_pack_nup_no_dump">Bu .nup için paket bulunamadı ve bu, hazırlamanın başlayabileceği bir döküm değil.</string>
+    <string name="home_no_pack_folder_no_dump">Bu klasör için paket bulunamadı ve bu, hazırlamanın başlayabileceği bir döküm değil.</string>
+    <string name="home_other_version_title">Başka bir %1$s sürümü</string>
+    <string name="home_no_pack_nup_title">Bu .nup için paket yok</string>
+    <string name="home_no_pack_folder_title">Bu klasör için paket yok</string>
+    <string name="home_no_pack_nup_body">%1$s\n\nTam olarak bu .nup için yapılmış bir paket klasörün (pack.tsv içeren) varsa onu seçebilirsin.</string>
+    <string name="home_no_pack_folder_body">%1$s\n\nTam olarak bu klasör için yapılmış bir paket klasörün (pack.tsv içeren) varsa onu seçebilirsin.</string>
+    <string name="home_pick_a_pack_folder">Paket klasörü seç</string>
+    <string name="home_pick_android_pack">Paket klasörünü seç (android-pack, pack.tsv içeren)</string>
+    <string name="home_added_ok">Eklendi: %1$s.</string>
+    <string name="home_added_prepare">Hazırlanması gerekiyor: %1$s. Uygun bir paket bulunamadı: kartındaki %2$s düğmesi bu telefonda bir paket yapar (aynı anda bir oyun).</string>
+    <string name="home_added_unsupported">Bu uygulamada desteklenmiyor: %1$s. Bu uygulama şunları çalıştırır: %2$s.</string>
+    <string name="home_added_no_pack">Paket bulunamadı: %1$s. Paket klasörünü seçmek için onu tek başına ekle.</string>
+    <string name="home_added_failed">Eklenmedi: %1$s</string>
+    <string name="home_added_twice">Aynı oyunun başka bir dökümü zaten listedeydi, bu yüzden iki kart da tutuldu: %1$s. ⋯ › %2$s ile biri kaldırılabilir (hiçbir şey silinmez).</string>
+    <string name="home_added_none_title">Oyun eklenmedi</string>
+    <string name="home_added_title">Oyunlar eklendi</string>
+    <string name="home_replace_title">%1$s değiştirilsin mi?</string>
+    <string name="home_replace_body">Listende %1$s oyununun başka bir dökümü var:%2$s\n\nBunun yerine şu kullanılsın mı: %3$s? Yalnızca liste kaydı değişir: hiçbir döküm, paket ya da kayıt silinmez.</string>
+    <string name="home_replace">Değiştir</string>
+    <string name="home_keep_both">İkisini de tut</string>
+    <string name="home_pick_pack_folder">Paket klasörünü seç (pack.tsv ve shaders/ içeren)</string>
+    <string name="home_added_game">Eklendi: %1$s.</string>
+    <string name="home_added_game_note">Eklendi: %1$s. %2$s</string>
+    <string name="home_pack_other_title_nup">Paket %1$s için; oyun .nup dosyasında ise %2$s var.</string>
+    <string name="home_pack_other_title_folder">Paket %1$s için; oyun klasöründe ise %2$s var.</string>
+    <string name="home_game_unusable">%1$s kullanılamıyor: %2$s</string>
+    <string name="home_nup_no_romfs">%1$s içinde RomFS içeren %2$s yok (paketin sürümü: %3$s).</string>
+    <string name="home_folder_no_romfs">%1$s içinde RomFS yok (%2$s, romfs/ ve updates/&lt;version&gt;/romfs arandı).</string>
+
+    <!-- MainActivity: removing a game, Play -->
+    <string name="home_remove_title">%1$s kaldırılsın mı?</string>
+    <string name="home_remove_body_save">Yalnızca liste kaydı gider. Dökümün, paketi ve kayıtların (%1$s) telefonda kalır; %2$s ile geri getirebilirsin.</string>
+    <string name="home_remove_body">Yalnızca liste kaydı gider. Dökümün, paketi ve kayıtların telefonda kalır; %1$s ile geri getirebilirsin.</string>
+    <string name="home_remove_yes">Kaldır</string>
+    <string name="home_busy_save">%1$s için bir kayıt yedekleme ya da geri yükleme hâlâ sürüyor: %2$s düğmesi bunun bitmesini bekler.</string>
+    <string name="home_busy_pack">%1$s paketinin dışa ya da içe aktarımı hâlâ sürüyor: %2$s düğmesi bunun bitmesini bekler.</string>
+    <string name="home_pack_unusable">Paket kullanılamıyor: %1$s</string>
+    <string name="home_pack_placeholder">Bu paket bir yer tutucu; oynanacak bir paket değil.</string>
+    <string name="home_no_pack_for">%1$s için paket yok</string>
+    <string name="home_no_pack_for_body">%1$s\n\nPaket: %2$s</string>
+    <string name="home_pick_pack_folder_button">Paket klasörü seç</string>
+    <string name="home_shaders_missing">Shader\'lar eksik</string>
+    <string name="home_shaders_missing_body">Shader\'lar olmadan oyun hiçbir şey çizmez.\n\n%1$s</string>
+    <string name="home_start_anyway">Yine de başlat</string>
+    <string name="home_pack_cannot_start">Paket bu oyunu başlatamıyor</string>
+    <string name="home_pack_problem_dump">%1$s seçeneği bunu dökümden, bu telefonda düzeltir.\n\n%2$s\n\nPaket: %3$s</string>
+    <string name="home_pack_problem">%1$s\n\nPaket: %2$s</string>
+
+    <!-- MainActivity: the Settings page's dialogs, the logs -->
+    <string name="home_game_resolution">Oyun çözünürlüğü</string>
+    <string name="home_cap_default">Varsayılan</string>
+    <string name="home_cap_own">Oyunun kendi hızı</string>
+    <string name="home_lsfg_no_dll">%1$s. Dosyayı Documents/Emulation/bios ya da Switch2 klasörüne koy veya seç.</string>
+    <string name="home_lsfg_credit">Eden projesinden uyarlandı (GPL-3.0-or-later). Lossless.dll senin dosyandır; asla uygulamanın parçası değildir.</string>
+    <string name="home_pick_dll">Lossless.dll seç</string>
+    <string name="home_no_log">Henüz günlük yok.</string>
+    <string name="home_no_game_log">Bu oyunun henüz günlüğü yok.</string>
+    <string name="home_log_subject">Anka Native günlüğü %1$s</string>
+    <string name="home_share_file">Paylaş: %1$s</string>
 </resources>
