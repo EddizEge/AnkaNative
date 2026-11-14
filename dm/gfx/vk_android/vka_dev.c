@@ -409,7 +409,7 @@ static void fault_report(void) {
 static _Atomic int g_fault_reported;
 static void hang_declare(uint64_t want, uint64_t at, double s, const char *what);
 // A call that returned VK_ERROR_DEVICE_LOST (a submission, an upload batch, a present): the hang is declared at once, so nothing more goes to the driver, and the fault
-// report is taken while it is fresh. Before, only the completion thread's next wait found it (from Banana Native 65745297)
+// report is taken while it is fresh. Before, only the completion thread's next wait found it (from Banana Native ad509ad8, v0.2.9, MIT, with 65745297's fault report)
 void vka_device_lost(const char *what) {
     if (vka_hung()) return;
     char w[96]; snprintf(w, sizeof w, "%s returned -4 (the device is lost)", what);

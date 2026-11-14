@@ -7,7 +7,9 @@ Anka Native is built on other people's work. This file is where they are credite
 - **[nxnative](https://github.com/seedds/nxnative)** by seedds (MIT). The host that runs a Switch game's own ARM64 code natively, the NSO rewriter, the
   game profiles, the shader tools and the Mac / iPhone builds all come from it. Its MIT license and copyright line are kept in [LICENSE](LICENSE). Later
   upstream fixes ported into Anka Native name the nxnative commit they come from in the code and in the docs (for example the Ocarina of Time frame step,
-  `7d8dcdf8`, and the 8-byte record step of `shader_split.py`, `b1d7c707`).
+  `7d8dcdf8`, and the 8-byte record step of `shader_split.py`, `b1d7c707`). The zero blend weight guard (`vka_spv_blend_zero`) follows `0662f9d8`
+  (seedds, with Human Khoobsirat); the raw counter report rate switch (`DM_NVN_TS_HZ`, `nvn_timestamp.h`) follows padsiwono's pull request #1714 to
+  nxnative (open, not merged).
 - **[Banana Native](https://github.com/moceure/BananaNative)** by moceure (MIT, with the GPL parts named below), including the work in the Raphix91 fork:
   the Android port of nxnative that Anka Native continues: the Android launcher (`android/app`), the Vulkan replay of NVN (`dm/gfx/vk_android`), the
   on-phone packer, frame generation on Android, the custom GPU driver loader and the Donkey Kong Bananza and Mario Kart World work on Android. Its own
@@ -15,8 +17,8 @@ Anka Native is built on other people's work. This file is where they are credite
 - **[d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile)** (MIT): the native-execution approach nxnative started from.
 - **Banana Native's later work** at [git.eden-emu.dev/moceure/BananaNative](https://git.eden-emu.dev/moceure/BananaNative) (MIT, "Copyright (c) 2026 Swap2-Native
   contributors", kept in [LICENSE](LICENSE)): small fixes ported from it after Anka Native's base, each naming its Banana Native commit in the code and the commit
-  message: the `VK_EXT_device_fault` report of a lost device (`vka_dev.c`, 65745297); the variable-rate shading calls as empty implementations (`hle_nvn.c`,
-  b39bf8b5); SDK 22's `IsOunceVibrationDeviceMounted` (`hle_hid.c`, b39bf8b5); the audio focus asked for again
+  message: the `VK_EXT_device_fault` report of a lost device (`vka_dev.c`, 65745297, with `vka_device_lost` from ad509ad8); the variable-rate shading calls as empty implementations (`hle_nvn.c`,
+  1d2aec48); SDK 22's `IsOunceVibrationDeviceMounted` (`hle_hid.c`, b39bf8b5); the audio focus asked for again
   after a permanent loss (`AudioFocus.java` and its tests, cf24701c by FrenklinFish); one prewarm build at a time
   on Turnip (`vka_pso.c`, d393736c and 84d1b9df by wraphs); the asynchronous pipeline queue's cheapest-first
   order, fitted to Anka Native's need order (`vka_aspick.h`, after 49fa341d); the texture-use feedback bitmap in a
