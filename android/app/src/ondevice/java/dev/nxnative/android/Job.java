@@ -28,7 +28,9 @@ import java.nio.file.StandardCopyOption;
  *   "error_code": the code of that failure, Prepare's own (PrepareErrors) or the packer's (JobErrors), or "", "error_args": its arguments (strings),
  *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
  * </pre>
- * A "running" job whose service is gone (the process was killed, the phone rebooted) is resumed by the service (START_STICKY) or the launcher's Resume.
+ * A "running" job whose service is gone (the process was killed, the phone rebooted) is shown as interrupted (statusMsg with serviceAlive false, JobForm PAUSED,
+ * GameGate.card PAUSED), never as running, and is resumed by the service (START_STICKY, where Android restarts it), the app itself (JobDeath: its main process,
+ * Home's open, a game's end) or the launcher's Resume.
  */
 final class Job {
     static final int FORMAT = 2;   // 2: the shaders step writes the library too (vk_android_build.py's result cache); 1 had a library step of its own

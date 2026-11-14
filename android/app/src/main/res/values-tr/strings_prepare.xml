@@ -168,6 +168,8 @@
         <item quantity="other">%1$d sa %2$d dk kaldı</item>
     </plurals>
     <string name="prepare_note_running_left">%1$s · Hazırlanıyor: %2$s</string>
+    <string name="prepare_note_stopped">Yarıda kesildi: %1$s</string>
+    <string name="prepare_note_stopped_text">Hazırlama yarıda kaldı (%1$s). Devam etmek için dokun.</string>
     <string name="prepare_note_step">Adım %1$d / %2$d · %%%3$d</string>
     <string name="prepare_note_progress">%1$s · %%%2$d</string>
     <string name="prepare_note_progress_why">%1$s · %%%2$d\n%3$s</string>

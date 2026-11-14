@@ -206,6 +206,10 @@
     </plurals>
     <!-- the running notification's title with the time left (%1$s: prepare_eta_short_*) and the game (%2$s); expanded, the title is prepare_note_running -->
     <string name="prepare_note_running_left">%1$s · Preparing %2$s</string>
+    <!-- JobWatch: the job's process ended and Android did not let the app start it again from the background (or it did not start): %1$s: the game; the text,
+         %1$s: the step where it stopped (Job.stepMsg). A tap opens the app, which resumes it -->
+    <string name="prepare_note_stopped">Interrupted: %1$s</string>
+    <string name="prepare_note_stopped_text">Prepare stopped (%1$s). Tap to go on.</string>
     <string name="prepare_note_step">Step %1$d of %2$d · %3$d%%</string>
     <!-- %1$s: the step (Job.stepMsg), %3$s: why it waits or stopped -->
     <string name="prepare_note_progress">%1$s · %2$d%%</string>

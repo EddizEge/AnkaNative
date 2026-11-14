@@ -600,6 +600,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     }
 
     private void end() {
+        PrepareGate.afterGame(this);   // a Prepare job waiting for this game goes on (while this activity is still in front, which lets it start the service)
         backToFrontend();
         finish();
         // On its own handler: onDestroy clears ui's callbacks

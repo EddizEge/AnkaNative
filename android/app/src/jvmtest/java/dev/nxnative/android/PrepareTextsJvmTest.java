@@ -224,6 +224,9 @@ public final class PrepareTextsJvmTest {
         eq("<1 min left", "prepare_eta_short_less");
         check("prepare_eta_short_hours", Msg.plural("prepare_eta_short_hours", 2, 2).english(), "2 h left");
         check("prepare_eta_short_hours_minutes", Msg.plural("prepare_eta_short_hours_minutes", 1, 1, 15).english(), "1 h 15 min left");
+        // the notification in the job's place when its process ended and the app could not start it again (JobWatch)
+        eq("Interrupted: " + name, "prepare_note_stopped", name);
+        eq("Prepare stopped (" + stepOld + "). Tap to go on.", "prepare_note_stopped_text", step);
 
         // PackService: job.json's errors (English)
         for (String s : new String[] {"rewrite", "shaders"}) {

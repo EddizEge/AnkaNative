@@ -41,6 +41,11 @@ import java.util.List;
  */
 final class Ondevice {
     static final int PICK_DUMP = 100, ASK_NOTIFY = 101;
+    /** The launcher's intent from the stopped notification (JobWatch.stopped): the job file to resume */
+    static final String EXTRA_RESUME = "ondevice_resume";
+    /** …and the token the notification was posted with (the "ondevice" prefs' "resume_token"): the launcher is exported, so another app's intent with
+     *  EXTRA_RESUME alone resumes nothing */
+    static final String EXTRA_TOKEN = "ondevice_resume_token";
     private static Panel panel;
 
     private Ondevice() {}
@@ -162,6 +167,8 @@ final class Ondevice {
         String pack = i.getStringExtra("ondevice_pack");
         if (dump != null && panel != null) panel.picked(new File(dump), i.getBooleanExtra("ondevice_start", false), pack == null ? null : new File(pack));
         if (i.getBooleanExtra("ondevice_pause", false) && panel != null) panel.pauseJob("adb");
+        String resume = i.getStringExtra(EXTRA_RESUME);
+        if (resume != null && panel != null) panel.resumeFromNote(resume, i.getStringExtra(EXTRA_TOKEN));
     }
 
     private static final class Panel implements ServiceConnection {
@@ -225,6 +232,7 @@ final class Ondevice {
             Ui.add(card, Ui.pair(a, go, play), 16);
             load();
             show();
+            JobWatch.start(a);   // the main process watches the job's process for as long as it lives (JobDeath)
         }
 
         int dp(int v) { return Math.round(v * a.getResources().getDisplayMetrics().density); }
@@ -319,27 +327,36 @@ final class Ondevice {
             return "running".equals(s) || "paused".equals(s) && !"user".equals(j.reason()) && !"timeout".equals(j.reason());
         }
 
-        /** When Home last resumed a job left waiting for a game (afterGame) */
-        long afterGameAt;
+        /** The job's stored state Home last started again by itself (afterDeath): once each, so a start that does not take is not tried in a loop */
+        String afterDeathKey;
         /** The game cards' line for the job as last shown (GameGate.card): Home's cards are made again when it changes */
         String cardKey;
 
         /**
-         * A job left paused for a game whose service is gone (its process died while the game ran: a low-memory kill, or Android refused the restart), once
-         * no game runs: resumed by Home, which is in front (GameGate.resumeAfterGame). At most every 10 s: a start Android refuses leaves it paused "refused"
+         * A job whose service is gone while it should be working (JobDeath: running, or waiting for the battery, the heat or a game that has ended): its process
+         * died (a low-memory kill, a kill, Android refusing the sticky restart as HyperOS does) and nothing started it again. Home, in front, resumes it by
+         * itself once its binding has found no service (2.5 s), unless the user ended the app (Force stop: Resume is offered as before); once for each state of
+         * job.json, and not within JobDeath.MIN_GAP_MS of another automatic start
          */
-        void afterGame() {
+        void afterDeath() {
             long now = SystemClock.elapsedRealtime();
-            if (job == null || !resumed || service != null || now - resumedAt < 2500 || now - afterGameAt < 10_000 || !"paused".equals(job.state())
-                    || !GameGate.REASON.equals(job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
-            if (!GameGate.resumeAfterGame(job.state(), job.reason(), jobAlive, PrepareGate.gameRunning(a))) return;
-            afterGameAt = now;
-            android.util.Log.i("nxpack", "the job waited for a game that has ended, and its service is gone: Home resumes it");
-            startService(job);
+            if (job == null || !resumed || service != null || jobAlive || now - resumedAt < 2500 || !JobDeath.mayStart(now, JobWatch.lastAuto)
+                    || !JobDeath.shouldWork(job.state(), job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
+            String key = job.file.getPath() + "@" + job.updated();
+            if (key.equals(afterDeathKey)) return;
+            android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, 0);
+            JobDeath.Act act = JobDeath.after(job.state(), job.reason(), jobAlive, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(a));
+            if (act == JobDeath.Act.NOTHING) return;   // a game still runs: its end starts it (PrepareGate.afterGame), or Home once it is gone
+            afterDeathKey = key;
+            android.util.Log.i("nxpack", "Home finds the job " + job.state() + (job.reason().isEmpty() ? "" : "/" + job.reason()) + " with no service ("
+                    + JobWatch.describe(exit) + "): " + (act == JobDeath.Act.RESUME ? "Home resumes it" : "the user ended the app, Resume is offered"));
+            if (act != JobDeath.Act.RESUME) return;
+            JobWatch.lastAuto = now;
+            startService(job, true);
         }
 
         void show() {
-            afterGame();
+            afterDeath();
             boolean alive = job != null && alive();
             String key = job == null ? "" : job.pack().getPath() + " " + GameGate.card(false, job.state(), job.reason(), alive);
             if (cardKey != null && !cardKey.equals(key)) a.refresh();   // a game card of this pack says how its update stands (MainActivity.check)
@@ -586,14 +603,35 @@ final class Ondevice {
             new AlertDialog.Builder(a).setTitle(t).setMessage(msg).setPositiveButton(yes, (d, w) -> r.run()).setNegativeButton(android.R.string.cancel, null).show();
         }
 
-        void startService(Job j) {
+        void startService(Job j) { startService(j, false); }
+
+        /** auto: the app's own start (afterDeath, the stopped notification's tap is the user's), which goes on only with a job that should be working */
+        void startService(Job j, boolean auto) {
             // Android 13+: the progress notification needs the user's yes; the job runs either way (without it the notification shows only in the task manager).
             // Android 12 has no such permission: notifications are allowed unless the user turns them off in the app's settings
             if (Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 a.requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, ASK_NOTIFY);
-            a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, j.file.getPath()));
+            a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, j.file.getPath())
+                    .putExtra(PackService.EXTRA_AUTO, auto));
             if (!bound) bound = a.bindService(new Intent(a, PackService.class), this, 0);
             resumedAt = SystemClock.elapsedRealtime();
+        }
+
+        /**
+         * The stopped notification's tap (JobWatch.stopped): the job it names, when it is still the remembered one and not done, is resumed as Resume does (the
+         * user's own start; a worker that runs it already takes it as nothing). Only with the token the notification carried, once
+         */
+        void resumeFromNote(String path, String token) {
+            android.content.SharedPreferences p = Prefs.open(a, "ondevice");
+            String want = p.getString("resume_token", null);
+            if (want == null || !want.equals(token)) { android.util.Log.w("nxpack", "a resume intent without the stopped notification's token: ignored"); return; }
+            p.edit().remove("resume_token").apply();
+            load();
+            show();
+            if (job == null || !job.file.getPath().equals(path) || "done".equals(job.state()) && !job.apkChanged() || jobAlive) return;
+            if (a.needAccess()) return;
+            android.util.Log.i("nxpack", "the stopped notification was tapped: resuming the job (" + job.state() + ")");
+            startService(job);
         }
 
         /** from: who asked (PackService.EXTRA_FROM: launcher or adb), for the logs */
@@ -659,9 +697,14 @@ final class Ondevice {
             Ui.confirmDanger(a, a.getString(R.string.prepare_forget_title), a.getString(R.string.prepare_forget_body, job.dir()), a.getString(R.string.prepare_button_forget), () -> {
                 Job.remember(a, null);
                 job = null;
+                dropNote();
                 show();
             });
         }
+
+        /** The job's notification left behind (paused, failed, or the stopped one: JobWatch) goes with a job forgotten or deleted; the job runs in no service then
+         *  (Manage waits while it runs) */
+        void dropNote() { a.getSystemService(android.app.NotificationManager.class).cancel(PackService.NOTE); }
 
         /** The pack folder this job made itself (the app's packs/<id>, an older job's <work>/android-pack, or the simulated engine's ondevice/fake-pack), else null: an adopted pack is the user's */
         File ownPack(Job j) {
@@ -705,6 +748,7 @@ final class Ondevice {
                         wait.dismiss();
                         Job.remember(a, null);
                         job = null;
+                        dropNote();
                         show();
                         a.refresh();
                         android.widget.Toast.makeText(a, R.string.prepare_deleted_toast, android.widget.Toast.LENGTH_LONG).show();

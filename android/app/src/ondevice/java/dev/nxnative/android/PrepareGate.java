@@ -138,6 +138,31 @@ final class PrepareGate implements ServiceConnection {
         go.run();
     }
 
+    /**
+     * The game ends (GameActivity.end: Stop, Back, a start that failed), its activity still in front: a job waiting for the game is started again
+     * (EXTRA_AUTO). Its service's process polls for the game's end and goes on by itself, but that process may be gone (a low-memory kill while the game ran),
+     * and on HyperOS nothing restarts it (JobDeath); a start while it runs changes nothing. Android lets this start: the activity is in front
+     */
+    static void afterGame(Activity a) {
+        File f = Job.remembered(a);
+        if (f == null || !f.isFile()) return;
+        Job j;
+        try {
+            j = Job.read(f);
+        } catch (IOException e) {
+            Log.w(TAG, "the game ends: the job's " + f + " did not read (" + e.getMessage() + ")");
+            return;
+        }
+        if (!"paused".equals(j.state()) || !GameGate.REASON.equals(j.reason())) return;
+        try {
+            a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, f.getPath())
+                    .putExtra(PackService.EXTRA_AUTO, true));
+            Log.i(TAG, "the game ends: the job waited for it; its service is asked to go on (it waits until this process is gone)");
+        } catch (RuntimeException e) {   // the job stays paused for the game: Home resumes it when it opens (Ondevice.Panel.afterDeath)
+            Log.w(TAG, "the game ends: Android did not let it start the job's service (" + e + "); Home resumes it when it opens");
+        }
+    }
+
     /** Whether a game's process (GameActivity's ":game", AndroidManifest.xml) runs: in the foreground, in the background or still starting */
     static boolean gameRunning(Context c) {
         List<ActivityManager.RunningAppProcessInfo> ps = c.getSystemService(ActivityManager.class).getRunningAppProcesses();

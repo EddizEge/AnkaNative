@@ -118,15 +118,20 @@ class Service(unittest.TestCase):
         self.assertLess(run.index('ran = true;'), run.index('return run0('))
 
     def test_sticky_restart_waits_again(self):
-        self.assertIn('"paused".equals(j.state()) && JobForm.waitsByItself(j.reason())', body(self.s, 'public int onStartCommand('))
+        """A sticky restart (and the app's own start, JobDeath) resumes a job waiting by itself, the game's wait among them"""
+        self.assertIn('JobDeath.go(intent != null, auto, j.state(), j.reason(), j.apkChanged())', body(self.s, 'public int onStartCommand('))
+        self.assertIn('"paused".equals(state) && JobForm.waitsByItself(reason)', code(ONDEVICE / 'JobDeath.java'))
 
 
 class Home(unittest.TestCase):
     def test_after_game(self):
+        """Home resumes a job left waiting for a game whose service is gone, once no game runs (Ondevice.Panel.afterDeath, JobDeath: test_android_job_death.py)"""
         o = code(ONDEVICE / 'Ondevice.java')
         show = body(o, '        void show() {', '\n        }\n')
-        self.assertIn('afterGame();', show)
-        self.assertIn('GameGate.resumeAfterGame(job.state(), job.reason(), jobAlive, PrepareGate.gameRunning(a))', body(o, '        void afterGame() {', '\n        }\n'))
+        self.assertIn('afterDeath();', show)
+        self.assertIn('JobDeath.after(job.state(), job.reason(), jobAlive, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(a))',
+                      body(o, '        void afterDeath() {', '\n        }\n'))
+        self.assertIn('GameGate.resumeAfterGame(state, reason, false, gameRuns)', code(ONDEVICE / 'JobDeath.java'))
         self.assertIn('d.containsKey("job")', o)
 
     def test_card_line(self):

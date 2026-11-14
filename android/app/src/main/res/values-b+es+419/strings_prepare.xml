@@ -164,6 +164,8 @@
         <item quantity="other">Quedan %1$d h %2$d min</item>
     </plurals>
     <string name="prepare_note_running_left">%1$s · Preparando %2$s</string>
+    <string name="prepare_note_stopped">Se interrumpió: %1$s</string>
+    <string name="prepare_note_stopped_text">La preparación se detuvo (%1$s). Toca para continuar.</string>
     <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>
     <string name="prepare_note_progress">%1$s · %2$d %%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>

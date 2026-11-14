@@ -43,7 +43,8 @@ import java.util.regex.Pattern;
  * The on-device job (ONDEVICE.md "The service and the screen"): a foreground service of type dataSync in its own process (:pack), started by the launcher's
  * "Prepare game". It runs the job's steps in order on one worker thread with a partial wake lock, posts an ongoing notification with the step's progress and a
  * Pause action, and goes on when the app is swiped away. Every change goes to job.json, so a killed process loses at most the step in hand (the translation not even
- * that): START_STICKY brings the service back and it resumes a job that was running; the launcher's Resume does the same after a reboot or a force stop.
+ * that): START_STICKY brings the service back and it resumes a job that was running, where Android does (HyperOS refuses it: then the app's main process, Home
+ * or a game's end start it again, else a notification says it stopped, JobDeath); the launcher's Resume does the same after a reboot or a force stop.
  * <ul>
  * <li>Pause (the notification or the launcher): the job is written paused at once, the tool is interrupted (the split and the translation stop at the file or
  *     shader in hand, within seconds), and while it stops the card and the notification say so ("Pausing", no time left); then the service stops and leaves a
@@ -63,11 +64,16 @@ public final class PackService extends Service {
     /** A game is about to start (PrepareGate, from the game's process): the job waits while it runs (GameGate) */
     static final String ACTION_GAME = "dev.nxnative.android.pack.GAME";
     static final String EXTRA_JOB = "job";
+    /** ACTION_START from the app's own automatic start (JobWatch, Home's open, a game's end): like a sticky restart, it resumes only a job that should be working
+     *  (JobDeath.go), and its starts of a step add up (MAX_STARTS) */
+    static final String EXTRA_AUTO = "auto";
     /** ACTION_PAUSE's sender, for the logs (a job paused with reason "user"): notification, launcher or adb; missing = an intent from elsewhere */
     static final String EXTRA_FROM = "from";
     static final int MSG_REGISTER = 1, MSG_UNREGISTER = 2, MSG_STATE = 3;
-    private static final String TAG = "nxpack", CHANNEL = "pack";
-    private static final int NOTE = 1;
+    private static final String TAG = "nxpack";
+    /** The notification channel and the job's notification (JobWatch posts its stopped notification in the same place from the main process) */
+    static final String CHANNEL = "pack";
+    static final int NOTE = 1;
     /** Starts of one step the process may not live through before the job fails (Job.start) */
     private static final int MAX_STARTS = 2;
     private static final Pattern PROGRESS = Pattern.compile("^progress:? (\\d+)(?: |/)(\\d+)(?: (\\S+))?");
@@ -138,9 +144,7 @@ public final class PackService extends Service {
         super.onCreate();
         nm = getSystemService(NotificationManager.class);
         pm = getSystemService(PowerManager.class);
-        NotificationChannel ch = new NotificationChannel(CHANNEL, getString(R.string.prepare_channel_name), NotificationManager.IMPORTANCE_LOW);
-        ch.setDescription(getString(R.string.prepare_channel_description));
-        nm.createNotificationChannel(ch);
+        channel(this, nm);
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nxnative:pack");
         wake.setReferenceCounted(false);
         engine = PackEngine.create(this);
@@ -151,6 +155,13 @@ public final class PackService extends Service {
         pm.addThermalStatusListener(getMainExecutor(), thermalListener);
         game = PrepareGate.gameRunning(this);
         policy();
+    }
+
+    /** The job's notification channel (made again with the texts in the language of c, which renames it) */
+    static void channel(Context c, NotificationManager nm) {
+        NotificationChannel ch = new NotificationChannel(CHANNEL, c.getString(R.string.prepare_channel_name), NotificationManager.IMPORTANCE_LOW);
+        ch.setDescription(c.getString(R.string.prepare_channel_description));
+        nm.createNotificationChannel(ch);
     }
 
     @Override public void onDestroy() {
@@ -181,10 +192,10 @@ public final class PackService extends Service {
         } catch (IOException e) {
             Log.w(TAG, "job: " + e.getMessage());
         }
-        // A sticky restart (no intent: the process was killed) resumes only a job that was running or waiting by itself (the battery, the heat, a game: it
-        // waits again as long as that holds); a start resumes one that is not done
-        boolean go = j != null && (intent == null ? "running".equals(j.state()) || "paused".equals(j.state()) && JobForm.waitsByItself(j.reason())
-                : !"done".equals(j.state()) || j.apkChanged());
+        // A sticky restart (no intent: the process was killed) and the app's own automatic start (JobWatch, Home, a game's end) resume only a job that was
+        // running or waiting by itself (the battery, the heat, a game: it waits again as long as that holds); a start resumes one that is not done
+        boolean auto = intent != null && intent.getBooleanExtra(EXTRA_AUTO, false);
+        boolean go = j != null && JobDeath.go(intent != null, auto, j.state(), j.reason(), j.apkChanged());
         if (!go && (worker == null || !worker.isAlive())) {
             // startForegroundService must be answered by startForeground even when there is nothing to do
             if (intent != null) startForeground(j);
@@ -196,7 +207,8 @@ public final class PackService extends Service {
             startForeground(job);
             return START_STICKY;
         }
-        return begin(j, intent != null, startId);
+        if (auto) Log.i(TAG, "the app starts the job again by itself (" + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()) + ")");
+        return begin(j, intent != null && !auto, startId);
     }
 
     /** Runs job j on a new worker (none runs). user: the user's Start / Resume / Retry, after which earlier deaths in a step count no more */
@@ -955,6 +967,7 @@ public final class PackService extends Service {
             Bundle b = new Bundle();
             b.putBoolean("alive", false);
             b.putBoolean("game_ready", true);
+            b.putInt("pid", Process.myPid());
             m.setData(b);
             for (Messenger c : clients) {
                 try { c.send(Message.obtain(m)); } catch (RemoteException e) { clients.remove(c); }
@@ -973,6 +986,7 @@ public final class PackService extends Service {
             b.putString("job", j.json());
             b.putString("file", j.file.getPath());
             b.putBoolean("alive", worker != null);
+            b.putInt("pid", Process.myPid());   // JobWatch: the exit record of this process when it ends
             b.putBoolean("stopping", stopping);   // a pause was asked for and the tool is stopping (JobForm STOPPING)
             b.putInt("eta_min", etaMin);
             // a game about to start may (PrepareGate): no worker, or one that waits for the game in a process that has run no tool
