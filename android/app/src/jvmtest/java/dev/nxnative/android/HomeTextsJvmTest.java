@@ -38,9 +38,15 @@ public final class HomeTextsJvmTest {
 
         // MainActivity: Settings, About, the rows' values
         same(Tr.s("home_about", "0400486024DEC000, 040074A01BF12000", Tr.s("home_license_gpl", Tr.s("home_license_lsfg")), "o/r"),
-                "Title IDs: " + "0400486024DEC000, 040074A01BF12000" + "\n" + "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: LSFG frame generation)."
-                        + " Credits and the licenses of its parts: NOTICE.md in the source, github.com/" + "o/r" + ".", "about");
-        same(Tr.s("home_license"), "License: GPL-3.0-or-later as a whole" + ".", "license, no GPL part");
+                "Title IDs: " + "0400486024DEC000, 040074A01BF12000" + "\n" + "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: LSFG frame generation"
+                        + " and mesh draws through compute). Credits and the licenses of its parts: NOTICE.md in the source, github.com/" + "o/r" + ".", "about");
+        // MainActivity.aboutLicense: mesh draws through compute are in every build, so every list names them
+        same(Tr.s("home_license_gpl", Tr.s("home_license_lsfg_xlate")), "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: "
+                + "LSFG frame generation, mesh draws through compute and the shader translator).", "license, LSFG and translator");
+        same(Tr.s("home_license_gpl", Tr.s("home_license_xlate")), "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: "
+                + "mesh draws through compute and the shader translator).", "license, translator");
+        same(Tr.s("home_license_gpl", Tr.s("home_license_memu")), "License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: "
+                + "mesh draws through compute).", "license, no LSFG, no translator");
         same(Tr.s("home_update_version_release_only", "0.2"), "Anka Native " + "0.2" + " · release app only", "update row");
         same(Tr.s("home_overlay_on", 3, 5), "On · " + 3 + " of " + 5 + " items", "overlay row");
         same(Tr.s("home_lsfg_on_no_dll", 2), "On · " + 2 + "x" + " · Lossless.dll missing", "frame generation row");

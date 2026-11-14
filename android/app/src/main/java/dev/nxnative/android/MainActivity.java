@@ -205,15 +205,16 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * The About screen's license line. Anka Native is GPL-3.0-or-later as a whole: this APK's GPL-3.0-or-later parts are LSFG frame generation
-     * (dm/gfx/vk_android/lsfg, unless built with -PnxLsfg=false) and, with the on-phone packer, the shader translator (libdmsh_xlate.so, InstEmitAmpereMesh.cs)
+     * The About screen's license line. Anka Native is GPL-3.0-or-later as a whole: this APK's GPL-3.0-or-later parts are mesh draws through compute
+     * (dm/gfx/vk_android/vka_memu*, in every libnxhost.so), LSFG frame generation (dm/gfx/vk_android/lsfg, unless built with -PnxLsfg=false) and, with the
+     * on-phone packer, the shader translator (libdmsh_xlate.so, InstEmitAmpereMesh.cs). The four home_license_* lists all name mesh draws through compute
      */
     static String aboutLicense() {
         boolean xlate = "native".equals(BuildConfig.NX_PACK_ENGINE);
         if (BuildConfig.NX_LSFG && xlate) return Tr.s("home_license_gpl", Tr.s("home_license_lsfg_xlate"));
         if (BuildConfig.NX_LSFG) return Tr.s("home_license_gpl", Tr.s("home_license_lsfg"));
         if (xlate) return Tr.s("home_license_gpl", Tr.s("home_license_xlate"));
-        return Tr.s("home_license");
+        return Tr.s("home_license_gpl", Tr.s("home_license_memu"));
     }
 
     /** A settings group's card of rows, under its section label */

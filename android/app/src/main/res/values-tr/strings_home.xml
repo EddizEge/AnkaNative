@@ -54,11 +54,11 @@
     <string name="home_adb_turn_on">Aç</string>
     <string name="home_section_about">Hakkında</string>
     <string name="home_about">Title ID: %1$s\n%2$s Emeği geçenler ve bileşenlerin lisansları: kaynak koddaki NOTICE.md, github.com/%3$s.</string>
-    <string name="home_license">Lisans: bütün olarak GPL-3.0-or-later.</string>
     <string name="home_license_gpl">Lisans: bütün olarak GPL-3.0-or-later (bu derleme GPL-3.0-or-later kod içerir: %1$s).</string>
-    <string name="home_license_lsfg_xlate">LSFG kare üretimi ve shader çevirici</string>
-    <string name="home_license_lsfg">LSFG kare üretimi</string>
-    <string name="home_license_xlate">shader çevirici</string>
+    <string name="home_license_lsfg_xlate">LSFG kare üretimi, compute üzerinden mesh çizimleri ve shader çevirici</string>
+    <string name="home_license_lsfg">LSFG kare üretimi ve compute üzerinden mesh çizimleri</string>
+    <string name="home_license_xlate">compute üzerinden mesh çizimleri ve shader çevirici</string>
+    <string name="home_license_memu">compute üzerinden mesh çizimleri</string>
     <string name="home_update_version_release_only">Anka Native %1$s · yalnızca yayın sürümünde</string>
     <string name="home_overlay_on">Açık · %1$d / %2$d öğe</string>
     <string name="home_off">Kapalı</string>

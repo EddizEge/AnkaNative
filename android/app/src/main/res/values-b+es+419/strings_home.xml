@@ -53,11 +53,11 @@
     <string name="home_adb_turn_on">Activar</string>
     <string name="home_section_about">Acerca de</string>
     <string name="home_about">Title IDs: %1$s\n%2$s Créditos y licencias de sus componentes: NOTICE.md en el código fuente, github.com/%3$s.</string>
-    <string name="home_license">Licencia: GPL-3.0-or-later en su conjunto.</string>
     <string name="home_license_gpl">Licencia: GPL-3.0-or-later en su conjunto (esta compilación incluye código GPL-3.0-or-later: %1$s).</string>
-    <string name="home_license_lsfg_xlate">generación de cuadros LSFG y el traductor de shaders</string>
-    <string name="home_license_lsfg">generación de cuadros LSFG</string>
-    <string name="home_license_xlate">el traductor de shaders</string>
+    <string name="home_license_lsfg_xlate">generación de cuadros LSFG, dibujo de mallas mediante compute y el traductor de shaders</string>
+    <string name="home_license_lsfg">generación de cuadros LSFG y dibujo de mallas mediante compute</string>
+    <string name="home_license_xlate">dibujo de mallas mediante compute y el traductor de shaders</string>
+    <string name="home_license_memu">dibujo de mallas mediante compute</string>
     <string name="home_update_version_release_only">Anka Native %1$s · solo en la versión publicada</string>
     <string name="home_overlay_on">Activado · %1$d de %2$d elementos</string>
     <string name="home_off">Desactivado</string>

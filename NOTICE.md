@@ -51,11 +51,14 @@ Anka Native is built on other people's work. This file is where they are credite
   nxnative credits). The 3D resolution option (`DM_RES_LEVEL`, `dm/host/drs_level.h`) is Anka Native's own code; the dynamic-resolution controller it
   acts on was first patched by Lichii's Max Resolution add-on (carried into Banana Native by sutormin.kirill, 2fab0634), and its palette of levels is the one
   Banana Native's profile lists (849d2fb3). Ideas only, apart from the next entry.
-- **Mesh draws through compute** (`dm/gfx/vk_android/vka_memu*`, `memu/`, GPL-3.0-or-later): Lichii's compute emulation of task and mesh programs
+- **Mesh draws through compute** (`dm/gfx/vk_android/vka_memu*` and the passes in `memu/`, GPL-3.0-or-later): Lichii's compute emulation of task and mesh programs
   (pull requests #569 by zortos293 and #642 by RomainROCH; Lichii's files: "Copyright 2026 Eden Emulator Project", most also a "yuzu Emulator Project" line, GPL-3.0-or-later), as carried in
   [Hokkaido](https://github.com/pavelgajdo/Hokkaido) (pavelgajdo's fork of Lichii) and ported to this replay by Banana Native (b39bf8b5, 624c267e), with
-  the finding of nebadasSwifty's Banana Native pull request #170 (Function-scope booleans start false). The files keep their SPDX headers; details in
+  the finding of nebadasSwifty's Banana Native pull request #170 (Function-scope booleans start false). The files keep their SPDX headers, with the Eden and
+  yuzu lines of the Lichii files each one follows; its build script `memu/spv.py` and its tests are MIT, as in Banana Native. Details in
   [android/NOTICE.md](android/NOTICE.md).
+- **ColdFir5** (Michael Williams), pull request #11 to Anka Native (open, not merged): a parallel finding. It found the same Ocarina of Time level selector,
+  `main+0x8065e0`, on its own and holds it at the last level (`DM_OOT_FLOOR_RES=1`); none of its code is used.
 - **[Atmosphere](https://github.com/Atmosphere-NX/Atmosphere)** (the reference for Horizon's synchronization), **[LibHac](https://github.com/Thealexbarney/LibHac)**,
   **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)**, **[glslang](https://github.com/KhronosGroup/glslang)**,
   **[MacNativeGames](https://github.com/ly05010419/MacNativeGames)** (MIT) and deko3d (zlib): used by the Mac and iPhone builds and the shared tools, as
@@ -78,7 +81,7 @@ Anka Native is built on other people's work. This file is where they are credite
 ## Licenses
 
 - The repository's own code is MIT ([LICENSE](LICENSE): seedds' copyright, the Swap2-Native contributors' and Anka Native's), except the files marked
-  GPL-3.0-or-later: the frame generation port (`dm/gfx/vk_android/lsfg`), mesh draws through compute (`dm/gfx/vk_android/vka_memu*` and `memu/`), the
+  GPL-3.0-or-later: the frame generation port (`dm/gfx/vk_android/lsfg`), mesh draws through compute (`dm/gfx/vk_android/vka_memu*` and the passes in `memu/`), the
   shader translator's `InstEmitAmpereMesh.cs` and the Anka mark's script (`android/tools/anka_logo.py`).
 - **The Android app is GPL-3.0-or-later as a whole.** Every host library (`libnxhost.so`) links mesh draws through compute (GPL-3.0-or-later), the APK
   links the frame generation port (`dm/gfx/vk_android/lsfg`, GPL-3.0-or-later) unless built with `-PnxLsfg=false`, and an APK that carries the on-phone

@@ -1,6 +1,10 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the compute mesh emulation: pavelgajdo/Hokkaido #569, emit_spirv_mesh.cpp EmitMeshEmulationVertex)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden and yuzu lines are those of Lichii's emit_spirv_mesh.cpp (EmitMeshEmulationVertex, the tasks' binary search; Eden only) and
+// spirv_emit_context.cpp (the mesh program as compute), as zortos293/Lichii #569 left them (Hokkaido is a fork of Lichii)
 //
 // NVN2 task and mesh programs drawn through compute (docs/reference/shaders.md#mesh-draws-through-compute-android). Hokkaido (a yuzu / Eden derived Switch 2 emulator,
 // GPL-3.0-or-later) emits a mesh program as a compute shader from its IR when the device has no VK_EXT_mesh_shader: the program's output goes to a storage buffer, one

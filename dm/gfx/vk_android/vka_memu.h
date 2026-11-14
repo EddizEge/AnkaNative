@@ -1,6 +1,11 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
+// SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-FileCopyrightText: Copyright 2026 Hokkaido contributors (the compute mesh emulation: pavelgajdo/Hokkaido #569, #642)
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
+// The Eden and yuzu lines are those of Lichii's vk_rasterizer.h (the arena) and vk_graphics_pipeline.h (MeshEmulationSetup), as zortos293/Lichii #569 left them
+// (Hokkaido is a fork of Lichii)
 // NVN2 task and mesh draws through compute (vka_memu.c, the draws in vka_draw.c's memu batch, the look-ahead in vka_exec.c memu_scan). See vka_memu_abi.h for the licence.
 #pragma once
 #include <stdint.h>
