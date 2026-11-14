@@ -198,9 +198,10 @@ public final class PrepareTextsJvmTest {
         // PackService: job.json's errors (English)
         for (String s : new String[] {"rewrite", "shaders"}) {
             int i = s.equals("rewrite") ? 1 : 3, starts = 3;
-            eq(stepText[i].toLowerCase(Locale.ROOT) + " was stopped by Android " + (starts - 1) + " times before it finished, most likely "
+            // reworded 2026-11-14 (the step is the object, so a translation needs no participle that agrees with it); the GB a number in the app's language
+            eq("Android stopped " + stepText[i].toLowerCase(Locale.ROOT) + " " + (starts - 1) + " times before it finished, most likely "
                     + "for memory (it needs up to " + (s.equals("rewrite") ? "2.7" : "1.5") + " GB). Close other apps, then tap Retry", "prepare_error_step_killed",
-                    new Msg(stepKeys[i] + "_in_sentence"), starts - 1, s.equals("rewrite") ? "2.7" : "1.5", new Msg("prepare_button_retry"));
+                    new Msg(stepKeys[i] + "_in_sentence"), starts - 1, s.equals("rewrite") ? 2.7 : 1.5, new Msg("prepare_button_retry"));
         }
         eq("the dump changed: it is now " + "0400486024DEC000" + " " + version, "prepare_error_dump_changed", "0400486024DEC000", String.valueOf(version));
         File log = new File(dir, "logs/pack.log");

@@ -53,7 +53,7 @@ final class PrepareErrors {
             switch (code) {
                 case "step_killed": {
                     Msg step = stepInSentence(a[0]);
-                    return step == null ? null : new Msg("prepare_error_step_killed", step, Integer.parseInt(a[1]), a[2], new Msg("prepare_button_retry"));
+                    return step == null ? null : new Msg("prepare_error_step_killed", step, Integer.parseInt(a[1]), Double.parseDouble(a[2]), new Msg("prepare_button_retry"));
                 }
                 case "dump_changed": return new Msg("prepare_error_dump_changed", a[0], a[1]);
                 case "tool_exit": return new Msg("prepare_error_tool_exit", a[0], Integer.parseInt(a[1]), a[2]);

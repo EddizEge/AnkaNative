@@ -102,7 +102,9 @@
     <string name="prepare_deleting">Deleting…</string>
     <string name="prepare_deleted_toast">Deleted. Your dump and saves are untouched.</string>
 
-    <!-- Job: the steps (Job.STEP_KEYS), and the same inside a sentence (PrepareErrors.stepInSentence: "Stopped at checking the dump: …") -->
+    <!-- Job: the steps (Job.STEP_KEYS), and the same inside a sentence (PrepareErrors.stepInSentence): a noun phrase that follows a preposition ("Stopped at
+         checking the dump: …") and is the object of a verb (prepare_error_step_killed: "Android stopped checking the dump …"), never its subject. Portuguese
+         and Spanish: write it with its article where the sentences need one -->
     <string name="prepare_step_identify">Checking the dump</string>
     <string name="prepare_step_rewrite">Rewriting the game code</string>
     <string name="prepare_step_split">Finding the shaders</string>
@@ -159,8 +161,8 @@
     <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors): English in job.json's error, with its code and arguments beside it, so the status line
-         (prepare_status_failed) and the notification show it in the user's language; %1$s: prepare_step_*_in_sentence, tap %4$s: the button's label -->
-    <string name="prepare_error_step_killed">%1$s was stopped by Android %2$d times before it finished, most likely for memory (it needs up to %3$s GB). Close other apps, then tap %4$s</string>
+         (prepare_status_failed) and the notification show it in the user's language; %1$s: prepare_step_*_in_sentence (the object of "stopped"), %2$d: how many times (2 or more), %3$.1f: the step's memory in GB, tap %4$s: the button's label -->
+    <string name="prepare_error_step_killed">Android stopped %1$s %2$d times before it finished, most likely for memory (it needs up to %3$.1f GB). Close other apps, then tap %4$s</string>
     <!-- %1$s: the title ID, %2$s: the version number -->
     <string name="prepare_error_dump_changed">the dump changed: it is now %1$s %2$s</string>
     <!-- %1$s: the step's code (rewrite, split, shaders, pack: the tools' word, not translated), %3$s: the tool's last [RED] line (English, as the tool wrote it) -->

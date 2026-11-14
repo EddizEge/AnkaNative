@@ -57,7 +57,7 @@ public final class PrepareErrorsJvmTest {
         Msg retry = new Msg("prepare_button_retry");
         // {the code with its arguments as PackService / DumpCheck pass them, the Msg they built before, the step it fails in}
         Object[][] cases = {
-            {PrepareErrors.coded("step_killed", "rewrite", 2, "2.7"), new Msg("prepare_error_step_killed", rewrite, 2, "2.7", retry), rewrite},
+            {PrepareErrors.coded("step_killed", "rewrite", 2, "2.7"), new Msg("prepare_error_step_killed", rewrite, 2, 2.7, retry), rewrite},
             {PrepareErrors.coded("dump_changed", "0400486024DEC000", String.valueOf(65536L)), new Msg("prepare_error_dump_changed", "0400486024DEC000", "65536"), identify},
             {PrepareErrors.coded("tool_exit", "rewrite", 1, log), new Msg("prepare_error_tool_exit", "rewrite", 1, log), rewrite},
             {PrepareErrors.coded("tool_exit_red", "pack", 1, "no updates/65536 (have: none).", log), new Msg("prepare_error_tool_exit_red", "pack", 1, "no updates/65536 (have: none).", log),
@@ -91,6 +91,9 @@ public final class PrepareErrorsJvmTest {
         check(PrepareErrors.message("dump_changed", new String[] {"x"}) == null, "too few arguments");
         check(PrepareErrors.message("step_killed", new String[] {"rewrite", "two", "2.7"}) == null, "a count that is no number");
         check(PrepareErrors.message("step_killed", new String[] {"compile", "2", "2.7"}) == null, "a step this build does not have");
+        check(PrepareErrors.message("step_killed", new String[] {"rewrite", "2", "2,7 GB"}) == null, "a size that is no number (its resource takes %3$.1f)");
+        same(PrepareErrors.message("step_killed", new String[] {"rewrite", "2", "2.7"}).english(), "Android stopped rewriting the game code 2 times before it finished, most likely"
+                + " for memory (it needs up to 2.7 GB). Close other apps, then tap Retry", "step_killed's English (reworded 2026-11-14: the step is the object)");
         check(PrepareErrors.message("dump_space", new String[] {"2.0", "/x", "free"}) == null, "a size that is no number");
         check(PrepareErrors.message((String[]) null) == null && PrepareErrors.message(new String[0]) == null, "nothing stored");
         try {
