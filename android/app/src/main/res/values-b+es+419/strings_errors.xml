@@ -4,7 +4,7 @@
     <!-- JobErrors: one whole sentence per packer error code -->
     <string name="errors_dump_incomplete">El volcado está incompleto: a %1$s le falta el código del juego (exefs con main y main.npdm) o el RomFS. Vuelve a volcar el juego.</string>
     <string name="errors_module_missing">El volcado está incompleto: %1$s no tiene %2$s. Vuelve a volcar el juego.</string>
-    <string name="errors_version_missing">El volcado no tiene la actualización %1$s. Elige una versión que contenga el volcado o vuelca esa actualización.</string>
+    <string name="errors_version_missing">El volcado no tiene la actualización %1$s. Elige una versión que esté en el volcado o vuelca esa actualización.</string>
     <string name="errors_wrong_title">%1$s no forma parte de este juego: su program ID es %2$s y el juego base es %3$s.</string>
     <string name="errors_not_base_title">%1$s: %2$s no es el title ID de un juego base. Elige el volcado del juego base o de su actualización.</string>
     <string name="errors_no_profile">Esta app no tiene un perfil para el juego %1$s, así que no puede prepararlo.</string>
