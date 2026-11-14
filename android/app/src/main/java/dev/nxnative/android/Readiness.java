@@ -25,8 +25,14 @@ final class Readiness {
      * readiness.tsv, keeps the English it was written with. Add a row's fact and key at the same index, and its English, the same as the HOST row's, to
      * strings_readiness.xml (ReadinessJvmTest checks both)
      */
-    static final String[] REQ_FACTS = {"feature.timelineSemaphore"};
-    static final String[] REQ_KEYS = {"readiness_req_feature_timeline_semaphore"};
+    static final String[] REQ_FACTS = {"feature.timelineSemaphore", "android.sdk", "vk.instance", "vk.api", "queue.graphicsCompute", "feature.dynamicRendering",
+            "ext.VK_KHR_swapchain", "ext.VK_KHR_map_memory2", "ext.VK_EXT_map_memory_placed", "feature.memoryMapPlaced", "feature.descriptorBindingSampledImageUpdateAfterBind",
+            "feature.descriptorBindingPartiallyBound", "feature.runtimeDescriptorArray"};
+    // The two placed-memory rows have the same text, so they share one key
+    static final String[] REQ_KEYS = {"readiness_req_feature_timeline_semaphore", "readiness_req_android_sdk", "readiness_req_vk_instance", "readiness_req_vk_api",
+            "readiness_req_queue_graphics_compute", "readiness_req_feature_dynamic_rendering", "readiness_req_ext_vk_khr_swapchain", "readiness_req_ext_vk_khr_map_memory2",
+            "readiness_req_ext_vk_ext_map_memory_placed", "readiness_req_ext_vk_ext_map_memory_placed", "readiness_req_feature_descriptor_binding_sampled_image_update_after_bind",
+            "readiness_req_feature_descriptor_binding_partially_bound", "readiness_req_feature_runtime_descriptor_array"};
 
     /** One requirement: the fact (a key of the facts) must be at least min (a number, a dotted version, or 0x hex). what: "title: why" */
     static final class Req {
@@ -71,6 +77,10 @@ final class Readiness {
         final Status status;
         /** The screen's title and message in the user's language; null: the same as title / message */
         private final String titleText, messageText;
+        /** The texts the screen renders when it shows them (null: none), so a check renders in the language of the moment it is shown, and only what is shown:
+         *  a Msg check's title and message, a requirement row's title (Req.shownTitle) */
+        private final Msg titleMsg, messageMsg;
+        private final Req req;
 
         Check(String title, Status status, String message, String fix) { this(title, status, message, fix, null); }
 
@@ -80,20 +90,37 @@ final class Readiness {
 
         /** titleText, messageText: the screen's texts in the user's language (null: the English ones) */
         Check(String title, String titleText, Status status, String message, String messageText, String fix, String fact) {
+            this(title, titleText, null, null, status, message, messageText, null, fix, fact);
+        }
+
+        /** A check whose title and message are texts (docs/i18n.md): title and message are their English (the report), titleText() and messageText() the user's language */
+        Check(Msg title, Status status, Msg message, String fix) { this(title, status, message, fix, null); }
+
+        Check(Msg title, Status status, Msg message, String fix, String fact) {
+            this(title.english(), null, title, null, status, message.english(), null, message, fix, fact);
+        }
+
+        /** A requirement row's check: its title is the row's (English; the screen's is r.shownTitle()), its message English (docs/i18n.md "Readiness requirements") */
+        Check(Req r, Status status, String message, String fix, String fact) { this(r.title, null, null, r, status, message, null, null, fix, fact); }
+
+        private Check(String title, String titleText, Msg titleMsg, Req req, Status status, String message, String messageText, Msg messageMsg, String fix, String fact) {
             this.fact = fact;
             this.title = title;
             this.titleText = titleText;
+            this.titleMsg = titleMsg;
+            this.req = req;
             this.status = status;
             this.message = message;
             this.messageText = messageText;
+            this.messageMsg = messageMsg;
             this.fix = fix;
         }
 
         /** The title on a screen, in the user's language */
-        String titleText() { return titleText != null ? titleText : title; }
+        String titleText() { return titleMsg != null ? titleMsg.text() : req != null ? req.shownTitle() : titleText != null ? titleText : title; }
 
         /** The message on a screen, in the user's language */
-        String messageText() { return messageText != null ? messageText : message; }
+        String messageText() { return messageMsg != null ? messageMsg.text() : messageText != null ? messageText : message; }
 
         @Override public String toString() { return "[" + status + "] " + title + ": " + message; }
     }
@@ -101,19 +128,19 @@ final class Readiness {
     /** What the host needs whatever the game: vka_dev.c stops without the first ones (Vulkan 1.3, the queue, timeline semaphores, dynamic rendering), and without
      *  placed memory maps, update-after-bind texture tables or a swapchain it runs but draws or shows nothing (its [RED] lines say so) */
     static final List<Req> HOST = Collections.unmodifiableList(List.of(
-            new Req(true, "android.sdk", "31", "Android 12 or newer: the app is built for it", true),
-            new Req(true, "vk.instance", "1.1", "Vulkan 1.1 loader or newer: Android 12's loader reports 1.1 and 13's 1.3; the replay's Vulkan 1.3 is the GPU driver's (the next row)", true),
-            new Req(true, "vk.api", "1.3", "Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3", true),
-            new Req(true, "queue.graphicsCompute", "1", "A graphics and compute queue: everything is submitted to one such queue", true),
-            new Req(true, "feature.timelineSemaphore", "1", "Timeline semaphores: the game's fences are built on them", true),
-            new Req(true, "feature.dynamicRendering", "1", "Dynamic rendering: every render pass is recorded with it", true),
-            new Req(true, "ext.VK_KHR_swapchain", "1", "Swapchain: without it no picture reaches the screen", true),
-            new Req(true, "ext.VK_KHR_map_memory2", "1", "Memory map 2: placed memory maps need it", true),
-            new Req(true, "ext.VK_EXT_map_memory_placed", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn", true),
-            new Req(true, "feature.memoryMapPlaced", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn", true),
-            new Req(true, "feature.descriptorBindingSampledImageUpdateAfterBind", "1", "Texture tables (update after bind): the game's texture pools live in them", true),
-            new Req(true, "feature.descriptorBindingPartiallyBound", "1", "Texture tables (partially bound): the game's texture pools live in them", true),
-            new Req(true, "feature.runtimeDescriptorArray", "1", "Texture tables (runtime arrays): the game's texture pools live in them", true)));
+            new Req(true, "android.sdk", "31", "Android 12 or newer: the app is built for it", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "vk.instance", "1.1", "Vulkan 1.1 loader or newer: Android 12's loader reports 1.1 and 13's 1.3; the replay's Vulkan 1.3 is the GPU driver's (the next row)", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "vk.api", "1.3", "Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "queue.graphicsCompute", "1", "A graphics and compute queue: everything is submitted to one such queue", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "feature.timelineSemaphore", "1", "Timeline semaphores: the game's fences are built on them", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "feature.dynamicRendering", "1", "Dynamic rendering: every render pass is recorded with it", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "ext.VK_KHR_swapchain", "1", "Swapchain: without it no picture reaches the screen", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "ext.VK_KHR_map_memory2", "1", "Memory map 2: placed memory maps need it", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "ext.VK_EXT_map_memory_placed", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "feature.memoryMapPlaced", "1", "Placed memory maps: the game's GPU memory is mapped at the game's own addresses; without them nothing is drawn", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "feature.descriptorBindingSampledImageUpdateAfterBind", "1", "Texture tables (update after bind): the game's texture pools live in them", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "feature.descriptorBindingPartiallyBound", "1", "Texture tables (partially bound): the game's texture pools live in them", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
+            new Req(true, "feature.runtimeDescriptorArray", "1", "Texture tables (runtime arrays): the game's texture pools live in them", true)));   // i18n-keep: the report's English; the screen reads REQ_KEYS
 
     /** A profile's req rows as build.gradle hands them over (Profile.reqs): "level|fact|min|what" rows, ';' between them; a malformed row is skipped */
     static List<Req> parseReqs(String table) {
@@ -180,24 +207,24 @@ final class Readiness {
             if (have == null && vulkan && (err != null || unchecked != null)) {   // nothing to compare with: said once
                 if (!seen.contains("error")) {
                     seen.add("error");
-                    out.add(err != null ? new Check("GPU features", Status.FAIL, "The GPU driver could not be used (" + err + "): the game needs Vulkan 1.3.", "driver", "error")
-                            : new Check("GPU features", Status.WARNING, "Not checked (" + unchecked + "): whether this GPU has what the game needs is not known.", null, "unchecked"));
+                    out.add(err != null ? new Check(new Msg("readiness_check_gpu_features"), Status.FAIL, new Msg("readiness_gpu_error", err), "driver", "error")
+                            : new Check(new Msg("readiness_check_gpu_features"), Status.WARNING, new Msg("readiness_gpu_unchecked", unchecked), null, "unchecked"));
                 }
                 continue;
             }
-            if (!r.required && failed.contains(r.fact) || failed.contains("title " + r.title)) continue;
+            if (!r.required && failed.contains(r.fact) || failed.contains("title " + r.title)) continue;   // i18n-keep: a marker, not a text
             String key = r.fact + " " + r.min + " " + r.title;
             if (seen.contains(key)) continue;   // the same requirement twice (the host's and a profile's)
             seen.add(key);
             boolean ok = have != null && compare(have, r.min) >= 0;
-            String shown = have == null ? "not reported" : "reports " + have;
-            if (ok) out.add(new Check(r.title, r.shownTitle(), Status.PASS, "Present (" + label(r.fact) + " " + have + ", needs " + r.min + ").", null, null, null));
+            String shown = have == null ? "not reported" : "reports " + have;   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
+            if (ok) out.add(new Check(r, Status.PASS, "Present (" + label(r.fact) + " " + have + ", needs " + r.min + ").", null, null));   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
             else {
-                if (r.required) { failed.add(r.fact); failed.add("title " + r.title); }
-                String msg = (r.required ? "This device lacks it; this game needs it. " : "Missing: this game runs without it, with less. ")
+                if (r.required) { failed.add(r.fact); failed.add("title " + r.title); }   // i18n-keep: a marker, not a text
+                String msg = (r.required ? "This device lacks it; this game needs it. " : "Missing: this game runs without it, with less. ")   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
                         + (r.why.isEmpty() ? "" : r.why.substring(0, 1).toUpperCase(Locale.ROOT) + r.why.substring(1) + ". ")
-                        + "(" + label(r.fact) + " " + shown + ", needs " + r.min + ")";
-                out.add(new Check(r.title, r.shownTitle(), r.required ? Status.FAIL : Status.WARNING, msg, null, r.fact.equals("ram_gib") ? "memory" : "driver", r.fact));
+                        + "(" + label(r.fact) + " " + shown + ", needs " + r.min + ")";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
+                out.add(new Check(r, r.required ? Status.FAIL : Status.WARNING, msg, r.fact.equals("ram_gib") ? "memory" : "driver", r.fact));
             }
         }
         return out;
@@ -206,9 +233,9 @@ final class Readiness {
     /** The game's status on Android (its readiness.tsv status row): a game in bring-up gets a warning of its own, whatever the phone has */
     static Check status(String status) {
         if (status == null || status.isEmpty() || status.equals("playable")) return null;
-        if (status.equals("bring-up"))
-            return new Check("Status on Android", Status.WARNING, "This game is still being brought up on Android: it may stop or draw wrongly on any phone, this one included.", null, "status");
-        return new Check("Status on Android", Status.INFO, status, null, "status");
+        if (status.equals("bring-up")) return new Check(new Msg("readiness_check_status"), Status.WARNING, new Msg("readiness_status_bring_up"), null, "status");
+        Msg title = new Msg("readiness_check_status");
+        return new Check(title.english(), null, title, null, Status.INFO, status, null, null, null, "status");   // the message: the row's own word (machine data), as written
     }
 
     /** Of a game's environment (KEY=VALUE, in start's order), the lines that pick its GPU driver: what the readiness facts must be read on */
@@ -219,8 +246,8 @@ final class Readiness {
     }
 
     private static String label(String fact) {
-        if (fact.equals("ram_gib")) return "memory in GiB:";
-        if (fact.equals("android.sdk")) return "Android SDK";
+        if (fact.equals("ram_gib")) return "memory in GiB:";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
+        if (fact.equals("android.sdk")) return "Android SDK";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
         return fact + ":";
     }
 
@@ -232,29 +259,33 @@ final class Readiness {
         return out;
     }
 
-    /** The GPU and driver in one line: name, driver name and info, driver ID and version, and a custom driver's name */
-    static String gpu(Map<String, String> f) {
-        if (!f.containsKey("gpu.name")) return "GPU not reported" + (f.containsKey("error") ? " (" + f.get("error") + ")" : f.containsKey("unchecked") ? " (" + f.get("unchecked") + ")" : "");
-        StringBuilder s = new StringBuilder(f.get("gpu.name"));
-        s.append(", Vulkan ").append(f.getOrDefault("vk.api", "?"));
-        s.append("; driver ").append(f.getOrDefault("driver.name", "?"));
-        String info = f.getOrDefault("driver.info", "");
-        if (!info.isEmpty()) s.append(" (").append(info).append(')');
-        s.append(", driver ID ").append(f.getOrDefault("driver.id", "?")).append(", version ").append(f.getOrDefault("driver.version", "?"));
-        String custom = f.getOrDefault("driver.custom", "");
-        s.append(custom.isEmpty() ? ", the system's driver" : ", custom driver " + custom);
-        return s.toString();
+    /** The GPU and driver in one line, in English (the report and the log line): {@link #gpuMsg}'s English */
+    static String gpu(Map<String, String> f) { return gpuMsg(f).english(); }
+
+    /** The GPU and driver in one line: name, driver name and info, driver ID and version, and a custom driver's name; the screen shows its text(), the report and
+     *  the log its english() ({@link #gpu}). The facts' values are the driver's own words, as written */
+    static Msg gpuMsg(Map<String, String> f) {
+        if (!f.containsKey("gpu.name")) {
+            String why = f.containsKey("error") ? f.get("error") : f.get("unchecked");
+            return why != null ? new Msg("readiness_gpu_not_reported_why", why) : new Msg("readiness_gpu_not_reported");
+        }
+        String name = f.get("gpu.name"), api = f.getOrDefault("vk.api", "?"), driver = f.getOrDefault("driver.name", "?"), info = f.getOrDefault("driver.info", "");
+        String id = f.getOrDefault("driver.id", "?"), version = f.getOrDefault("driver.version", "?"), custom = f.getOrDefault("driver.custom", "");
+        if (custom.isEmpty())
+            return info.isEmpty() ? new Msg("readiness_gpu_system", name, api, driver, id, version) : new Msg("readiness_gpu_system_info", name, api, driver, info, id, version);
+        return info.isEmpty() ? new Msg("readiness_gpu_custom", name, api, driver, id, version, custom)
+                : new Msg("readiness_gpu_custom_info", name, api, driver, info, id, version, custom);
     }
 
     /** The log's one line ("[readiness] ..."): every player's log says what the device has and what the check decided */
     static String summary(String titleId, Map<String, String> f, List<Check> l) {
-        StringBuilder s = new StringBuilder("[readiness] ").append(titleId).append(": ");
+        StringBuilder s = new StringBuilder("[readiness] ").append(titleId).append(": ");   // i18n-keep: the log line
         s.append(any(l, Status.FAIL) ? "FAIL" : any(l, Status.WARNING) ? "WARN" : "PASS");
-        s.append("; ").append(gpu(f)).append("; RAM ").append(f.get("ram_gib")).append(" GiB, Android SDK ").append(f.get("android.sdk"));
+        s.append("; ").append(gpu(f)).append("; RAM ").append(f.get("ram_gib")).append(" GiB, Android SDK ").append(f.get("android.sdk"));   // i18n-keep: the log line
         for (Status st : new Status[] {Status.FAIL, Status.WARNING}) {
             List<Check> m = of(l, st);
             if (m.isEmpty()) continue;
-            s.append("; ").append(st == Status.FAIL ? "missing (required): " : "missing (degraded): ");
+            s.append("; ").append(st == Status.FAIL ? "missing (required): " : "missing (degraded): ");   // i18n-keep: the log line
             for (int i = 0; i < m.size(); i++) s.append(i == 0 ? "" : ", ").append(m.get(i).title);
         }
         return s.toString();
@@ -263,8 +294,8 @@ final class Readiness {
     /** The report a player copies or shares: the device, the GPU and driver, the checks, then every fact */
     static String report(String header, Map<String, String> f, List<Check> l) {
         StringBuilder s = new StringBuilder(header).append('\n');
-        s.append("GPU: ").append(gpu(f)).append('\n');
-        s.append("RAM: ").append(f.get("ram_gib")).append(" GiB; Android SDK ").append(f.get("android.sdk")).append('\n');
+        s.append("GPU: ").append(gpu(f)).append('\n');   // i18n-keep: the report
+        s.append("RAM: ").append(f.get("ram_gib")).append(" GiB; Android SDK ").append(f.get("android.sdk")).append('\n');   // i18n-keep: the report
         for (Check c : l) s.append(c).append('\n');
         s.append("-- facts --\n");
         for (Map.Entry<String, String> e : f.entrySet()) s.append(e.getKey()).append('=').append(e.getValue()).append('\n');

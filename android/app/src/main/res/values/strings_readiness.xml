@@ -7,4 +7,132 @@
     </plurals>
     <!-- Readiness.REQ_KEYS: the host's requirement rows, "title: why" (Readiness.Req splits on ": "); the English is the same as Readiness.HOST's -->
     <string name="readiness_req_feature_timeline_semaphore">Timeline semaphores: the game\'s fences are built on them</string>
+    <string name="readiness_req_android_sdk">Android 12 or newer: the app is built for it</string>
+    <string name="readiness_req_vk_instance">Vulkan 1.1 loader or newer: Android 12\'s loader reports 1.1 and 13\'s 1.3; the replay\'s Vulkan 1.3 is the GPU driver\'s (the next row)</string>
+    <string name="readiness_req_vk_api">Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3</string>
+    <string name="readiness_req_queue_graphics_compute">A graphics and compute queue: everything is submitted to one such queue</string>
+    <string name="readiness_req_feature_dynamic_rendering">Dynamic rendering: every render pass is recorded with it</string>
+    <string name="readiness_req_ext_vk_khr_swapchain">Swapchain: without it no picture reaches the screen</string>
+    <string name="readiness_req_ext_vk_khr_map_memory2">Memory map 2: placed memory maps need it</string>
+    <!-- Both placed-memory rows (ext.VK_EXT_map_memory_placed, feature.memoryMapPlaced) -->
+    <string name="readiness_req_ext_vk_ext_map_memory_placed">Placed memory maps: the game\'s GPU memory is mapped at the game\'s own addresses; without them nothing is drawn</string>
+    <string name="readiness_req_feature_descriptor_binding_sampled_image_update_after_bind">Texture tables (update after bind): the game\'s texture pools live in them</string>
+    <string name="readiness_req_feature_descriptor_binding_partially_bound">Texture tables (partially bound): the game\'s texture pools live in them</string>
+    <string name="readiness_req_feature_runtime_descriptor_array">Texture tables (runtime arrays): the game\'s texture pools live in them</string>
+    <!-- Readiness: checks that are no requirement row (their English is the report's, Check.title / message) -->
+    <string name="readiness_check_gpu_features">GPU features</string>
+    <string name="readiness_gpu_error">The GPU driver could not be used (%1$s): the game needs Vulkan 1.3.</string>
+    <string name="readiness_gpu_unchecked">Not checked (%1$s): whether this GPU has what the game needs is not known.</string>
+    <string name="readiness_check_status">Status on Android</string>
+    <string name="readiness_status_bring_up">This game is still being brought up on Android: it may stop or draw wrongly on any phone, this one included.</string>
+    <!-- Readiness.gpuMsg: the GPU line. %1$s GPU name, %2$s Vulkan version, %3$s driver name, then the driver info (the _info texts), driver ID, driver version and a custom driver's name, all as the driver reports them -->
+    <string name="readiness_gpu_not_reported">GPU not reported</string>
+    <string name="readiness_gpu_not_reported_why">GPU not reported (%1$s)</string>
+    <string name="readiness_gpu_system">%1$s, Vulkan %2$s; driver %3$s, driver ID %4$s, version %5$s, the system\'s driver</string>
+    <string name="readiness_gpu_system_info">%1$s, Vulkan %2$s; driver %3$s (%4$s), driver ID %5$s, version %6$s, the system\'s driver</string>
+    <string name="readiness_gpu_custom">%1$s, Vulkan %2$s; driver %3$s, driver ID %4$s, version %5$s, custom driver %6$s</string>
+    <string name="readiness_gpu_custom_info">%1$s, Vulkan %2$s; driver %3$s (%4$s), driver ID %5$s, version %6$s, custom driver %7$s</string>
+    <!-- ReadinessActivity: the screen -->
+    <string name="readiness_title">Readiness check</string>
+    <string name="readiness_checking">Checking…</string>
+    <string name="readiness_share">Share</string>
+    <string name="readiness_run_again">Run again</string>
+    <string name="readiness_copy_report">Copy report</string>
+    <string name="readiness_share_title">Share the readiness report</string>
+    <string name="readiness_report_copied">Readiness report copied</string>
+    <string name="readiness_fix_driver">Pick a GPU driver</string>
+    <string name="readiness_fix_access">Allow file access</string>
+    <string name="readiness_fix_app">Open the app\'s settings</string>
+    <string name="readiness_section_phone">This phone</string>
+    <string name="readiness_section_gpu">GPU</string>
+    <string name="readiness_verdict_ready">Ready</string>
+    <string name="readiness_verdict_limited">Ready, with limits</string>
+    <string name="readiness_verdict_not_ready">Not ready</string>
+    <plurals name="readiness_summary_games_lack">
+        <item quantity="one">%1$d game lacks what it needs.</item>
+        <item quantity="other">%1$d games lack what it needs.</item>
+    </plurals>
+    <plurals name="readiness_summary_phone_problems">
+        <item quantity="one">%1$d phone problem.</item>
+        <item quantity="other">%1$d phone problems.</item>
+    </plurals>
+    <!-- readiness_summary_both: %1$s is readiness_summary_games_lack_part, %2$s readiness_summary_phone_problems_part -->
+    <plurals name="readiness_summary_games_lack_part">
+        <item quantity="one">%1$d game lacks what it needs</item>
+        <item quantity="other">%1$d games lack what it needs</item>
+    </plurals>
+    <plurals name="readiness_summary_phone_problems_part">
+        <item quantity="one">%1$d phone problem</item>
+        <item quantity="other">%1$d phone problems</item>
+    </plurals>
+    <string name="readiness_summary_both">%1$s; %2$s.</string>
+    <string name="readiness_summary_met_warnings">Every game\'s needs are met; see the warnings below.</string>
+    <string name="readiness_summary_met">Every game\'s needs are met.</string>
+    <!-- ReadinessActivity's checks (their English is the report's) -->
+    <string name="readiness_check_gpu">GPU and driver</string>
+    <string name="readiness_gpu_stale">%1$s. The GPU driver was changed while this screen was open: leave it and open it again to check the new one.</string>
+    <string name="readiness_check_driver_picked">GPU driver picked</string>
+    <!-- %1$s: a GPU driver's name and version, or readiness_driver_system -->
+    <string name="readiness_driver_picked">%1$s (Settings › GPU driver).</string>
+    <string name="readiness_driver_system">System</string>
+    <string name="readiness_check_own_driver">Its own GPU driver</string>
+    <string name="readiness_own_driver_same">%1$s, the one this screen checked.</string>
+    <string name="readiness_own_driver_other">This game uses its own GPU driver, %1$s; this screen checked %2$s. The check before the game starts uses the game\'s driver, and its result can differ from this one.</string>
+    <string name="readiness_check_files">Game files</string>
+    <!-- %1$s: the dump's path; %2$s: its packages -->
+    <string name="readiness_files_nup">%1$s: a .nup that reads and checks (%2$s).</string>
+    <string name="readiness_files_unusable">%1$s cannot be used: %2$s</string>
+    <string name="readiness_files_unreadable">%1$s is not a folder this app can read.</string>
+    <string name="readiness_files_no_npdm">%1$s has no main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ or exefs/).</string>
+    <string name="readiness_files_folder">%1$s: a folder that reads.</string>
+    <string name="readiness_check_phone">Phone</string>
+    <!-- %1$s maker, %2$s model, %3$s Android version -->
+    <string name="readiness_phone_arm64">%1$s %2$s, Android %3$s, 64-bit ARM</string>
+    <string name="readiness_phone_not_arm64">%1$s %2$s, Android %3$s: not a 64-bit ARM phone, which the app needs</string>
+    <string name="readiness_check_memory">Memory</string>
+    <string name="readiness_memory">%1$.1f GiB as Android reports it (less than the label), %2$.1f GiB free now.</string>
+    <string name="readiness_memory_low">%1$.1f GiB as Android reports it (less than the label), %2$.1f GiB free now, which Android counts as low.</string>
+    <string name="readiness_check_access">All files access</string>
+    <string name="readiness_access_granted">Granted.</string>
+    <string name="readiness_access_denied">Not granted: the app cannot read your dump.</string>
+    <string name="readiness_check_storage">Free storage</string>
+    <string name="readiness_storage_ok">%1$.1f GB free.</string>
+    <string name="readiness_storage_low">%1$.1f GB free: a game\'s pack takes several GB.</string>
+    <string name="readiness_check_battery">Battery</string>
+    <string name="readiness_battery_restricted">Battery use is Restricted: Android may stop the app in the background.</string>
+    <string name="readiness_battery_standby">The app is in Android\'s restricted standby group: it may be stopped in the background.</string>
+    <string name="readiness_battery_ok">No restriction.</string>
+    <string name="readiness_check_last_exit">Last game exit</string>
+    <string name="readiness_last_exit_none">No game has run yet.</string>
+    <!-- %1$s: how the game ended (readiness_exit_*), %2$s: when (Android's relative time, "5 minutes ago"), %3$s: Android's description of the end -->
+    <string name="readiness_last_exit_normal">The last game %1$s, %2$s.</string>
+    <string name="readiness_last_exit">The last game %1$s, %2$s. Settings › Share log sends its log.</string>
+    <string name="readiness_last_exit_desc">The last game %1$s, %2$s (%3$s). Settings › Share log sends its log.</string>
+    <string name="readiness_exit_memory">stopped by Android for memory</string>
+    <string name="readiness_exit_crashed">crashed</string>
+    <string name="readiness_exit_anr">stopped responding</string>
+    <string name="readiness_exit_normal">ended normally</string>
+    <!-- %1$s: one of readiness_exit_reason_* -->
+    <string name="readiness_exit_other">ended (%1$s)</string>
+    <string name="readiness_exit_reason_signal">a signal</string>
+    <string name="readiness_exit_reason_resources">too many resources</string>
+    <string name="readiness_exit_reason_freezer">frozen in the background</string>
+    <string name="readiness_exit_reason_permission">a permission change</string>
+    <string name="readiness_exit_reason_dependency">a dependency ended</string>
+    <string name="readiness_exit_reason_init">start failed</string>
+    <string name="readiness_exit_reason_code">reason %1$d</string>
+    <string name="readiness_check_kills">Memory kills</string>
+    <!-- %2$s: when the last one was (Android's relative time) -->
+    <plurals name="readiness_kills">
+        <item quantity="one">%1$d game was stopped for memory in the last 7 days, the last %2$s. Close other apps before playing.</item>
+        <item quantity="other">%1$d games were stopped for memory in the last 7 days, the last %2$s. Close other apps before playing.</item>
+    </plurals>
+    <string name="readiness_kills_none">None in the last 7 days.</string>
+    <string name="readiness_check_switches">Diagnostic switches</string>
+    <string name="readiness_switches_none">None in env.txt.</string>
+    <!-- %1$s: the switches' names -->
+    <string name="readiness_switches_on">On in env.txt: %1$s.</string>
+    <string name="readiness_switches_unreadable">On in env.txt: (env.txt unreadable).</string>
+    <!-- The clipboard's label of the copied report (Android may show it) -->
+    <string name="readiness_clip_label">Readiness report</string>
 </resources>
