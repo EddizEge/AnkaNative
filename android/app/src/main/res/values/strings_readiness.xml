@@ -19,6 +19,24 @@
     <string name="readiness_req_feature_descriptor_binding_sampled_image_update_after_bind">Texture tables (update after bind): the game\'s texture pools live in them</string>
     <string name="readiness_req_feature_descriptor_binding_partially_bound">Texture tables (partially bound): the game\'s texture pools live in them</string>
     <string name="readiness_req_feature_runtime_descriptor_array">Texture tables (runtime arrays): the game\'s texture pools live in them</string>
+    <!-- Readiness.REQ_MSG_KEYS: a requirement row's message on the screen (the report keeps its own English). %1$s in lacks / degraded: the row's why, the text
+         after ": " in its readiness_req_ text above, as written there (lower case, in your language); a game's own rows (its readiness.tsv) have no translation, so
+         there it is English: keep it after a colon. Then the fact's name (readiness_row_fact_*, or a fact key and a colon, like "vk.api:"), what this phone
+         reports (readiness_row_not_reported / readiness_row_reports) and the minimum the row needs. _bare: a row without a why -->
+    <string name="readiness_row_met">Present (%1$s %2$s, needs %3$s).</string>
+    <string name="readiness_row_lacks">This device lacks it; this game needs it: %1$s. (%2$s %3$s, needs %4$s)</string>
+    <string name="readiness_row_lacks_bare">This device lacks it; this game needs it. (%1$s %2$s, needs %3$s)</string>
+    <string name="readiness_row_degraded">Missing; this game runs without it, with less: %1$s. (%2$s %3$s, needs %4$s)</string>
+    <string name="readiness_row_degraded_bare">Missing: this game runs without it, with less. (%1$s %2$s, needs %3$s)</string>
+    <string name="readiness_row_fact_memory">memory in GiB:</string>
+    <string name="readiness_row_fact_android_sdk" translatable="false">Android SDK</string>
+    <string name="readiness_row_not_reported">not reported</string>
+    <!-- %1$s: the value, as the driver reports it -->
+    <string name="readiness_row_reports">reports %1$s</string>
+    <!-- Why the GPU was not checked (the fact "unchecked" is the report's English; Readiness.uncheckedReason picks one of these by its code), inside
+         readiness_gpu_unchecked and readiness_gpu_not_reported_why. Another reason (the host could not be loaded) is the loader's English, as written -->
+    <string name="readiness_unchecked_no_host">this build\'s host cannot report the GPU\'s features</string>
+    <string name="readiness_unchecked_timeout">the GPU check did not answer in %1$d s</string>
     <!-- Readiness: checks that are no requirement row (their English is the report's, Check.title / message) -->
     <string name="readiness_check_gpu_features">GPU features</string>
     <string name="readiness_gpu_error">The GPU driver could not be used (%1$s): the game needs Vulkan 1.3.</string>

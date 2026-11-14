@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The readiness check's decisions (android/README.md "Readiness check"): what this phone and its GPU driver report, against what the host needs for every game
@@ -89,6 +91,10 @@ final class Readiness {
          *  a Msg check's title and message, a requirement row's title (Req.shownTitle) */
         private final Msg titleMsg, messageMsg;
         private final Req req;
+        /** A requirement row's screen message (docs/i18n.md "Readiness requirements"): its key (an index of REQ_MSG_KEYS, -1 for any other check) and its
+         *  arguments after the row's why, which reqMsg() puts first, in the language of the moment (Req.shownWhy), for the keys that take one */
+        private final int reqKey;
+        private final Object[] reqArgs;
 
         Check(String title, Status status, String message, String fix) { this(title, status, message, fix, null); }
 
@@ -108,10 +114,23 @@ final class Readiness {
             this(title.english(), null, title, null, status, message.english(), null, message, fix, fact);
         }
 
-        /** A requirement row's check: its title is the row's (English; the screen's is r.shownTitle()), its message English (docs/i18n.md "Readiness requirements") */
-        Check(Req r, Status status, String message, String fix, String fact) { this(r.title, null, null, r, status, message, null, null, fix, fact); }
+        /**
+         * A requirement row's check (docs/i18n.md "Readiness requirements"): its title is the row's (English; the screen's is r.shownTitle()), message the report's
+         * English sentence as it always was; the screen's message is REQ_MSG_KEYS[key] with the row's why first (r.shownWhy(), none for a key that takes none),
+         * then args
+         */
+        Check(Req r, Status status, String message, int key, Object[] args, String fix, String fact) {
+            this(r.title, null, null, r, status, message, null, null, key, args, fix, fact);
+        }
 
         private Check(String title, String titleText, Msg titleMsg, Req req, Status status, String message, String messageText, Msg messageMsg, String fix, String fact) {
+            this(title, titleText, titleMsg, req, status, message, messageText, messageMsg, -1, null, fix, fact);
+        }
+
+        private Check(String title, String titleText, Msg titleMsg, Req req, Status status, String message, String messageText, Msg messageMsg, int reqKey, Object[] reqArgs,
+                      String fix, String fact) {
+            this.reqKey = reqKey;
+            this.reqArgs = reqArgs == null ? null : reqArgs.clone();
             this.fact = fact;
             this.title = title;
             this.titleText = titleText;
@@ -128,7 +147,20 @@ final class Readiness {
         String titleText() { return titleMsg != null ? titleMsg.text() : req != null ? req.shownTitle() : titleText != null ? titleText : title; }
 
         /** The message on a screen, in the user's language */
-        String messageText() { return messageMsg != null ? messageMsg.text() : messageText != null ? messageText : message; }
+        String messageText() {
+            if (reqKey >= 0) return reqMsg().text();
+            return messageMsg != null ? messageMsg.text() : messageText != null ? messageText : message;
+        }
+
+        /** A requirement row's screen message as a Msg, with the row's why in the language of the moment (English for a game's own row); null for another check */
+        Msg reqMsg() {
+            if (reqKey < 0) return null;
+            if (!REQ_MSG_WHY[reqKey]) return new Msg(REQ_MSG_KEYS[reqKey], reqArgs);
+            Object[] a = new Object[reqArgs.length + 1];
+            a[0] = req.shownWhy();
+            System.arraycopy(reqArgs, 0, a, 1, reqArgs.length);
+            return new Msg(REQ_MSG_KEYS[reqKey], a);
+        }
 
         @Override public String toString() { return "[" + status + "] " + title + ": " + message; }
     }
@@ -194,10 +226,40 @@ final class Readiness {
         }
     }
 
+    /**
+     * The fact "unchecked" (nobody answered the GPU check) is report data, English: its value says why. The screen does not show that value inside its translated
+     * sentences: {@link #uncheckedReason} picks a text by the reason's code. The launcher writes two of the values itself, so their code is known: {@link #UNCHECKED_NO_HOST}
+     * and {@link #uncheckedTimeout}'s; any other value is a detail of the host's loader (Native.load's English message, as written)
+     */
+    static final String UNCHECKED_NO_HOST = "this build's host cannot report the GPU's features";   // i18n-keep: a fact of the report; the screen reads readiness_unchecked_no_host
+    private static final Pattern UNCHECKED_TIMEOUT = Pattern.compile("the GPU check did not answer in (\\d+) s");   // i18n-keep: a fact of the report, parsed
+
+    /** The fact line "unchecked=…" of a GPU check that did not answer in time (GameActivity), English for the report */
+    static String uncheckedTimeout(long seconds) { return "unchecked=the GPU check did not answer in " + seconds + " s"; }   // i18n-keep: a fact of the report; the screen reads readiness_unchecked_timeout
+
+    /** The reason's code of an "unchecked" fact value: no_host, timeout, or other (a detail of the host's loader) */
+    static String uncheckedCode(String value) {
+        if (UNCHECKED_NO_HOST.equals(value)) return "no_host";
+        return value != null && UNCHECKED_TIMEOUT.matcher(value).matches() ? "timeout" : "other";
+    }
+
+    /** The reason of an "unchecked" fact value as the screen shows it, chosen by its code: a Msg, or the value as written for a detail of the host's loader */
+    static Object uncheckedReason(String value) {
+        switch (uncheckedCode(value)) {
+            case "no_host": return new Msg("readiness_unchecked_no_host");
+            case "timeout": {
+                Matcher m = UNCHECKED_TIMEOUT.matcher(value);
+                if (m.matches()) return new Msg("readiness_unchecked_timeout", Long.parseLong(m.group(1)));
+                return value;
+            }
+            default: return value;
+        }
+    }
+
     /** The facts this game is checked against: the host's Vulkan facts (null: this host cannot report them) and the launcher's */
     static Map<String, String> merge(String vulkan, double ramGib, int sdk) {
         Map<String, String> f = facts(vulkan);
-        if (vulkan == null && !f.containsKey("unchecked")) f.put("unchecked", "this build's host cannot report the GPU's features");
+        if (vulkan == null && !f.containsKey("unchecked")) f.put("unchecked", UNCHECKED_NO_HOST);
         f.put("ram_gib", String.format(Locale.ROOT, "%.1f", ramGib));
         f.put("android.sdk", String.valueOf(sdk));
         return f;
@@ -219,7 +281,7 @@ final class Readiness {
                 if (!seen.contains("error")) {
                     seen.add("error");
                     out.add(err != null ? new Check(new Msg("readiness_check_gpu_features"), Status.FAIL, new Msg("readiness_gpu_error", err), "driver", "error")
-                            : new Check(new Msg("readiness_check_gpu_features"), Status.WARNING, new Msg("readiness_gpu_unchecked", unchecked), null, "unchecked"));
+                            : new Check(new Msg("readiness_check_gpu_features"), Status.WARNING, new Msg("readiness_gpu_unchecked", uncheckedReason(unchecked)), null, "unchecked"));
                 }
                 continue;
             }
@@ -228,14 +290,21 @@ final class Readiness {
             if (seen.contains(key)) continue;   // the same requirement twice (the host's and a profile's)
             seen.add(key);
             boolean ok = have != null && compare(have, r.min) >= 0;
-            String shown = have == null ? "not reported" : "reports " + have;   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
-            if (ok) out.add(new Check(r, Status.PASS, "Present (" + label(r.fact) + " " + have + ", needs " + r.min + ").", null, null));   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
+            // The report's message is the English sentence it always was (its why upper-cased mid-sentence: English only); the screen's is a whole-sentence resource
+            // with the row's why after a colon, as written in the row's language (docs/i18n.md "Readiness requirements")
+            String shown = have == null ? "not reported" : "reports " + have;   // i18n-keep: the report's English (the screen reads readiness_row_not_reported / _reports)
+            Object shownMsg = have == null ? new Msg("readiness_row_not_reported") : new Msg("readiness_row_reports", have);
+            if (ok) out.add(new Check(r, Status.PASS, "Present (" + label(r.fact) + " " + have + ", needs " + r.min + ").", REQ_MET,   // i18n-keep: the report's English
+                    new Object[] {labelMsg(r.fact), have, r.min}, null, null));
             else {
                 if (r.required) { failed.add(r.fact); failed.add("title " + r.title); }   // i18n-keep: a marker, not a text
-                String msg = (r.required ? "This device lacks it; this game needs it. " : "Missing: this game runs without it, with less. ")   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
-                        + (r.why.isEmpty() ? "" : r.why.substring(0, 1).toUpperCase(Locale.ROOT) + r.why.substring(1) + ". ")
-                        + "(" + label(r.fact) + " " + shown + ", needs " + r.min + ")";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
-                out.add(new Check(r, r.required ? Status.FAIL : Status.WARNING, msg, r.fact.equals("ram_gib") ? "memory" : "driver", r.fact));
+                String msg = (r.required ? "This device lacks it; this game needs it. " : "Missing: this game runs without it, with less. ")   // i18n-keep: the report's English
+                        + (r.why.isEmpty() ? "" : r.why.substring(0, 1).toUpperCase(Locale.ROOT) + r.why.substring(1) + ". ")   // English only: the report
+                        + "(" + label(r.fact) + " " + shown + ", needs " + r.min + ")";   // i18n-keep: the report's English
+                // A row without a why (a game's row may have none) reads the sentence without one
+                int form = r.required ? (r.why.isEmpty() ? REQ_LACKS_BARE : REQ_LACKS) : (r.why.isEmpty() ? REQ_DEGRADED_BARE : REQ_DEGRADED);
+                out.add(new Check(r, r.required ? Status.FAIL : Status.WARNING, msg, form, new Object[] {labelMsg(r.fact), shownMsg, r.min},
+                        r.fact.equals("ram_gib") ? "memory" : "driver", r.fact));
             }
         }
         return out;
@@ -256,6 +325,20 @@ final class Readiness {
         return out.toArray(new String[0]);
     }
 
+    /** A requirement row's screen messages (Check.reqMsg): present; missing and required; missing and degraded; each with the row's why as its first argument
+     *  (REQ_MSG_WHY) or, for a row that has none, without it. The other arguments: the fact's name (labelMsg), what the phone reports, the minimum */
+    static final String[] REQ_MSG_KEYS = {"readiness_row_met", "readiness_row_lacks", "readiness_row_lacks_bare", "readiness_row_degraded", "readiness_row_degraded_bare"};
+    private static final boolean[] REQ_MSG_WHY = {false, true, false, true, false};
+    private static final int REQ_MET = 0, REQ_LACKS = 1, REQ_LACKS_BARE = 2, REQ_DEGRADED = 3, REQ_DEGRADED_BARE = 4;
+
+    /** A fact's name inside a requirement row's screen message: a text for the two the launcher names in words, else the fact's key and a colon (machine data) */
+    private static Object labelMsg(String fact) {
+        if (fact.equals("ram_gib")) return new Msg("readiness_row_fact_memory");
+        if (fact.equals("android.sdk")) return new Msg("readiness_row_fact_android_sdk");
+        return fact + ":";
+    }
+
+    /** The same in the report's English */
     private static String label(String fact) {
         if (fact.equals("ram_gib")) return "memory in GiB:";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
         if (fact.equals("android.sdk")) return "Android SDK";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
@@ -277,7 +360,8 @@ final class Readiness {
      *  the log its english() ({@link #gpu}). The facts' values are the driver's own words, as written */
     static Msg gpuMsg(Map<String, String> f) {
         if (!f.containsKey("gpu.name")) {
-            String why = f.containsKey("error") ? f.get("error") : f.get("unchecked");
+            // error: the driver's own words, as written; unchecked: the reason by its code (uncheckedReason)
+            Object why = f.containsKey("error") ? f.get("error") : f.containsKey("unchecked") ? uncheckedReason(f.get("unchecked")) : null;
             return why != null ? new Msg("readiness_gpu_not_reported_why", why) : new Msg("readiness_gpu_not_reported");
         }
         String name = f.get("gpu.name"), api = f.getOrDefault("vk.api", "?"), driver = f.getOrDefault("driver.name", "?"), info = f.getOrDefault("driver.info", "");

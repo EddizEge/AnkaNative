@@ -83,6 +83,44 @@ public final class ReadinessI18nJvmTest {
         st = Readiness.status("retired");
         check(st.toString().equals("[INFO] Status on Android: retired") && st.titleText().equals("Status on Android") && st.messageText().equals("retired"), "another status: " + st);
 
+        // A requirement row: the report's message is the English it always was; the screen's is a whole-sentence resource with the row's why after a colon,
+        // as written (no letter upper-cased), and the row's facts as arguments (docs/i18n.md "Readiness requirements")
+        Readiness.Check ts = Readiness.evaluate(Readiness.facts("vk.api=1.3\nfeature.timelineSemaphore=0"), List.of()).stream()
+                .filter(x -> "feature.timelineSemaphore".equals(x.fact)).findFirst().orElse(null);
+        check(ts != null && ts.message.equals("This device lacks it; this game needs it. The game's fences are built on them. (feature.timelineSemaphore: reports 0, needs 1)"), "report: " + ts);
+        check(ts.messageText().equals("This device lacks it; this game needs it: the game's fences are built on them. (feature.timelineSemaphore: reports 0, needs 1)"), "screen: " + ts.messageText());
+        Readiness.Check sdk = Readiness.evaluate(Readiness.merge("vk.api=1.3", 11, 31), List.of()).stream()
+                .filter(x -> "android.sdk".equals(x.fact) && x.status == Readiness.Status.WARNING).findFirst().orElse(null);
+        check(sdk != null && sdk.message.equals("Missing: this game runs without it, with less. Android 12 and 12L are untested; the game may not start or may draw wrongly there. "
+                + "(Android SDK reports 31, needs 33)"), "report, degraded: " + sdk);
+        check(sdk.messageText().equals("Missing; this game runs without it, with less: Android 12 and 12L are untested; the game may not start or may draw wrongly there. "
+                + "(Android SDK reports 31, needs 33)"), "screen, degraded: " + sdk.messageText());
+        // A game's row without a why: the sentence without one, the same English as the report's
+        Readiness.Check ram = Readiness.evaluate(Readiness.merge("vk.api=1.3", 6, 36), Readiness.parseReqs("required|ram_gib|8|")).stream()
+                .filter(x -> "ram_gib".equals(x.fact)).findFirst().orElse(null);
+        check(ram != null && ram.message.equals("This device lacks it; this game needs it. (memory in GiB: reports 6.0, needs 8)") && ram.messageText().equals(ram.message), "no why: " + ram);
+        Readiness.Check ok = Readiness.evaluate(Readiness.facts("vk.api=1.3.284"), List.of()).stream().filter(x -> "Vulkan 1.3 GPU driver".equals(x.title)).findFirst().orElse(null);
+        check(ok != null && ok.message.equals("Present (vk.api: 1.3.284, needs 1.3).") && ok.messageText().equals(ok.message), "present: " + ok);
+        for (String[] rq : new String[][] {{"required", "lacks"}, {"degraded", "missing"}})   // a game row that names its why: after the colon, as written
+            check(Readiness.evaluate(Readiness.facts("vk.api=1.3"), Readiness.parseReqs(rq[0] + "|feature.x|1|X: the water needs it")).stream()
+                    .anyMatch(x -> "feature.x".equals(x.fact) && x.messageText().contains("with less: the water needs it. (") == rq[0].equals("degraded")
+                            && x.messageText().contains("needs it: the water needs it. (") == rq[0].equals("required")), "a game's row: " + rq[0]);
+
+        // "unchecked": the fact and the report stay English; the screen's reason is chosen by its code
+        check(Readiness.uncheckedCode(Readiness.UNCHECKED_NO_HOST).equals("no_host") && Readiness.uncheckedCode("the GPU check did not answer in 8 s").equals("timeout")
+                && Readiness.uncheckedCode("The host of 0400486024DEC000 cannot be loaded: dlopen failed").equals("other"), "unchecked codes");
+        check(Readiness.uncheckedTimeout(8).equals("unchecked=the GPU check did not answer in 8 s"), "the timeout fact GameActivity writes");
+        check(Readiness.facts(Readiness.uncheckedTimeout(12)).get("unchecked").equals("the GPU check did not answer in 12 s")
+                && Readiness.uncheckedCode(Readiness.facts(Readiness.uncheckedTimeout(12)).get("unchecked")).equals("timeout"), "its value has the timeout's code");
+        check(Readiness.uncheckedReason(Readiness.UNCHECKED_NO_HOST) instanceof Msg && Readiness.uncheckedReason("the GPU check did not answer in 8 s") instanceof Msg
+                && "detail".equals(Readiness.uncheckedReason("detail")), "a Msg for the launcher's two, the loader's words as written");
+        for (String u : new String[] {Readiness.UNCHECKED_NO_HOST, "the GPU check did not answer in 8 s", "The host of X cannot be loaded: y"}) {
+            Readiness.Check c = Readiness.evaluate(Readiness.merge("unchecked=" + u + "\n", 15, 36), List.of()).stream().filter(x -> "unchecked".equals(x.fact)).findFirst().orElse(null);
+            String want = "Not checked (" + u + "): whether this GPU has what the game needs is not known.";
+            check(c != null && c.message.equals(want) && c.messageText().equals(want), "unchecked in English: " + c);
+            check(Readiness.gpuMsg(Readiness.facts("unchecked=" + u)).english().equals("GPU not reported (" + u + ")"), "the GPU line: " + u);
+        }
+
         // ReadinessActivity's sentences that name home's Settings rows take them as arguments (HomeLabels): the English as when the words were typed in
         check(new Msg("readiness_driver_picked", HomeLabels.gpuSystem(), HomeLabels.settings(), HomeLabels.gpuDriver()).english().equals("System (Settings › GPU driver)."), "driver picked");
         check(new Msg("readiness_last_exit", new Msg("readiness_exit_crashed"), "5 minutes ago", HomeLabels.settings(), HomeLabels.shareLog()).english()
@@ -99,7 +137,11 @@ public final class ReadinessI18nJvmTest {
         Files.write(new File(trd, "strings_readiness.xml").toPath(), ("<resources><string name=\"readiness_check_status\">TR durum</string>"
                 + "<string name=\"readiness_status_bring_up\">TR getiriliyor</string><string name=\"readiness_gpu_error\">TR sürücü (%1$s)</string>"
                 + "<string name=\"readiness_gpu_system\">TR %1$s %2$s %3$s %4$s %5$s</string>"
-                + "<string name=\"readiness_req_vk_api\">TR Vulkan: TR neden</string></resources>").getBytes(StandardCharsets.UTF_8));
+                + "<string name=\"readiness_req_vk_api\">TR Vulkan: TR neden</string>"
+                + "<string name=\"readiness_row_lacks\">TR eksik: %1$s (%2$s %3$s, en az %4$s)</string><string name=\"readiness_row_reports\">TR %1$s bildiriyor</string>"
+                + "<string name=\"readiness_row_met\">TR var (%1$s %2$s, en az %3$s).</string>"
+                + "<string name=\"readiness_gpu_unchecked\">TR denetlenmedi (%1$s).</string><string name=\"readiness_unchecked_timeout\">TR %1$d sn</string>"
+                + "<string name=\"readiness_gpu_not_reported_why\">TR GPU yok (%1$s)</string></resources>").getBytes(StandardCharsets.UTF_8));
         Readiness.Check made = Readiness.status("bring-up");   // made in English, shown in Turkish: rendered when shown
         Tr.Backend before = Tr.backend();
         Tr.install(new Tr.Xml(scratch, Locale.forLanguageTag("tr")));
@@ -112,7 +154,20 @@ public final class ReadinessI18nJvmTest {
             Map<String, String> f = Readiness.facts("gpu.name=G\nvk.api=1.3\ndriver.name=D\ndriver.id=8\ndriver.version=0x1");
             check(Readiness.gpuMsg(f).text().equals("TR G 1.3 D 8 0x1") && Readiness.gpu(f).equals(gpuBefore(f)), "the GPU line: the screen's translated, gpu() English");
             Readiness.Check api = Readiness.evaluate(Readiness.facts("vk.api=1.3"), List.of()).stream().filter(x -> "Vulkan 1.3 GPU driver".equals(x.title)).findFirst().orElse(null);
-            check(api != null && api.titleText().equals("TR Vulkan") && api.title.equals("Vulkan 1.3 GPU driver") && api.messageText().equals(api.message), "a requirement row: title translated, message English");
+            check(api != null && api.titleText().equals("TR Vulkan") && api.title.equals("Vulkan 1.3 GPU driver") && api.messageText().equals("TR var (vk.api: 1.3, en az 1.3).")
+                    && api.message.equals("Present (vk.api: 1.3, needs 1.3)."), "a requirement row: title and message translated, the report English: " + api.messageText());
+            Readiness.Check low = Readiness.evaluate(Readiness.facts("vk.api=1.1"), List.of()).stream().filter(x -> "vk.api".equals(x.fact)).findFirst().orElse(null);
+            check(low != null && low.messageText().equals("TR eksik: TR neden (vk.api: TR 1.1 bildiriyor, en az 1.3)")
+                    && low.message.equals("This device lacks it; this game needs it. The graphics replay is written for Vulkan 1.3. (vk.api: reports 1.1, needs 1.3)"),
+                    "a failed row: the translated why inside the translated sentence, the report English: " + low.messageText());
+            Readiness.Check game = Readiness.evaluate(Readiness.facts("vk.api=1.3"), Readiness.parseReqs("required|feature.x|1|X: the water needs it")).stream()
+                    .filter(x -> "feature.x".equals(x.fact)).findFirst().orElse(null);
+            check(game != null && game.titleText().equals("X") && game.messageText().equals("TR eksik: the water needs it (feature.x: not reported, en az 1)"),
+                    "a game's own row: its English why after the translated sentence's colon: " + game.messageText());
+            Readiness.Check un = Readiness.evaluate(Readiness.merge(Readiness.uncheckedTimeout(8), 15, 36), List.of()).stream().filter(x -> "unchecked".equals(x.fact)).findFirst().orElse(null);
+            check(un != null && un.messageText().equals("TR denetlenmedi (TR 8 sn).") && un.message.startsWith("Not checked (the GPU check did not answer in 8 s)"), "unchecked: " + un.messageText());
+            check(Readiness.gpuMsg(Readiness.facts(Readiness.uncheckedTimeout(8))).text().equals("TR GPU yok (TR 8 sn)")
+                    && Readiness.gpu(Readiness.facts(Readiness.uncheckedTimeout(8))).equals("GPU not reported (the GPU check did not answer in 8 s)"), "the GPU line, unchecked");
         } finally {
             Tr.install(before);
         }

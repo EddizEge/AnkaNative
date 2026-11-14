@@ -328,7 +328,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             readinessDecide(id, probeFacts);
         };
         new Thread(() -> { probeFacts = Native.readiness(denv); probeDone = true; ui.post(decide); }, "nxreadiness").start();
-        ui.postDelayed(() -> { if (!probeDone) probeFacts = "unchecked=the GPU check did not answer in " + READINESS_WAIT_MS / 1000 + " s"; decide.run(); }, READINESS_WAIT_MS);   // i18n-keep: a fact of the report
+        ui.postDelayed(() -> { if (!probeDone) probeFacts = Readiness.uncheckedTimeout(READINESS_WAIT_MS / 1000); decide.run(); }, READINESS_WAIT_MS);   // the fact is English (the report); the screen shows it by its code
         return true;
     }
     private volatile String probeFacts;
