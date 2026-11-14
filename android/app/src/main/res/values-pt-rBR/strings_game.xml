@@ -1,4 +1,153 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Brasil): the game area (GameActivity, SidePanel, TouchControls, Overlay, Fsr, Lsfg, SelftestActivity). docs/i18n.md: keys start with game_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- GameActivity: the game's screen -->
+    <string name="game_panel_open_description">Abrir o painel do jogo</string>
+    <!-- Two spaces before the bracket: the second is   so that it is not collapsed -->
+    <string name="game_paused">Pausado\n\nToque para continuar \u0020(A ou Start no controle)</string>
+    <string name="game_stopped_in_background">O jogo foi encerrado enquanto estava em segundo plano (o Android encerrou o processo dele). O progresso não salvo foi perdido; inicie o jogo de novo pelo launcher.</string>
+    <string name="game_intro_skip_on">Pular introdução ativado: pressionando A e encerrando vídeos até o jogo começar</string>
+    <string name="game_intro_skip_off">Pular introdução desativado</string>
+    <string name="game_save_unfinished_restore">A pasta de saves tem uma restauração incompleta que não pode ser concluída: %1$s</string>
+    <string name="game_test_save_cannot_create">não é possível criar a pasta de saves de teste %1$s</string>
+    <string name="game_cannot_create">não é possível criar %1$s</string>
+    <string name="game_save_copied">Seu save foi copiado para o armazenamento do app (%1$s). A pasta antiga %2$s foi mantida como estava.</string>
+    <string name="game_save_not_copied">Não foi possível copiar seu save para o armazenamento do app (%1$s). Desta vez o jogo usa o save onde ele está, %2$s.</string>
+    <string name="game_checking_gpu">%1$s: verificando a GPU deste celular…</string>
+    <!-- game_details_gpu: %1$s: the GPU line (readiness_gpu_*), %2$.1f: the memory in GiB -->
+    <string name="game_details_gpu">GPU: %1$s\nMemória: %2$.1f GiB, segundo o Android.</string>
+    <!-- Labels of other screens are arguments: Settings and its GPU driver row (home), Game settings (home's Manage sheet) -->
+    <string name="game_ready_missing">Faltando: %1$s.\n\nO jogo pode travar ou exibir gráficos errados. Um driver de GPU personalizado (%2$s › %3$s) pode ajudar.</string>
+    <!-- %2$s: the name Settings › GPU driver shows for the phone's own driver (home's "System"), then Settings › GPU driver and Game settings -->
+    <string name="game_ready_missing_black_system">Faltando: %1$s.\n\nCom este driver de GPU (%2$s) nada é desenhado: a tela fica preta enquanto o jogo roda. Escolha um driver personalizado com suporte a placed memory maps em %3$s › %4$s, ou em %5$s, só para este jogo.</string>
+    <!-- %2$s: the custom GPU driver's name and version; %3$s: the GPU driver list's choice of the phone's own driver (settings), then Settings › GPU driver and Game settings -->
+    <string name="game_ready_missing_black_custom">Faltando: %1$s.\n\nCom este driver de GPU (%2$s) nada é desenhado: a tela fica preta enquanto o jogo roda. Escolha %3$s em %4$s › %5$s, ou em %6$s, só para este jogo.</string>
+    <string name="game_ready_not_ready_title">Não está pronto para este jogo</string>
+    <string name="game_ready_start_black">Iniciar mesmo assim (tela preta)</string>
+    <string name="game_ready_try_anyway">Tentar mesmo assim</string>
+    <string name="game_ready_limits_message">Roda com menos recursos: %1$s.</string>
+    <string name="game_ready_limits_title">Pronto, com limitações</string>
+    <string name="game_ready_continue">Continuar</string>
+    <string name="game_ready_details">Detalhes</string>
+    <!-- %2$s › %3$s: Settings › Readiness check (home's labels) -->
+    <string name="game_ready_details_also">%1$s\n\nOs detalhes também estão em %2$s › %3$s.</string>
+    <string name="game_ready_dont_show">Não mostrar de novo</string>
+    <string name="game_ready_back">Voltar</string>
+    <string name="game_ready_check_title">Verificação de compatibilidade</string>
+    <string name="game_ready_close">Fechar</string>
+    <string name="game_ready_copy_report">Copiar relatório</string>
+    <!-- Why a game cannot start -->
+    <string name="game_nup_no_romfs">%1$s não tem RomFS em %2$s</string>
+    <string name="game_no_romfs">nenhum RomFS em %1$s</string>
+    <!-- Where a refused environment line came from (the other places are file names) -->
+    <string name="game_env_from_game_settings">as configurações do jogo</string>
+    <string name="game_env_refused">Linhas de ambiente não aceitas: %1$s: o launcher define os caminhos do jogo (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)</string>
+    <string name="game_env_refused_test">Linhas de ambiente não aceitas: %1$s: o launcher define os caminhos do jogo (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME); DM_SAVE só é aceito do env-&lt;title ID&gt;.txt</string>
+    <string name="game_host_not_started">o host não iniciou (%1$d)</string>
+    <string name="game_host_not_started_again">o host não iniciou (%1$d: já houve uma tentativa de início neste processo)</string>
+    <string name="game_starting">%1$s: iniciando. Log: %2$s</string>
+    <string name="game_cannot_start_title">Não é possível iniciar %1$s</string>
+    <string name="game_running_title">Em execução: %1$s</string>
+    <!-- %2$s: the in-game panel's Stop button (game_panel_stop) -->
+    <string name="game_running_message">Pare o jogo atual primeiro (painel do jogo › %2$s) e depois inicie %1$s. Só um jogo roda por vez.</string>
+    <string name="game_save_in_use">O save %1$s está em uso: um backup ou uma restauração dele está em andamento. Tente de novo quando terminar.</string>
+
+    <!-- SidePanel: the in-game panel -->
+    <string name="game_panel_intro">O jogo continua rodando atrás deste painel; cada mudança vale na hora e fica salva.</string>
+    <string name="game_panel_cap_head">Limite de FPS</string>
+    <string name="game_panel_cap_own">Limite do próprio jogo</string>
+    <string name="game_panel_overlay_head">Sobreposição</string>
+    <string name="game_panel_controls_head">Controles na tela</string>
+    <string name="game_panel_skip_head">Pular introdução (depuração)</string>
+    <string name="game_panel_skip_note">Pressiona A a cada poucos quadros e encerra os vídeos antes, até o jogo em si começar, e então para sozinho. No jogo: segure − e + juntos por 1 s.</string>
+    <string name="game_panel_skip_stop">Parar de pular a introdução</string>
+    <string name="game_panel_skip_now">Pular a introdução agora</string>
+    <string name="game_panel_pause">Pausar o jogo</string>
+    <string name="game_panel_pause_on_return">Pausar quando o jogo voltar do segundo plano</string>
+    <string name="game_panel_stop">Parar o jogo</string>
+    <string name="game_panel_stop_title">Parar o jogo?</string>
+    <!-- %1$s: Share log (home's Settings row) -->
+    <string name="game_panel_stop_message">O jogo é encerrado; o progresso não salvo é perdido. O log continua disponível em %1$s.</string>
+    <string name="game_panel_stop_confirm">Parar</string>
+    <string name="game_panel_keep_running">Continuar jogando</string>
+    <string name="game_panel_back">Voltar ao jogo</string>
+    <string name="game_panel_no_cap">Este build não tem limite de FPS.</string>
+    <string name="game_panel_starting">Iniciando…</string>
+    <string name="game_panel_own_rate">Este jogo escolhe a própria taxa de quadros.</string>
+    <string name="game_panel_now_capped">Agora %1$d fps, limitado a %2$d.</string>
+    <string name="game_panel_now_own">Agora %1$d fps, a taxa do próprio jogo.</string>
+    <!-- %1$s: the host's frame generation status, in English -->
+    <string name="game_panel_lsfg_now">Agora: %1$s</string>
+
+    <!-- TouchControls: the on-screen controls and their layout editor -->
+    <string name="game_controls_group_left_stick">analógico esquerdo</string>
+    <string name="game_controls_group_dpad">direcional</string>
+    <string name="game_controls_group_right_stick">analógico direito</string>
+    <string name="game_controls_top">Em cima</string>
+    <string name="game_controls_centre">Centro</string>
+    <string name="game_controls_bottom">Embaixo</string>
+    <string name="game_controls_reset">Redefinir</string>
+    <string name="game_controls_done">Concluído</string>
+    <string name="game_controls_picture_position">Posição da imagem (esta tela)</string>
+    <string name="game_controls_edit_layout">Editar o layout dos controles…</string>
+    <!-- %1$s: a group of controls (game_controls_group_*), %2$d: its size in percent -->
+    <string name="game_controls_hint_group">%1$s: arraste para mover, use um segundo dedo para redimensionar (%2$d%%)</string>
+    <string name="game_controls_hint_picture">imagem: arraste para as faixas pretas</string>
+    <string name="game_controls_hint">Arraste um controle ou a imagem; faça o gesto de pinça em um controle para redimensioná-lo</string>
+    <string name="game_controls_vibrate">Vibrar ao tocar</string>
+    <string name="game_controls_show_log">Mostrar o log sobre o jogo</string>
+    <string name="game_controls_opacity">Opacidade %1$d%%</string>
+    <string name="game_controls_size">Tamanho %1$d%%</string>
+    <string name="game_controls_reset_all">Redefinir os controles</string>
+
+    <!-- Overlay: the performance overlay's switches and its readings over the game -->
+    <string name="game_overlay_item_fps">Taxa de quadros e tempo de quadro</string>
+    <string name="game_overlay_item_throttle">Ponto de limitação térmica (verde / amarelo / vermelho)</string>
+    <string name="game_overlay_item_gpu">Tempo de GPU por quadro</string>
+    <string name="game_overlay_item_cpu">Limites de clock da CPU</string>
+    <string name="game_overlay_item_battery">Temperatura e nível da bateria</string>
+    <string name="game_overlay_item_memory">Memória: a do jogo e a do celular</string>
+    <string name="game_overlay_master">Mostrar a sobreposição sobre o jogo</string>
+    <string name="game_overlay_cpu_unknown">Limite da CPU ?</string>
+    <string name="game_overlay_no_lsfg">sem LSFG</string>
+    <!-- After the phone's memory line, in red, when Android says memory is low -->
+    <string name="game_overlay_memory_low">baixa</string>
+
+    <!-- Fsr: upscaling in the in-game panel -->
+    <string name="game_fsr_head">Ampliação (upscaling)</string>
+    <string name="game_fsr_on">FSR 1 (mais nítido quando a imagem é ampliada para a tela)</string>
+    <string name="game_fsr_sharpness">Nitidez</string>
+    <string name="game_fsr_sharp_max">Máxima</string>
+    <string name="game_fsr_sharp_default">Padrão</string>
+    <string name="game_fsr_sharp_soft">Suave</string>
+    <string name="game_fsr_sharp_softer">Mais suave</string>
+
+    <!-- Lsfg: frame generation's rows and where Lossless.dll came from -->
+    <string name="game_lsfg_head">Geração de quadros (Lossless Scaling, o seu próprio Lossless.dll)</string>
+    <string name="game_lsfg_not_built">Não incluída neste build (compilado com -PnxLsfg=false).</string>
+    <string name="game_lsfg_on">Geração de quadros (LSFG)</string>
+    <string name="game_lsfg_mult">Quadros por quadro do jogo</string>
+    <string name="game_lsfg_target">Taxa de quadros alvo (o multiplicador acompanha)</string>
+    <string name="game_lsfg_fixed">Fixo</string>
+    <!-- %1$s: the Auto choice (game_lsfg_auto) -->
+    <string name="game_lsfg_flow">Resolução da estimativa de movimento (menor é mais rápido; %1$s = a do próprio jogo)</string>
+    <string name="game_lsfg_auto">Automática</string>
+    <string name="game_lsfg_mode">Modo: desempenho (o único conjunto de shaders que o LSFG do Eden usa)</string>
+    <string name="game_lsfg_from">Lossless.dll de %1$s</string>
+    <string name="game_lsfg_not_copied">Não foi possível copiar o Lossless.dll em %1$s: %2$s</string>
+    <string name="game_lsfg_earlier">Lossless.dll: a cópia escolhida antes</string>
+    <string name="game_lsfg_not_found">Lossless.dll não encontrado (procurado em Documents/Emulation/bios, Switch2, Download e nos arquivos do app)</string>
+    <string name="game_lsfg_by_hand">Lossless.dll: escolhido manualmente</string>
+    <string name="game_lsfg_cannot_open">não é possível abrir %1$s</string>
+    <string name="game_lsfg_not_dll">esse arquivo não é uma DLL do Windows</string>
+    <string name="game_cannot_replace">não é possível substituir %1$s</string>
+
+    <!-- SelftestActivity: the graphics self-test -->
+    <string name="game_selftest_no_log">FALHA: não é possível abrir o log %1$s</string>
+    <string name="game_selftest_waiting">Autoteste gráfico: esperando a superfície</string>
+    <string name="game_selftest_no_host">FALHA: este host não tem nxhost_vk_selftest</string>
+    <string name="game_selftest_running">Autoteste gráfico em execução (%1$d quadros, cerca de %2$d s)</string>
+    <!-- %2$s: Share log (home's Settings row); Back is the phone's back gesture or button -->
+    <string name="game_selftest_pass">SUCESSO (código de retorno %1$d)\nVolte para sair; use %2$s para enviar o log desta execução.</string>
+    <string name="game_selftest_fail">FALHA (código de retorno %1$d)\nVolte para sair; use %2$s para enviar o log desta execução.</string>
 </resources>

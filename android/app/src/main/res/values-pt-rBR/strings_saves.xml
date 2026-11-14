@@ -1,4 +1,113 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Brasil): the saves area (SaveUi, SaveStore, SaveMigrate). docs/i18n.md: keys start with saves_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- SaveStore and SaveMigrate: the reasons a backup, restore or copy of a save stops. Paths are arguments -->
+    <string name="saves_cannot_create">não é possível criar %1$s</string>
+    <string name="saves_in_use">o save %1$s está em uso: o jogo dele está rodando (pare o jogo primeiro) ou um backup ou uma restauração dele está em andamento</string>
+    <!-- The first difference between a save and its copy: %1$s is a path inside the save -->
+    <string name="saves_diff_missing">%1$s está faltando</string>
+    <string name="saves_diff_differs">%1$s é diferente</string>
+    <string name="saves_diff_extra">%1$s está sobrando</string>
+    <string name="saves_not_a_folder">%1$s não é uma pasta</string>
+    <string name="saves_cannot_list">não é possível listar %1$s</string>
+    <string name="saves_link_in_save">%1$s é um link: uma pasta de saves só contém arquivos e pastas</string>
+    <string name="saves_not_file_or_folder">%1$s não é um arquivo nem uma pasta</string>
+    <string name="saves_cannot_write">não é possível gravar %1$s</string>
+    <string name="saves_not_a_manifest">%1$s não é um manifesto de backup de save</string>
+    <string name="saves_no_save_folder">não há pasta de saves em %1$s</string>
+    <string name="saves_backups_overlap">a pasta de backups %1$s e a pasta de saves %2$s se sobrepõem</string>
+    <!-- %1$s: the first difference (saves_diff_*) -->
+    <string name="saves_copy_mismatch">a cópia não corresponde ao save (%1$s)</string>
+    <string name="saves_changed_running">o save mudou enquanto era copiado (%1$s): o jogo está rodando?</string>
+    <string name="saves_cannot_name_backup">não é possível dar ao backup o nome %1$s</string>
+    <string name="saves_backup_damaged">o backup %1$s não corresponde ao manifesto dele (%2$s): ele está danificado, então não é restaurado</string>
+    <string name="saves_source_overlap">a pasta de onde restaurar (%1$s) e a pasta de saves (%2$s) se sobrepõem</string>
+    <!-- %2$s: the working folder's suffix, like .new -->
+    <string name="saves_source_working_folder">%1$s é uma pasta de trabalho do save (%2$s), não um save para restaurar</string>
+    <string name="saves_no_device_save">%1$s não tem save do dispositivo, mas %2$s tem: restaurar só o save principal o juntaria com outro save do dispositivo, então ele não é restaurado. Um backup feito por este app contém os dois</string>
+    <string name="saves_cannot_clear">não é possível limpar %1$s</string>
+    <string name="saves_restore_copy_mismatch">a cópia ao lado do save não corresponde ao backup (%1$s): o save não foi alterado</string>
+    <string name="saves_cannot_remove">não é possível remover %1$s</string>
+    <string name="saves_restore_mismatch_after">o save não corresponde ao backup depois da restauração (%1$s)</string>
+    <!-- %1$s: the restore's set file, %2$s: the line it holds -->
+    <string name="saves_set_foreign">%1$s indica %2$s, não as partes deste save: o save fica como está; mova esse arquivo para outro lugar para usar o save</string>
+    <string name="saves_cannot_move_back">não é possível mover %1$s de volta para %2$s</string>
+    <!-- %1$s: a marker file, %2$s: the path it holds, %3$s: the save folder's name (.new, .re and .restore are folder name endings, not words) -->
+    <string name="saves_marker_foreign">%1$s indica %2$s, não %3$s.new / .re / .restore: o save fica como está; mova esse marcador para outro lugar para usar o save</string>
+    <string name="saves_marker_gone">%1$s indica %2$s, que não existe mais: o save fica como está; mova esse marcador para outro lugar para usar o save</string>
+    <string name="saves_cannot_move">não é possível mover %1$s para %2$s</string>
+    <string name="saves_is_link">%1$s é um link</string>
+    <!-- A backup in the Restore list: %1$s is its date and time ("2026-11-03 14:05:09") -->
+    <string name="saves_when_before_restore">%1$s (automático, antes de uma restauração)</string>
+    <!-- SaveMigrate: why a save from an earlier version was not copied into the app's storage -->
+    <string name="saves_migrate_old_pending">o save em %1$s tem uma gravação ou restauração inacabada: ela é concluída nesta inicialização, e o save é copiado na próxima</string>
+    <!-- Used as the difference in saves_migrate_device_foreign: the old save has no device save -->
+    <string name="saves_migrate_old_has_no_device">o save antigo não tem save do dispositivo</string>
+    <string name="saves_migrate_device_foreign">%1$s contém um save do dispositivo, mas %2$s não tem save, e ele não é uma cópia de %3$s (%4$s)</string>
+    <string name="saves_changed">o save mudou enquanto era copiado (%1$s)</string>
+    <string name="saves_migrate_cannot_clear_empty">não é possível limpar %1$s, que está vazio</string>
+    <string name="saves_migrate_mismatch_after_move">a cópia do app não corresponde ao save depois da mudança (%1$s)</string>
+    <!-- SaveUi: the game card's Manage sheet. %1$s is the game's name -->
+    <string name="saves_busy">Um backup ou restauração de saves de %1$s ainda está em andamento.</string>
+    <!-- %2$s: the in-game panel's Stop the game button (the game area's label) -->
+    <string name="saves_running_backup">O jogo %1$s está em execução (e usa o save): pare-o primeiro (painel do jogo › %2$s) e depois faça o backup. O jogo pode estar gravando o save.</string>
+    <string name="saves_running_restore">O jogo %1$s está em execução (e usa o save): pare-o primeiro (painel do jogo › %2$s) e depois restaure. O jogo pode estar gravando o save.</string>
+    <string name="saves_running_import">O jogo %1$s está em execução (e usa o save): pare-o primeiro (painel do jogo › %2$s) e depois importe. O jogo pode estar gravando o save.</string>
+    <string name="saves_backup_nothing">%1$s ainda não tem save em %2$s: não há nada para fazer backup.</string>
+    <string name="saves_backup_wait">Fazendo backup do save de %1$s…</string>
+    <!-- %1$s: why (saves_* above, or a system error) -->
+    <string name="saves_backup_failed">Nenhum backup foi feito: %1$s\n\nO save em %2$s só foi lido, nunca alterado.</string>
+    <string name="saves_backup_done_title">Backup dos saves concluído</string>
+    <!-- %1$d files, %2$s their size ("1.2 MB"), %3$s the backup's folder -->
+    <plurals name="saves_backup_done_body">
+        <item quantity="one">%1$d arquivo, %2$s, conferido arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+        <item quantity="other">%1$d arquivos, %2$s, conferidos arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+    </plurals>
+    <plurals name="saves_backup_done_body_device">
+        <item quantity="one">%1$d arquivo, %2$s, com o save do dispositivo, conferido arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+        <item quantity="other">%1$d arquivos, %2$s, com o save do dispositivo, conferidos arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+    </plurals>
+    <!-- %3$s: the Manage sheet's Back up saves row (home's label) -->
+    <string name="saves_restore_none">Ainda não há backups de %1$s em %2$s. Use %3$s para criar um.</string>
+    <!-- A row of the Restore list: %1$s its date and time, %2$d files, %3$s their size -->
+    <plurals name="saves_restore_item">
+        <item quantity="one">%1$s\n%2$d arquivo, %3$s</item>
+        <item quantity="other">%1$s\n%2$d arquivos, %3$s</item>
+    </plurals>
+    <plurals name="saves_restore_item_device">
+        <item quantity="one">%1$s\n%2$d arquivo, %3$s (com o save do dispositivo)</item>
+        <item quantity="other">%1$s\n%2$d arquivos, %3$s (com o save do dispositivo)</item>
+    </plurals>
+    <!-- %1$s: the row above, %2$s: the save folder it was made from (folder/name) -->
+    <string name="saves_restore_item_from">%1$s\norigem: %2$s</string>
+    <string name="saves_restore_list_title">Restaurar o save de %1$s a partir de qual backup?</string>
+    <!-- %1$s: the game's title ID -->
+    <string name="saves_import_pick">Escolha a pasta de save a importar (a pasta que contém os arquivos do save, como saves/%1$s)</string>
+    <!-- What a restore takes the save from, inside saves_restore_confirm_body (after "Origem:"): a folder picked for Import save… -->
+    <string name="saves_import_source">a pasta %1$s</string>
+    <string name="saves_not_restored_refused">Não restaurado: %1$s.</string>
+    <string name="saves_restore_confirm_title">Restaurar o save de %1$s?</string>
+    <!-- %1$s the save folder, %2$s the source (a backup's date and time, or saves_import_source), %3$s the automatic backup's folder, %4$s the Manage sheet's Restore saves row -->
+    <string name="saves_restore_confirm_body">Será substituído: o save em %1$s. Origem: %2$s.\n\nAntes, é feito um backup do save atual em %3$s (verificado), então isso pode ser desfeito com %4$s…. Nada é excluído dos backups.</string>
+    <string name="saves_restore_button">Restaurar</string>
+    <string name="saves_restore_wait">Restaurando o save de %1$s…</string>
+    <string name="saves_restore_failed">Não restaurado: %1$s\n\nO save em %2$s está como estava.</string>
+    <string name="saves_restore_failed_pending">Não restaurado: %1$s\n\nO save em %2$s está como estava, exceto por uma troca inacabada que será concluída no próximo backup, na próxima restauração ou quando o jogo iniciar.</string>
+    <!-- %1$d files, %2$s their size; %3$s the automatic backup of the save that was replaced -->
+    <plurals name="saves_restored">
+        <item quantity="one">%1$d arquivo restaurado (%2$s)</item>
+        <item quantity="other">%1$d arquivos restaurados (%2$s)</item>
+    </plurals>
+    <plurals name="saves_restored_device">
+        <item quantity="one">%1$d arquivo restaurado (%2$s, com o save do dispositivo)</item>
+        <item quantity="other">%1$d arquivos restaurados (%2$s, com o save do dispositivo)</item>
+    </plurals>
+    <plurals name="saves_restored_before">
+        <item quantity="one">%1$d arquivo restaurado (%2$s); o save antigo está em %3$s</item>
+        <item quantity="other">%1$d arquivos restaurados (%2$s); o save antigo está em %3$s</item>
+    </plurals>
+    <plurals name="saves_restored_device_before">
+        <item quantity="one">%1$d arquivo restaurado (%2$s, com o save do dispositivo); o save antigo está em %3$s</item>
+        <item quantity="other">%1$d arquivos restaurados (%2$s, com o save do dispositivo); o save antigo está em %3$s</item>
+    </plurals>
 </resources>

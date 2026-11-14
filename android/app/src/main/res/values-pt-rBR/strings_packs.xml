@@ -2,4 +2,161 @@
 <!-- Português (Brasil): the packs area (PackUi, Pack, PackZip, PackFind, PackCheck, BuildCheck, DumpLayout, RomfsCheck, Nup, ShaderLibs, RewriteKey). docs/i18n.md: keys start with packs_, one file per area, translations keep the English file's name -->
 <resources>
     <string name="packs_no_pack_tsv">%1$s não tem pack.tsv</string>
+    <!-- Pack: pack.tsv and the shader library -->
+    <string name="packs_format_other">formato de pacote %1$s, este launcher lê o formato %2$d: empacote de novo com o scripts/pack_android.py deste commit</string>
+    <string name="packs_not_android">não é um pacote Android (alvo %1$s)</string>
+    <string name="packs_no_module">o pacote não tem %1$s.patched.bin</string>
+    <string name="packs_tsv_no_row">o pack.tsv não tem %1$s</string>
+    <string name="packs_library_unreadable">Não é possível ler a biblioteca de shaders do pacote (%1$s): %2$s</string>
+    <string name="packs_library_other_inputs">A biblioteca de shaders do pacote foi criada a partir de outras tabelas de shaders (entradas %1$s), não das deste app (%2$s): os shaders dela precisam ser criados de novo.</string>
+    <string name="packs_library_none">A pasta do pacote %1$s não tem biblioteca de shaders: este app precisa de shaders/v-%2$s/dmsh_vk.lib nela.</string>
+    <string name="packs_library_other_version">A pasta do pacote %1$s tem a biblioteca de shaders na versão %2$s, mas este app precisa da versão %3$s (shaders/v-%3$s/dmsh_vk.lib).</string>
+    <string name="packs_not_npdm">%1$s: não é um NPDM</string>
+    <string name="packs_no_aci0">%1$s: sem seção ACI0</string>
+    <string name="packs_game_unusable">Não é possível usar %1$s: %2$s</string>
+    <string name="packs_no_npdm">%1$s não contém main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ ou exefs/).</string>
+    <!-- Nup: a .nup file that cannot be read -->
+    <string name="packs_nup_not_file">%1$s não é um arquivo</string>
+    <string name="packs_nup_too_short">%1$s é curto demais para um .nup</string>
+    <string name="packs_nup_no_magic">%1$s não é um .nup (sem a assinatura NUP)</string>
+    <string name="packs_nup_format">%1$s é um .nup de formato %2$d; este app lê o formato 1</string>
+    <string name="packs_nup_header_size">%1$s: tamanho do cabeçalho %2$d</string>
+    <string name="packs_nup_toc_place">%1$s: o TOC não vem logo depois do cabeçalho</string>
+    <string name="packs_nup_offsets">%1$s: os offsets do TOC e do blob não se encaixam</string>
+    <string name="packs_nup_size">%1$s tem %2$d bytes, mas o cabeçalho diz %3$d: ele está incompleto (ainda sendo copiado?) ou danificado</string>
+    <string name="packs_nup_flags">%1$s tem flags %2$d que este app não conhece</string>
+    <string name="packs_nup_package_count">%1$s tem %2$d pacotes internos</string>
+    <string name="packs_nup_records">%1$s: os registros de pacotes internos não cabem no TOC</string>
+    <string name="packs_nup_toc_short">%1$s: o TOC termina antes do esperado</string>
+    <string name="packs_nup_toc_hash">%1$s: o índice não corresponde ao SHA-256 dele: o arquivo está danificado</string>
+    <string name="packs_nup_toc_magic">%1$s: sem a assinatura do TOC</string>
+    <string name="packs_nup_toc_count">%1$s: o TOC e o cabeçalho contam números diferentes de pacotes internos</string>
+    <string name="packs_nup_toc_tables">%1$s: as tabelas do TOC não cabem nele</string>
+    <string name="packs_nup_package_kind">%1$s: o pacote interno %2$d é do tipo %3$d, que este app não conhece</string>
+    <string name="packs_nup_package_dir">%1$s: o pacote interno %2$d indica um diretório além da tabela</string>
+    <string name="packs_nup_package_root">%1$s: o pacote interno %2$d não tem raiz</string>
+    <string name="packs_nup_bases">%1$s tem %2$d pacotes base</string>
+    <string name="packs_nup_no_game">%1$s não tem nem pacote base nem atualização</string>
+    <string name="packs_nup_node">%1$s: nó %2$d além das tabelas</string>
+    <string name="packs_nup_codec">%1$s: um arquivo com o codec %2$d, que este app não lê</string>
+    <string name="packs_nup_extent">%1$s: a extensão de um arquivo está fora da região do blob</string>
+    <string name="packs_nup_name">%1$s: um nome fora do pool de strings</string>
+    <string name="packs_nup_toc_end">%1$s: uma leitura do TOC passou do fim dele</string>
+    <string name="packs_nup_children">%1$s: os filhos de um diretório estão além da tabela</string>
+    <string name="packs_nup_is_dir">%1$s é um diretório</string>
+    <string name="packs_nup_too_large">%1$s é grande demais para ser lido na memória</string>
+    <string name="packs_nup_raw_size">%1$s: uma extensão sem compressão com tamanho diferente do arquivo</string>
+    <string name="packs_nup_unpacked_size">%1$s: descompactado para %2$d bytes, o TOC diz %3$d</string>
+    <string name="packs_nup_file_hash">%1$s: %2$s não corresponde ao SHA-256 dele: o arquivo está danificado</string>
+    <!-- PackZip: Export pack and Import pack -->
+    <string name="packs_zip_cannot_list">não é possível listar %1$s</string>
+    <string name="packs_zip_link">%1$s é um link: um pacote só contém arquivos e pastas</string>
+    <string name="packs_zip_odd_file">%1$s não é um arquivo nem uma pasta</string>
+    <string name="packs_zip_inside_pack">o zip não pode ficar dentro da pasta do pacote %1$s</string>
+    <string name="packs_zip_cannot_create">não é possível criar %1$s</string>
+    <string name="packs_zip_changed">%1$s mudou enquanto era gravado</string>
+    <string name="packs_zip_mismatch">o zip não corresponde ao pacote em %1$s</string>
+    <string name="packs_zip_count">o zip tem %1$d arquivos, o pacote tem %2$d</string>
+    <string name="packs_zip_cannot_name">não é possível dar ao zip o nome %1$s</string>
+    <string name="packs_zip_slip">o zip tem uma entrada fora do pacote (%1$s): ele não é importado</string>
+    <string name="packs_zip_beside_top">o zip tem arquivos ao lado da pasta principal dele (%1$s)</string>
+    <string name="packs_zip_no_tsv_root">o zip não tem pack.tsv na raiz</string>
+    <string name="packs_zip_no_tsv">o zip não tem pack.tsv (não é um pacote criado com %1$s)</string>
+    <string name="packs_zip_not_pack_folder">%1$s não tem pack.tsv: não é uma pasta de pacote</string>
+    <string name="packs_zip_not_zip">%1$s não é um arquivo zip (%2$s)</string>
+    <string name="packs_zip_twice">o zip tem %1$s duas vezes</string>
+    <string name="packs_zip_not_whole">%1$s não é um arquivo zip completo (%2$s)</string>
+    <string name="packs_zip_bad_title">o pack.tsv indica o título %1$s, que não é um title ID</string>
+    <string name="packs_missing_what">O jogo desse pacote</string>
+    <string name="packs_zip_other_game">esse pacote é de %1$s, não de %2$s</string>
+    <string name="packs_zip_own_folder">%1$s é a própria pasta de pacotes do app (ou a contém): não há nada para importar</string>
+    <string name="packs_zip_cannot_clear">não é possível limpar %1$s</string>
+    <string name="packs_zip_tsv_names">o pack.tsv indica %1$s</string>
+    <string name="packs_zip_simulated">esse pacote é um pacote provisório (placeholder) do motor simulado, não um pacote para jogar</string>
+    <string name="packs_zip_unfinished">o código do pacote está incompleto (%1$s não tem .android.key): prepare-o de novo onde ele foi feito</string>
+    <string name="packs_zip_no_library">o pacote não tem biblioteca de shaders (shaders/v-&lt;version&gt;/dmsh_vk.lib)</string>
+    <string name="packs_zip_cannot_move">não é possível tirar o pacote atual %1$s do lugar</string>
+    <string name="packs_zip_cannot_name_new_old">não é possível dar ao novo pacote o nome %1$s, e o antigo fica como %2$s</string>
+    <string name="packs_zip_cannot_name_new">não é possível dar ao novo pacote o nome %1$s; o antigo foi mantido</string>
+    <!-- RomfsCheck: a dump's RomFS of another version -->
+    <string name="packs_romfs_found_missing">ausente</string>
+    <string name="packs_romfs_found_line">a linha %1$d é \"%2$s\"</string>
+    <string name="packs_romfs_want_main">build ID do main %1$s…</string>
+    <string name="packs_romfs_detail">%1$s: %2$s, esperado %3$s</string>
+    <string name="packs_romfs_detail_line">%1$s: %2$s, esperado %3$s na linha %4$d</string>
+    <string name="packs_romfs_folder_base">Os dados desta pasta do jogo não são o RomFS do jogo base (%1$s). Faça o dump ou a extração do jogo de novo como RomFS com patch, ou use o .nup.</string>
+    <string name="packs_romfs_nup_base">Os dados deste .nup do jogo não são o RomFS do jogo base (%1$s). Faça o dump ou a extração do jogo de novo como RomFS com patch.</string>
+    <string name="packs_romfs_folder_update">Os dados de atualização desta pasta do jogo não são o RomFS completo da atualização na versão %1$d (%2$s). Faça o dump ou a extração da atualização de novo como RomFS com patch, ou use o .nup.</string>
+    <string name="packs_romfs_nup_update">Os dados de atualização deste .nup do jogo não são o RomFS completo da atualização na versão %1$d (%2$s). Faça o dump ou a extração da atualização de novo como RomFS com patch.</string>
+    <!-- BuildCheck: a pack's code against the game build -->
+    <string name="packs_build_label_other_build">O pacote é de outra versão do jogo</string>
+    <string name="packs_build_label_missing">O pacote é de outra atualização</string>
+    <string name="packs_build_label_unreadable">Não é possível ler o arquivo do jogo</string>
+    <string name="packs_build_label_unsupported">Atualização não compatível</string>
+    <string name="packs_build_label_romfs">Dados do jogo de outra versão</string>
+    <string name="packs_not_nso">%1$s não é um NSO</string>
+    <!-- %2$s: the version (settings_profile_base_game or _update), %3$s: the module, %4$s: home_prepare_again -->
+    <string name="packs_build_missing_folder">O pacote é para %1$s (%2$s), mas a pasta do jogo não tem %3$s. Escolha o dump que tem essa atualização, ou use %4$s com este.</string>
+    <string name="packs_build_missing_nup">O pacote é para %1$s (%2$s), mas o .nup do jogo não tem %3$s. Escolha o dump que tem essa atualização, ou use %4$s com este.</string>
+    <string name="packs_build_missing_detail">sem %1$s (versão do pacote: %2$s)</string>
+    <string name="packs_build_unreadable">Não é possível ler %1$s: %2$s</string>
+    <string name="packs_build_diff_game">%1$s: pacote %2$s, jogo %3$s (%4$s)</string>
+    <string name="packs_build_diff_app">%1$s: pacote %2$s, app %3$s</string>
+    <string name="packs_build_other_folder">O pacote foi feito a partir de outra versão de %1$s (%2$s %3$s…), diferente da que está na pasta do jogo (%4$s…, %5$s). O código dele travaria com este jogo: use %6$s para criar um pacote a partir deste dump.\n\nBuild IDs diferentes: %7$s</string>
+    <string name="packs_build_other_nup">O pacote foi feito a partir de outra versão de %1$s (%2$s %3$s…), diferente da que está no .nup do jogo (%4$s…, %5$s). O código dele travaria com este jogo: use %6$s para criar um pacote a partir deste dump.\n\nBuild IDs diferentes: %7$s</string>
+    <string name="packs_build_unsupported">O pacote é para uma versão de %1$s que este app não suporta (%2$s). %3$s Faça o dump dessa versão e prepare-a.</string>
+    <string name="packs_build_unsupported_detail">versão do pacote: %1$s, o app suporta %2$s</string>
+    <!-- PackCheck: why a pack's code cannot start -->
+    <string name="packs_check_unfinished">O código do jogo do pacote está incompleto (falta %1$s.android.key: uma atualização do pacote foi interrompida no meio). Use %2$s para concluí-lo.</string>
+    <string name="packs_check_rewriting">O código do jogo do pacote está sendo reescrito (%1$s: %2$s). Deixe a preparação terminar primeiro.</string>
+    <!-- DumpLayout: what a dump holds, and why Prepare cannot start from it -->
+    <string name="packs_dump_base">a base</string>
+    <string name="packs_dump_update">a atualização %1$d</string>
+    <string name="packs_dump_no_code">nenhum código de jogo (sem exefs/main na base ou em uma atualização)</string>
+    <string name="packs_dump_list_last">%1$s e %2$s</string>
+    <string name="packs_dump_wrong_case">%1$s: renomeie o arquivo para que o nome termine em \".nup\" (em minúsculas); as ferramentas e o jogo só leem esse nome.</string>
+    <string name="packs_dump_unreadable_file">%1$s não é um arquivo que este app consegue ler. Verifique se o Acesso a todos os arquivos está ativado.</string>
+    <string name="packs_dump_unreadable_folder">%1$s não é uma pasta que este app consegue ler. Verifique se o Acesso a todos os arquivos está ativado.</string>
+    <string name="packs_dump_one_version">%1$s é a pasta de uma única versão. Escolha a pasta do dump acima dela, a que tem base/ (e updates/).</string>
+    <string name="packs_dump_nup_no_code">%1$s não contém código de jogo: não há exefs/main na base nem em um pacote de atualização.</string>
+    <string name="packs_dump_not_dump">%1$s não é uma pasta de dump: não tem base/exefs/main nem updates/&lt;version&gt;/exefs/main. Escolha a pasta com base/ ou updates/ (e dlc/).</string>
+    <string name="packs_missing_what_dump">Este dump</string>
+    <!-- %2$s: the game's name, %3$s: what the dump holds (packs_dump_base, packs_dump_update, joined), %4$s: settings_profile_supported -->
+    <string name="packs_dump_unsupported">%1$s contém %2$s (%3$s), que não é uma versão compatível com este app. %4$s Um pacote é feito para uma versão exata: o código e os shaders de outra versão são diferentes e ela não foi testada aqui, então a preparação não começa a partir dela. Faça o dump dessa versão, ou use um pacote feito em outro lugar para esta versão (o scripts/build_ipa_from_nsp.py em um Mac cria um a partir de um perfil derivado para ela).</string>
+    <string name="packs_dump_no_npdm">%1$s não tem exefs/main.npdm: o dump está incompleto.</string>
+    <!-- %1$s: packs_dump_base or packs_dump_update, %2$s: the dump's name -->
+    <string name="packs_dump_no_romfs">%2$s: %1$s não tem RomFS com arquivos (nem o próprio nem o da base): o dump está incompleto.</string>
+    <string name="packs_dump_other_title">%1$s é de %2$s, e o jogo é %3$s.</string>
+    <string name="packs_dump_no_npdm_short">sem exefs/main.npdm</string>
+    <!-- ShaderLibs -->
+    <string name="packs_legacy_warning">Os shaders deste jogo foram feitos antes das atualizações versionadas de shaders, então esta versão do app não consegue atualizá-los parcialmente. Você pode continuar jogando com eles, mas é recomendado atualizar os shaders mais uma vez com %1$s: depois disso, as correções de shaders chegam como pequenas atualizações incrementais.</string>
+    <string name="packs_minutes">cerca de %1$d-%2$d minutos</string>
+    <!-- PackUi: a game's Export pack… and Import pack… -->
+    <string name="packs_ui_busy">Uma exportação ou importação do pacote de %1$s ainda está em andamento.</string>
+    <string name="packs_ui_running">O jogo %1$s está em execução: pare-o primeiro (painel do jogo › %2$s).</string>
+    <string name="packs_ui_export_none">Não há pacote para exportar: %1$s</string>
+    <string name="packs_ui_export_pick">Escolha a pasta para o .zip do pacote</string>
+    <string name="packs_ui_import_title">Importar o pacote de %1$s de…</string>
+    <string name="packs_ui_import_zip">Um arquivo .zip (criado com %1$s)</string>
+    <string name="packs_ui_import_folder">Uma pasta de pacote (com pack.tsv e shaders/)</string>
+    <string name="packs_ui_import_pick_folder">Escolha a pasta do pacote (a que tem pack.tsv e shaders/)</string>
+    <string name="packs_ui_import_pick_zip">Escolha o arquivo .zip do pacote</string>
+    <string name="packs_ui_no_game">Nenhum jogo de %1$s na lista.</string>
+    <string name="packs_ui_not_readable">Esse arquivo não está no armazenamento deste celular por um caminho que o app consegue ler (%1$s). Escolha-o no armazenamento do celular (☰ › o nome do celular), não em Recentes nem em Downloads.</string>
+    <string name="packs_ui_exporting">Exportando o pacote de %1$s…</string>
+    <string name="packs_ui_export_space">o zip precisa de %1$s, e %2$s tem %3$s livres</string>
+    <string name="packs_ui_export_failed">Nenhum pacote foi exportado: %1$s\n\nO pacote em %2$s só foi lido.</string>
+    <string name="packs_ui_exported_title">Pacote exportado</string>
+    <string name="packs_ui_exported">%1$s\n\n%2$s, conferido arquivo por arquivo com o pacote. Use %3$s em outro celular (ou depois de uma nova instalação) para restaurá-lo.</string>
+    <string name="packs_ui_importing">Importando o pacote de %1$s…</string>
+    <string name="packs_ui_import_space">o pacote precisa de %1$s, e o armazenamento do app tem %2$s livres</string>
+    <string name="packs_ui_import_job">uma tarefa de preparação deste jogo grava em %1$s (%2$s): deixe-a terminar, ou esqueça-a antes em ⋯ %3$s</string>
+    <string name="packs_ui_started_meanwhile">o jogo %1$s foi iniciado nesse meio-tempo</string>
+    <string name="packs_ui_import_failed_kept">O pacote não foi importado: %1$s\n\nO pacote em %2$s está como estava.</string>
+    <string name="packs_ui_import_failed_none">O pacote não foi importado: %1$s\n\nNada foi alterado.</string>
+    <string name="packs_ui_library_current">Ele tem a biblioteca de shaders deste app (%1$s): pronto para jogar.</string>
+    <string name="packs_ui_library_older">Os shaders dele são de uma versão mais antiga: o jogo roda com eles enquanto o app os atualiza, como depois de uma atualização do app.</string>
+    <string name="packs_ui_library_problem">%1$s O cartão do jogo oferece a correção.</string>
+    <string name="packs_ui_imported_title">Pacote importado</string>
+    <string name="packs_ui_imported_old">%1$s\n\n%2$s\n\nA pasta de pacote escolhida antes (%3$s) foi mantida como estava; agora o jogo usa esta.</string>
 </resources>

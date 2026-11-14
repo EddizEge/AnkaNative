@@ -2,4 +2,170 @@
 <!-- Português (Brasil): the prepare area (Ondevice, Job, PackService, DumpCheck). docs/i18n.md: keys start with prepare_, one file per area, translations keep the English file's name -->
 <resources>
     <string name="prepare_cannot_use">Não é possível usar %1$s: %2$s</string>
+
+    <!-- Ondevice: a build without the packer (also shown by the home screen) -->
+    <string name="prepare_unavailable">Esta versão do Anka Native não consegue preparar um jogo no celular. Prepare-o uma vez em um computador (Linux ou Mac), como dizem os passos de \"Install\" do README (github.com/EddizEge/AnkaNative), copie o pacote para junto do dump como &lt;title ID&gt;-work/android-pack e depois adicione o jogo de novo ou escolha essa pasta de pacote.</string>
+    <!-- Ondevice.shadersText: what making a pack's shaders does; %3$s / %1$s: the time it takes ("about 20-35 minutes") -->
+    <string name="prepare_shaders_update">Atualiza os shaders a partir do seu dump: %1$,d dos %2$,d mudaram nesta versão do app (%3$s, em segundo plano).</string>
+    <string name="prepare_shaders_make">Cria os shaders a partir do seu dump (%1$s, em segundo plano).</string>
+    <string name="prepare_shaders_make_default">Cria os shaders a partir do seu dump (cerca de 20-35 minutos, em segundo plano).</string>
+    <!-- Ondevice.prepareShadersMsg: the same as one sentence after the word Prepare (the home screen's shader dialog) -->
+    <string name="prepare_shaders_update_step">A preparação atualiza os shaders a partir do seu dump: %1$,d dos %2$,d mudaram nesta versão do app (%3$s, em segundo plano).</string>
+    <string name="prepare_shaders_make_step">A preparação cria os shaders a partir do seu dump (%1$s, em segundo plano).</string>
+    <string name="prepare_shaders_make_step_default">A preparação cria os shaders a partir do seu dump (cerca de 20-35 minutos, em segundo plano).</string>
+    <string name="prepare_not_on_storage">Essa pasta não está no armazenamento deste celular (%1$s).</string>
+
+    <!-- Ondevice: the Preparing card on the main screen -->
+    <string name="prepare_card_heading">Preparando</string>
+    <string name="prepare_card_manage">Gerenciar a preparação</string>
+    <string name="prepare_button_play">Jogar</string>
+    <string name="prepare_head_pending">Pronto para preparar: %1$s</string>
+    <string name="prepare_head_failed">Não foi possível preparar %1$s</string>
+    <string name="prepare_head_running">Preparando %1$s</string>
+    <!-- %1$s: the update's version number -->
+    <string name="prepare_card_update">Atualização %1$s</string>
+    <!-- a test build's simulated engine; %1$s: the line above -->
+    <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
+    <string name="prepare_card_progress">%1$d%%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
+    <string name="prepare_button_pause">Pausar</string>
+    <string name="prepare_button_prepare_again">Preparar de novo</string>
+    <string name="prepare_button_retry">Tentar novamente</string>
+    <string name="prepare_button_start">Iniciar</string>
+    <string name="prepare_button_resume">Retomar</string>
+    <string name="prepare_game_ready_toast">Pronto para jogar: %1$s.</string>
+    <string name="prepare_checking">Verificando %1$s…</string>
+
+    <!-- Ondevice: a picked dump -->
+    <string name="prepare_resume_title">Retomar a preparação?</string>
+    <!-- %1$s: the job's status line -->
+    <string name="prepare_resume_body">%1$s\n\nA preparação continua de onde parou.</string>
+    <!-- the Manage sheet's button (prepare_manage_delete_work shows it with …), also named inside a sentence -->
+    <string name="prepare_label_delete_work">Excluir arquivos de trabalho</string>
+    <!-- The Preparing card's ⋯ button, named inside other areas' sentences -->
+    <string name="prepare_label_manage">Gerenciar</string>
+    <string name="prepare_other_folder_job">Uma tarefa inacabada deste dump grava em %1$s: %2$s\n\nRetome-a pelo cartão, ou exclua os arquivos de trabalho dela (⋯ › %3$s) antes de preparar em outra pasta.</string>
+    <string name="prepare_busy">A preparação de %1$s está em andamento (%2$s). Pause primeiro e tente de novo.</string>
+    <!-- %1$s: prepare_shaders_update -->
+    <string name="prepare_redo_code_update">Reescreve o código do jogo (alguns minutos). %1$s</string>
+    <string name="prepare_redo_both">Cria de novo o código do jogo e os shaders a partir do seu dump (%1$s, em segundo plano).</string>
+    <string name="prepare_redo_code">Reescreve o código do jogo a partir do seu dump (alguns minutos, em segundo plano). Os shaders são mantidos.</string>
+    <string name="prepare_redo_other_tools">O código do jogo deste pacote foi feito por outras ferramentas, não pelas deste app.</string>
+    <string name="prepare_pack_line">Pacote: %1$s</string>
+    <string name="prepare_redo_title_code">Atualizar o pacote?</string>
+    <string name="prepare_redo_title_shaders">Preparar shaders?</string>
+    <string name="prepare_button_prepare">Preparar</string>
+    <string name="prepare_pick_other_pack">Escolher outra pasta de pacote</string>
+    <!-- Prepare's question: the dump's version -->
+    <string name="prepare_what_base">Jogo base</string>
+    <string name="prepare_what_update">Atualização %1$s</string>
+    <string name="prepare_what_base_code">Jogo base (o código de %1$s)</string>
+    <string name="prepare_what_update_code">Atualização %1$s (o código de %2$s)</string>
+    <!-- %1$s: prepare_what_*, %4$s: the time it takes ("about 22-40 minutes"), %6$s, %7$s: folders -->
+    <string name="prepare_ask_text">%1$s, %2$d DLC.\n\nO app cria o pacote do jogo e %3$,d shaders a partir do seu dump, uma única vez: %4$s em segundo plano, de preferência no carregador. Você pode pausar a qualquer momento.\n\nPrecisa de cerca de 1,5 GB (%5$.1f GB livres): arquivos de trabalho em %6$s, o pacote no armazenamento do app (%7$s).</string>
+    <string name="prepare_cannot_start">Não é possível iniciar: %1$s</string>
+    <string name="prepare_ask_elsewhere">Tem um pacote feito em outro lugar (em um computador, ou exportado de outro celular)?</string>
+    <string name="prepare_use_existing">Usar um pacote existente…</string>
+    <string name="prepare_import">Importar pacote…</string>
+    <string name="prepare_ask_title">Preparar %1$s?</string>
+    <string name="prepare_ready_title">Pronto para jogar</string>
+    <string name="prepare_ready_body">O pacote é compatível: não há nada para preparar.\n\nPacote: %1$s</string>
+    <!-- %1$s: prepare_button_play -->
+    <string name="prepare_simulated_pack">Este pacote foi feito pelo motor simulado: ele é só provisório (placeholder), então o jogo não é iniciado. O botão %1$s está ativado porque o pacote e a biblioteca dele estão completos.</string>
+
+    <!-- Ondevice: the job's Manage sheet (⋯) -->
+    <string name="prepare_manage_info">%1$s\n\nDump: %2$s\nArquivos de trabalho: %3$s\nPacote: %4$s\nLogs: %5$s</string>
+    <string name="prepare_manage_running">Pause primeiro para poder esquecer ou excluir.</string>
+    <string name="prepare_manage_forget">Esquecer esta tarefa…</string>
+    <string name="prepare_manage_delete_pack">Excluir também o pacote preparado…</string>
+    <string name="prepare_manage_title">Preparando %1$s</string>
+    <string name="prepare_button_done">Concluído</string>
+    <string name="prepare_forget_title">Esquecer esta tarefa?</string>
+    <string name="prepare_forget_body">Excluído: nada. A tela deixa de mostrar a tarefa.\n\nMantidos: os arquivos dela em %1$s, o pacote, seu dump e seus saves. Escolher o mesmo dump de novo encontra a tarefa.\n\nO progresso guardado da busca pelos shaders (uma cópia no armazenamento do próprio app) é excluído quando começa uma tarefa de outro jogo; até lá, uma busca inacabada continua a partir dele.</string>
+    <string name="prepare_button_forget">Esquecer</string>
+    <string name="prepare_not_deleted_dump">Não excluído: %1$s contém o seu dump ou está dentro dele.</string>
+    <string name="prepare_not_deleted_save">Não excluído: %1$s contém a sua pasta de saves ou está dentro dela.</string>
+    <!-- Delete working files: the question's paragraphs (what goes, what stays, what follows) -->
+    <string name="prepare_deleted_work">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados e traduzidos, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders, uma cópia no armazenamento do próprio app</string>
+    <string name="prepare_deleted_work_pack_inside">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados e traduzidos, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders, uma cópia no armazenamento do próprio app com o pacote dentro dela</string>
+    <string name="prepare_deleted_work_and_pack">Excluídos:\n· os arquivos de trabalho em %1$s (código reescrito, shaders separados e traduzidos, o progresso da tarefa)\n· o progresso guardado da busca pelos shaders, uma cópia no armazenamento do próprio app\n· o pacote preparado e a biblioteca de shaders dele em %2$s</string>
+    <string name="prepare_kept">Mantidos: seu dump (%1$s) e seus saves. Os saves nunca são excluídos aqui.</string>
+    <string name="prepare_kept_save">Mantidos: seu dump (%1$s) e seus saves (%2$s). Os saves nunca são excluídos aqui.</string>
+    <string name="prepare_kept_pack">Mantidos: seu dump (%1$s), seus saves e o pacote (%2$s). Os saves nunca são excluídos aqui.</string>
+    <string name="prepare_kept_pack_save">Mantidos: seu dump (%1$s), seus saves (%2$s) e o pacote (%3$s). Os saves nunca são excluídos aqui.</string>
+    <string name="prepare_deleted_pack_end">O jogo não vai iniciar até ser preparado de novo (cerca de 30-45 minutos).</string>
+    <string name="prepare_deleted_work_end">Uma nova preparação começa do início.</string>
+    <string name="prepare_delete_pack_title">Excluir o pacote preparado?</string>
+    <string name="prepare_delete_work_title">Excluir os arquivos de trabalho?</string>
+    <string name="prepare_button_delete">Excluir</string>
+    <string name="prepare_deleting">Excluindo…</string>
+    <string name="prepare_deleted_toast">Excluído. Seu dump e seus saves não foram alterados.</string>
+
+    <!-- Job: the steps (Job.STEP_KEYS), and the same inside a sentence (PrepareErrors.stepInSentence), with its article: "Parou durante a verificação do dump",
+         "O Android interrompeu a verificação do dump" -->
+    <string name="prepare_step_identify">Verificando o dump</string>
+    <string name="prepare_step_rewrite">Reescrevendo o código do jogo</string>
+    <string name="prepare_step_split">Encontrando os shaders</string>
+    <string name="prepare_step_shaders">Traduzindo shaders</string>
+    <string name="prepare_step_pack">Finalizando o pacote</string>
+    <string name="prepare_step_identify_in_sentence">a verificação do dump</string>
+    <string name="prepare_step_rewrite_in_sentence">a reescrita do código do jogo</string>
+    <string name="prepare_step_split_in_sentence">a busca pelos shaders</string>
+    <string name="prepare_step_shaders_in_sentence">a tradução dos shaders</string>
+    <string name="prepare_step_pack_in_sentence">a finalização do pacote</string>
+    <!-- Job.stepMsg: the shaders step's end, and a step with its count -->
+    <string name="prepare_stage_library">Gravando a biblioteca de shaders</string>
+    <string name="prepare_stage_check">Verificando a biblioteca de shaders</string>
+    <string name="prepare_step_shaders_progress">Traduzindo shaders: %1$,d de %2$,d</string>
+    <!-- Job.statusMsg: the job's status line; %1$s: a step, %2$s in failed: why it failed; Tap %3$s: the button's label -->
+    <string name="prepare_status_done">Pronto para jogar.</string>
+    <string name="prepare_status_failed">Parou durante %1$s: %2$s. Toque em %3$s para continuar.</string>
+    <string name="prepare_status_pending">Ainda não iniciado.</string>
+    <string name="prepare_status_paused">Pausado: %1$s. %2$s.</string>
+    <string name="prepare_status_running">%1$s (etapa %2$d de %3$d).</string>
+    <string name="prepare_status_interrupted">Interrompido: %1$s. Toque em %2$s para continuar.</string>
+    <!-- Job.reasonMsg: why a job is paused; tap %1$s: the button's label -->
+    <string name="prepare_reason_user">por você</string>
+    <string name="prepare_reason_battery">bateria abaixo de 20%: conecte o carregador para continuar</string>
+    <string name="prepare_reason_thermal">o celular está muito quente: a preparação continua quando ele esfriar</string>
+    <string name="prepare_reason_timeout">limite diário do Android para trabalho em segundo plano: abra o app e toque em %1$s</string>
+    <string name="prepare_reason_refused">o Android não deixou a preparação começar em segundo plano: abra o app e toque em %1$s</string>
+    <string name="prepare_reason_apk">o app foi atualizado com outras ferramentas de shaders: os shaders são traduzidos de novo</string>
+    <string name="prepare_reason_none">parado</string>
+    <string name="prepare_cannot_make_folder">não é possível criar %1$s</string>
+
+    <!-- PackService: the notification -->
+    <string name="prepare_channel_name">Preparando um jogo</string>
+    <string name="prepare_channel_description">Progresso enquanto o app prepara um jogo a partir do seu dump</string>
+    <string name="prepare_note_none">Preparando um jogo</string>
+    <!-- a test build's simulated engine; %1$s: the notification's title -->
+    <string name="prepare_note_simulated">%1$s (simulado)</string>
+    <string name="prepare_note_starting">Iniciando…</string>
+    <string name="prepare_note_done">Pronto para jogar: %1$s</string>
+    <!-- %1$s: prepare_button_play -->
+    <string name="prepare_note_done_text">Abra o Anka Native e toque em %1$s.</string>
+    <string name="prepare_note_running">Preparando %1$s</string>
+    <string name="prepare_note_waiting">Aguardando: %1$s</string>
+    <string name="prepare_note_failed">Não foi possível preparar %1$s</string>
+    <string name="prepare_note_paused">Pausado: %1$s</string>
+    <string name="prepare_note_step">Etapa %1$d de %2$d · %3$d%%</string>
+
+    <!-- PackService: why a step failed (PrepareErrors); %1$s: prepare_step_*_in_sentence (the object of "interrompeu"), %2$d: how many times (2 or more), %3$.1f: the step's memory in GB, tap %4$s: the button's label -->
+    <string name="prepare_error_step_killed">o Android interrompeu %1$s %2$d vezes antes de terminar, provavelmente por falta de memória (precisa de até %3$.1f GB). Feche outros apps e toque em %4$s</string>
+    <!-- %1$s: the title ID, %2$s: the version number -->
+    <string name="prepare_error_dump_changed">o dump mudou: agora ele é %1$s %2$s</string>
+    <!-- %1$s: the step's code (the tools' word, not translated), %3$s: the tool's last [RED] line (English) -->
+    <string name="prepare_error_tool_exit">%1$s parou com o código %2$d (log: %3$s)</string>
+    <string name="prepare_error_tool_exit_red">%1$s parou com o código %2$d: %3$s (log: %4$s)</string>
+    <string name="prepare_error_compare">não é possível comparar os shaders do dump com a lista do app: %1$s</string>
+    <!-- %2$s: the game's version, %3$s: a file name, then %4$s: the button's label -->
+    <string name="prepare_error_shader_map">os shaders do dump não são os que este app conhece para %1$s (%2$s, %3$s é diferente). O dump pode estar incompleto ou modificado: faça o dump do jogo de novo e depois toque em %4$s</string>
+
+    <!-- DumpCheck: why a dump cannot be prepared. Whole sentences -->
+    <string name="prepare_dump_free_unknown">Não é possível ler o espaço livre de %1$s.</string>
+    <string name="prepare_dump_space">A preparação precisa de %1$.1f GB livres ao lado do dump; %2$s tem %3$.2f GB livres.</string>
+    <string name="prepare_dump_not_writable">Não é possível criar %1$s: não é possível gravar na pasta ao lado do dump.</string>
+    <!-- Job.statusMsg: a failure the packer gave an error code (JobErrors); %2$s: the code's text (whole sentences), Tap %3$s: the button's label -->
+    <string name="prepare_status_failed_coded">Parou durante %1$s. %2$s Toque em %3$s para continuar.</string>
+    <!-- Job.statusMsg: a failure of Prepare's own that is a whole sentence -->
+    <string name="prepare_status_failed_sentence">Parou durante %1$s: %2$s Toque em %3$s para continuar.</string>
 </resources>

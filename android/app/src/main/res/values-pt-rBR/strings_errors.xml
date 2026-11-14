@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Brasil): the errors area (JobErrors: the packer's error codes). docs/i18n.md: keys start with errors_, one file per area, translations keep the English file's name -->
 <resources>
+    <!-- JobErrors: one text per packer error code (dm/tools/pack_errors.py), key errors_<code>; the arguments are the error: line's, in its order -->
+    <string name="errors_dump_incomplete">O dump está incompleto: falta em %1$s o código do jogo (exefs com main e main.npdm) ou o RomFS. Faça o dump do jogo de novo.</string>
+    <string name="errors_module_missing">O dump está incompleto: %1$s não tem %2$s. Faça o dump do jogo de novo.</string>
+    <string name="errors_version_missing">O dump não tem a atualização %1$s. Escolha uma versão que o dump contenha, ou faça o dump dessa atualização.</string>
+    <string name="errors_wrong_title">%1$s não faz parte deste jogo: o program ID dele é %2$s, e o do jogo base é %3$s.</string>
+    <string name="errors_not_base_title">%1$s: %2$s não é o title ID de um jogo base. Escolha o dump do jogo base ou da atualização dele.</string>
+    <string name="errors_no_profile">Este app não tem um perfil para o jogo %1$s, então não consegue prepará-lo.</string>
+    <string name="errors_shaders_other_build">Faltam no dump %1$s dos %2$s shaders que este app conhece para o jogo: ele é de outra versão do jogo, ou está incompleto. Faça o dump do jogo de novo.</string>
+    <string name="errors_unreadable_file">Não é possível ler %1$s: o arquivo está danificado ou não é o que o nome dele diz. Faça o dump do jogo de novo.</string>
+    <string name="errors_no_space">Não há espaço livre suficiente (%1$s). Libere espaço e tente de novo.</string>
+    <string name="errors_out_of_memory">Memória insuficiente: %1$s foi interrompido. Feche outros apps e tente de novo.</string>
+    <string name="errors_translator_crashed">O tradutor de shaders travou. Tente de novo; se ele travar outra vez, informe o problema com o log.</string>
 </resources>
