@@ -183,6 +183,17 @@ public final class GameTextsJvmTest {
         same("cannot open " + "content://x/y", "game_lsfg_cannot_open", "content://x/y");
         same("that file is not a Windows DLL", "game_lsfg_not_dll");
         same("cannot replace " + new File("/data/x"), "game_cannot_replace", new File("/data/x"));
+        // GameActivity.meshNote (work/mesh-compute's String.format English; the one-shader form is new: "Making 1 mesh shader …, until it is done")
+        same("Mesh shaders ready: everything is drawn now.", "game_mesh_ready");
+        for (int k : new int[] {2, 37, 1234}) {
+            n++;
+            String was = String.format(java.util.Locale.ROOT, "Making %d mesh shaders for this phone (the first start after an update): until they are done, some of the scenery is not drawn.", k);
+            String now = Tr.englishP("game_mesh_making", k, k);
+            if (!now.equals(was)) diffs.add("diff game_mesh_making " + k + ": was [" + was + "] now [" + now + "]");
+        }
+        n++;
+        if (!Tr.englishP("game_mesh_making", 1, 1).equals("Making 1 mesh shader for this phone (the first start after an update): until it is done, some of the scenery is not drawn."))
+            diffs.add("diff game_mesh_making 1: " + Tr.englishP("game_mesh_making", 1, 1));
         // SelftestActivity
         File log = new File("/storage/emulated/0/Android/data/x/files/logs/selftest-1.log");
         int frames = 600;

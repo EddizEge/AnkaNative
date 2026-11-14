@@ -178,4 +178,10 @@
     <!-- %2$s: Share log (home's Settings row); Back is the phone's back gesture or button -->
     <string name="game_selftest_pass">PASS (return code %1$d)\nBack to return; %2$s sends this run\'s log.</string>
     <string name="game_selftest_fail">FAIL (return code %1$d)\nBack to return; %2$s sends this run\'s log.</string>
+    <!-- GameActivity.meshNote: mesh draws wait for their compute pipelines (made one at a time on the first start after an app or driver update); %1$d: how many a draw waits for -->
+    <plurals name="game_mesh_making">
+        <item quantity="one">Making %1$d mesh shader for this phone (the first start after an update): until it is done, some of the scenery is not drawn.</item>
+        <item quantity="other">Making %1$d mesh shaders for this phone (the first start after an update): until they are done, some of the scenery is not drawn.</item>
+    </plurals>
+    <string name="game_mesh_ready">Mesh shaders ready: everything is drawn now.</string>
 </resources>

@@ -209,7 +209,32 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         fps.setVisibility(t != null ? View.VISIBLE : View.GONE);
         if (t != null) fps.setText(t);
         skipNote();
+        meshNote();
         ui.postDelayed(this::fpsTick, 500);
+    }
+
+    private final int[] mesh = new int[3];
+    private long meshWaitSince;    // when the mesh draws' compute pipelines were first seen waiting (elapsed ms), 0 when none wait
+    private int meshShown;         // 0: no note yet, 1: "making" shown, 2: "ready" shown too (no more notes this run)
+
+    /**
+     * A note while mesh draws wait for their compute pipelines (Native.meshStatus: made on one background thread, one at a time, their draws skipped until then). On the
+     * first start after an app update or a driver change no compile is in the pipeline cache and that takes up to a minute or more, with parts of the scenery missing:
+     * the player is told once, after they have waited 3 s (later starts take the cache and make them in a moment), and once more when every one is made
+     */
+    private void meshNote() {
+        if (meshShown == 2) return;
+        if (!Native.meshStatus(mesh) || mesh[2] <= 0) {
+            if (meshShown == 1) { meshShown = 2; Toast.makeText(this, R.string.game_mesh_ready, Toast.LENGTH_SHORT).show(); }
+            meshWaitSince = 0;
+            return;
+        }
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (meshWaitSince == 0) meshWaitSince = now;
+        if (meshShown == 0 && now - meshWaitSince >= 3000) {
+            meshShown = 1;
+            Toast.makeText(this, getResources().getQuantityString(R.plurals.game_mesh_making, mesh[2], mesh[2]), Toast.LENGTH_LONG).show();
+        }
     }
 
     private int skipShown = -1;   // the intro skip's state last seen (Native.skipStatus)
