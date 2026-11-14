@@ -63,7 +63,7 @@ TEXTS = {
     'confirm.version_keys': '(v: another version)',
     'confirm.other_build': 'The dump has other builds of {} than the ones this tree was made for: their fixes do not apply, and the game may not run',
     'confirm.workers_value': '{} shaders at once ({} CPU threads, {} memory free)',
-    'confirm.workers_keys': '(+ / - to change)',
+    'confirm.workers_keys': '(+ / -)',
     'confirm.disk_value': 'about {} needed, {} free',
     'confirm.disk_none': 'nothing more to write',
     'confirm.kept_code': 'the code of {} of {} modules',

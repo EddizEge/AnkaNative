@@ -807,7 +807,8 @@ class EndToEnd(unittest.TestCase):
             self.assertIn('Esc: quit', s)   # the key line whole at 80 columns
             t.resize(160, 30)   # drawn again at the new size: the title's right part at the new right edge
             t.wait_for(re.compile(r'^ Anka Native.{100,}2 Pick the game$', re.M))
-            t.send('\x1b'); t.wait_for('Leave without preparing'); t.send('n'); t.wait_for('Folders and games')   # Esc asks first
+            t.send('\x1b'); t.wait_for('Leave without preparing'); t.send('n')   # Esc asks first
+            t.wait_for(re.compile(r'\A(?![\s\S]*Leave without)[\s\S]*Folders and games'))   # (the question gone: the keys are the browser's again)
             t.send('Oc'); t.wait_for('Filter: Oc'); t.send('\x1b[B'); t.send('\x1b[A'); t.send('\r')
             s = t.wait_for('Prepare this game?', 30)
             self.assertIn('131072', s); self.assertIn('4 shaders at once', s)
