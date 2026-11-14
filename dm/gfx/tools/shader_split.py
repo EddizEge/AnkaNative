@@ -2882,20 +2882,19 @@ class InterpPool:
             except ImportError: pass
         self.stop_r, self.stop_w = os.pipe()
         try:
-            self.cant = self._new()   # the first worker now: if none can be made, pool() falls back to InProcess before any job
+            first, self.cant = self._new()   # the first worker now: if none can be made, pool() falls back to InProcess before any job
+            self.idle.put(first)
         except BaseException:
             self._close(); raise
         self.ex = cf.ThreadPoolExecutor(n)
         _STOP_FD = self.stop_r
 
-    def _new(self):   # a worker set up and idle → the decoders it cannot load
+    def _new(self):   # a worker set up → ((it, its result queue), the decoders it cannot load); not put in idle, where another thread could take it first
         it, res = self.I.create(), self.I.create_queue(); self.made.append(it)
         it.prepare_main(_here=os.path.dirname(os.path.abspath(__file__)), _init=self.init, _out=res, _stop=self.stop_r, _probe=tuple(self.probe))
         try: it.exec(self.BOOT)
         except self.I.ExecutionFailed as e: raise RuntimeError(f'split worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
-        cant = res.get().split()
-        self.idle.put((it, res))
-        return cant
+        return (it, res), res.get().split()
 
     def __enter__(self): return self
 
@@ -2925,7 +2924,7 @@ class InterpPool:
         if fn is not scan_batch: raise ValueError('InterpPool runs scan_batch only')
         try: it, res = self.idle.get_nowait()
         except self.Empty:   # none idle: a new worker
-            self._new(); it, res = self.idle.get_nowait()
+            (it, res), _ = self._new()
         try:
             it.prepare_main(_b=pickle.dumps(args[0], pickle.HIGHEST_PROTOCOL))
             it.exec('_out.put(_run(_b))')
