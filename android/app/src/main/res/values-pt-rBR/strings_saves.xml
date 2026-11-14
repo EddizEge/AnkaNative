@@ -30,11 +30,11 @@
     <string name="saves_cannot_remove">não é possível remover %1$s</string>
     <string name="saves_restore_mismatch_after">o save não corresponde ao backup depois da restauração (%1$s)</string>
     <!-- %1$s: the restore's set file, %2$s: the line it holds -->
-    <string name="saves_set_foreign">%1$s indica %2$s, não as partes deste save: o save fica como está; tire esse arquivo de lá para usar o save</string>
+    <string name="saves_set_foreign">%1$s indica %2$s, não as partes deste save: o save fica como está; mova esse arquivo para outro lugar para usar o save</string>
     <string name="saves_cannot_move_back">não é possível mover %1$s de volta para %2$s</string>
     <!-- %1$s: a marker file, %2$s: the path it holds, %3$s: the save folder's name (.new, .re and .restore are folder name endings, not words) -->
-    <string name="saves_marker_foreign">%1$s indica %2$s, não %3$s.new / .re / .restore: o save fica como está; tire esse marcador de lá para usar o save</string>
-    <string name="saves_marker_gone">%1$s indica %2$s, que não existe mais: o save fica como está; tire esse marcador de lá para usar o save</string>
+    <string name="saves_marker_foreign">%1$s indica %2$s, não %3$s.new / .re / .restore: o save fica como está; mova esse marcador para outro lugar para usar o save</string>
+    <string name="saves_marker_gone">%1$s indica %2$s, que não existe mais: o save fica como está; mova esse marcador para outro lugar para usar o save</string>
     <string name="saves_cannot_move">não é possível mover %1$s para %2$s</string>
     <string name="saves_is_link">%1$s é um link</string>
     <!-- A backup in the Restore list: %1$s is its date and time ("2026-11-03 14:05:09") -->
@@ -57,15 +57,15 @@
     <string name="saves_backup_wait">Fazendo backup do save de %1$s…</string>
     <!-- %1$s: why (saves_* above, or a system error) -->
     <string name="saves_backup_failed">Nenhum backup foi feito: %1$s\n\nO save em %2$s só foi lido, nunca alterado.</string>
-    <string name="saves_backup_done_title">Backup dos saves feito</string>
+    <string name="saves_backup_done_title">Backup dos saves concluído</string>
     <!-- %1$d files, %2$s their size ("1.2 MB"), %3$s the backup's folder -->
     <plurals name="saves_backup_done_body">
-        <item quantity="one">%1$d arquivo, %2$s, verificado arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
-        <item quantity="other">%1$d arquivos, %2$s, verificados arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+        <item quantity="one">%1$d arquivo, %2$s, conferido arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+        <item quantity="other">%1$d arquivos, %2$s, conferidos arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
     </plurals>
     <plurals name="saves_backup_done_body_device">
-        <item quantity="one">%1$d arquivo, %2$s, com o save do dispositivo, verificado arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
-        <item quantity="other">%1$d arquivos, %2$s, com o save do dispositivo, verificados arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+        <item quantity="one">%1$d arquivo, %2$s, com o save do dispositivo, conferido arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
+        <item quantity="other">%1$d arquivos, %2$s, com o save do dispositivo, conferidos arquivo por arquivo (SHA-256) com o save.\n\n%3$s\n\nO save em si não foi alterado. O app nunca exclui backups.</item>
     </plurals>
     <!-- %3$s: the Manage sheet's Back up saves row (home's label) -->
     <string name="saves_restore_none">Ainda não há backups de %1$s em %2$s. Use %3$s para criar um.</string>
