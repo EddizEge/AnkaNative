@@ -11,6 +11,7 @@ TEXTS = {
     'checks.busy': 'Checking...',
     'checks.fix': 'To fix it:',
     'checks.ok': 'Everything is there.',
+    'checks.ok_more': 'Everything is there (Down: the rest of the list).',
     'checks.missing': '{} missing: fix it as shown, then press r to check again (or start this again).',
     'checks.missing_plain': '{} missing: fix it as shown, then start this again.',
     'checks.same_fix': 'Fixed by the same steps as above.',
@@ -176,6 +177,8 @@ TEXTS = {
 
     'keys.checks_ok': 'Enter: go on   r: check again   q: quit',
     'keys.checks_bad': 'r: check again   Up / Down: scroll   q: quit',
+    'keys.checks_ok_more': 'Enter: go on   Up / Down: scroll   r: check again   q: quit',
+    'keys.scroll': 'Up / Down: scroll',
     'keys.pick': 'Enter: open / pick  Backspace: up  Tab: places  Ctrl+L: type a path  Esc: quit',
     'keys.path': 'Enter: go   Tab: complete   Ctrl+U: clear   Esc: cancel',
     'keys.confirm': 'Enter: start  + / -: workers  v: version  o: pack folder  b: back  q: quit',

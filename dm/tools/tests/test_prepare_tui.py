@@ -230,6 +230,31 @@ class Drawing(unittest.TestCase):
             self.assertEqual(line.rstrip().endswith('(+/-)'), beside, line)
             self.assertIn('(+/-)', sc.text())
 
+    def test_narrow_screen(self):
+        """At 60x18 nothing is lost without a sign: every key of the pick's and the confirm's key lines is on the screen (two rows), the confirm screen's
+        lines below the screen are marked and reached with Down, and checks that all pass but do not fit say so"""
+        g = scr.Glyphs(True)
+        p = FakePlan(translated=3305, kept=('main', 'subsdk0', 'sdk'), split=False)
+        sc = scr.Screen(60, 18, g); top = app.draw_confirm(sc, p); txt = sc.text()
+        self.assertEqual(top, 0)
+        for key in ('Enter: start', 'workers', 'v: version', 'o: pack folder', 'b: back', 'q: quit', 'Up / Down: scroll'): self.assertIn(key, txt)
+        self.assertIn(g.more, txt); self.assertNotIn('done around', txt)
+        sc = scr.Screen(60, 18, g); self.assertGreater(app.draw_confirm(sc, p, 99), 0); txt = sc.text()
+        self.assertIn('done around', txt); self.assertIn('shaders already translated', txt); self.assertNotIn(g.more, txt)
+        from prepare_tui.checks import Check
+        many = [Check(f'Check {i}', True, '/a/long/path/' * 4) for i in range(7)]
+        sc = scr.Screen(60, 18, g); app.draw_checks(sc, many); txt = sc.text()
+        self.assertIn('Down: the rest of the list', txt); self.assertIn(g.more, txt); self.assertIn('Up / Down: scroll', txt)
+        sc = scr.Screen(80, 24, g); app.draw_checks(sc, many[:3]); txt = sc.text()
+        self.assertIn('Everything is there.', txt); self.assertNotIn(g.more, txt); self.assertNotIn('scroll', txt)
+        for name, draw in self.screens():
+            if name != 'pick': continue
+            sc = scr.Screen(60, 18, g); draw(sc); txt = sc.text()
+            for key in ('Enter: open / pick', 'Backspace: up', 'Tab: places', 'Ctrl+L: type a path', 'Esc: quit'): self.assertIn(key, txt)
+        lv, t = live_at(FakePlan(), RUN_LINES)
+        sc = scr.Screen(60, 18, g); app.draw_run(sc, lv, Path('/x.log'), t)
+        self.assertIn('Find the shaders in the game', sc.text()); self.assertIn('12,034 of 42,854 shaders', sc.text())
+
     def test_key_lines_fit(self):
         """Each screen's key line is whole at 80 columns (the footer has 78)"""
         for k, v in texts.TEXTS.items():

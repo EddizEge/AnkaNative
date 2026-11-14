@@ -97,9 +97,30 @@ def title(sc, where):
     if scr.width(T('app.title')) + scr.width(r) + 4 <= sc.w: sc.put(sc.w - scr.width(r) - 1, 0, r, REV)
 
 
+def footer_rows(sc, text):
+    """The footer's text in rows: one when it fits, else its keys (parts two spaces apart) on two rows, so that no key is cut off on a narrow screen"""
+    n = sc.w - 2
+    if scr.width(text) <= n: return [text]
+    rows = ['']
+    for part in re.split(r'\s{2,}', text.strip()):
+        cand = part if not rows[-1] else rows[-1] + '  ' + part
+        if scr.width(cand) <= n or not rows[-1]: rows[-1] = cand
+        elif len(rows) < 2: rows.append(part)
+        else: rows[-1] = cand
+    return [scr.fit(r, n, sc.g.dots) for r in rows]
+
+
 def footer(sc, text):
-    sc.fill(0, sc.h - 1, sc.w, REV)
-    sc.put(1, sc.h - 1, scr.fit(text, sc.w - 2, sc.g.dots), REV)
+    """The keys at the bottom (two rows on a narrow screen: footer_rows; the row above the last is free on every screen for it)"""
+    rows = footer_rows(sc, text)
+    for i, r in enumerate(rows):
+        y = sc.h - len(rows) + i
+        sc.fill(0, y, sc.w, REV); sc.put(1, y, r, REV)
+
+
+def more_below(sc, y):
+    """The mark that more lines are below the screen, at the right end of row y"""
+    sc.put(sc.w - 3, y, sc.g.more, DIM)
 
 
 def field(sc, y, label, value, style=0, lw=14):
@@ -132,12 +153,13 @@ def draw_checks(sc, res, scroll=0, busy=False):
     for i, (parts, ind) in enumerate(lines[scroll:scroll + rows]):
         x = ind
         for txt, st in parts: x = sc.put(x, top + i, txt, st, sc.w - 1 - x)
+    if scroll + rows < len(lines): more_below(sc, top + rows - 1)
     bad = sum(1 for c in res if not c.ok)
     y = sc.h - 3
     if busy: sc.put(2, y, T('checks.busy'), CYAN)
     elif bad: sc.put(2, y, scr.fit(T('checks.missing', bad), sc.w - 4, sc.g.dots), RED | BOLD)
-    else: sc.put(2, y, T('checks.ok'), GREEN | BOLD)
-    footer(sc, T('keys.checks_ok') if not bad else T('keys.checks_bad'))
+    else: sc.put(2, y, scr.fit(T('checks.ok') if len(lines) <= rows else T('checks.ok_more'), sc.w - 4, sc.g.dots), GREEN | BOLD)
+    footer(sc, T('keys.checks_bad') if bad else T('keys.checks_ok_more') if len(lines) > rows else T('keys.checks_ok'))
     return len(lines) > rows
 
 
@@ -213,8 +235,9 @@ def draw_pick(sc, p):
         sc.put(lx + 1, top + i, scr.pad(scr.fit(name, lw - tw - 2, g.dots), lw - tw - 1) + tag, (st | REV) if sel else st)
     if not items: sc.put(lx + 1, top, T('pick.empty') if not p.b.filter else T('pick.nomatch'), DIM)
     if p.b.error: p.say(p.b.error, RED)
-    for i, l in enumerate(scr.wrap(p.msg, sc.w - 4)[:2]): sc.put(2, sc.h - 3 + i, l, p.msg_style)
-    footer(sc, T('keys.path') if p.path is not None else T('keys.pick'))
+    keys = T('keys.path') if p.path is not None else T('keys.pick')
+    for i, l in enumerate(scr.wrap(p.msg, sc.w - 4)[:3 - len(footer_rows(sc, keys))]): sc.put(2, sc.h - 3 + i, l, p.msg_style)
+    footer(sc, keys)
 
 
 def screen_pick(ui, p, check):
@@ -330,26 +353,35 @@ def plan_lines(plan, keys=True):
     return out
 
 
-def draw_confirm(sc, plan):
+def draw_confirm(sc, plan, scroll=0):
+    """The plan from its line scroll on (→ the scroll used: at most what still fills the screen; a narrow screen scrolls, with a mark when more is below)"""
     title(sc, T('where.confirm'))
     sc.put(2, 2, T('confirm.head'), BOLD)
-    y = 4
-    lw = max(scr.width(l) for l, _, _ in plan_lines(plan)) + 2
-    for lab, val, st in plan_lines(plan):
-        if y >= sc.h - 3: break
-        vals = [scr.fit(str(val), sc.w - 3 - lw, sc.g.dots, left=True)] if isinstance(val, Path) else scr.wrap(val, sc.w - 3 - lw)[:2]
-        for i, l in enumerate(vals):
-            if i == 0: sc.put(2, y, lab, DIM)
-            sc.put(2 + lw, y, l, st); y += 1
+    pl = plan_lines(plan)
+    lw = max(scr.width(l) for l, _, _ in pl) + 2
+    lines = []   # (label, text, style)
+    for lab, val, st in pl:
+        vals = [scr.fit(str(val), sc.w - 3 - lw, sc.g.dots, left=True)] if isinstance(val, Path) else scr.wrap(val, sc.w - 3 - lw)
+        lines += [(lab if i == 0 else '', l, st) for i, l in enumerate(vals)]
+    top, rows = 4, sc.h - 7
+    scroll = max(0, min(scroll, len(lines) - rows))
+    for i, (lab, l, st) in enumerate(lines[scroll:scroll + rows]):
+        sc.put(2, top + i, lab, DIM); sc.put(2 + lw, top + i, l, st)
+    if scroll + rows < len(lines): more_below(sc, top + rows - 1)
     if plan.short(): sc.put(2, sc.h - 3, scr.fit(T('confirm.short'), sc.w - 4, sc.g.dots), RED | BOLD)
-    footer(sc, T('keys.confirm'))
+    footer(sc, T('keys.confirm') + ('  ' + T('keys.scroll') if len(lines) > rows else ''))
+    return scroll
 
 
 def screen_confirm(ui, plan, remake):
     """The plan until Enter (→ the plan to run) or b (→ None: back to the pick). remake(plan, **changes) makes the plan again with another version or folder"""
+    scroll = 0
     while True:
-        ui.frame(lambda sc, plan=plan: draw_confirm(sc, plan))
+        ui.frame(lambda sc, plan=plan, scroll=scroll: draw_confirm(sc, plan, scroll))
+        scroll = ui.drawn   # (draw_confirm keeps it within the lines)
         for k in ui.keys():
+            if k.name in ('down', 'pgdn'): scroll += 1 if k.name == 'down' else 10
+            if k.name in ('up', 'pgup'): scroll = max(0, scroll - (1 if k.name == 'up' else 10))
             if k.name == 'enter':
                 if plan.short() and not ui.ask(lambda sc, plan=plan: draw_confirm(sc, plan), T('confirm.short_ask')): continue
                 if why := plan.ready(): ui.tell(lambda sc, plan=plan: draw_confirm(sc, plan), why); continue
@@ -434,7 +466,7 @@ def draw_run(sc, live, log, now, stopping=None):
     p = live.plan
     sc.put(2, 1, scr.fit(f'{p.g.get("name", "?")} ({p.x.app:016X}), ' + (T('confirm.version_base') if p.x.ver == 0 else T('run.version', p.x.ver)), sc.w - 4, g.dots), BOLD)
     y = 3
-    col = min(6 + max(scr.width(T(k)) for k in STEP_KEYS), sc.w // 2)   # the steps' details
+    col = min(6 + max(scr.width(T(k)) for k in STEP_KEYS), max(sc.w // 2, sc.w - 26))   # the steps' details (26 columns hold the longest)
     for i, k in enumerate(STEP_KEYS):
         s = step_status(live, i)
         mark, st = {'done': (g.ok, GREEN), 'now': (g.now, CYAN | BOLD), 'todo': (g.todo, DIM), 'skip': (g.skip, DIM)}[s]
