@@ -35,6 +35,9 @@ final class Prefs {
         int i = java.util.Arrays.asList(WINDOWS).indexOf(v);
         return i < 0 ? v : (shortName ? WINDOW_SHORT : WINDOW_NAMES)[i];
     }
+    /** The names of WINDOWS, in its order, for a list of all sizes. Another area's list (GameSettings) reads them here, never WINDOW_NAMES or a home_ key
+     *  (docs/i18n.md): the home area decides how they are stored and translated */
+    static String[] windowNames() { return WINDOW_NAMES.clone(); }
     static String window(Context c) { return of(c).getString("window", WINDOWS[0]); }
     static void window(Context c, String v) { of(c).edit().putString("window", v).commit(); }
 
