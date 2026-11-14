@@ -108,8 +108,8 @@ final class Native {
     /** The intro skip's state: bit 0 on, bit 1 the Minus+Plus combination armed (DM_SKIP set); -1 when this host has no skip */
     static native int skipStatus();
 
-    /** Mesh draws through compute (nxhost_mesh_status): out[0] compute pipelines queued so far, out[1] made, out[2] waiting now (their draws are skipped until made);
-     *  false when this host does not make them in the background (no mesh draw yet, DM_VK_MEMU_ASYNC=0, or not in this host) */
+    /** Mesh draws through compute (nxhost_mesh_status): out[0] compute pipelines queued so far, out[1] made, out[2] those a draw waits for now (its draws are
+     *  skipped until made; the prewarm list's are not counted); false when this host does not make them in the background (no mesh draw yet, DM_VK_MEMU_ASYNC=0, or not in this host) */
     static native boolean meshStatus(int[] out);
 
     /** The readiness check's Vulkan facts ("key=value" lines, nxhost_vk_readiness) on the driver env names (DM_VK_DRIVER / DM_VK_HOOKDIR; the other keys are not set);

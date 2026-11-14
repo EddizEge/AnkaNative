@@ -1274,13 +1274,14 @@ VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay) { int made; re
 // prewarm list queued moves to the first queue when a draw asks for it: what is on screen is drawn first, as the DM_VK_PSO_ASYNC queue comes before the prewarm list
 // for graphics pipelines (DM_VK_PREWARM_HELP). Without that, on the first start after an update (every compile a cache miss, up to 9.9 s each on the PC) the
 // scene's mesh draws waited behind the whole prewarm list (about 50 forms for Ocarina of Time)
-typedef struct mj { struct mj *next; gval *g; vka_shader *cs; vka_layout lay; uint64_t t0; } mj;
+typedef struct mj { struct mj *next; gval *g; vka_shader *cs; vka_layout lay; uint64_t t0; int drawn; } mj;
 static mj *g_mjd_head, **g_mjd_tail = &g_mjd_head, *g_mjp_head, **g_mjp_tail = &g_mjp_head;   // drawn first; then the prewarm list's
 static pthread_mutex_t g_mj_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_mj_cv = PTHREAD_COND_INITIALIZER;
 static _Atomic uint64_t g_mj_queued, g_mj_made, g_mj_ns, g_mj_lat_max_ns, g_mj_moved, g_mj_t_first; static _Atomic int g_mj_depth;
+static _Atomic int g_mj_drawn;   // forms a draw waits for, not made yet (in the drawn queue or being made from it): the launcher's note (nxhost_mesh_status), not the prewarm list's
 static void mj_push(mj *j, int drawn) {   // (under g_mj_mu)
-    j->next = NULL;
-    if (drawn) { *g_mjd_tail = j; g_mjd_tail = &j->next; } else { *g_mjp_tail = j; g_mjp_tail = &j->next; }
+    j->next = NULL; j->drawn = drawn;
+    if (drawn) { atomic_fetch_add(&g_mj_drawn, 1); *g_mjd_tail = j; g_mjd_tail = &j->next; } else { *g_mjp_tail = j; g_mjp_tail = &j->next; }
 }
 static mj *mj_pop(void) {   // (under g_mj_mu) the first a draw waits for, else the prewarm list's first
     mj *j = g_mjd_head;
@@ -1311,6 +1312,7 @@ static void *mj_main(void *a) {
         uint64_t t2 = now_ns(), lat = t2 - j->t0, cur = atomic_load(&g_mj_lat_max_ns);
         while (lat > cur && !atomic_compare_exchange_weak(&g_mj_lat_max_ns, &cur, lat)) {}
         atomic_fetch_add(&g_mj_ns, t2 - t1); atomic_fetch_add(&g_mj_made, 1);
+        if (j->drawn) atomic_fetch_sub(&g_mj_drawn, 1);
         if (atomic_fetch_sub(&g_mj_depth, 1) == 1) {   // the queue ran empty: every mesh draw met so far can be drawn (the launcher's note goes, GameActivity)
             static _Atomic int n; uint64_t f0 = atomic_exchange(&g_mj_t_first, 0);
             if (atomic_fetch_add(&n, 1) < 8) VLOG("mesh draws through compute: background queue empty, %llu compute pipelines made in all (%.1f s since the first of this batch was queued, "
@@ -1355,10 +1357,11 @@ void vka_memu_pso_line(char *out, size_t n) {
              (unsigned long long)atomic_load(&g_mj_queued), (unsigned long long)atomic_load(&g_mj_made), atomic_load(&g_mj_ns) / 1e6, atomic_load(&g_mj_lat_max_ns) / 1e6, atomic_load(&g_mj_depth),
              (unsigned long long)atomic_load(&g_mj_moved));
 }
-// The launcher's note while mesh draws wait for their compute pipelines (GameActivity, Native.meshStatus): out[0] queued so far, out[1] made, out[2] waiting now.
+// The launcher's note while mesh draws wait for their compute pipelines (GameActivity, Native.meshStatus): out[0] queued so far, out[1] made, out[2] those a draw waits
+// for now (the prewarm list's are not counted: they keep the queue busy for a while on every start, while nothing on screen is missing).
 // → 1 when this host draws mesh draws through compute on one background thread, 0 when not (then out is zeros)
 __attribute__((visibility("default"))) int nxhost_mesh_status(int *out, int n) {
-    int v[3] = {(int)atomic_load(&g_mj_queued), (int)atomic_load(&g_mj_made), atomic_load(&g_mj_depth)};
+    int v[3] = {(int)atomic_load(&g_mj_queued), (int)atomic_load(&g_mj_made), atomic_load(&g_mj_drawn)};
     for (int i = 0; i < n && i < 3; i++) out[i] = g_mj_up ? v[i] : 0;
     return g_mj_up;
 }
