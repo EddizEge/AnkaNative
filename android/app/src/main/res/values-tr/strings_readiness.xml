@@ -5,4 +5,144 @@
         <item quantity="one">%1$d oyun burada kısıtlı çalışıyor.</item>
         <item quantity="other">%1$d oyun burada kısıtlı çalışıyor.</item>
     </plurals>
+    <!-- Readiness.REQ_KEYS: "title: why", the why in lower case -->
+    <string name="readiness_req_feature_timeline_semaphore">Zaman çizelgesi semaforları: oyunun fence nesneleri bunların üzerine kurulu</string>
+    <string name="readiness_req_android_sdk">Android 12 ya da daha yenisi: uygulama bunun için derlendi</string>
+    <string name="readiness_req_vk_instance">Vulkan 1.1 ya da daha yeni yükleyici: Android 12\'nin yükleyicisi 1.1, Android 13\'ünki 1.3 bildirir; grafik aktarımının Vulkan 1.3 gereksinimini GPU sürücüsü karşılar (sonraki satır)</string>
+    <string name="readiness_req_vk_api">Vulkan 1.3 GPU sürücüsü: grafik aktarımı Vulkan 1.3 için yazıldı</string>
+    <string name="readiness_req_queue_graphics_compute">Grafik ve hesaplama kuyruğu: her şey bu türden tek bir kuyruğa gönderilir</string>
+    <string name="readiness_req_feature_dynamic_rendering">Dinamik çizim (dynamic rendering): her çizim geçişi onunla kaydedilir</string>
+    <string name="readiness_req_ext_vk_khr_swapchain">Swapchain: o olmadan hiçbir görüntü ekrana ulaşmaz</string>
+    <string name="readiness_req_ext_vk_khr_map_memory2">Bellek eşleme 2: yerleştirilmiş bellek eşlemeleri buna ihtiyaç duyar</string>
+    <string name="readiness_req_ext_vk_ext_map_memory_placed">Yerleştirilmiş bellek eşlemeleri: oyunun GPU belleği oyunun kendi adreslerine eşlenir; bunlar olmadan hiçbir şey çizilmez</string>
+    <string name="readiness_req_feature_descriptor_binding_sampled_image_update_after_bind">Doku tabloları (bağlamadan sonra güncelleme): oyunun doku havuzları bunların içinde</string>
+    <string name="readiness_req_feature_descriptor_binding_partially_bound">Doku tabloları (kısmen bağlı): oyunun doku havuzları bunların içinde</string>
+    <string name="readiness_req_feature_runtime_descriptor_array">Doku tabloları (çalışma zamanı dizileri): oyunun doku havuzları bunların içinde</string>
+    <!-- Readiness.REQ_MSG_KEYS: %2$s / %3$s is readiness_row_reports or readiness_row_not_reported -->
+    <string name="readiness_row_met">Mevcut (%1$s %2$s; gereken: %3$s).</string>
+    <string name="readiness_row_lacks">Bu cihazda yok; bu oyunun buna ihtiyacı var: %1$s. (%2$s %3$s; gereken: %4$s)</string>
+    <string name="readiness_row_lacks_bare">Bu cihazda yok; bu oyunun buna ihtiyacı var. (%1$s %2$s; gereken: %3$s)</string>
+    <string name="readiness_row_degraded">Eksik; bu oyun onsuz, kısıtlı çalışır: %1$s. (%2$s %3$s; gereken: %4$s)</string>
+    <string name="readiness_row_degraded_bare">Eksik: bu oyun onsuz, kısıtlı çalışır. (%1$s %2$s; gereken: %3$s)</string>
+    <string name="readiness_row_fact_memory">GiB cinsinden bellek:</string>
+    <string name="readiness_row_not_reported">bildirilmedi</string>
+    <string name="readiness_row_reports">bildirilen %1$s</string>
+    <string name="readiness_unchecked_no_host">bu derlemedeki host, GPU özelliklerini bildiremiyor</string>
+    <string name="readiness_unchecked_timeout">GPU kontrolü %1$d sn içinde yanıt vermedi</string>
+    <string name="readiness_check_gpu_features">GPU özellikleri</string>
+    <string name="readiness_gpu_error">GPU sürücüsü kullanılamadı (%1$s): oyun Vulkan 1.3 gerektirir.</string>
+    <string name="readiness_gpu_unchecked">Kontrol edilmedi (%1$s): bu GPU\'da oyunun ihtiyaç duyduklarının olup olmadığı bilinmiyor.</string>
+    <string name="readiness_check_status">Android\'deki durum</string>
+    <string name="readiness_status_bring_up">Bu oyun hâlâ Android\'e uyarlanıyor: bu telefon da dahil, her telefonda durabilir ya da yanlış çizebilir.</string>
+    <string name="readiness_gpu_not_reported">GPU bildirilmedi</string>
+    <string name="readiness_gpu_not_reported_why">GPU bildirilmedi (%1$s)</string>
+    <string name="readiness_gpu_system">%1$s, Vulkan %2$s; sürücü %3$s, sürücü kimliği %4$s, sürüm %5$s, sistem sürücüsü</string>
+    <string name="readiness_gpu_system_info">%1$s, Vulkan %2$s; sürücü %3$s (%4$s), sürücü kimliği %5$s, sürüm %6$s, sistem sürücüsü</string>
+    <string name="readiness_gpu_custom">%1$s, Vulkan %2$s; sürücü %3$s, sürücü kimliği %4$s, sürüm %5$s, özel sürücü %6$s</string>
+    <string name="readiness_gpu_custom_info">%1$s, Vulkan %2$s; sürücü %3$s (%4$s), sürücü kimliği %5$s, sürüm %6$s, özel sürücü %7$s</string>
+    <!-- ReadinessActivity -->
+    <string name="readiness_title">Uyumluluk denetimi</string>
+    <string name="readiness_checking">Kontrol ediliyor…</string>
+    <string name="readiness_share">Paylaş</string>
+    <string name="readiness_run_again">Yeniden çalıştır</string>
+    <string name="readiness_copy_report">Raporu kopyala</string>
+    <string name="readiness_share_title">Uyumluluk raporunu paylaş</string>
+    <string name="readiness_report_copied">Uyumluluk raporu kopyalandı</string>
+    <string name="readiness_fix_driver">GPU sürücüsü seç</string>
+    <string name="readiness_fix_access">Dosya erişimine izin ver</string>
+    <string name="readiness_fix_app">Uygulama ayarlarını aç</string>
+    <string name="readiness_section_phone">Bu telefon</string>
+    <string name="readiness_verdict_ready">Hazır</string>
+    <string name="readiness_verdict_limited">Hazır, sınırlı</string>
+    <string name="readiness_verdict_not_ready">Hazır değil</string>
+    <plurals name="readiness_summary_games_lack">
+        <item quantity="one">%1$d oyun için gerekenler eksik.</item>
+        <item quantity="other">%1$d oyun için gerekenler eksik.</item>
+    </plurals>
+    <plurals name="readiness_summary_phone_problems">
+        <item quantity="one">%1$d telefon sorunu.</item>
+        <item quantity="other">%1$d telefon sorunu.</item>
+    </plurals>
+    <plurals name="readiness_summary_games_lack_part">
+        <item quantity="one">%1$d oyun için gerekenler eksik</item>
+        <item quantity="other">%1$d oyun için gerekenler eksik</item>
+    </plurals>
+    <plurals name="readiness_summary_phone_problems_part">
+        <item quantity="one">%1$d telefon sorunu</item>
+        <item quantity="other">%1$d telefon sorunu</item>
+    </plurals>
+    <string name="readiness_summary_met_warnings">Her oyunun gereksinimleri karşılanıyor; aşağıdaki uyarılara bak.</string>
+    <string name="readiness_summary_met">Her oyunun gereksinimleri karşılanıyor.</string>
+    <string name="readiness_check_gpu">GPU ve sürücü</string>
+    <string name="readiness_gpu_stale">%1$s. Bu ekran açıkken GPU sürücüsü değiştirildi: yenisini kontrol etmek için ekrandan çık ve yeniden aç.</string>
+    <string name="readiness_check_driver_picked">Seçili GPU sürücüsü</string>
+    <string name="readiness_check_own_driver">Kendi GPU sürücüsü</string>
+    <string name="readiness_own_driver_same">%1$s; bu ekranın kontrol ettiği sürücü.</string>
+    <string name="readiness_own_driver_other">Bu oyun kendi GPU sürücüsünü kullanıyor: %1$s. Bu ekran ise şunu kontrol etti: %2$s. Oyun başlamadan önceki kontrol oyunun sürücüsünü kullanır ve sonucu bundan farklı olabilir.</string>
+    <string name="readiness_check_files">Oyun dosyaları</string>
+    <string name="readiness_files_nup">%1$s: okunabilen ve doğrulanan bir .nup (%2$s).</string>
+    <string name="readiness_files_unusable">%1$s kullanılamıyor: %2$s</string>
+    <string name="readiness_files_unreadable">%1$s, bu uygulamanın okuyabileceği bir klasör değil.</string>
+    <string name="readiness_files_no_npdm">%1$s içinde main.npdm yok (base/exefs/, updates/&lt;version&gt;/exefs/ ya da exefs/).</string>
+    <string name="readiness_files_folder">%1$s: okunabilen bir klasör.</string>
+    <string name="readiness_check_phone">Telefon</string>
+    <string name="readiness_phone_arm64">%1$s %2$s, Android %3$s, 64 bit ARM</string>
+    <string name="readiness_phone_not_arm64">%1$s %2$s, Android %3$s: uygulamanın gerektirdiği 64 bit ARM telefon değil</string>
+    <string name="readiness_check_memory">Bellek</string>
+    <string name="readiness_memory">Android\'in bildirdiğine göre %1$.1f GiB (kutudaki değerden az), şu an %2$.1f GiB boş.</string>
+    <string name="readiness_memory_low">Android\'in bildirdiğine göre %1$.1f GiB (kutudaki değerden az), şu an %2$.1f GiB boş; Android bunu düşük sayıyor.</string>
+    <string name="readiness_check_access">Tüm dosyalara erişim</string>
+    <string name="readiness_access_granted">Verildi.</string>
+    <string name="readiness_access_denied">Verilmedi: uygulama dökümü okuyamaz.</string>
+    <string name="readiness_check_storage">Boş depolama</string>
+    <string name="readiness_storage_ok">%1$.1f GB boş.</string>
+    <string name="readiness_storage_low">%1$.1f GB boş: bir oyunun paketi birkaç GB yer kaplar.</string>
+    <string name="readiness_check_battery">Pil</string>
+    <string name="readiness_battery_restricted">Pil kullanımı Kısıtlanmış: Android uygulamayı arka planda durdurabilir.</string>
+    <string name="readiness_battery_standby">Uygulama, Android\'in kısıtlı bekleme grubunda: arka planda durdurulabilir.</string>
+    <string name="readiness_battery_ok">Kısıtlama yok.</string>
+    <string name="readiness_check_last_exit">Son oyun çıkışı</string>
+    <string name="readiness_last_exit_none">Henüz hiç oyun çalışmadı.</string>
+    <!-- "Son oyun <when> <how>.": %2$s is readiness_ago_* (5 dakika önce, 2026-11-03 tarihinde), %1$s a readiness_exit_* verb phrase in the past -->
+    <string name="readiness_last_exit_normal">Son oyun %2$s %1$s.</string>
+    <string name="readiness_last_exit">Son oyun %2$s %1$s. Günlüğünü göndermek için: %3$s › %4$s.</string>
+    <string name="readiness_last_exit_desc">Son oyun %2$s %1$s (%3$s). Günlüğünü göndermek için: %4$s › %5$s.</string>
+    <string name="readiness_exit_memory">bellek yüzünden Android tarafından durduruldu</string>
+    <string name="readiness_exit_crashed">çöktü</string>
+    <string name="readiness_exit_anr">yanıt vermez oldu</string>
+    <string name="readiness_exit_normal">normal şekilde kapandı</string>
+    <string name="readiness_exit_other">kapandı (%1$s)</string>
+    <string name="readiness_exit_reason_signal">bir sinyal</string>
+    <string name="readiness_exit_reason_resources">çok fazla kaynak</string>
+    <string name="readiness_exit_reason_freezer">arka planda donduruldu</string>
+    <string name="readiness_exit_reason_permission">bir izin değişikliği</string>
+    <string name="readiness_exit_reason_dependency">bir bağımlılık sona erdi</string>
+    <string name="readiness_exit_reason_init">başlatma başarısız oldu</string>
+    <string name="readiness_exit_reason_code">neden %1$d</string>
+    <string name="readiness_check_kills">Bellek nedeniyle durdurmalar</string>
+    <plurals name="readiness_kills">
+        <item quantity="one">Son 7 günde %1$d oyun bellek yüzünden durduruldu, sonuncusu %2$s. Oynamadan önce diğer uygulamaları kapat.</item>
+        <item quantity="other">Son 7 günde %1$d oyun bellek yüzünden durduruldu, sonuncusu %2$s. Oynamadan önce diğer uygulamaları kapat.</item>
+    </plurals>
+    <string name="readiness_kills_none">Son 7 günde yok.</string>
+    <string name="readiness_ago_now">az önce</string>
+    <plurals name="readiness_ago_minutes">
+        <item quantity="one">%1$d dakika önce</item>
+        <item quantity="other">%1$d dakika önce</item>
+    </plurals>
+    <plurals name="readiness_ago_hours">
+        <item quantity="one">%1$d saat önce</item>
+        <item quantity="other">%1$d saat önce</item>
+    </plurals>
+    <plurals name="readiness_ago_days">
+        <item quantity="one">%1$d gün önce</item>
+        <item quantity="other">%1$d gün önce</item>
+    </plurals>
+    <string name="readiness_ago_date">%1$s tarihinde</string>
+    <string name="readiness_check_switches">Tanılama anahtarları</string>
+    <string name="readiness_switches_none">env.txt içinde yok.</string>
+    <string name="readiness_switches_on">env.txt içinde açık: %1$s.</string>
+    <string name="readiness_switches_unreadable">env.txt içinde açık: (env.txt okunamadı).</string>
+    <string name="readiness_clip_label">Uyumluluk raporu</string>
+    <string name="readiness_req_android_sdk_33">Android 13 ya da daha yenisi: Android 12 ve 12L test edilmedi; oyun orada başlamayabilir ya da yanlış çizebilir</string>
 </resources>
