@@ -2,7 +2,7 @@
 vk_android_build.py gets (DMSH_VK_INTERPS) for the cores the job may use and the memory the phone reports, and the translator's first generation (DOTNET_GCgen0size).
 PackService sets both for the shaders step, and the same count for the split (DM_SPLIT_INTERPS). The JVM part is skipped without a JDK.
 Build: vk_android_build.py with 2 subinterpreter workers gives the library, index.json and _vk_build.json of its threads, byte for byte, and where no worker can
-be set up, one line and the threads. It needs the phone's form on this computer, so it runs only when these are set (skipped otherwise):
+be set up, one line and the threads; the app's Pause ends it at the shader in hand, and the run that resumes makes the same library. It needs the phone's form on this computer, so it runs only when these are set (skipped otherwise):
 DMSH_TEST_XLATE_LIB the translator library built for this computer (dmsh_xlate_android, `dotnet publish dmsh_xlate_android.csproj -c Release
 -p:RuntimeIdentifier=linux-x64 -p:NativeLib=Shared -p:OutputType=Library`), DMSH_TEST_VK_PKG Ocarina of Time's split package (the shader_split.py package of
 the dump the profile's shader_map.tsv was made from); SPIRV-Tools' libSPIRV-Tools-shared from DMSH_TEST_SPIRV_LIB or the system's."""
@@ -82,6 +82,23 @@ sys.modules['concurrent.interpreters'] = None
 sys.argv = sys.argv[1:]; sys.path.insert(0, os.path.dirname(sys.argv[0]))
 runpy.run_path(sys.argv[0], run_name='__main__')
 """
+# Run the tool as the phone's packer does (android/ondevice/dm_pack.c): off Python's main thread, its output to a file, and the app's Pause as a KeyboardInterrupt
+# raised in its thread (PyThreadState_SetAsyncExc) once its first result file is written. Prints the seconds from the interrupt to the tool's end, and 130 or 0
+PAUSE = """import ctypes, os, runpy, sys, threading, time
+res, log, out = sys.argv[1], sys.argv[2], sys.stdout; sys.argv = sys.argv[3:]; sys.path.insert(0, os.path.dirname(sys.argv[0]))
+code = [None]
+def run():
+    sys.stdout = sys.stderr = open(log, 'w', buffering=1)
+    try: runpy.run_path(sys.argv[0], run_name='__main__'); code[0] = 0
+    except KeyboardInterrupt: code[0] = 130
+    except SystemExit as e: code[0] = e.code
+t = threading.Thread(target=run); t.start()
+while t.is_alive() and not (os.path.isdir(res) and any(n.endswith('.r') for n in os.listdir(res))): time.sleep(0.02)
+t0 = time.monotonic()
+ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(t.ident), ctypes.py_object(KeyboardInterrupt))
+t.join()
+print(f'{time.monotonic() - t0:.2f} {code[0]}', file=out)
+"""
 
 
 @unittest.skipUnless(XLATE_LIB and PKG and SPIRV_LIB and sys.version_info >= (3, 14), 'DMSH_TEST_XLATE_LIB, DMSH_TEST_VK_PKG and SPIRV-Tools\' library (Python 3.14)')
@@ -93,14 +110,15 @@ class Build(unittest.TestCase):
         rows = [l.split('\t') for l in (REPO / 'dm/games/0400486024DEC000/shader_map.tsv').read_text().splitlines() if l and not l.startswith(('#', 'package'))]
         cls.keys = [r[3] for r in rows[::1200]]   # 36 keys over the whole map, of every package; the tool adds their pairs
         (cls.tmp / 'no_interps.py').write_text(NO_INTERPS)
+        (cls.tmp / 'pause.py').write_text(PAUSE)
 
     @classmethod
     def tearDownClass(cls): shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def build(self, name, interps, wrap=(), fail=False):
+    def build(self, name, interps, wrap=(), fail=False, **more):
         d = self.tmp / name
         env = dict(os.environ, DM_GAME='0400486024DEC000', XLATE=XLATE_LIB, SPIRV_VAL=SPIRV_LIB, J='2', DMSH_VK_XLATE_J='1', DMSH_VK_INTERPS=str(interps),
-                   DMSH_VK_RESULTS=str(d / 'results'), TMPDIR=str(self.tmp))
+                   DMSH_VK_RESULTS=str(d / 'results'), TMPDIR=str(self.tmp), **more)
         env.pop('DMSH_VK_BUILD_CACHE', None)
         r = subprocess.run([sys.executable, *wrap, str(REPO / 'dm/gfx/tools/vk_android_build.py'), '--target', 'vulkan', PKG, str(d / 'out'), *self.keys],
                            capture_output=True, text=True, env=env)
@@ -120,6 +138,30 @@ class Build(unittest.TestCase):
         self.assertEqual(out_f.count('subinterpreters: not usable here ('), 1, out_f)   # once, for both phases
         self.assertIn('DMSH_VK_INTERPS=2 ignored, the shaders run in 2 threads of one interpreter as before', out_f)
         for n in threads: self.assertEqual(threads[n], fallback[n], n)
+
+    def test_pause(self):
+        """The app's Pause while the workers translate (subinterpreters, and threads): the tool ends at the shader in hand, not at the end of the batches in hand
+        (here one batch a phase, so a stop at its end would leave every shader of the phase translated). The shaders finished before the stop keep their results,
+        and the run that resumes from them makes the library of an uninterrupted run, byte for byte"""
+        whole, _ = self.build('pause_whole', 1)
+        for name, interps in (('pause_workers', 2), ('pause_threads', 1)):
+            with self.subTest(name):
+                d = self.tmp / name
+                r = self.build(name, interps, (str(self.tmp / 'pause.py'), str(d / 'results'), str(self.tmp / f'{name}.log')), fail=True, DMSH_VK_BATCH='1000')
+                self.assertEqual(r.returncode, 0, r.stderr[-3000:])
+                secs, code = r.stdout.split()
+                log = (self.tmp / f'{name}.log').read_text()
+                self.assertEqual(code, '130', log[-3000:])
+                kept = [p.name for p in (d / 'results').glob('*.r')]
+                phase1 = len(re.findall(r'^progress \d+ \d+ translate$', log, re.M))
+                self.assertEqual(phase1, 1, log[-2000:])   # the interrupt came in the first phase's one batch: no batch was counted done
+                self.assertGreater(len(kept), 0)
+                total = int(re.search(r'^translating (\d+) shaders', log, re.M).group(1))
+                self.assertLess(len(kept), total // 2, f'{len(kept)} of {total} results after the stop: the batch in hand ran on')
+                self.assertLess(float(secs), 30.0)
+                again, out = self.build(name, interps)
+                self.assertIn(f'({len(kept)} already in ', out)
+                for n in whole: self.assertEqual(whole[n], again[n], n)
 
     def test_cut_short_result(self):
         """A result file cut short (its head whole, a module's bytes not) stops the library before any of it is written: no dmsh_vk.lib.tmp is left"""

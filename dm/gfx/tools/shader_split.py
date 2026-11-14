@@ -66,6 +66,7 @@ import base64, collections, concurrent.futures as cf, hashlib, json, os, pickle,
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../tools'))
 from romfs import os, open, is_image
 import nup
+from stop_pool import Pool   # the thread pools an interrupt does not wait out (stop_pool.py)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../games')); import game as _game
 from profile_guess import glsl_sources
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import uepak, split_delta
@@ -810,7 +811,7 @@ def zip_jobs(files, parts=64):
     zs = []
     def head(pr):   # (each file's first 4 bytes: read by several threads, as reading them one after another waited on the storage for each; a phone took minutes)
         with open(pr[0], 'rb') as f: return f.read(4)
-    with cf.ThreadPoolExecutor(min(8, os.cpu_count() or 1)) as ex: heads = list(ex.map(head, files, chunksize=256))
+    with Pool(min(8, os.cpu_count() or 1)) as ex: heads = list(ex.map(head, files, chunksize=256))
     for (p, r), h in zip(files, heads):
         if h != ZIP: continue
         try:

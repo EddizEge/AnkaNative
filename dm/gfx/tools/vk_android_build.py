@@ -34,6 +34,8 @@
 #   and the library is written from the result files. Pixel shaders go first; the vertex shaders' padding reads their inputs from the pixel shaders' results.
 #   Progress lines on stdout: "progress <done> <total> <stage>" (stage translate, library, done); the total is the shader count from the profile's shader_map.tsv, known
 #   before any translation
+# Stopped: an interrupt (KeyboardInterrupt: Ctrl-C, or the phone's Pause, which raises it in the tool's thread) ends the translation within about one shader: the batches
+#   in hand end before their next shader or translator call (run_batches, check_stop), each shader finished before it keeps its result, and a rerun goes on from them
 # Build cache (across versions: vk_android_delta.py BuildCache, android/SHADERS.md#build-speed): the translator's output per job (stamped with the translator's files,
 #   DMSH_CHAIN, the profile inputs and the job itself) and each finished module's validated, compressed form (by the module's SHA-256, stamped with the validator, the zstd
 #   level and library), so a change of a post-pass translates nothing and validates and compresses only the modules it changed. A stale or corrupt entry is made again
@@ -43,10 +45,11 @@
 #   and a key the package does not hold stops the build before any translation (locate)
 # Output: dmsh_vk.lib (the library), index.json (the same reflection as JSON, for tools), inputs.tsv (game and profile inputs, as the Apple libraries' stamp),
 #   _vk_build.json (each key's status), and a summary on stdout: counts, failure reasons, what the device must support
-import ast, collections, concurrent.futures as cf, ctypes, hashlib, json, mmap, os, re, shutil, struct, subprocess, sys, tempfile, threading, time
+import ast, collections, concurrent.futures as cf, ctypes, hashlib, json, mmap, os, re, select, shutil, struct, subprocess, sys, tempfile, threading, time
 HERE = os.path.dirname(os.path.abspath(__file__)); GFX = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import dmsh_chain, dmsh_abi as abi, dmsh_ampere, tool_lock, vk_android_spv as spv, vk_android_delta as delta
+from stop_pool import Pool   # the thread pools an interrupt does not wait out (stop_pool.py)
 
 try: from compression import zstd   # Python 3.14; before it, pip install backports.zstd (shader_split.py needs it too)
 except ImportError:
@@ -286,7 +289,7 @@ def check_library(path, validator, nj):
         if len(raw) != size or raw[:4] != struct.pack('<I', spv.MAGIC): return f'{tag}: not SPIR-V of {size} bytes'
         err = validator(raw)
         return None if err is None else f'{tag}: ' + err[:160]
-    with cf.ThreadPoolExecutor(nj) as ex: bad += [x for x in ex.map(one, jobs_) if x]
+    with Pool(nj) as ex: bad += [x for x in ex.map(one, jobs_) if x]
     print(f'{path}: {ne} shaders, {len(jobs_)} modules, game {game.rstrip(bytes(1)).decode()}, chain {chain.rstrip(bytes(1)).decode()}, vk chain {vkc.rstrip(bytes(1)).decode()}'
           + f', subgroup size {sg or 32}, storage buffer alignment {sa or "exact"}, modules by variant ' + ', '.join(f'{v} {n}' for v, n in sorted(collections.Counter(int(t.split('_')[1]) for t, *_ in jobs_).items())) + ': '
           + (f'{len(bad)} problems' if bad else 'every module decompresses and passes spirv-val --target-env vulkan1.3'))
@@ -347,7 +350,7 @@ if argv[:1] == ['--publish-delta'] and len(argv) >= 2:
 if len(argv) < 4 or argv[0] != '--target' or argv[1] not in ('vulkan', 'android'): sys.exit(__doc__ or 'usage: vk_android_build.py --target vulkan <package dir> <output cache dir> [key...] | --header | --version')
 dm_dir, cache_root, want = argv[2], argv[3], set(argv[4:])
 # Set when this script runs as a translation worker in a subinterpreter (run_batches_interps, DMSH_VK_INTERPS): what the parent gives it (its work folder, the
-# shaders' places, the package's record offsets, the pixel shaders' inputs, the translator gate). A worker runs the set-up below up to WorkerReady, then the batches
+# shaders' places, the package's record offsets, the pixel shaders' inputs, the translator gate, the stop pipe). A worker runs the set-up below up to WorkerReady, then the batches
 WORKER = globals().get('_DMSH_VK_WORKER')
 
 CHAIN = dmsh_chain.version(); VKV = vk_version(); TOOLS = tools_digest()
@@ -583,6 +586,7 @@ XLATE_GATE = threading.Semaphore(XLATE_J)   # (a subinterpreter worker's is Pipe
 def translate(jobs_list, w, tag):
     jp = os.path.join(w, f'job_{tag}.json'); json.dump(jobs_list, open(jp, 'w'))
     with XLATE_GATE:
+        check_stop()   # (a worker that waited for the gate while the build was stopped: no new translator call)
         if XLATE_LIB: return XLATE_LIB([jp, w], os.path.join(w, f'log_{tag}.txt'))
         return subprocess.run([XLATE, jp, w], capture_output=True, text=True)
 
@@ -1005,28 +1009,48 @@ def fin(key, bd, job, c1, xerr):
     except (ValueError, KeyError, IndexError, StopIteration) as e: return key, 'reflection failed', f'{type(e).__name__}: {e}'[:160], None
 
 
+class Stopped(BaseException):
+    """A batch in a stopped build (run_batches: an interrupt, the phone's Pause): raised before the next shader or translator call. A BaseException, so no
+    `except Exception` on the way (a shader's reflection, a cache read) takes it for that shader's failure"""
+
+
+# run_batches: what check_stop reads while a phase runs, set once the phase is stopped. Threads of this interpreter: a threading.Event. Subinterpreter workers and
+# forked processes: the read end of a stop pipe (select on a pipe needs a POSIX system, which those two run on; the threads also run on Windows)
+_STOP = None
+
+
+def check_stop():
+    s = _STOP
+    if s is None: return
+    if s.is_set() if isinstance(s, threading.Event) else select.select([s], [], [], 0)[0]: raise Stopped('the build was stopped')
+
+
 def run_batch(batch):
-    """Translate a batch of shaders in one translator call, finish each (fin) and write its result file"""
+    """Translate a batch of shaders in one translator call, finish each (fin) and write its result file. A stop (check_stop) ends it before the translator call or
+    between two shaders: each shader finished before it has its result file, and a rerun translates the others"""
+    check_stop()
     bd = tempfile.mkdtemp(prefix='b_', dir=w); jobs, c1s = {}, {}
-    for key in batch:
-        name, k = loc[key]
-        jobs[key], c1s[key] = NS['job_for'](key, name, _rec(name, k), bd)
-        jobs[key].update(ANSWERS)
-        if STAGE_OF[key] == 'ms': jobs[key]['gl_depth_spec'] = VK['SPEC_GL_DEPTH']
-    _tls.c = collections.Counter()
-    r = translate_cached([jobs[k] for k in batch], bd, batch[0])
-    xerr = {}
-    for ln in r.stderr.splitlines():
-        mm = re.match(r'\[RED\] (\w+): (.*)', ln)
-        if mm: xerr[mm.group(1)] = mm.group(2)[:160]
-    if r.returncode not in (0, 1):   # the translator itself failed (killed, crashed): nothing of this batch is a result
+    try:
+        for key in batch:
+            name, k = loc[key]
+            jobs[key], c1s[key] = NS['job_for'](key, name, _rec(name, k), bd)
+            jobs[key].update(ANSWERS)
+            if STAGE_OF[key] == 'ms': jobs[key]['gl_depth_spec'] = VK['SPEC_GL_DEPTH']
+        _tls.c = collections.Counter()
+        r = translate_cached([jobs[k] for k in batch], bd, batch[0])
+        xerr = {}
+        for ln in r.stderr.splitlines():
+            mm = re.match(r'\[RED\] (\w+): (.*)', ln)
+            if mm: xerr[mm.group(1)] = mm.group(2)[:160]
+        if r.returncode not in (0, 1):   # the translator itself failed (killed, crashed): nothing of this batch is a result
+            raise RuntimeError(f'translator exit code {r.returncode} on {len(batch)} shaders from {batch[0]}: ' + (r.stderr.strip().splitlines() or [''])[-1][:200])
+        for key in batch:
+            check_stop()
+            res = fin(key, bd, jobs[key], c1s[key], xerr)
+            if res[1] == 'translation failed' and key not in xerr: continue   # neither a module nor the translator's reason: not a result (a rerun translates it again)
+            write_result(key, *res[1:], PS_INPUTS.get(key) if STAGE_OF[key] != 'vs' else None)
+    finally:
         shutil.rmtree(bd, ignore_errors=True)
-        raise RuntimeError(f'translator exit code {r.returncode} on {len(batch)} shaders from {batch[0]}: ' + (r.stderr.strip().splitlines() or [''])[-1][:200])
-    for key in batch:
-        res = fin(key, bd, jobs[key], c1s[key], xerr)
-        if res[1] == 'translation failed' and key not in xerr: continue   # neither a module nor the translator's reason: not a result (a rerun translates it again)
-        write_result(key, *res[1:], PS_INPUTS.get(key) if STAGE_OF[key] != 'vs' else None)
-    shutil.rmtree(bd, ignore_errors=True)
     c = _tls.c; del _tls.c
     return len(batch), c   # (the parent counts the progress and the cache's hits: a worker process has its own globals)
 
@@ -1039,21 +1063,49 @@ PROCS = max(1, int(os.environ.get('DMSH_VK_PROCS') or (NJ if XLATE_LIB is None a
 
 
 def run_batches(batches):
-    global INTERPS
+    """The batches of a phase in the workers: subinterpreters (DMSH_VK_INTERPS), processes (DMSH_VK_PROCS) or J threads. On an interrupt the workers are stopped
+    (_STOP: each batch in hand ends before its next shader or translator call, run_batch), the batches not started are dropped, and the interrupt goes on
+    once every batch in hand has ended. The parent waits with a timeout (collect), so an interrupt raised in its thread is taken within half a second, not after
+    the next whole batch: Python delivers it only between bytecodes, and an untimed wait for a future does not return before one finishes"""
+    global INTERPS, _STOP
     if not batches: return
     if INTERPS > 1:
         if run_batches_interps(batches): return
         INTERPS = 1   # no worker could be set up here: the threads, for this phase and the next
     if PROCS > 1:
         import multiprocessing
-        ex = cf.ProcessPoolExecutor(min(PROCS, len(batches)), mp_context=multiprocessing.get_context('fork'))
-    else: ex = cf.ThreadPoolExecutor(NJ)
+        pipe = os.pipe()   # (made before the workers: forked processes inherit it)
+        _STOP = pipe[0]
+        try:
+            with cf.ProcessPoolExecutor(min(PROCS, len(batches)), mp_context=multiprocessing.get_context('fork')) as ex:
+                collect(ex.submit, run_batch, batches, lambda: os.write(pipe[1], b'x'))
+        finally:
+            _STOP = None
+            for fd in pipe: os.close(fd)
+    else:
+        _STOP = threading.Event()
+        try:
+            with cf.ThreadPoolExecutor(NJ) as ex: collect(ex.submit, run_batch, batches, _STOP.set)
+        finally: _STOP = None
+
+
+def collect(submit, fn, batches, stop):
+    """Runs fn on each batch through submit(fn, batch) (an executor's), counting the progress of each as it ends. On any exception here (an interrupt, a batch that
+    failed) the workers are stopped (stop(): what check_stop reads), the batches not started are cancelled, and this waits for those in hand before it raises: they
+    end at their next shader (Stopped)"""
+    fs = []
     try:
-        for f in cf.as_completed([ex.submit(run_batch, b) for b in batches]):
-            n, c = f.result(); STATS.update(c); progress('translate', n)
+        fs = [submit(fn, b) for b in batches]
+        pending = set(fs)
+        while pending:   # a timed wait, not as_completed (see run_batches)
+            done, pending = cf.wait(pending, timeout=0.5, return_when=cf.FIRST_COMPLETED)
+            for f in done:
+                n, c = f.result(); STATS.update(c); progress('translate', n)
     except BaseException:
-        ex.shutdown(wait=True, cancel_futures=True); raise
-    ex.shutdown()
+        stop()
+        for f in fs: f.cancel()
+        cf.wait(fs)
+        raise
 
 
 # Subinterpreter workers: DMSH_VK_INTERPS (default 1: J threads of this interpreter, as before). The phone runs this tool in the app's process, which must not fork
@@ -1111,8 +1163,8 @@ def run_batches_interps(batches):
     import queue
     need = {k for b in batches for k in b}
     ps = set().union(*[PAIRS.get(k, ()) for k in need if STAGE_OF[k] == 'vs'])
-    gate = os.pipe(); os.write(gate[1], b'x' * XLATE_J)
-    cfg = json.dumps({'work': w, 'file': os.path.abspath(__file__), 'here': HERE, 'argv': sys.argv, 'loc': {k: loc[k] for k in need}, 'gate': gate,
+    gate, stop = os.pipe(), os.pipe(); os.write(gate[1], b'x' * XLATE_J)   # the translator gate (PipeGate), the stop pipe (check_stop, collect)
+    cfg = json.dumps({'work': w, 'file': os.path.abspath(__file__), 'here': HERE, 'argv': sys.argv, 'loc': {k: loc[k] for k in need}, 'gate': gate, 'stop': stop[0],
                       'packs': {n: offs for n, (_, offs) in packs.items()}, 'ps_inputs': {k: sorted(PS_INPUTS[k]) for k in ps if k in PS_INPUTS}})
     idle, made, ready = queue.SimpleQueue(), [], set()   # workers not running a batch: (interpreter, its result queue); every worker; the ids of those whose set-up ran
 
@@ -1131,6 +1183,7 @@ def run_batches_interps(batches):
             it.exec(f'_out.put(_ns["run_batch_json"]({list(batch)!r}))')
             n, c = json.loads(res.get())   # (exec has returned: the result is in the queue, no wait)
         except interpreters.ExecutionFailed as e:   # run_batch raised (a translator that died): as from a thread, the build stops
+            if e.excinfo.type.__name__ == 'Stopped': raise Stopped(e.excinfo.msg) from None   # (the build was stopped: the batch ended between two shaders)
             raise RuntimeError(f'translation worker, batch from {batch[0]}: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
         finally: idle.put((it, res))
         return n, collections.Counter(c)
@@ -1141,11 +1194,7 @@ def run_batches_interps(batches):
         except Exception as e: return interps_unusable(e)
         if not INTERPS_SAID: print(f'subinterpreters: {INTERPS} translation workers', flush=True); INTERPS_SAID.append(1)
         ex = cf.ThreadPoolExecutor(min(INTERPS, len(batches)))
-        for f in cf.as_completed([ex.submit(one, b) for b in batches]):
-            n, c = f.result(); STATS.update(c); progress('translate', n)
-    except BaseException:
-        if ex: ex.shutdown(wait=True, cancel_futures=True)
-        raise
+        collect(ex.submit, one, batches, lambda: os.write(stop[1], b'x'))
     finally:
         if ex: ex.shutdown()
         left = 0
@@ -1156,7 +1205,8 @@ def run_batches_interps(batches):
                 it.close()
             except Exception as e:
                 left += 1; print(f'[RED] a translation worker could not be closed ({type(e).__name__}: {e}): it stays in this process', flush=True)
-        if not left: os.close(gate[0]); os.close(gate[1])   # (a worker left running may still use the gate)
+        if not left:   # (a worker left running may still use the gate and the stop pipe)
+            for fd in gate + stop: os.close(fd)
     return True
 
 
@@ -1171,12 +1221,12 @@ def interps_unusable(e):
 
 
 if WORKER:   # a subinterpreter worker: the parent's work folder, the shaders' places (locate may have moved them), its own descriptors of the package files, the pixel
-    # shaders' inputs for the vertex phase and the translator gate; the parent's preparation below is not run
+    # shaders' inputs for the vertex phase, the translator gate and the stop pipe; the parent's preparation below is not run
     w = WORKER['work']
     loc.update({k: tuple(v) for k, v in WORKER['loc'].items()})
     for _name, _offs in WORKER['packs'].items(): packs[_name] = (os.open(os.path.join(dm_dir, _name), os.O_RDONLY), _offs)
     PS_INPUTS.update({k: set(v) for k, v in WORKER['ps_inputs'].items()})
-    XLATE_GATE = PipeGate(*WORKER['gate'])
+    XLATE_GATE = PipeGate(*WORKER['gate']); _STOP = WORKER['stop']
     raise WorkerReady
 
 T_START = time.time()
@@ -1213,7 +1263,7 @@ if MANIFEST:
     _cand = [k for k in keys if k not in heads and MANIFEST['hashes'].get(k, '-') != '-']
     _from = collections.Counter()
     _st = [k for k in _cand if os.path.exists(result_path(k))]
-    with cf.ThreadPoolExecutor(NJ) as ex:   # results of other tools or inputs first: the files are here, no library is opened for them
+    with Pool(NJ) as ex:   # results of other tools or inputs first: the files are here, no library is opened for them
         for k, v in zip(_st, ex.map(stale_kept, _st)):
             if v:
                 _from[v] += 1; REUSED.add(k)
@@ -1234,7 +1284,7 @@ if MANIFEST:
             write_result(k, 'ok', '', (refl, [(v, size, bytes(st), codec, None) for v, size, st, codec in mods]), None)
             return k, L.version, None
         return k, None, '; '.join(errs) or None
-    with cf.ThreadPoolExecutor(NJ) as ex:
+    with Pool(NJ) as ex:
         for k, v, err in ex.map(_reuse, [k for k in _cand if k in _have]):
             if err: print(f'[RED] delta: {k}: the older library\'s entry cannot be read ({err}): translated', flush=True)
             if v:
