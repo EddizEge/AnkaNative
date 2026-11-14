@@ -353,7 +353,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         try { Files.write(new File(getExternalFilesDir(null), "readiness-" + id + ".txt").toPath(), report.getBytes(StandardCharsets.UTF_8)); } catch (IOException ignored) { /* the screen's report leaves it out */ }
         readinessDone = true;
         List<Readiness.Check> fails = Readiness.of(l, Readiness.Status.FAIL), warns = Readiness.of(l, Readiness.Status.WARNING);
-        String gpu = getString(R.string.game_details_gpu, Readiness.gpu(f), f.get("ram_gib"));
+        String gpu = getString(R.string.game_details_gpu, Readiness.gpuMsg(f).text(), f.get("ram_gib"));
         // The notice is short (what is missing, by name); Details has each item's sentence, the GPU and Copy report
         if (!fails.isEmpty()) {
             List<String> names = new ArrayList<>();
