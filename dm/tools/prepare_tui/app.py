@@ -310,7 +310,7 @@ def plan_lines(plan, keys=True):
     out.append((T('confirm.file'), x.folder, 0))
     out.append((T('confirm.out'), plan.out, 0))
     mem = model.free_memory()
-    out.append((T('confirm.workers'), T('confirm.workers_value', plan.J, os.cpu_count() or '?', model.gb(mem) if mem else '?') + ('   ' + T('confirm.workers_keys') if keys else ''), 0))
+    out.append((T('confirm.workers'), T('confirm.workers_value', plan.J, os.cpu_count() or '?', model.gb(mem) if mem else '?') + ('  ' + T('confirm.workers_keys') if keys else ''), 0))   # (the hint has no space: a narrow screen moves it whole)
     sp = plan.space()
     if not sp: out.append((T('confirm.disk'), T('confirm.disk_none'), 0))   # (everything is kept from an earlier run)
     for e, need, free in sp:

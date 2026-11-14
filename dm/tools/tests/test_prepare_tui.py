@@ -219,6 +219,16 @@ class Drawing(unittest.TestCase):
                     if name == 'end-failed' and w >= 80: self.assertIn('Not enough free space (/games/x)', txt)
                     if name == 'end-stopped': self.assertIn('What was finished is kept', txt)
 
+    def test_workers_hint_whole(self):
+        """The workers' key hint is never cut in two at 80 columns: beside the value when it fits (12 threads, 11.2 GB: the real run's), else whole below"""
+        from unittest import mock
+        for cpus, mem, beside in ((12, 11_200_000_000, True), (128, 251_300_000_000, False)):
+            with mock.patch('os.cpu_count', return_value=cpus), mock.patch.object(model, 'free_memory', return_value=mem):
+                sc = scr.Screen(80, 24, scr.Glyphs(True)); app.draw_confirm(sc, FakePlan())
+            line = next(l for l in sc.text().split('\n') if 'shaders at once' in l)
+            self.assertEqual(line.rstrip().endswith('(+/-)'), beside, line)
+            self.assertIn('(+/-)', sc.text())
+
     def test_key_lines_fit(self):
         """Each screen's key line is whole at 80 columns (the footer has 78)"""
         for k, v in texts.TEXTS.items():
@@ -382,8 +392,8 @@ class Output(unittest.TestCase):
         p = FakePlan()
         p.x.vers = {0: None, 131072: None}
         full, plain = ' '.join(str(v) for _, v, _ in app.plan_lines(p)), ' '.join(str(v) for _, v, _ in app.plan_lines(p, keys=False))
-        self.assertIn('+ / -', full); self.assertIn('v: another', full)
-        self.assertNotIn('+ / -', plain); self.assertNotIn('v: another', plain)
+        self.assertIn('(+/-)', full); self.assertIn('v: another', full)
+        self.assertNotIn('(+/-)', plain); self.assertNotIn('v: another', plain)
 
     def test_whole_job_on_resume(self):
         """A resumed translation's count includes what the earlier run translated: the whole job's bar starts the step at this run's share, not ahead of it"""
