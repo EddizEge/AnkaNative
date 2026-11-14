@@ -55,6 +55,7 @@ static void dev_log(const char *fmt, ...) {
 vka_fns vk;
 vka_dev V = {.qmu = PTHREAD_MUTEX_INITIALIZER};
 static int g_state;   // 0 not tried, 1 up, -1 failed
+static int g_fault_on;   // VK_EXT_device_fault enabled with its deviceFault feature (fault_report)
 static pthread_mutex_t g_init_mu = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -120,7 +121,7 @@ static int init_once(void) {
 
     uint32_t nde = 0; vk.vkEnumerateDeviceExtensionProperties(V.pd, NULL, &nde, NULL);
     VkExtensionProperties *de = calloc(nde ? nde : 1, sizeof *de); vk.vkEnumerateDeviceExtensionProperties(V.pd, NULL, &nde, de);
-    const char *dext[16]; uint32_t ndext = 0;
+    const char *dext[20]; uint32_t ndext = 0;
     { char q[700]; size_t qn = 0; q[0] = 0;   // the vendor's own extensions (tile properties, render pass transforms ...): what a tiler-specific path could use
       for (uint32_t i = 0; i < nde && qn < sizeof q; i++) if (strstr(de[i].extensionName, "_QCOM_")) qn += (size_t)snprintf(q + qn, sizeof q - qn, " %s", de[i].extensionName + 3);
       if (qn) VLOG("device extensions of the vendor:%s", q); }
@@ -147,6 +148,11 @@ static int init_once(void) {
     if (x_mesh) dext[ndext++] = VK_EXT_MESH_SHADER_EXTENSION_NAME;
     int x_ph = has_ext(de, nde, "VK_QCOM_queue_perf_hint");
     if (x_ph) dext[ndext++] = "VK_QCOM_queue_perf_hint";
+    // VK_EXT_device_fault: after a lost device, what the driver knows of the fault (the address a GPU access faulted on, its kind, the vendor's codes), printed with the
+    // hang (fault_report). DM_VK_DEVICE_FAULT=0 (restart) leaves the extension off. From Banana Native 65745297 (v0.3.0, MIT)
+    const char *fault_env = getenv("DM_VK_DEVICE_FAULT");
+    int x_fault = has_ext(de, nde, VK_EXT_DEVICE_FAULT_EXTENSION_NAME) && !(fault_env && !strcmp(fault_env, "0"));
+    if (x_fault) dext[ndext++] = VK_EXT_DEVICE_FAULT_EXTENSION_NAME;
     free(de);
 
     // Every feature the device has, but robustness and capture-replay (they cost and nothing needs them); the shader side takes what it needs from the same device
@@ -157,10 +163,11 @@ static int init_once(void) {
     VkPhysicalDeviceVertexAttributeDivisorFeatures fdiv = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES};
     VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT fgpl = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT};
     VkPhysicalDeviceMeshShaderFeaturesEXT fmesh = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT};
+    VkPhysicalDeviceFaultFeaturesEXT ffault = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT};
     void *chain = placed ? &fmp : NULL;
 #define LINK(on, st) if (on) { (st).pNext = chain; chain = &(st); }
     struct { VkStructureType sType; void *pNext; VkBool32 queuePerfHint; } fph = {(VkStructureType)1000302001};   // VkPhysicalDeviceQueuePerfHintFeaturesQCOM (not in the NDK's headers yet)
-    LINK(x_vin, fvin) LINK(x_rob, frob) LINK(x_i8, fi8) LINK(x_div, fdiv) LINK(x_ph, fph) LINK(x_gpl, fgpl) LINK(x_mesh, fmesh)
+    LINK(x_vin, fvin) LINK(x_rob, frob) LINK(x_i8, fi8) LINK(x_div, fdiv) LINK(x_ph, fph) LINK(x_gpl, fgpl) LINK(x_mesh, fmesh) LINK(x_fault, ffault)
 #undef LINK
     VkPhysicalDeviceVulkan13Features f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, .pNext = chain};
     VkPhysicalDeviceVulkan12Features f12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, .pNext = &f13};
@@ -170,6 +177,7 @@ static int init_once(void) {
     f2.features.robustBufferAccess = VK_FALSE; f13.robustImageAccess = VK_FALSE;
     f12.bufferDeviceAddressCaptureReplay = VK_FALSE; f12.bufferDeviceAddressMultiDevice = VK_FALSE;
     frob.robustBufferAccess2 = VK_FALSE; frob.robustImageAccess2 = VK_FALSE;   // only nullDescriptor: unbound slots read a null descriptor
+    ffault.deviceFaultVendorBinary = VK_FALSE; g_fault_on = x_fault && ffault.deviceFault;   // (the vendor's binary dump is not read)
     // Mesh shading: the task and mesh stages only (multiview, shading-rate and query support each need more of the device than the replay enables or uses)
     fmesh.multiviewMeshShader = VK_FALSE; fmesh.primitiveFragmentShadingRateMeshShader = VK_FALSE; fmesh.meshShaderQueries = VK_FALSE;
     if (x_mesh && !fmesh.meshShader) fmesh.taskShader = VK_FALSE;   // (task shading is of no use without mesh shading)
@@ -287,9 +295,11 @@ VkResult vka_submit(VkCommandBuffer cb, uint64_t signal, uint32_t nwait, const V
     VkTimelineSemaphoreSubmitInfo ti = {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, .waitSemaphoreValueCount = nwait, .pWaitSemaphoreValues = wv, .signalSemaphoreValueCount = ns, .pSignalSemaphoreValues = sv};
     VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, .pNext = &ti, .waitSemaphoreCount = nwait, .pWaitSemaphores = ws, .pWaitDstStageMask = wst,
                        .commandBufferCount = cb ? 1 : 0, .pCommandBuffers = &cb, .signalSemaphoreCount = ns, .pSignalSemaphores = sig};
-    VkResult r = vka_hung() ? VK_ERROR_DEVICE_LOST : vk.vkQueueSubmit(V.q, 1, &si, VK_NULL_HANDLE);
+    int hung = vka_hung();
+    VkResult r = hung ? VK_ERROR_DEVICE_LOST : vk.vkQueueSubmit(V.q, 1, &si, VK_NULL_HANDLE);
     if (!r && signal > V.tl_queued) __atomic_store_n(&V.tl_queued, signal, __ATOMIC_RELEASE);
     pthread_mutex_unlock(&V.qmu);
+    if (r == VK_ERROR_DEVICE_LOST && !hung) vka_device_lost("vkQueueSubmit");
     return r;
 }
 // The queue idle, bounded by the hang time: the timeline up to the last value handed to it (the present's copies wait for no more), then vkQueueWaitIdle for the rest.
@@ -368,11 +378,49 @@ uint64_t vka_hang_ns(void) {
 }
 static void *hang_exit_main(void *arg) { (void)arg; pthread_setname_np(pthread_self(), "vk-hang"); dm_host_shutdown("GPU hang"); return NULL; }
 void vka_exec_hang_report(uint64_t fence);   // vka_exec.c: what the stuck submission held
+// What the driver reports of a lost device's fault (VK_EXT_device_fault, when the device has it): its description, the faulting addresses with their kind, and the
+// vendor's fault codes. Called once, after the hang lines, and only for a lost device (a hang without one has nothing for the driver to report). From Banana Native
+// 65745297 (v0.3.0, MIT). For the Adreno 840 device loss at the first clear of the 12288x12288 depth target (GitHub issue 5): the address the GPU faulted on
+static void fault_report(void) {
+    if (!g_fault_on) { VLOG("GPU hang: the driver reports no fault details (VK_EXT_device_fault %s)", getenv("DM_VK_DEVICE_FAULT") ? "off: DM_VK_DEVICE_FAULT=0" : "not on this device"); return; }
+    PFN_vkGetDeviceFaultInfoEXT get = (PFN_vkGetDeviceFaultInfoEXT)vk.vkGetDeviceProcAddr(V.dev, "vkGetDeviceFaultInfoEXT");
+    if (!get) { VRED("GPU hang: vkGetDeviceFaultInfoEXT not found"); return; }
+    VkDeviceFaultCountsEXT n = {VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT};
+    VkResult r = get(V.dev, &n, NULL);
+    if (r && r != VK_INCOMPLETE) { VRED("GPU hang: vkGetDeviceFaultInfoEXT (counts) %d", r); return; }
+    if (n.addressInfoCount > 32) n.addressInfoCount = 32;
+    if (n.vendorInfoCount > 32) n.vendorInfoCount = 32;
+    n.vendorBinarySize = 0;
+    VkDeviceFaultAddressInfoEXT ai[32]; VkDeviceFaultVendorInfoEXT vi[32];
+    VkDeviceFaultInfoEXT fi = {VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT, .pAddressInfos = n.addressInfoCount ? ai : NULL, .pVendorInfos = n.vendorInfoCount ? vi : NULL};
+    r = get(V.dev, &n, &fi);
+    if (r && r != VK_INCOMPLETE) { VRED("GPU hang: vkGetDeviceFaultInfoEXT %d", r); return; }
+    static const char *const kind[] = {"none", "read of an invalid address", "write to an invalid address", "execution at an invalid address", "instruction pointer unknown",
+                                       "instruction pointer invalid", "instruction pointer of the fault"};
+    fi.description[sizeof fi.description - 1] = 0;
+    VRED("GPU hang: the driver's fault report: \"%s\" (%u addresses, %u vendor codes%s)", fi.description, n.addressInfoCount, n.vendorInfoCount, r == VK_INCOMPLETE ? ", more than 32 of one kind: the first 32" : "");
+    for (uint32_t i = 0; i < n.addressInfoCount; i++)
+        VRED("GPU hang: fault address %#llx (within %#llx): %s", (unsigned long long)ai[i].reportedAddress, (unsigned long long)ai[i].addressPrecision,
+             (unsigned)ai[i].addressType < 7 ? kind[ai[i].addressType] : "?");
+    for (uint32_t i = 0; i < n.vendorInfoCount; i++) {
+        vi[i].description[sizeof vi[i].description - 1] = 0;
+        VRED("GPU hang: vendor fault \"%s\": code %#llx, data %#llx", vi[i].description, (unsigned long long)vi[i].vendorFaultCode, (unsigned long long)vi[i].vendorFaultData); }
+}
+static _Atomic int g_fault_reported;
+static void hang_declare(uint64_t want, uint64_t at, double s, const char *what);
+// A call that returned VK_ERROR_DEVICE_LOST (a submission, an upload batch, a present): the hang is declared at once, so nothing more goes to the driver, and the fault
+// report is taken while it is fresh. Before, only the completion thread's next wait found it (from Banana Native 65745297)
+void vka_device_lost(const char *what) {
+    if (vka_hung()) return;
+    char w[96]; snprintf(w, sizeof w, "%s returned -4 (the device is lost)", what);
+    uint64_t d = vka_done(); hang_declare(d + 1, d, 0, w);
+}
 static void hang_declare(uint64_t want, uint64_t at, double s, const char *what) {
     if (atomic_exchange(&g_hung, 1)) return;
     VRED("GPU hang: %s; fence %llu not reached in %.1f s (the timeline at %llu, %llu handed to the queue, %llu reserved): nothing more is submitted, every fence reads as done",
          what, (unsigned long long)want, s, (unsigned long long)at, (unsigned long long)vka_fence_queued(), (unsigned long long)vka_fence_last());
     vka_exec_hang_report(at + 1);
+    if (strstr(what, "-4") && !atomic_exchange(&g_fault_reported, 1)) fault_report();   // (a lost device: the driver may know where the GPU faulted)
     if (!VKA_ENV("DM_VK_HANG_EXIT", 1)) { VRED("GPU hang: DM_VK_HANG_EXIT=0, the game runs on without the GPU"); return; }
     VRED("GPU hang: the host exits (DM_VK_HANG_EXIT=0 runs on without the GPU)");
     pthread_t th; if (!pthread_create(&th, NULL, hang_exit_main, NULL)) pthread_detach(th);
@@ -401,7 +449,7 @@ static void *completion_main(void *arg) {
                 if (t - stall_t0 < vka_hang_ns()) continue;
                 hang_declare(want, v, st, "no progress");
             } else if (r && r != VK_TIMEOUT) {
-                char w[64]; snprintf(w, sizeof w, "vkWaitSemaphores %d (the device is lost)", r);
+                char w[64]; snprintf(w, sizeof w, "vkWaitSemaphores %d (the device is lost)", r);   // (-4: fault_report)
                 hang_declare(want, v, 0, w);
             } else stall_t0 = 0;
         }
@@ -580,7 +628,7 @@ void vka_up_flush(void) {
     unsigned k = (unsigned)g_ui; g_ui = -1;
     VkCommandBuffer cb = g_ub[k].cb;
     vka_barrier(cb);   // everything the batch wrote, for every later submission on the queue
-    VkResult r = vk.vkEndCommandBuffer(cb);
+    VkResult r = vk.vkEndCommandBuffer(cb); int lost = 0;
     uint64_t v = ++g_uval;
     VkSemaphore ws[1]; uint64_t wv[1]; VkPipelineStageFlags wst[1]; uint32_t nw = 0;   // the sparse binds queued before it (vks_queue_locked)
     VkTimelineSemaphoreSubmitInfo ti = {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, .signalSemaphoreValueCount = 1, .pSignalSemaphoreValues = &v};
@@ -590,8 +638,10 @@ void vka_up_flush(void) {
         vks_queue_locked(&nw, ws, wv, wst);
         ti.waitSemaphoreValueCount = nw; ti.pWaitSemaphoreValues = wv; si.waitSemaphoreCount = nw; si.pWaitSemaphores = ws; si.pWaitDstStageMask = wst;
         r = vka_hung() ? VK_ERROR_DEVICE_LOST : vk.vkQueueSubmit(V.q, 1, &si, VK_NULL_HANDLE);
+        if (r == VK_ERROR_DEVICE_LOST && !vka_hung()) lost = 1;
     }
     pthread_mutex_unlock(&V.qmu);
+    if (lost) vka_device_lost("vkQueueSubmit (upload batch)");
     // Nothing on the GPU will signal it: the host does, so later batches and the slot are not held; only once the batch before it is done (a host signal must be below
     // every value still pending on the queue)
     if (r && !vka_hung() && (v == 1 || up_wait(v - 1))) { VkSemaphoreSignalInfo ss = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, .semaphore = g_utl, .value = v}; vk.vkSignalSemaphore(V.dev, &ss); }

@@ -13,6 +13,9 @@ Anka Native is built on other people's work. This file is where they are credite
   on-phone packer, frame generation on Android, the custom GPU driver loader and the Donkey Kong Bananza and Mario Kart World work on Android. Its own
   notice is kept in [android/NOTICE.md](android/NOTICE.md).
 - **[d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile)** (MIT): the native-execution approach nxnative started from.
+- **Banana Native's later work** at [git.eden-emu.dev/moceure/BananaNative](https://git.eden-emu.dev/moceure/BananaNative) (MIT, "Copyright (c) 2026 Swap2-Native
+  contributors", kept in [LICENSE](LICENSE)): small fixes ported from it after Anka Native's base, each naming its Banana Native commit in the code and the commit
+  message: the `VK_EXT_device_fault` report of a lost device (`vka_dev.c`, 65745297).
 
 ## Code and findings from other projects
 
