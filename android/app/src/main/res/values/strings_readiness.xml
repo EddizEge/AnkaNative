@@ -29,7 +29,7 @@
     <string name="readiness_row_degraded">Missing; this game runs without it, with less: %1$s. (%2$s %3$s, needs %4$s)</string>
     <string name="readiness_row_degraded_bare">Missing: this game runs without it, with less. (%1$s %2$s, needs %3$s)</string>
     <string name="readiness_row_fact_memory">memory in GiB:</string>
-    <string name="readiness_row_fact_android_sdk" translatable="false">Android SDK</string>
+    <string name="readiness_row_fact_android_sdk" translatable="false">Android SDK:</string>
     <string name="readiness_row_not_reported">not reported</string>
     <!-- %1$s: the value, as the driver reports it -->
     <string name="readiness_row_reports">reports %1$s</string>

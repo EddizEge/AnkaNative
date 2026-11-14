@@ -92,9 +92,9 @@ public final class ReadinessI18nJvmTest {
         Readiness.Check sdk = Readiness.evaluate(Readiness.merge("vk.api=1.3", 11, 31), List.of()).stream()
                 .filter(x -> "android.sdk".equals(x.fact) && x.status == Readiness.Status.WARNING).findFirst().orElse(null);
         check(sdk != null && sdk.message.equals("Missing: this game runs without it, with less. Android 12 and 12L are untested; the game may not start or may draw wrongly there. "
-                + "(Android SDK reports 31, needs 33)"), "report, degraded: " + sdk);
+                + "(Android SDK: reports 31, needs 33)"), "report, degraded: " + sdk);
         check(sdk.messageText().equals("Missing; this game runs without it, with less: Android 12 and 12L are untested; the game may not start or may draw wrongly there. "
-                + "(Android SDK reports 31, needs 33)"), "screen, degraded: " + sdk.messageText());
+                + "(Android SDK: reports 31, needs 33)"), "screen, degraded: " + sdk.messageText());
         // A game's row without a why: the sentence without one, the same English as the report's
         Readiness.Check ram = Readiness.evaluate(Readiness.merge("vk.api=1.3", 6, 36), Readiness.parseReqs("required|ram_gib|8|")).stream()
                 .filter(x -> "ram_gib".equals(x.fact)).findFirst().orElse(null);

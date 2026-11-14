@@ -356,7 +356,7 @@ final class Readiness {
     /** The same in the report's English */
     private static String label(String fact) {
         if (fact.equals("ram_gib")) return "memory in GiB:";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
-        if (fact.equals("android.sdk")) return "Android SDK";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
+        if (fact.equals("android.sdk")) return "Android SDK:";   // i18n-keep: a requirement row's message stays English in phase 1 (docs/i18n.md "Readiness requirements")
         return fact + ":";
     }
 
