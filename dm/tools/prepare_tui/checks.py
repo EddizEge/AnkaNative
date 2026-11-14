@@ -1,15 +1,18 @@
 # What the packer needs on a computer (android/README.md, "The environment"), each found or missing with the fix for this system: the Python (3.14, which has the
-# zstd the shader tools read), Capstone 5, lz4 and zbic (the ZBIC decoder of system 22.0.0+ games, as dm/tools/nso.py imports it), the .NET 10 runtime with the
-# committed translator really starting and being the one dmsh_chain.lock names (tool_lock.py), spirv-val, and the source tree's line ends (the chain version this
-# copy computes is the committed one: a checkout or zip with CRLF line ends gives another, and the libraries it would build would not load).
-# Each check runs in this Python (the one that runs pack_android.py, which starts the tools with it) and never takes more than the translator's start.
+# zstd the shader tools read), Capstone 5, lz4, the ZBIC decoder of system 22.0.0+ games (libzbicdec, which dm/tools/nso.py builds with this computer's C compiler
+# the first time and loads by ctypes: checked by building and loading it with nso.py's own functions), the .NET 10 runtime with the committed translator really
+# starting and being the one dmsh_chain.lock names (tool_lock.py), spirv-val, and the source tree's line ends (the chain version this copy computes is the
+# committed one: a checkout or zip with CRLF line ends gives another, and the libraries it would build would not load).
+# Each check runs in this Python (the one that runs pack_android.py, which starts the tools with it) and never takes more than the translator's start or the
+# decoder's first build (a few seconds; once built, it is loaded from its folder at once).
 import os, re, shutil, subprocess, sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 for d in ('dm/gfx/tools', 'scripts', 'dm/games', 'dm/tools'): sys.path.insert(0, str(REPO / d))
 from prepare_tui.texts import T   # noqa: E402
-PIP = '-m pip install "capstone>=5,<6" lz4 zbic'
+import nso   # noqa: E402  (dm/tools/nso.py: the ZBIC decoder's build and load)
+PIP = '-m pip install "capstone>=5,<6" lz4'
 
 
 class Check:
@@ -56,14 +59,16 @@ def pkg_fix(sysname):
 
 
 def install(sysname, what):
-    """The command that installs what ('dotnet' or 'spirv') on this system"""
-    if sysname == 'windows':
-        return [T('fix.dotnet_win' if what == 'dotnet' else 'fix.spirv_win')]
-    if sysname == 'mac': return {'dotnet': ['brew install --cask dotnet-sdk'], 'spirv': ['brew install spirv-tools']}[what]
-    pkgs = {'debian': ('sudo apt install dotnet-runtime-10.0', 'sudo apt install spirv-tools'), 'fedora': ('sudo dnf install dotnet-runtime-10.0', 'sudo dnf install spirv-tools'),
-            'arch': ('sudo pacman -S dotnet-runtime', 'sudo pacman -S spirv-tools'), 'suse': ('sudo zypper install dotnet-runtime-10.0', 'sudo zypper install spirv-tools')}
-    if sysname in pkgs: return [pkgs[sysname][0 if what == 'dotnet' else 1]]
-    return [T('fix.dotnet_other' if what == 'dotnet' else 'fix.spirv_other')]
+    """The command that installs what ('dotnet', 'spirv' or 'cc', a C compiler: android/README.md's gcc or clang on Linux, Xcode's command line tools on the
+    Mac, LLVM-MinGW on Windows) on this system"""
+    if sysname == 'windows': return [T({'dotnet': 'fix.dotnet_win', 'spirv': 'fix.spirv_win', 'cc': 'fix.cc_win'}[what])]
+    if sysname == 'mac': return {'dotnet': ['brew install --cask dotnet-sdk'], 'spirv': ['brew install spirv-tools'], 'cc': ['xcode-select --install']}[what]
+    pkgs = {'debian': ('sudo apt install dotnet-runtime-10.0', 'sudo apt install spirv-tools', 'sudo apt install gcc'),
+            'fedora': ('sudo dnf install dotnet-runtime-10.0', 'sudo dnf install spirv-tools', 'sudo dnf install gcc'),
+            'arch': ('sudo pacman -S dotnet-runtime', 'sudo pacman -S spirv-tools', 'sudo pacman -S gcc'),
+            'suse': ('sudo zypper install dotnet-runtime-10.0', 'sudo zypper install spirv-tools', 'sudo zypper install gcc')}
+    if sysname in pkgs: return [pkgs[sysname][('dotnet', 'spirv', 'cc').index(what)]]
+    return [T({'dotnet': 'fix.dotnet_other', 'spirv': 'fix.spirv_other', 'cc': 'fix.cc_other'}[what])]
 
 
 def check_python(sysname):
@@ -92,10 +97,31 @@ def lz4_version():
     return getattr(lz4, '__version__', 'found')
 
 
-def zbic_version():
-    import zbic   # pyright: ignore[reportMissingImports]  # as dm/tools/nso.py imports it
-    if not callable(getattr(zbic, 'decompress', None)): raise ValueError('zbic has no decompress()')
-    return getattr(zbic, '__version__', 'found')
+def zbic_libs():   # the decoder libraries built in this copy of the source so far (nso.zbic_build's folder)
+    root = Path(nso.ZBIC_SRC) / 'build'
+    return {str(p) for p in root.glob('*/*') if p.is_file()} if root.is_dir() else set()
+
+
+def check_zbic(sysname):
+    """The ZBIC decoder as the rewriter and the shader split get it (nso.zbic_decoder): the library DM_ZBIC_LIB names, loaded; else this computer's build,
+    made now by nso.zbic_build with the C compiler it finds ($CC, else cc, clang or gcc) when there is none yet, and loaded. A build already there is only
+    loaded (no compiler needed). Missing: no compiler (the system's install line), a build that fails (the compiler's last lines), a library that does not load"""
+    name, env = T('check.zbic'), os.environ.get(nso.ZBIC_LIB_ENV)
+    try:
+        if env:
+            nso.zbic_decoder()
+            return Check(name, True, T('check.zbic_env', env, nso.ZBIC_LIB_ENV))
+        before = zbic_libs()
+        lib = nso.zbic_build()
+        nso.zbic_decoder()
+        return Check(name, True, T('check.zbic_cached' if lib in before else 'check.zbic_built', lib))
+    except (nso.Error, OSError, AttributeError) as e:   # AttributeError: a library without zbic_decompress (ctypes)
+        why = str(e)
+        if env: return Check(name, False, why, [T('fix.zbic_env', nso.ZBIC_LIB_ENV)])
+        if 'no C compiler' in why:   # nso.zbic_build's words when it finds none (test_prepare_tui.py ZbicCheck.test_missing holds them to it)
+            return Check(name, False, T('check.no_cc'), [T('fix.cc')] + install(sysname, 'cc') + [T('fix.cc_or', nso.ZBIC_LIB_ENV)])
+        if isinstance(e, OSError): return Check(name, False, why, [T('fix.zbic_write', Path(nso.ZBIC_SRC) / 'build', nso.ZBIC_LIB_ENV)])
+        return Check(name, False, why, [T('fix.cc_broken')] + install(sysname, 'cc') + [T('fix.cc_or', nso.ZBIC_LIB_ENV)])
 
 
 def dotnet_runtimes():
@@ -149,5 +175,5 @@ def check_tree():
 def run_all(sysname=None):
     s = sysname or system()
     out = [check_python(s), check_module(s, 'capstone', T('check.capstone'), capstone_version), check_module(s, 'lz4', T('check.lz4'), lz4_version),
-           check_module(s, 'zbic', T('check.zbic'), zbic_version), check_dotnet(s), check_spirv(s), check_tree()]
+           check_zbic(s), check_dotnet(s), check_spirv(s), check_tree()]
     return out

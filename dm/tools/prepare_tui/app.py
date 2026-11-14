@@ -141,7 +141,7 @@ def draw_checks(sc, res, scroll=0, busy=False):
 
 
 def fix_shown(res, c):
-    """Whether a check before c that is missing too has the same fix (one environment brings Capstone, lz4 and zbic): it is shown once"""
+    """Whether a check before c that is missing too has the same fix (one environment brings Capstone and lz4): it is shown once"""
     return any(not o.ok and o.fix == c.fix for o in res[:res.index(c)])
 
 

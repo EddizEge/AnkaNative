@@ -2,8 +2,8 @@
 # Prepare a game for the Android launcher on this computer, in a terminal interface (android/README.md, "Pack a game"): Windows (Windows Terminal,
 # PowerShell, cmd.exe on Windows 10 and 11), Linux and the Mac, with nothing beyond the Python the packer needs (standard library only; dm/tools/prepare_tui).
 # Its screens, in order:
-#   1. what the packer needs (Python 3.14, Capstone 5, lz4, zbic, the .NET 10 runtime running the committed translator, spirv-val, this copy's line ends), each found
-#      or missing with the fix for this system; a missing one stops here
+#   1. what the packer needs (Python 3.14, Capstone 5, lz4, the ZBIC decoder built and loaded with this computer's C compiler, the .NET 10 runtime running the
+#      committed translator, spirv-val, this copy's line ends), each found or missing with the fix for this system; a missing one stops here (exit code 1)
 #   2. the game: a file browser for a .nup file or a dump folder (arrows, Enter, Backspace / Left up, Home / End / PgUp / PgDn, typing filters, Ctrl+L or / types a
 #      path, Tab the places: home, recent folders, drives or volumes), the pick checked with the packer's own code (pack_android.identify); the last folder is kept
 #      in the user's config folder (prepare_tui/browser.py)

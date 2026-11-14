@@ -8,15 +8,17 @@
 - the browser's logic on a temporary folder tree (folders, .nup files, dump folders, the filter, up and into folders, the window, path completion) and the
   state file (written, read back, a damaged one); a path dropped on the terminal in the shell's quoting
 - the packer's output: progress lines in the three spellings, step lines, error: lines and [RED] lines, and a failure's code paired as the phone pairs it
+- the ZBIC decoder's check (checks.check_zbic) on a copy of its sources: built with the C compiler found, then cached (at once), no compiler (each system's
+  install line), a compiler that fails, a DM_ZBIC_LIB that does not load
 - the packer as a child process (runner.Run): a worker left behind holding the output (the run still ends), a log that cannot be written (the run goes on),
   a folder that cannot be written, the lock against a second run; a failure without a code in words (a signal, a permission error, else a bug to report)
 - the estimator (eta.py, the phone's Eta.java on the computer's steps): steady, a falling rate, a stall, the translation's end and the library's countdown, a
   resumed run's baseline, the split's hand-over to the shaders' figure, totals of 0, and a replay of the real run's trace (prepare_data/prepare-pc-oot.trace.txt)
 - the plain line mode end to end (done, failed, a bad pick, a name in the last folder, a worker left behind, a pack folder that cannot be written, a second
-  run refused, and on POSIX Ctrl+C and the packer killed), and on POSIX the full-screen mode on a pseudo-terminal (prepare_vt.py): a
+  run refused, no C compiler for the decoder, and on POSIX Ctrl+C and the packer killed), and on POSIX the full-screen mode on a pseudo-terminal (prepare_vt.py): a
   made-up dump folder of Ocarina of Time (an NPDM and NSO headers of a few bytes, as test_pack_errors.py makes them) picked with the packer's own checks, and a
   stand-in packer that prints what pack_android.py prints; a file picked with keys, confirmed, the run watched to its end, the terminal's modes put back; Ctrl+C
-  in the middle stops the stand-in packer and its worker; so do SIGHUP (a closed window) and SIGTERM; Esc on the pick asks; kill -TSTP and SIGCONT give the
+  in the middle stops the stand-in packer and its worker; so do SIGHUP (a closed window) and SIGTERM; no C compiler stops on the checks (exit 1); Esc on the pick asks; kill -TSTP and SIGCONT give the
   terminal back and take it again; a pack folder that cannot be written is said on the plan
 - the texts: every key the code uses is in texts.TEXTS, and every key there is used
 The Windows console itself (term.WindowsTerminal: console modes, msvcrt, the close event) cannot run here: only its scan-code decoding is tested."""
@@ -34,6 +36,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / 'dm/tools')); sys.path.insert(0, str(Path(__file__).resolve().parent))
+import nso   # noqa: E402
 from prepare_tui import app, browser, eta, model, progress, runner, screen as scr, texts   # noqa: E402
 from prepare_tui.term import Decoder   # noqa: E402
 
@@ -146,7 +149,7 @@ def oks():
 def same_fix():
     """Two missing packages fixed by the same steps, and a long value that wraps"""
     from prepare_tui.checks import Check
-    fix = ['python3.14 -m venv <dump folder>/.venv-anka', '<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4 zbic']
+    fix = ['python3.14 -m venv <dump folder>/.venv-anka', '<dump folder>/.venv-anka/bin/python -m pip install "capstone>=5,<6" lz4']
     return [Check('Python 3.14', True, '3.14.0 (/a/very/long/path/to/an/environment/of/its/own/on/the/dump/drive/bin/python3)'),
             Check('Capstone 5', False, 'missing (capstone)', fix), Check('lz4', False, 'missing (lz4)', fix)]
 
@@ -456,6 +459,68 @@ class Runs(unittest.TestCase):
         self.assertEqual(subprocess.run([sys.executable, '-c', code], capture_output=True, text=True).stdout.strip(), 'True')   # released with its holder
 
 
+class ZbicCheck(unittest.TestCase):
+    """The check of the ZBIC decoder (checks.check_zbic) on a copy of dm/third_party/zstd-zbic without its build folder, so nso.zbic_build builds there: a C
+    compiler found (built and loaded), the build then cached (loaded at once, no compiler asked for), no compiler (the system's install line), a compiler that
+    fails, and a DM_ZBIC_LIB that does not load"""
+    def setUp(self):
+        import shutil
+        from prepare_tui import checks
+        self.checks = checks
+        self.d = Path(tempfile.mkdtemp(prefix='zbic_'))
+        self.src = self.d / 'zstd-zbic'
+        shutil.copytree(nso.ZBIC_SRC, self.src, ignore=lambda d, names: ['build'] if Path(d) == Path(nso.ZBIC_SRC) else [])
+        self.saved = (nso.ZBIC_SRC, {k: os.environ.get(k) for k in ('CC', 'PATH', nso.ZBIC_LIB_ENV)})
+        nso.ZBIC_SRC = str(self.src)
+        os.environ.pop(nso.ZBIC_LIB_ENV, None)
+
+    def tearDown(self):
+        import shutil
+        nso.ZBIC_SRC = self.saved[0]
+        for k, v in self.saved[1].items():
+            if v is None: os.environ.pop(k, None)
+            else: os.environ[k] = v
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def no_compiler(self):
+        """PATH without any C compiler (an empty folder) and no CC"""
+        (self.d / 'empty').mkdir(exist_ok=True)
+        os.environ['PATH'] = str(self.d / 'empty'); os.environ.pop('CC', None)
+
+    @unittest.skipUnless(os.environ.get('CC') or any(__import__('shutil').which(c) for c in ('cc', 'clang', 'gcc')), 'no C compiler on this machine')
+    def test_found_then_cached(self):
+        c = self.checks.check_zbic('debian')
+        self.assertTrue(c.ok, c.found); self.assertEqual(c.fix, [])
+        self.assertIn('built now', c.found); self.assertIn(str(self.src / 'build'), c.found)
+        self.no_compiler()   # the build is there: the check loads it, with no compiler and at once
+        t0 = time.monotonic()
+        c = self.checks.check_zbic('debian')
+        self.assertLess(time.monotonic() - t0, 1.0)
+        self.assertTrue(c.ok, c.found); self.assertIn('built earlier', c.found)
+
+    def test_missing(self):
+        self.no_compiler()
+        for sysname, line in (('debian', 'sudo apt install gcc'), ('fedora', 'sudo dnf install gcc'), ('arch', 'sudo pacman -S gcc'), ('mac', 'xcode-select --install'),
+                              ('windows', 'LLVM-MinGW'), ('linux', "distribution's gcc or clang")):
+            c = self.checks.check_zbic(sysname)
+            self.assertFalse(c.ok); self.assertIn('no C compiler', c.found)
+            self.assertTrue(any(line in f for f in c.fix), (sysname, c.fix)); self.assertIn('DM_ZBIC_LIB', c.fix[-1])
+        self.assertFalse((self.src / 'build').exists() and any((self.src / 'build').rglob('libzbicdec*')))
+
+    @unittest.skipIf(os.name == 'nt', 'a POSIX shell script as the compiler')
+    def test_build_fails(self):
+        cc = self.d / 'badcc'; cc.write_text('#!/bin/sh\necho "badcc: error: this compiler builds nothing" >&2\nexit 1\n'); cc.chmod(0o755)
+        os.environ['CC'] = str(cc)
+        c = self.checks.check_zbic('fedora')
+        self.assertFalse(c.ok); self.assertIn('does not build', c.found); self.assertIn('builds nothing', c.found)
+        self.assertIn('did not build', c.fix[0]); self.assertIn('sudo dnf install gcc', c.fix)
+
+    def test_named_library_does_not_load(self):
+        os.environ[nso.ZBIC_LIB_ENV] = str(self.d / 'nothere.so')
+        c = self.checks.check_zbic('debian')
+        self.assertFalse(c.ok); self.assertIn('does not load', c.found); self.assertIn('DM_ZBIC_LIB', c.fix[0])
+
+
 # ---- the estimator
 
 def feed_rate(e, step, t0, t1, total, d0, rate, every=5.0, stage='translate'):
@@ -649,7 +714,11 @@ WRAPPER = textwrap.dedent('''\
     sys.path.insert(0, {tools!r})
     from prepare_tui import app, checks, model
     from prepare_tui.checks import Check
+    import os
     checks.run_all = lambda: [Check('Python 3.14', True, 'stand-in')]
+    if os.environ.get('ZBIC_SRC_COPY'):   # the real decoder check, on a copy of its sources (ZbicCheck)
+        checks.nso.ZBIC_SRC = os.environ['ZBIC_SRC_COPY']
+        checks.run_all = lambda: [Check('Python 3.14', True, 'stand-in'), checks.check_zbic(checks.system())]
     model.PACK_ANDROID = {packer!r}
     model.PKG_B = model.RESULT_B = model.CACHE_B = model.LIB_B = model.MODULE_X = 0
     sys.argv[0] = 'prepare.py'
@@ -711,6 +780,38 @@ class EndToEnd(unittest.TestCase):
         self.assertIn('Preparing failed.', r.stdout)
         self.assertIn(f'Not enough free space ({self.d / "out/pack"}). Free some space', r.stdout)
         self.assertNotIn('Traceback', r.stdout.split('Preparing failed.')[1].split('Its last lines:')[0])   # the words first; the traceback only among the last lines
+
+    def no_compiler(self):
+        """The environment of a computer with no C compiler (an empty PATH, no CC) and a copy of the decoder's sources that has no build yet"""
+        import shutil
+        src = Path(nso.ZBIC_SRC)
+        shutil.copytree(src, self.d / 'zstd-zbic', ignore=lambda d, names: ['build'] if Path(d) == src else [])
+        (self.d / 'empty').mkdir()
+        env = dict(self.env, PATH=str(self.d / 'empty'), ZBIC_SRC_COPY=str(self.d / 'zstd-zbic'))
+        for k in ('CC', 'DM_ZBIC_LIB'): env.pop(k, None)
+        return env
+
+    def test_plain_no_compiler(self):
+        """No C compiler: the plain mode stops on the checks with the fix and exit code 1, before the pick and the packer"""
+        r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.game), '--plain', '--yes', *self.args], env=self.no_compiler(), capture_output=True,
+                           text=True, encoding='utf-8', timeout=120)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('[missing] ZBIC decoder (C compiler): not built yet, and no C compiler', r.stdout)
+        self.assertIn('Install a C compiler', r.stdout); self.assertIn('1 missing', r.stdout)
+        self.assertNotIn('Reading', r.stdout); self.assertFalse((self.d / 'out').exists())
+
+    @unittest.skipIf(os.name == 'nt', 'a pseudo-terminal is POSIX')
+    def test_full_screen_no_compiler(self):
+        """No C compiler: the full-screen mode shows the check missing with the fix, Enter does not go on, q leaves with exit code 1"""
+        from prepare_vt import Pty
+        t = Pty([sys.executable, str(self.d / 'run.py'), str(self.game), *self.args], 80, 24, dict(self.no_compiler(), TERM='xterm'))
+        try:
+            s = t.wait_for('1 missing', 30)
+            self.assertIn('no C compiler', s); self.assertIn('Install a C compiler', s)
+            t.send('\r'); time.sleep(0.5); self.assertIn('1 missing', t.screen())   # Enter does not pass a missing check
+            t.send('q'); t.p.wait(30)
+            self.assertEqual(t.p.returncode, 1); self.assertFalse((self.d / 'out').exists())
+        finally: t.close()
 
     @unittest.skipIf(os.name == 'nt', 'Ctrl+C is sent as SIGINT here (a console control event on Windows)')
     def test_plain_interrupt(self):
