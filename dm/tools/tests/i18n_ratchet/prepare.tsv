@@ -1,0 +1,6 @@
+# The prepare area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
+# "python3 dm/tools/tests/test_android_i18n.py --ratchet prepare" writes the current counts. A file in no area may have none.
+Ondevice.java	96
+Job.java	28
+PackService.java	40
+DumpCheck.java	4

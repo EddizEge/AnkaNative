@@ -1,0 +1,6 @@
+# The home area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
+# "python3 dm/tools/tests/test_android_i18n.py --ratchet home" writes the current counts. A file in no area may have none.
+MainActivity.java	226
+Ui.java	4
+Prefs.java	4
+FrontendLaunch.java	14

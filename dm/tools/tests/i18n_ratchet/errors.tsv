@@ -1,0 +1,3 @@
+# The errors area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
+# "python3 dm/tools/tests/test_android_i18n.py --ratchet errors" writes the current counts. A file in no area may have none.
+# No Java file of its own yet.

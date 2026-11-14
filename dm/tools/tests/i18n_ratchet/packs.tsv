@@ -1,0 +1,13 @@
+# The packs area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
+# "python3 dm/tools/tests/test_android_i18n.py --ratchet packs" writes the current counts. A file in no area may have none.
+PackUi.java	49
+Pack.java	23
+PackZip.java	45
+PackFind.java	0
+PackCheck.java	4
+BuildCheck.java	25
+DumpLayout.java	23
+RomfsCheck.java	18
+Nup.java	47
+ShaderLibs.java	5
+RewriteKey.java	3

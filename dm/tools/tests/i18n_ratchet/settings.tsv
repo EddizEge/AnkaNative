@@ -1,0 +1,14 @@
+# The settings area (docs/i18n.md): English texts each Java file may still have, as test_android_i18n.py counts them. It may only go down:
+# "python3 dm/tools/tests/test_android_i18n.py --ratchet settings" writes the current counts. A file in no area may have none.
+GameSettings.java	56
+Folders.java	50
+GpuDriver.java	28
+DriverFetch.java	25
+DriverZip.java	14
+Updater.java	43
+UpdateCheck.java	1
+ReleaseNotes.java	0
+MemText.java	6
+Signer.java	4
+Profile.java	3
+Lang.java	0
