@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// NVN2 task and mesh draws through compute on a device without VK_EXT_mesh_shader (vka_memu_spv.c, vka_memu.c; docs/reference/rendering.md "Mesh draws through
-// compute"): what the converted task / mesh modules, the generated vertex shaders, the helper passes (memu/memu_setup.comp, memu/memu_dist.comp) and the replay
+// NVN2 task and mesh draws through compute on a device without VK_EXT_mesh_shader (vka_memu_spv.c, vka_memu.c;
+// docs/reference/shaders.md#mesh-draws-through-compute-android): what the converted task / mesh modules, the generated vertex shaders, the helper passes (memu/memu_setup.comp, memu/memu_dist.comp) and the replay
 // agree on. Only #define lines with integers: the GLSL helpers include this file too (glslangValidator, GL_GOOGLE_include_directive).
 //
 // Each emulated draw of a batch has a record of VKA_MEMU_REC_WORDS words in the batch's records buffer (host-visible scratch). The replay fills the "in" words

@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 Banana Native (this port)
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Included by vka_draw.c (its bindings and descriptor writes): the compute work of NVN2 task and mesh draws drawn through compute (docs/reference/rendering.md "Mesh draws
-// through compute"; vka_memu.c, vka_memu_spv.c). vka_exec.c's look-ahead (memu_scan) finds, when a render pass is about to open, every mesh draw from there to the next
+// Included by vka_draw.c (its bindings and descriptor writes): the compute work of NVN2 task and mesh draws drawn through compute (docs/reference/shaders.md#mesh-draws-through-compute-android;
+// vka_memu.c, vka_memu_spv.c). vka_exec.c's look-ahead (memu_scan) finds, when a render pass is about to open, every mesh draw from there to the next
 // record that could change what they read or the pass's targets (a dispatch, copy, fill, inline update, barrier, render target change, wait, render condition), and walks
 // those records three times with the replay state as it will be at each draw (vka_state_op on a copy):
 //   1 (MEMU_ADD) each draw's shaders, compute pipelines and record (its count and first workgroup: the direct draw's, or its indirect record copied on the GPU);
