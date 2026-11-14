@@ -20,8 +20,8 @@ import java.util.UUID;
  * {@code title_id}. Draws nothing of its own.
  * <p>
  * It can only start a game the user already has on Home, and only with that card's own game and pack paths: a card named by its title ID, or the card that holds
- * the file the frontend sent. Such a game starts at once when it is ready to play (the checks of Play, ready), and when it stops the frontend comes back
- * (GameActivity's "frontend" extra). Anything else goes to Home, which asks first (MainActivity.fromFrontend): a card that needs something (a pack, Prepare, a
+ * the file the frontend sent (by any alias or link), or else the card of the same title and game build as that file (another copy of it). Such a game starts
+ * at once when it is ready to play (the checks of Play, ready), and when it stops the frontend comes back (GameActivity's "frontend" extra). Anything else goes to Home, which asks first (MainActivity.fromFrontend): a card that needs something (a pack, Prepare, a
  * shader update, a pack that does not fit) asks before Play's steps run, and a file that is no card asks before Add game's own steps add it. So another app can
  * never add or replace a card, pick a pack, start Prepare or a shader update, touch a driver, a setting, env.txt or a save, or run a pack the user did not add.
  * It returns nothing to the caller (no result, no URI grant is passed on), reads nothing through the caller's URI (a URI only names a path, which must be on
@@ -104,7 +104,7 @@ public final class FrontendLaunch extends Activity {
     }
 
     /**
-     * The card the request names (Frontend.target: by title ID, else by its file), started when it is ready; a card that is not ready, and a file that is no card,
+     * The card the request names (Frontend.target: by title ID, else by its file, else by its title and build: sameBuild), started when it is ready; a card that is not ready, and a file that is no card,
      * go to Home, which asks first
      */
     private void byCard(String path, String tid) {
@@ -117,8 +117,9 @@ public final class FrontendLaunch extends Activity {
         new Thread(() -> {
             List<Game> list = Game.load(this);
             List<String> dirs = new ArrayList<>(), ids = new ArrayList<>();
-            for (Game g : list) { dirs.add(g.gameDir); ids.add(g.titleId); }
-            int at = Frontend.target(dirs, ids, tid, path);
+            for (Game g : list) { dirs.add(GameList.canon(g.gameDir)); ids.add(g.titleId); }   // the same file by any alias or link (GameList.canon, as Home)
+            int at = Frontend.target(dirs, ids, tid, path != null ? GameList.canon(path) : null);
+            if (at < 0 && tid == null) at = sameBuild(list, file);
             Game card = at < 0 ? null : list.get(at);
             Game r = card != null && ready(card) ? card : null;
             runOnUiThread(() -> {
@@ -132,6 +133,19 @@ public final class FrontendLaunch extends Activity {
                 else home(handOff(path, false));   // a file that is no card: Home asks before Add game's steps
             });
         }, "nx-frontend").start();
+    }
+
+    /**
+     * The card of the same title and game build as file (GameList.matches with Game.key: another copy of the card's .nup, or the folder it was made from), or -1.
+     * Such a card is the game the frontend names; it starts with its own files and pack, and the file is not added. -1 also when the file holds no one game
+     */
+    private static int sameBuild(List<Game> list, File file) {
+        String id;
+        try { id = Pack.titleIdOf(file); } catch (IOException e) { return -1; }
+        String key = Game.key(file.getPath(), id);
+        if (key == null) return -1;
+        List<Integer> m = GameList.matches(list, id, file.getPath(), key, Game::key);
+        return m.isEmpty() ? -1 : m.get(0);
     }
 
     /**
