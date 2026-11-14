@@ -1,7 +1,9 @@
 package dev.nxnative.android;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -308,6 +310,19 @@ final class Readiness {
             }
         }
         return out;
+    }
+
+    /**
+     * How long ago a moment was ("5 minutes ago"), as a text: the screen shows text(), in the app's language, and the report english() (docs/i18n.md
+     * "Numbers on screen"; Android's DateUtils would follow the system's language in both). Minutes, hours, days, then from a week on the day, yyyy-MM-dd
+     */
+    static Msg ago(long then, long now) {
+        long d = Math.max(0, now - then), min = d / 60_000, hours = d / 3_600_000, days = d / 86_400_000;
+        if (min < 1) return new Msg("readiness_ago_now");
+        if (hours < 1) return Msg.plural("readiness_ago_minutes", (int) min, min);
+        if (days < 1) return Msg.plural("readiness_ago_hours", (int) hours, hours);
+        if (days < 7) return Msg.plural("readiness_ago_days", (int) days, days);
+        return new Msg("readiness_ago_date", new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date(then)));
     }
 
     /** The game's status on Android (its readiness.tsv status row): a game in bring-up gets a warning of its own, whatever the phone has */

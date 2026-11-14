@@ -34,7 +34,23 @@ public final class SavesTextJvmTest {
         store(t);
         migrate(t);
         ui();
+        sizes();
         System.out.println("ok " + n);
+    }
+
+    /** SaveStore.sizeMsg: the English is the old size() ("1 bytes" became "1 byte", a plural), and the number is formatted in the language the text is shown in:
+     *  Turkish and German use a decimal comma, also where German has no texts of its own and the unit falls back to the English */
+    static void sizes() {
+        long[] b = {0, 1, 1023, 1536, 1258291, 5L << 30};
+        String[] was = {"0 bytes", "1 byte", "1023 bytes", "1.5 KB", "1.2 MB", "5.00 GB"};
+        for (int i = 0; i < b.length; i++) {
+            same(SaveStore.sizeMsg(b[i]).english(), was[i], "size " + b[i]);
+            same(SaveStore.size(b[i]), was[i], "size() is sizeMsg's English: " + b[i]);
+        }
+        same(SaveStore.sizeMsg(1536).render(java.util.Locale.forLanguageTag("tr")), "1,5 KB", "Turkish decimal comma");
+        same(SaveStore.sizeMsg(1258291).render(java.util.Locale.GERMAN), "1,2 MB", "a language without texts: English unit, its own number");
+        same(new LocalizedIOException("saves_backup_failed", SaveStore.sizeMsg(1536), "/s").getMessage(), "No backup was made: 1.5 KB\n\nThe save in /s was only read, never changed.",
+                "a size inside an exception stays English in getMessage");
     }
 
     /** SaveStore's refusals: getMessage (logs, tests) and getLocalizedMessage (the screen) are the old English */

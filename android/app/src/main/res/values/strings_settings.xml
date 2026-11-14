@@ -171,8 +171,8 @@
     <string name="settings_net_timeout">No network (GitHub did not answer in time)</string>
     <!-- %1$s: the JSON parser's detail (English) -->
     <string name="settings_net_bad_answer">GitHub\'s answer could not be read: %1$s</string>
-    <!-- A size in megabytes: %1$s is the number, one decimal ("12.3") -->
-    <string name="settings_size_mb">%1$s MB</string>
+    <!-- A size in megabytes, one decimal ("12.3", in the app's language: "12,3" where a comma is the decimal sign) -->
+    <string name="settings_size_mb">%1$.1f MB</string>
     <!-- DriverFetch: "Download…" a driver. A release: %1$s its tag; then, on the next line, two spaces, %2$s the zip's name, two spaces and %3$s its size ("12.3 MB") -->
     <string name="settings_driverfetch_asset">%1$s\n\u0020\u0020%2$s\u0020\u0020(%3$s)</string>
     <string name="settings_driverfetch_zip_too_large">the zip is larger than 512 MB: not a driver package</string>
@@ -225,9 +225,9 @@
     <string name="settings_update_installs_not_allowed">Installs from this app are not allowed: the update was not installed</string>
     <!-- %1$d: PackageInstaller's status code -->
     <string name="settings_update_installer_status">The installer answered status %1$d.</string>
-    <!-- MemText: the in-game overlay's memory lines. %1$s, %2$s: GiB with one decimal ("4.3") -->
-    <string name="settings_mem_app">App %1$s GiB</string>
+    <!-- MemText: the in-game overlay's memory lines. %1$.1f, %2$.1f: GiB with one decimal ("4.3", or "4,3" in a language with a decimal comma) -->
+    <string name="settings_mem_app">App %1$.1f GiB</string>
     <string name="settings_mem_app_unknown">App ? GiB</string>
-    <string name="settings_mem_ram">RAM %1$s/%2$s GiB</string>
+    <string name="settings_mem_ram">RAM %1$.1f/%2$.1f GiB</string>
     <string name="settings_mem_ram_unknown">RAM ?</string>
 </resources>

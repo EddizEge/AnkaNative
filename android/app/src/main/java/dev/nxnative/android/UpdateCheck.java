@@ -108,5 +108,6 @@ final class UpdateCheck {
     }
 
     /** "12.3 MB", in the user's language (the figure in Latin digits); screen only */
-    static String mb(long bytes) { return Tr.s("settings_size_mb", String.format(Locale.US, "%.1f", bytes / 1048576.0)); }
+    /** A size in megabytes for the screen ("12.3 MB"), its number formatted in the app's language as the resource formats it */
+    static String mb(long bytes) { return Tr.s("settings_size_mb", bytes / 1048576.0); }
 }

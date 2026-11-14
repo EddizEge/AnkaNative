@@ -696,13 +696,21 @@ final class SaveStore {
         return fp.startsWith(dp);
     }
 
-    /** "1.2 MB" (English units, Locale.ROOT: packs and game embed it too; unchanged in phase 1, docs/i18n.md "Texts that cross areas") */
-    static String size(long b) {
-        if (b < 1024) return b + " bytes";   // i18n-keep: byte sizes stay English in phase 1 (read by packs and game)
-        if (b < 1 << 20) return String.format(Locale.ROOT, "%.1f KB", b / 1024.0);   // i18n-keep: as above
-        if (b < 1L << 30) return String.format(Locale.ROOT, "%.1f MB", b / 1048576.0);   // i18n-keep: as above
-        return String.format(Locale.ROOT, "%.2f GB", b / 1073741824.0);   // i18n-keep: as above
+    /**
+     * A byte size ("1.2 MB") as a text (docs/i18n.md "Texts that cross areas"): the unit is a resource and the number is formatted in the language the text is
+     * shown in, like every number a resource formats (the app's language; a system language the app has no texts for formats its own way inside the English
+     * texts, docs/i18n.md "Numbers on screen"). saves, packs and game pass it as an argument: msg.text() to getString, the Msg itself to a Msg or a
+     * LocalizedIOException, which then stays English in a log
+     */
+    static Msg sizeMsg(long b) {
+        if (b < 1024) return Msg.plural("saves_size_bytes", (int) Math.max(b, 0), b);
+        if (b < 1 << 20) return new Msg("saves_size_kb", b / 1024.0);
+        if (b < 1L << 30) return new Msg("saves_size_mb", b / 1048576.0);
+        return new Msg("saves_size_gb", b / 1073741824.0);
     }
+
+    /** {@link #sizeMsg} in English, for a log line */
+    static String size(long b) { return sizeMsg(b).english(); }
 
     /** "2026-11-03 14:05:09" from a backup's name (yyyyMMdd-HHmmss…), else the name; in the user's language (only shown, by SaveUi) */
     static String when(String name) {

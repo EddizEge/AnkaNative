@@ -83,7 +83,7 @@ final class SaveUi {
             if (err != null) { a.error(a.getString(R.string.saves_backup_failed, err, save)); return; }
             SaveStore.Backup b = (SaveStore.Backup) r;
             String body = a.getResources().getQuantityString(b.device ? R.plurals.saves_backup_done_body_device : R.plurals.saves_backup_done_body, b.files, b.files,
-                    SaveStore.size(b.bytes), b.dir);
+                    SaveStore.sizeMsg(b.bytes).text(), b.dir);
             new AlertDialog.Builder(a).setTitle(R.string.saves_backup_done_title).setMessage(body).setPositiveButton(android.R.string.ok, null).show();
         });
     }
@@ -97,7 +97,7 @@ final class SaveUi {
         for (int i = 0; i < labels.length; i++) {
             SaveStore.Backup b = l.get(i);
             String label = a.getResources().getQuantityString(b.device ? R.plurals.saves_restore_item_device : R.plurals.saves_restore_item, b.files, SaveStore.when(b.name),
-                    b.files, SaveStore.size(b.bytes));
+                    b.files, SaveStore.sizeMsg(b.bytes).text());
             labels[i] = b.source.isEmpty() ? label
                     : a.getString(R.string.saves_restore_item_from, label, new File(b.source).getParentFile().getName() + "/" + new File(b.source).getName());
         }
@@ -138,7 +138,7 @@ final class SaveUi {
                         SaveStore.Restored x = (SaveStore.Restored) r;
                         boolean dev = x.parts.contains(SaveStore.DEVICE);
                         int n = x.now.files;
-                        String size = SaveStore.size(x.now.bytes);
+                        String size = SaveStore.sizeMsg(x.now.bytes).text();
                         String text = x.before == null
                                 ? a.getResources().getQuantityString(dev ? R.plurals.saves_restored_device : R.plurals.saves_restored, n, n, size)
                                 : a.getResources().getQuantityString(dev ? R.plurals.saves_restored_device_before : R.plurals.saves_restored_before, n, n, size, x.before.dir);

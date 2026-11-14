@@ -121,7 +121,7 @@
     <string name="readiness_battery_ok">No restriction.</string>
     <string name="readiness_check_last_exit">Last game exit</string>
     <string name="readiness_last_exit_none">No game has run yet.</string>
-    <!-- %1$s: how the game ended (readiness_exit_*), %2$s: when (Android's relative time, "5 minutes ago"), %3$s: Android's description of the end -->
+    <!-- %1$s: how the game ended (readiness_exit_*), %2$s: when (readiness_ago_*), %3$s: Android's description of the end -->
     <string name="readiness_last_exit_normal">The last game %1$s, %2$s.</string>
     <!-- then Settings › Share log (home's labels): %3$s › %4$s, and %4$s › %5$s after Android's description -->
     <string name="readiness_last_exit">The last game %1$s, %2$s. %3$s › %4$s sends its log.</string>
@@ -140,12 +140,27 @@
     <string name="readiness_exit_reason_init">start failed</string>
     <string name="readiness_exit_reason_code">reason %1$d</string>
     <string name="readiness_check_kills">Memory kills</string>
-    <!-- %2$s: when the last one was (Android's relative time) -->
+    <!-- %2$s: when the last one was (readiness_ago_*) -->
     <plurals name="readiness_kills">
         <item quantity="one">%1$d game was stopped for memory in the last 7 days, the last %2$s. Close other apps before playing.</item>
         <item quantity="other">%1$d games were stopped for memory in the last 7 days, the last %2$s. Close other apps before playing.</item>
     </plurals>
     <string name="readiness_kills_none">None in the last 7 days.</string>
+    <!-- Readiness.ago: when a game ended, inside readiness_last_exit* and readiness_kills; the report has the English. From 7 days on, %1$s is the day (2026-11-03) -->
+    <string name="readiness_ago_now">just now</string>
+    <plurals name="readiness_ago_minutes">
+        <item quantity="one">%1$d minute ago</item>
+        <item quantity="other">%1$d minutes ago</item>
+    </plurals>
+    <plurals name="readiness_ago_hours">
+        <item quantity="one">%1$d hour ago</item>
+        <item quantity="other">%1$d hours ago</item>
+    </plurals>
+    <plurals name="readiness_ago_days">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <string name="readiness_ago_date">on %1$s</string>
     <string name="readiness_check_switches">Diagnostic switches</string>
     <string name="readiness_switches_none">None in env.txt.</string>
     <!-- %1$s: the switches' names -->

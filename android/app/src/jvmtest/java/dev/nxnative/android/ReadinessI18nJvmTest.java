@@ -121,6 +121,16 @@ public final class ReadinessI18nJvmTest {
             check(Readiness.gpuMsg(Readiness.facts("unchecked=" + u)).english().equals("GPU not reported (" + u + ")"), "the GPU line: " + u);
         }
 
+        // Readiness.ago: a relative time from resources (the app's language; Android's DateUtils followed the system's), English in the report
+        long now = 1_763_100_000_000L, m = 60_000, h = 60 * m, d = 24 * h;
+        String[][] ago = {{"0", "just now"}, {String.valueOf(59_000), "just now"}, {String.valueOf(m), "1 minute ago"}, {String.valueOf(5 * m), "5 minutes ago"},
+                {String.valueOf(h), "1 hour ago"}, {String.valueOf(23 * h), "23 hours ago"}, {String.valueOf(d), "1 day ago"}, {String.valueOf(6 * d), "6 days ago"},
+                {String.valueOf(-5 * m), "just now"}};
+        for (String[] x : ago) check(Readiness.ago(now - Long.parseLong(x[0]), now).english().equals(x[1]), "ago " + x[0] + ": " + Readiness.ago(now - Long.parseLong(x[0]), now).english());
+        String day = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new java.util.Date(now - 8 * d));
+        check(Readiness.ago(now - 8 * d, now).english().equals("on " + day), "a week or more: the day");
+        check(new Msg("readiness_last_exit_normal", new Msg("readiness_exit_normal"), Readiness.ago(now - 5 * m, now)).english().equals("The last game ended normally, 5 minutes ago."), "inside the sentence");
+
         // ReadinessActivity's sentences that name home's Settings rows take them as arguments (HomeLabels): the English as when the words were typed in
         check(new Msg("readiness_driver_picked", HomeLabels.gpuSystem(), HomeLabels.settings(), HomeLabels.gpuDriver()).english().equals("System (Settings › GPU driver)."), "driver picked");
         check(new Msg("readiness_last_exit", new Msg("readiness_exit_crashed"), "5 minutes ago", HomeLabels.settings(), HomeLabels.shareLog()).english()
@@ -141,7 +151,9 @@ public final class ReadinessI18nJvmTest {
                 + "<string name=\"readiness_row_lacks\">TR eksik: %1$s (%2$s %3$s, en az %4$s)</string><string name=\"readiness_row_reports\">TR %1$s bildiriyor</string>"
                 + "<string name=\"readiness_row_met\">TR var (%1$s %2$s, en az %3$s).</string>"
                 + "<string name=\"readiness_gpu_unchecked\">TR denetlenmedi (%1$s).</string><string name=\"readiness_unchecked_timeout\">TR %1$d sn</string>"
-                + "<string name=\"readiness_gpu_not_reported_why\">TR GPU yok (%1$s)</string></resources>").getBytes(StandardCharsets.UTF_8));
+                + "<string name=\"readiness_gpu_not_reported_why\">TR GPU yok (%1$s)</string>"
+                + "<plurals name=\"readiness_ago_minutes\"><item quantity=\"one\">%1$d dakika önce</item><item quantity=\"other\">%1$d dakika önce</item></plurals>"
+                + "</resources>").getBytes(StandardCharsets.UTF_8));
         Readiness.Check made = Readiness.status("bring-up");   // made in English, shown in Turkish: rendered when shown
         Tr.Backend before = Tr.backend();
         Tr.install(new Tr.Xml(scratch, Locale.forLanguageTag("tr")));
@@ -166,6 +178,8 @@ public final class ReadinessI18nJvmTest {
                     "a game's own row: its English why after the translated sentence's colon: " + game.messageText());
             Readiness.Check un = Readiness.evaluate(Readiness.merge(Readiness.uncheckedTimeout(8), 15, 36), List.of()).stream().filter(x -> "unchecked".equals(x.fact)).findFirst().orElse(null);
             check(un != null && un.messageText().equals("TR denetlenmedi (TR 8 sn).") && un.message.startsWith("Not checked (the GPU check did not answer in 8 s)"), "unchecked: " + un.messageText());
+            Msg five = Readiness.ago(now - 5 * m, now);
+            check(five.text().equals("5 dakika önce") && five.english().equals("5 minutes ago"), "a relative time: the screen's language, English in the report");
             check(Readiness.gpuMsg(Readiness.facts(Readiness.uncheckedTimeout(8))).text().equals("TR GPU yok (TR 8 sn)")
                     && Readiness.gpu(Readiness.facts(Readiness.uncheckedTimeout(8))).equals("GPU not reported (the GPU check did not answer in 8 s)"), "the GPU line, unchecked");
         } finally {

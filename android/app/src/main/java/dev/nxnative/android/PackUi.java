@@ -119,13 +119,13 @@ final class PackUi {
         run(a, g, a.getString(R.string.packs_ui_exporting, g.name), () -> {
             long need = size(pack);
             if (dir.isDirectory() && dir.getUsableSpace() < need + (64L << 20))
-                throw new LocalizedIOException("packs_ui_export_space", SaveStore.size(need), dir, SaveStore.size(dir.getUsableSpace()));
+                throw new LocalizedIOException("packs_ui_export_space", SaveStore.sizeMsg(need), dir, SaveStore.sizeMsg(dir.getUsableSpace()));
             return PackZip.export(pack, dir);
         }, (r, err) -> {
             if (err != null) { a.error(a.getString(R.string.packs_ui_export_failed, err, pack)); return; }
             File z = (File) r;
             new AlertDialog.Builder(a).setTitle(R.string.packs_ui_exported_title)
-                    .setMessage(a.getString(R.string.packs_ui_exported, z, SaveStore.size(z.length()), HomeLabels.importPack().text())).setPositiveButton(android.R.string.ok, null).show();
+                    .setMessage(a.getString(R.string.packs_ui_exported, z, SaveStore.sizeMsg(z.length()).text(), HomeLabels.importPack().text())).setPositiveButton(android.R.string.ok, null).show();
         });
     }
 
@@ -135,7 +135,7 @@ final class PackUi {
         run(a, g, a.getString(R.string.packs_ui_importing, g.name), () -> {
             long need = size(source);
             if (packs.getParentFile() != null && packs.getParentFile().getUsableSpace() < need + (256L << 20))
-                throw new LocalizedIOException("packs_ui_import_space", SaveStore.size(need), SaveStore.size(packs.getParentFile().getUsableSpace()));
+                throw new LocalizedIOException("packs_ui_import_space", SaveStore.sizeMsg(need), SaveStore.sizeMsg(packs.getParentFile().getUsableSpace()));
             File remembered = Job.remembered(a);
             if (remembered != null && remembered.isFile()) {
                 Job j = Job.read(remembered);

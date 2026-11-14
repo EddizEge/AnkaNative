@@ -361,7 +361,7 @@ public final class ReadinessActivity extends Activity {
                 String t = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                 String first = t.contains("\n[") ? t.substring(t.indexOf("\n[") + 1) : t;
                 int end = first.indexOf("-- facts --");
-                s.append("-- last start of ").append(p.titleId).append(" (").append(DateUtils.getRelativeTimeSpanString(f.lastModified())).append(") --\n")   // i18n-keep: the report's marker
+                s.append("-- last start of ").append(p.titleId).append(" (").append(Readiness.ago(f.lastModified(), System.currentTimeMillis()).english()).append(") --\n")   // i18n-keep: the report's marker
                         .append(end >= 0 ? first.substring(0, end) : first);
             } catch (IOException ignored) { /* left out */ }
         }
@@ -406,7 +406,7 @@ public final class ReadinessActivity extends Activity {
             }
             if (lastGame == null) l.add(new Readiness.Check(new Msg("readiness_check_last_exit"), Readiness.Status.INFO, new Msg("readiness_last_exit_none"), null));
             else {
-                String when = DateUtils.getRelativeTimeSpanString(lastGame.getTimestamp(), System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString();
+                Msg when = Readiness.ago(lastGame.getTimestamp(), System.currentTimeMillis());   // the screen's language on the screen, English in the report
                 int why = lastGame.getReason();
                 boolean normal = why == ApplicationExitInfo.REASON_EXIT_SELF || why == ApplicationExitInfo.REASON_USER_REQUESTED || why == ApplicationExitInfo.REASON_USER_STOPPED;
                 Msg what = memoryKill(lastGame) ? new Msg("readiness_exit_memory") : why == ApplicationExitInfo.REASON_CRASH || why == ApplicationExitInfo.REASON_CRASH_NATIVE ? new Msg("readiness_exit_crashed")
@@ -418,7 +418,7 @@ public final class ReadinessActivity extends Activity {
                 l.add(new Readiness.Check(new Msg("readiness_check_last_exit"), normal ? Readiness.Status.PASS : Readiness.Status.WARNING, line, null));
             }
             if (kills > 0) l.add(new Readiness.Check(new Msg("readiness_check_kills"), Readiness.Status.WARNING, Msg.plural("readiness_kills", kills, kills,
-                    DateUtils.getRelativeTimeSpanString(lastKill, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()), null));
+                    Readiness.ago(lastKill, System.currentTimeMillis())), null));
             else l.add(new Readiness.Check(new Msg("readiness_check_kills"), Readiness.Status.PASS, new Msg("readiness_kills_none"), null));
         } catch (RuntimeException e) { /* not available on this phone: left out */ }
         if (GameActivity.testApp()) {   // the test app's switches (env.txt): a report says which were on

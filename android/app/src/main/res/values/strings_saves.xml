@@ -47,6 +47,14 @@
     <string name="saves_changed">the save changed while it was copied (%1$s)</string>
     <string name="saves_migrate_cannot_clear_empty">cannot clear the empty %1$s</string>
     <string name="saves_migrate_mismatch_after_move">the app\'s copy does not match the save after the move (%1$s)</string>
+    <!-- SaveStore.sizeMsg: a byte size; the number is formatted in the language shown (1.2 or 1,2) -->
+    <plurals name="saves_size_bytes">
+        <item quantity="one">%1$d byte</item>
+        <item quantity="other">%1$d bytes</item>
+    </plurals>
+    <string name="saves_size_kb">%1$.1f KB</string>
+    <string name="saves_size_mb">%1$.1f MB</string>
+    <string name="saves_size_gb">%1$.2f GB</string>
     <!-- SaveUi: the game card's Manage sheet (Back up saves, Restore saves…, Import save…). %1$s is the game's name -->
     <string name="saves_busy">A save backup or restore of %1$s is still working.</string>
     <!-- %2$s: the in-game panel's Stop the game button (the game area's label) -->

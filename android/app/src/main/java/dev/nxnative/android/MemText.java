@@ -1,7 +1,5 @@
 package dev.nxnative.android;
 
-import java.util.Locale;
-
 /**
  * The memory figures the in-game overlay shows (top right, Overlay), as text (pure Java: dm/tools/tests/test_android_memtext.py runs it on the JVM). The game's own memory is its process's
  * resident set, VmRSS in /proc/self/status (what is in RAM now, shared pages counted whole: cheap to read, unlike Debug.getPss, which walks every mapping); the
@@ -32,7 +30,7 @@ final class MemText {
         return -1;
     }
 
-    private static String gib(long bytes) { return String.format(Locale.ROOT, "%.1f", bytes / GIB); }
+    private static double gib(long bytes) { return bytes / GIB; }
 
     /** The overlay's game line: "App 4.3 GiB" (the game process's resident set), in the user's language (the figures in Latin digits) */
     static String app(long rssBytes) { return rssBytes < 0 ? Tr.s("settings_mem_app_unknown") : Tr.s("settings_mem_app", gib(rssBytes)); }
