@@ -51,6 +51,8 @@ public final class TrJvmTest {
         same(m.text(), "/p kullanılamıyor: 1 oyun burada kısıtlı çalışıyor.", "a Msg in a Msg, user's language");
         same(m.english(), "Cannot use /p: 1 game runs with less here.", "a Msg in a Msg, English");
         same("" + m, m.english(), "a Msg concatenated is English");
+        same(Tr.s("prepare_cannot_use", "/p", Msg.plural("readiness_summary_limited", 1, 1)), m.text(), "a Msg passed to Tr.s renders in the user's language");
+        same(Tr.english("prepare_cannot_use", "/p", Msg.plural("readiness_summary_limited", 1, 1)), m.english(), "a Msg passed to Tr.english renders in English");
         check(m.equals(new Msg("prepare_cannot_use", "/p", Msg.plural("readiness_summary_limited", 1, 1))), "Msg equals");
 
         // aapt2's rules on a file of its own: escapes, quotes, white space, %% with and without arguments

@@ -73,17 +73,30 @@ final class Tr {
         }
     }
 
-    /** A string in the user's language */
-    static String s(String key, Object... args) { return backend().string(null, key, args); }
+    /** A string in the user's language (a Msg among args renders in it too) */
+    static String s(String key, Object... args) { return backend().string(null, key, rendered(null, args)); }
 
     /** A plural in the user's language: the item for n, formatted with args */
-    static String p(String key, int n, Object... args) { return backend().plural(null, key, n, args); }
+    static String p(String key, int n, Object... args) { return backend().plural(null, key, n, rendered(null, args)); }
 
     /** A string in English, whatever the user's language: logs, reports, anything parsed back */
-    static String english(String key, Object... args) { return backend().string(Locale.ENGLISH, key, args); }
+    static String english(String key, Object... args) { return backend().string(Locale.ENGLISH, key, rendered(Locale.ENGLISH, args)); }
 
     /** A plural in English */
-    static String englishP(String key, int n, Object... args) { return backend().plural(Locale.ENGLISH, key, n, args); }
+    static String englishP(String key, int n, Object... args) { return backend().plural(Locale.ENGLISH, key, n, rendered(Locale.ENGLISH, args)); }
+
+    /** args with each Msg rendered in the text's language, as Msg.render does for its own: formatted as it is, a Msg would be its toString, English, inside a
+     *  translated text. A Context's getString does not do this: pass msg.text() there */
+    private static Object[] rendered(Locale locale, Object[] args) {
+        if (args == null) return null;
+        Object[] a = args;
+        for (int i = 0; i < args.length; i++) {
+            if (!(args[i] instanceof Msg)) continue;
+            if (a == args) a = args.clone();
+            a[i] = ((Msg) args[i]).render(locale);
+        }
+        return a;
+    }
 
     /** Android's formatting: as written without arguments, String.format with them (in the given locale; ROOT when null) */
     static String format(Locale locale, String text, Object... args) {
