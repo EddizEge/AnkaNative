@@ -6,9 +6,9 @@
 //     CLEAR or vkCmdClearAttachments), else outside it. 1 vkCmdClearDepthStencilImage outside any pass (DM_VK_PASS_CLEARS=0 for this image only). 2 vkCmdClearAttachments
 //     in a pass of its own over the whole level. 3 the same in horizontal bands of DM_VK_BIGDEPTH_BAND rows (live, 1024), each band a pass of its own whose render area is the
 //     band. 4 no clear command: the clear value copied in from a buffer (vkCmdCopyBufferToImage, DM_VK_BIGDEPTH_BAND rows a copy, at most 8 MiB; depth-only D16 / D32
-//     formats, others take 1). Turnip
-//     clears the image's LRZ buffer (and its fast-clear flags) at a depth clear of 0, 1 or a pass's loadOp CLEAR, and 2 and 3 disable LRZ for their pass; after a copy (4) it
-//     disables LRZ for the image until its next clear (tu_disable_lrz), so 4 tells whether the LRZ clear is where the GPU stops.
+//     formats, others take 1; a value outside 0-4 is logged once and taken as 0, before any pass is ended). Turnip clears the image's LRZ buffer (and its fast-clear flags) at
+//     a depth clear of 0, 1 or a pass's loadOp CLEAR, and 2 and 3 disable LRZ for their pass. A copy (4) makes no LRZ fast clear: Turnip marks the image's LRZ disabled
+//     (tu_disable_lrz, which still writes that mark into the LRZ buffer) until its next clear, so 4 leaves out the LRZ clear and LRZ use, not every LRZ write.
 //   DM_VK_BIGDEPTH_NOCOMP=1 (restart): VK_EXT_image_compression_control enabled on the device and big depth images made with VK_IMAGE_COMPRESSION_DISABLED_EXT: no UBWC and
 //     no flag buffer for those images only (TU_DEBUG=noubwc for one image). Logged once at the device and at each such image.
 //   DM_VK_BIGDEPTH_SYNC=1 (live): after a big depth image's clear (outside a pass: with DM_VK_BIGDEPTH_CLEAR 1-4) and after the first DM_VK_BIGDEPTH_SYNC_PASSES (live, 4)
@@ -64,39 +64,41 @@ void vka_bigdepth_made(const vka_img *im, const VkImageCreateInfo *ci, const VkM
                      mr->memoryTypeBits, memory);
 }
 
-// DM_VK_BIGDEPTH_CLEAR's methods. The caller (clear_ds) has ended any open pass; the image is in GENERAL, as every replay image
-static void clear_passes(VkCommandBuffer cb, const vka_pclear *c, uint32_t band) {   // 2 (band 0: one pass over the level) and 3
+// DM_VK_BIGDEPTH_CLEAR's methods. The caller (clear_ds) has ended any open pass; the image is in GENERAL, as every replay image. Each returns what it recorded (the log line)
+static const char *clear_passes(VkCommandBuffer cb, const vka_pclear *c, uint32_t band) {   // 2 (band 0: one pass over the level) and 3: vka_clear_rect, a pass each
     vka_img *im = c->im;
-    VkImageView view = vka_view(im, im->f.vk, c->nl > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D, im->aspect, c->lv, 1, c->l0, c->nl, NULL);
-    if (!view) { VRED_ONCE("bigdepth: no view of serial %llu for its clear: cleared with vkCmdClearDepthStencilImage instead", (unsigned long long)im->serial); vka_clear_outside(c); return; }
-    uint32_t w = im->w >> c->lv ? im->w >> c->lv : 1, h = im->h >> c->lv ? im->h >> c->lv : 1;
-    VkRenderingAttachmentInfo a = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, .imageView = view, .imageLayout = VK_IMAGE_LAYOUT_GENERAL, .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD, .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
+    if (!(im->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)) {   // (img_create_ may drop the usage the format lacks)
+        vka_clear_outside(c);
+        return c->whole ? "vkCmdClearDepthStencilImage outside any pass (the image cannot be a depth attachment)"
+                        : "nothing: the image cannot be a depth attachment, and a part of a level is cleared only in a pass";
+    }
     uint32_t y0 = (uint32_t)c->rc.offset.y, y1 = y0 + c->rc.extent.height, step = band ? band : c->rc.extent.height;
     for (uint32_t y = y0; y < y1; y += step) {
         uint32_t bh = y1 - y < step ? y1 - y : step;
-        VkRect2D area = band ? (VkRect2D){{c->rc.offset.x, (int32_t)y}, {c->rc.extent.width, bh}} : (VkRect2D){{0, 0}, {w, h}};
-        VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = area, .layerCount = c->nl,
-                              .pDepthAttachment = im->aspect & VK_IMAGE_ASPECT_DEPTH_BIT ? &a : NULL, .pStencilAttachment = im->aspect & VK_IMAGE_ASPECT_STENCIL_BIT ? &a : NULL};
-        vk.vkCmdBeginRendering(cb, &ri);
-        VkClearAttachment ca = {c->asp, 0, c->out}; VkClearRect cr = {{{c->rc.offset.x, (int32_t)y}, {c->rc.extent.width, bh}}, 0, c->nl};
-        vk.vkCmdClearAttachments(cb, 1, &ca, 1, &cr);
-        vk.vkCmdEndRendering(cb);
+        VkRect2D r = {{c->rc.offset.x, (int32_t)y}, {c->rc.extent.width, bh}};
+        if (vka_clear_rect(cb, im, im->f.vk, c->asp, c->lv, c->l0, c->nl, r, &c->out, band ? &r : NULL) > 0) continue;
+        if (y != y0) { VRED_ONCE("bigdepth: serial %llu: no view for a band of its clear: the rest not cleared", (unsigned long long)im->serial); vka_barrier(cb); return "vkCmdClearAttachments in bands, a pass each (stopped: no view)"; }
+        if (!c->whole) VRED_ONCE("bigdepth: serial %llu: no view for its clear in a pass: not cleared", (unsigned long long)im->serial);
+        vka_clear_outside(c);   // (no view of it: none was recorded)
+        return c->whole ? "vkCmdClearDepthStencilImage outside any pass (no view of the image for a pass)" : "nothing: no view of the image for a pass";
     }
     vka_barrier(cb);
+    return band ? "vkCmdClearAttachments in bands, a pass each" : "vkCmdClearAttachments in a pass of its own";
 }
-static int clear_copy(VkCommandBuffer cb, const vka_pclear *c, uint32_t band) {   // 4: 0 = not for this format (the caller takes 1)
+static const char *clear_copy(VkCommandBuffer cb, const vka_pclear *c, uint32_t band) {   // 4: NULL = recorded; else why not (the caller takes 1)
     vka_img *im = c->im; uint32_t bpt;
-    if (c->asp != VK_IMAGE_ASPECT_DEPTH_BIT) return 0;
-    if (im->f.vk == VK_FORMAT_D16_UNORM) bpt = 2; else if (im->f.vk == VK_FORMAT_D32_SFLOAT) bpt = 4; else return 0;
-    if (im->samples > 1) return 0;
+    if (c->asp != VK_IMAGE_ASPECT_DEPTH_BIT) return "a copy takes depth-only D16 / D32 images";
+    if (im->f.vk == VK_FORMAT_D16_UNORM) bpt = 2; else if (im->f.vk == VK_FORMAT_D32_SFLOAT) bpt = 4; else return "a copy takes depth-only D16 / D32 images";
+    if (im->samples > 1) return "a copy takes single-sample images";
     uint32_t rows = band ? band : 1024, cap = (uint32_t)((8u << 20) / ((uint64_t)c->rc.extent.width * bpt));   // (at most 8 MiB of scratch: the same rows copied band after band)
     if (rows > cap) rows = cap ? cap : 1;
     if (rows > c->rc.extent.height) rows = c->rc.extent.height;
     VkDeviceSize n = (VkDeviceSize)c->rc.extent.width * rows * bpt;
-    vka_span sp; if (!vka_scratch(n, 16, &sp)) return 0;
-    float d = c->out.depthStencil.depth;
-    if (bpt == 2) { float cl = d < 0 ? 0 : d > 1 ? 1 : d; uint16_t v = (uint16_t)lrintf(cl * 65535.0f); uint16_t *p = (uint16_t *)sp.ptr; for (VkDeviceSize i = 0; i < n / 2; i++) p[i] = v; }
-    else { uint32_t v; memcpy(&v, &d, 4); uint32_t *p = (uint32_t *)sp.ptr; for (VkDeviceSize i = 0; i < n / 4; i++) p[i] = v; }
+    vka_span sp; if (!vka_scratch(n, 16, &sp)) return "no scratch memory for the copy";
+    // [0, 1] as a clear writes it: a copy into D32_SFLOAT is outside the spec for other values without VK_EXT_depth_range_unrestricted (D16 takes only those)
+    float d = c->out.depthStencil.depth, cl = d >= 0 ? d <= 1 ? d : 1 : 0;   // (NaN: 0)
+    if (bpt == 2) { uint16_t v = (uint16_t)lrintf(cl * 65535.0f); uint16_t *p = (uint16_t *)sp.ptr; for (VkDeviceSize i = 0; i < n / 2; i++) p[i] = v; }
+    else { uint32_t v; memcpy(&v, &cl, 4); uint32_t *p = (uint32_t *)sp.ptr; for (VkDeviceSize i = 0; i < n / 4; i++) p[i] = v; }
     for (uint32_t l = c->l0; l < c->l0 + c->nl; l++)
         for (uint32_t y = (uint32_t)c->rc.offset.y, y1 = y + c->rc.extent.height; y < y1; y += rows) {
             uint32_t bh = y1 - y < rows ? y1 - y : rows;
@@ -105,21 +107,25 @@ static int clear_copy(VkCommandBuffer cb, const vka_pclear *c, uint32_t band) { 
             vk.vkCmdCopyBufferToImage(cb, sp.buf, im->img, VK_IMAGE_LAYOUT_GENERAL, 1, &r);
         }
     vka_barrier(cb);
-    return 1;
+    return NULL;
 }
-int vka_bigdepth_clear(VkCommandBuffer cb, const vka_pclear *c) {
-    int mode = VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0);
+static const char *clear_outside_how(const vka_pclear *c) {   // what vka_clear_outside records for a depth / stencil clear
+    return c->whole ? "vkCmdClearDepthStencilImage outside any pass" : "vkCmdClearAttachments in a pass of its own (a scissored clear: vkCmdClearDepthStencilImage takes whole levels)";
+}
+int vka_bigdepth_clear(VkCommandBuffer cb, const vka_pclear *c, int mode) {
     if (mode < 1 || mode > 4 || !cb || !vka_bigdepth(c->im)) return 0;
     uint32_t band = (uint32_t)(VKA_ENV("DM_VK_BIGDEPTH_BAND", 1024) > 0 ? VKA_ENV("DM_VK_BIGDEPTH_BAND", 1024) : 1024);
-    const char *how = mode == 1 ? "vkCmdClearDepthStencilImage outside any pass" : mode == 2 ? "vkCmdClearAttachments in a pass of its own" : mode == 3 ? "vkCmdClearAttachments in bands, a pass each" : "a buffer copy of the clear value";
-    if (mode == 4 && !clear_copy(cb, c, band)) { mode = 1; how = "vkCmdClearDepthStencilImage outside any pass (a copy takes depth-only D16 / D32 images)"; }
-    if (mode == 1) vka_clear_outside(c);
-    else if (mode == 2) clear_passes(cb, c, 0);
-    else if (mode == 3) clear_passes(cb, c, band);
+    const char *how = NULL; char b[160];
+    if (mode == 4) {
+        const char *why = clear_copy(cb, c, band);
+        if (!why) how = "a buffer copy of the clear value";
+        else { vka_clear_outside(c); snprintf(b, sizeof b, "%s (not a copy: %s)", clear_outside_how(c), why); how = b; }
+    } else if (mode == 1) { vka_clear_outside(c); how = clear_outside_how(c); }
+    else how = clear_passes(cb, c, mode == 3 ? band : 0);
     static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8)
         VLOG("bigdepth: serial %llu %ux%u VkFormat %d: clear (aspect %#x, depth %g, stencil %u, rectangle %d,%d %ux%u, level %u layers %u+%u) recorded as %s (DM_VK_BIGDEPTH_CLEAR=%d%s)",
              (unsigned long long)c->im->serial, c->im->w, c->im->h, c->im->f.vk, c->asp, c->out.depthStencil.depth, c->out.depthStencil.stencil, c->rc.offset.x, c->rc.offset.y,
-             c->rc.extent.width, c->rc.extent.height, c->lv, c->l0, c->nl, how, VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0), mode >= 3 ? ", DM_VK_BIGDEPTH_BAND rows a step" : "");
+             c->rc.extent.width, c->rc.extent.height, c->lv, c->l0, c->nl, how, mode, mode >= 3 ? ", DM_VK_BIGDEPTH_BAND rows a step" : "");
     fflush(stderr);
     return 1;
 }

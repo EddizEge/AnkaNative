@@ -461,10 +461,12 @@ int vka_bigdepth(const vka_img *im);
 int vka_bigdepth_log_on(void);
 void vka_bigdepth_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));   // one [vk] bigdepth line (DM_VK_BIGDEPTH_LOG's budget), then the log file synced
 void vka_bigdepth_made(const vka_img *im, const VkImageCreateInfo *ci, const VkMemoryRequirements *mr, int nocomp, const char *memory);   // img_create_: what was made
-int vka_bigdepth_clear(VkCommandBuffer cb, const vka_pclear *c);   // clear_ds: 1 = recorded here by DM_VK_BIGDEPTH_CLEAR's method (outside any pass), 0 = the caller's path
+int vka_bigdepth_clear(VkCommandBuffer cb, const vka_pclear *c, int mode);   // clear_ds: 1 = recorded here by DM_VK_BIGDEPTH_CLEAR's method (mode 1-4, outside any pass), 0 = the caller's path
 void vka_bigdepth_sync(const char *what, uint64_t serial);   // vka_exec.c: DM_VK_BIGDEPTH_SYNC's wait (the part so far submitted and the queue waited for)
 int vka_bigdepth_sync_on(void);
 extern uint64_t vka_bigdepth_pass_serial;   // vka_draw.c: a pass with that big depth image as its attachment ended (DM_VK_BIGDEPTH_SYNC waits at the next draw, vka_exec.c chunk_check); 0 none
+// A clear of a rectangle of one level in a pass of its own (vkCmdClearAttachments; vka_exec.c). area: the render area, NULL = the whole level. 1 recorded, 0 not an attachment, -1 no view
+int vka_clear_rect(VkCommandBuffer cb, vka_img *im, VkFormat fmt, VkImageAspectFlags asp, uint32_t lv, uint32_t l0, uint32_t nl, VkRect2D rc, const VkClearValue *val, const VkRect2D *area);
 void vka_clear_outside(const vka_pclear *c);         // the clear on the image, outside any pass, then a barrier
 // A clear of bound target c->ci (< 0: depth / stencil) into the render pass over those targets: an open one takes it as vkCmdClearAttachments; with none open it waits for
 // the next draw's pass (loadOp CLEAR), or is done outside when anything else comes first (vka_rp_end). 0 = not taken: the caller ends the pass and clears outside

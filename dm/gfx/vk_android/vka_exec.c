@@ -520,21 +520,26 @@ static void rt_range(const vka_img *im, const view_t *v, int has_v, uint32_t *lv
     *nl = has_v && v->set_layers && v->nlayers ? v->nlayers : all - (*l0 < all ? *l0 : 0);
     if (*l0 + *nl > all) *nl = *l0 < all ? all - *l0 : 0;
 }
-// A clear of part of a level: one dynamic-rendering pass over the attachment, vkCmdClearAttachments in the rectangle
-static void clear_rect(vka_img *im, VkFormat fmt, VkImageAspectFlags asp, uint32_t lv, uint32_t l0, uint32_t nl, VkRect2D rc, const VkClearValue *val) {
+// A clear of part of a level: one dynamic-rendering pass over the attachment, vkCmdClearAttachments in the rectangle. area: the pass's render area (NULL: the whole level;
+// DM_VK_BIGDEPTH_CLEAR 3 gives each band its own, vka_bigdepth.c). 1 = recorded into cb, 0 = the texture cannot be an attachment, -1 = no view of it
+int vka_clear_rect(VkCommandBuffer cb, vka_img *im, VkFormat fmt, VkImageAspectFlags asp, uint32_t lv, uint32_t l0, uint32_t nl, VkRect2D rc, const VkClearValue *val, const VkRect2D *area) {
     int color = asp == VK_IMAGE_ASPECT_COLOR_BIT;
-    if (!(im->usage & (color ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))) {
-        VRED_ONCE("partial clear of a texture that cannot be an attachment (serial %llu format %#x)", (unsigned long long)im->serial, im->d.format); return; }
+    if (!(im->usage & (color ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))) return 0;
     VkImageView view = vka_view(im, fmt, nl > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D, im->aspect, lv, 1, l0, nl, NULL);
-    if (!view) return;
+    if (!view) return -1;
     uint32_t w, h; level_size(im, lv, &w, &h);
     VkRenderingAttachmentInfo a = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, .imageView = view, .imageLayout = VK_IMAGE_LAYOUT_GENERAL, .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD, .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
-    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = {{0, 0}, {w, h}}, .layerCount = nl, .colorAttachmentCount = color, .pColorAttachments = color ? &a : NULL,
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = area ? *area : (VkRect2D){{0, 0}, {w, h}}, .layerCount = nl, .colorAttachmentCount = color, .pColorAttachments = color ? &a : NULL,
                           .pDepthAttachment = im->aspect & VK_IMAGE_ASPECT_DEPTH_BIT ? &a : NULL, .pStencilAttachment = im->aspect & VK_IMAGE_ASPECT_STENCIL_BIT ? &a : NULL};
-    vk.vkCmdBeginRendering(g_cb, &ri);
+    vk.vkCmdBeginRendering(cb, &ri);
     VkClearAttachment ca = {asp, 0, *val}; VkClearRect cr = {rc, 0, nl};
-    vk.vkCmdClearAttachments(g_cb, 1, &ca, 1, &cr);
-    vk.vkCmdEndRendering(g_cb);
+    vk.vkCmdClearAttachments(cb, 1, &ca, 1, &cr);
+    vk.vkCmdEndRendering(cb);
+    return 1;
+}
+static void clear_rect(vka_img *im, VkFormat fmt, VkImageAspectFlags asp, uint32_t lv, uint32_t l0, uint32_t nl, VkRect2D rc, const VkClearValue *val) {
+    if (!vka_clear_rect(g_cb, im, fmt, asp, lv, l0, nl, rc, val, NULL))
+        VRED_ONCE("partial clear of a texture that cannot be an attachment (serial %llu format %#x)", (unsigned long long)im->serial, im->d.format);
 }
 static int scissored(const vka_img *im, uint32_t lv, VkRect2D *rc) {   // 1 = the scissor leaves part of the level out; rc = what is left (may be empty)
     uint32_t w, h; level_size(im, lv, &w, &h);
@@ -671,9 +676,11 @@ static void clear_ds(const p_clear_ds *c) {
         vka_bigdepth_log("clear of serial %llu (frame %llu): aspect %#x depth %g stencil %u (mask %#x), level %u layers %u+%u, rectangle %d,%d %ux%u of %ux%u, scissored %d, DM_VK_BIGDEPTH_CLEAR %d, "
                          "a pass open over these targets %d", (unsigned long long)im->serial, (unsigned long long)g_frame, asp, c->depth, (unsigned)c->stencil & 0xff, sm, lv, l0, nl, rc.offset.x,
                          rc.offset.y, rc.extent.width, rc.extent.height, im->w >> lv, im->h >> lv, part, VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0), vka_rp_open_for(&S.rt, S.has_rt));
-        if (!masked && asp && VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0) > 0) {
+        int bm = VKA_ENV("DM_VK_BIGDEPTH_CLEAR", 0);
+        if (bm && (bm < 1 || bm > 4)) VRED_ONCE("bigdepth: DM_VK_BIGDEPTH_CLEAR=%d is not a method (1-4): clears as with 0", bm);
+        if (!masked && asp && bm >= 1 && bm <= 4) {   // (checked before the pass ends: another value leaves the passes as they are)
             vka_rp_end();
-            if (vka_bigdepth_clear(g_cb, &pc)) { vka_img_written(im); g_stat_ops++; vka_bigdepth_sync("its clear", im->serial); return; }
+            if (vka_bigdepth_clear(g_cb, &pc, bm)) { vka_img_written(im); g_stat_ops++; vka_bigdepth_sync("its clear", im->serial); return; }
         }
     }
     if (!masked && asp && clear_in_pass(&pc)) { if (vka_bigdepth(im)) vka_bigdepth_log("clear of serial %llu: left to the next pass over it (loadOp CLEAR or vkCmdClearAttachments there: its pass line)", (unsigned long long)im->serial);
