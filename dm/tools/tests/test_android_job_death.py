@@ -67,7 +67,8 @@ class Watch(unittest.TestCase):
     def test_refused_start_tells_the_user(self):
         r = body(self.w, 'static void restart(Context c, Job j, String why)')
         self.assertIn('.putExtra(PackService.EXTRA_AUTO, true)', r)
-        self.assertLess(r.index('catch (RuntimeException e)'), r.index('stopped(c, j);'))
+        self.assertLess(r.index('catch (RuntimeException e)'), r.rindex('stopped(c, j);'))   # Android refused the start
+        self.assertLess(r.index('if (!JobDeath.mayStart(now, lastAuto))'), r.index('stopped(c, j);'))   # it ended again right after one: no loop
         self.assertIn('postDelayed(watch.verify, VERIFY_MS)', r)
         v = body(self.w, 'private void verify()')
         self.assertIn('JobDeath.notBack(j.state(), j.reason(), alive)', v)
