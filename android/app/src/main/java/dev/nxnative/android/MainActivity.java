@@ -281,23 +281,74 @@ public final class MainActivity extends Activity {
 
     /**
      * A game a frontend sent that FrontendLaunch could not start at once: Home asks first, as nothing another app sends may act on its own. A card (card: the
-     * game path is the card's): Play, whose steps then say what is missing and offer the fix (a pack, Prepare, a shader update). A file that is no card: Add game,
-     * whose own steps then check it and add it (and ask about another dump of the same game). The buttons ignore taps through an overlay another app draws
+     * game path is the card's): Play, whose steps then say what is missing and offer the fix (a pack, Prepare, a shader update). A file that is no card must be
+     * one game (not a folder of several, which Add game would add all of), and it never takes the place of a card the user has without being named:
+     * a card of the same title and build (which Add game would replace with no question, GameList.matches) is that game, so Home asks to start that card, with
+     * its own files and pack, and the file is not added; another dump of the title on Home is named in the question, and Add game then asks whether this one
+     * replaces it or both stay. Else Add game, whose own steps check the file and add it. The buttons ignore taps through an overlay another app draws
      */
     private void fromFrontend(File game, boolean card) {
         if (settingsPage) page(false);
         refresh();
         if (needAccess()) return;
-        Game g = null;
-        if (card) for (Game x : games) if (GameList.samePath(x.gameDir, game.getPath())) { g = x; break; }
-        if (card && g == null) return;   // the card went in the meantime
-        Game fg = g;
+        if (card) {
+            for (Game x : games) if (GameList.samePath(x.gameDir, game.getPath())) { askFrontend(x, null, null); return; }
+            return;   // the card went in the meantime
+        }
+        new Thread(() -> {   // reads the file (a .nup's TOC is hashed for its build): off the main thread
+            File one = Pack.npdmOf(game) != null || Nup.isNup(game) || Nup.wrongCase(game) ? game : null;
+            if (one == null) {
+                List<File> found = PackFind.gamesIn(game);
+                if (found.size() == 1) one = found.get(0);
+            }
+            Game same = null;
+            List<Game> others = new ArrayList<>();
+            if (one != null) {
+                String id;
+                try { id = Pack.titleIdOf(one); } catch (IOException e) { id = null; }   // Add game says why it cannot be used
+                if (id != null) {
+                    String key = Game.key(one.getPath(), id);
+                    List<Game> list = Game.load(this);
+                    List<Integer> m = GameList.matches(list, id, one.getPath(), key, Game::key);
+                    if (!m.isEmpty()) same = list.get(m.get(0));
+                    else for (int i : GameList.others(list, id, one.getPath(), key, Game::key)) others.add(list.get(i));
+                }
+            }
+            File f = one;
+            Game s = same;
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (f == null) { error("Another app asked " + getString(R.string.app_name) + " to open " + game + ", which is not one game: send a single .nup or game folder. Nothing was added."); return; }
+                if (s != null) { askFrontend(s, f, null); return; }
+                askFrontend(null, f, others);
+            });
+        }, "nx-frontend-add").start();
+    }
+
+    /**
+     * Home's question for a frontend's game. card: Start that card (file: the other app named another copy of the same game build, which is not added).
+     * Else Add file, naming the other dumps of its title on Home (others)
+     */
+    private void askFrontend(Game card, File file, List<Game> others) {
+        String msg;
+        if (card != null && file == null)
+            msg = "Another app asked to start " + card.name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything.";
+        else if (card != null)
+            msg = "Another app asked " + getString(R.string.app_name) + " to open\n\n" + file.getPath() + "\n\nwhich is the same game build as your card of " + card.name
+                    + " (" + card.gameDir + "). Play starts your card with its own files and pack; that file is not added and your card is not changed.";
+        else {
+            StringBuilder s = new StringBuilder("Another app asked " + getString(R.string.app_name) + " to open\n\n" + file.getPath() + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add.");
+            if (!others.isEmpty()) {
+                s.append("\n\nYour list has another dump of this game:");
+                for (Game o : others) s.append("\n• ").append(o.gameDir).append(" (pack ").append(o.packDir).append(")");
+                s.append("\n\nAdd game then asks whether this file replaces it or both are kept.");
+            }
+            msg = s.toString();
+        }
         AlertDialog d = new AlertDialog.Builder(this)
-                .setTitle(fg != null ? "Start " + fg.name + "?" : "Add this game?")
-                .setMessage(fg != null
-                        ? "Another app asked to start " + fg.name + ". It cannot start straight away: Play checks what it needs and asks before it changes anything."
-                        : "Another app asked " + getString(R.string.app_name) + " to open\n\n" + game.getPath() + "\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap Add.")
-                .setPositiveButton(fg != null ? "Play" : "Add", (x, w) -> { if (fg != null) launch(fg); else gamePicked(game); })
+                .setTitle(card != null ? "Start " + card.name + "?" : "Add this game?")
+                .setMessage(msg)
+                .setPositiveButton(card != null ? "Play" : "Add", (x, w) -> { if (card != null) launch(card); else gamePicked(file); })
                 .setNegativeButton("Cancel", null).create();
         d.setOnShowListener(x -> {
             for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
