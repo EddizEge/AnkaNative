@@ -936,11 +936,12 @@ static void pw_explain(vka_shader *const sh[5], const vka_gkey *k, uint32_t klen
 static gval *gfx_obtain(const gkey_full *fk, uint64_t h, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int *made);
 static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, int prewarm, int *made);
 static int as_run(int wait);
-// One prewarm build at a time on VK_DRIVER_ID_MESA_TURNIP (DM_VK_PREWARM_OVERLAP=1, restart: each thread builds on its own, as before and as on other drivers). Banana
+// DM_VK_PREWARM_OVERLAP=0 (restart; default 1 = each thread builds on its own, as before, on every driver): one prewarm build at a time, the A/B for Turnip. Banana
 // Native found Ocarina of Time on Turnip (Galaxy S25, Adreno 830) crashing about 16 s into a warm run: four prewarm builds started within one second, 11-12 s each, took
 // the process past vm.max_map_count (66,160 maps; SIGSEGV at 0 and std::bad_alloc in the driver); one at a time it peaked at 36,972 maps. Qualcomm's own driver's compiler
 // does not take the maps with it (21,450 at most on the same phone and game), so its threads keep building side by side. The threads still look up and prepare their keys in
-// parallel, and a warm run's cache hits take milliseconds each. From Banana Native d393736c and 84d1b9df (wraphs), without their long-compile hold (40ce6c6b)
+// parallel, and a warm run's cache hits take milliseconds each. From Banana Native d393736c and 84d1b9df (wraphs), without their long-compile hold (40ce6c6b). Banana Native
+// makes it the default on Turnip; here it stays a switch until a Turnip phone shows the crash or measures the cost (one build at a time makes a first run's prewarm slower)
 static pthread_mutex_t g_pw_one = PTHREAD_MUTEX_INITIALIZER;
 static void *pw_main(void *a) {
     (void)a; pthread_setname_np(pthread_self(), "vk-prewarm");
@@ -949,7 +950,7 @@ static void *pw_main(void *a) {
     size_t *offs = NULL;   // walked once by each thread to find the record of index i: built here (the list is small)
     uint32_t n = g_pw_load_n; offs = malloc((n ? n : 1) * sizeof *offs);
     if (offs) for (size_t o = 0, i = 0; i < n; i++) { offs[i] = o; pwrec r; memcpy(&r, g_pw_load + o, sizeof r); o += pw_size(&r); }
-    int overlap = VKA_ENV("DM_VK_PREWARM_OVERLAP", V.driver_id != VK_DRIVER_ID_MESA_TURNIP) != 0;   // 1: each thread builds on its own (default off Turnip); 0: g_pw_one
+    int overlap = VKA_ENV("DM_VK_PREWARM_OVERLAP", 1) != 0;   // 1 (default): each thread builds on its own, as before; 0: g_pw_one
     for (;;) {
         pause_point();
         // DM_VK_PREWARM_HELP (default on): a pipeline whose draws are being skipped now (the DM_VK_PSO_ASYNC queue) comes before the next key of the list, which no draw waits
@@ -1003,9 +1004,9 @@ static void pw_start(void) {
     if (nt > 4) nt = 4;
     g_pw_t0 = now_ns(); g_pw_threads = 0;
     for (int i = 0; i < nt; i++) { pthread_t th; if (!pthread_create(&th, NULL, pw_main, NULL)) { pthread_detach(th); g_pw_threads++; } }
-    int ov = VKA_ENV("DM_VK_PREWARM_OVERLAP", V.driver_id != VK_DRIVER_ID_MESA_TURNIP) != 0;
+    int ov = VKA_ENV("DM_VK_PREWARM_OVERLAP", 1) != 0;
     VLOG("prewarm: %u pipeline keys of earlier runs made ahead on %d background threads (DM_VK_PREWARM=0 off), %s", g_pw_load_n, g_pw_threads,
-         ov ? "building side by side (DM_VK_PREWARM_OVERLAP)" : "one build at a time (Turnip; DM_VK_PREWARM_OVERLAP=1 side by side)");
+         ov ? "building side by side (DM_VK_PREWARM_OVERLAP=0: one at a time)" : "one build at a time (DM_VK_PREWARM_OVERLAP=0)");
 }
 
 // ---------- Graphics pipelines: the lookup ----------
