@@ -132,6 +132,8 @@ final class Ondevice {
         final TextView head, title, status, detail;
         final ProgressBar bar;
         final Button go;
+        /** What go does now: pause the running job (true) or start / resume it; set with its label in show(), never read back from the label (it is translated) */
+        boolean goPauses;
         final Ui.Action play;
         final View more;
         /** The job (file and creation time) whose game this app put into the list ("added" in the ondevice prefs): once per job, so a game the user removed stays removed */
@@ -281,6 +283,7 @@ final class Ondevice {
             bar.setProgress((int) Math.round(job.overall() * 1000));
             detail.setText(String.format(Locale.getDefault(), "%d %%  ·  shaders %,d of %,d", Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal()));
             boolean running = alive && ("running".equals(st) || "paused".equals(st) && !"user".equals(job.reason()) && !"timeout".equals(job.reason()));
+            goPauses = running;
             go.setText(running ? "Pause" : "done".equals(st) && !job.apkChanged() ? "Prepare again" : "failed".equals(st) ? "Retry" : "pending".equals(st) ? "Start" : "Resume");
             go.setEnabled(!"done".equals(st) || job.apkChanged());
             play.setEnabled(ready && !running);
@@ -503,7 +506,7 @@ final class Ondevice {
 
         void goOrPause() {
             if (job == null) return;
-            if (go.getText().toString().equals("Pause")) { pauseJob("launcher"); return; }
+            if (goPauses) { pauseJob("launcher"); return; }
             if (a.needAccess()) return;
             startService(job);
         }
