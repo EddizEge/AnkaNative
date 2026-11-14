@@ -135,4 +135,5 @@
     <string name="readiness_switches_unreadable">On in env.txt: (env.txt unreadable).</string>
     <!-- The clipboard's label of the copied report (Android may show it) -->
     <string name="readiness_clip_label">Readiness report</string>
+    <string name="readiness_req_android_sdk_33">Android 13 or newer: Android 12 and 12L are untested; the game may not start or may draw wrongly there</string>
 </resources>

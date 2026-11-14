@@ -23,16 +23,17 @@ final class Readiness {
      * The host's requirement rows that have a text resource (docs/i18n.md "Readiness requirements"): the row of fact REQ_FACTS[i] reads REQ_KEYS[i], "title: why"
      * in the user's language. A literal table, so test_android_i18n.py checks every key exists. A host row whose fact is not here, and every row of a game's own
      * readiness.tsv, keeps the English it was written with. Add a row's fact and key at the same index, and its English, the same as the HOST row's, to
-     * strings_readiness.xml (ReadinessJvmTest checks both)
+     * strings_readiness.xml (ReadinessJvmTest checks both). When two HOST rows check the same fact, the later one's table fact is "fact>=min"
+     * ("android.sdk>=33"), which a row matches before its bare fact
      */
     static final String[] REQ_FACTS = {"feature.timelineSemaphore", "android.sdk", "vk.instance", "vk.api", "queue.graphicsCompute", "feature.dynamicRendering",
             "ext.VK_KHR_swapchain", "ext.VK_KHR_map_memory2", "ext.VK_EXT_map_memory_placed", "feature.memoryMapPlaced", "feature.descriptorBindingSampledImageUpdateAfterBind",
-            "feature.descriptorBindingPartiallyBound", "feature.runtimeDescriptorArray"};
+            "feature.descriptorBindingPartiallyBound", "feature.runtimeDescriptorArray", "android.sdk>=33"};
     // The two placed-memory rows have the same text, so they share one key
     static final String[] REQ_KEYS = {"readiness_req_feature_timeline_semaphore", "readiness_req_android_sdk", "readiness_req_vk_instance", "readiness_req_vk_api",
             "readiness_req_queue_graphics_compute", "readiness_req_feature_dynamic_rendering", "readiness_req_ext_vk_khr_swapchain", "readiness_req_ext_vk_khr_map_memory2",
             "readiness_req_ext_vk_ext_map_memory_placed", "readiness_req_ext_vk_ext_map_memory_placed", "readiness_req_feature_descriptor_binding_sampled_image_update_after_bind",
-            "readiness_req_feature_descriptor_binding_partially_bound", "readiness_req_feature_runtime_descriptor_array"};
+            "readiness_req_feature_descriptor_binding_partially_bound", "readiness_req_feature_runtime_descriptor_array", "readiness_req_android_sdk_33"};
 
     /** One requirement: the fact (a key of the facts) must be at least min (a number, a dotted version, or 0x hex). what: "title: why" */
     static final class Req {
@@ -53,7 +54,14 @@ final class Readiness {
             int c = what.indexOf(": ");
             this.title = c > 0 ? what.substring(0, c) : what;
             this.why = c > 0 ? what.substring(c + 2) : "";
-            this.res = host ? java.util.Arrays.asList(REQ_FACTS).indexOf(fact) : -1;
+            this.res = host ? resIndex(fact, min) : -1;
+        }
+
+        /** The row of REQ_FACTS for a host row: "fact>=min" when the table has it, else the bare fact, else -1 */
+        private static int resIndex(String fact, String min) {
+            List<String> facts = java.util.Arrays.asList(REQ_FACTS);
+            int i = facts.indexOf(fact + ">=" + min);
+            return i >= 0 ? i : facts.indexOf(fact);
         }
 
         /** "title: why" in English: the resource's English when the row has one (the same text as HOST's), else what it was built with */
@@ -131,7 +139,7 @@ final class Readiness {
             new Req(true, "android.sdk", "31", "Android 12 or newer: the app is built for it", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
             // Android 12 and 12L (API 31, 32) install but nobody has run a game on them yet (android/README.md "Android versions"): a warning until a phone run
             // confirms them. Below 31 the required row fails and this one is left out
-            new Req(false, "android.sdk", "33", "Android 13 or newer: Android 12 and 12L are untested; the game may not start or may draw wrongly there"),
+            new Req(false, "android.sdk", "33", "Android 13 or newer: Android 12 and 12L are untested; the game may not start or may draw wrongly there", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
             new Req(true, "vk.instance", "1.1", "Vulkan 1.1 loader or newer: Android 12's loader reports 1.1 and 13's 1.3; the replay's Vulkan 1.3 is the GPU driver's (the next row)", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
             new Req(true, "vk.api", "1.3", "Vulkan 1.3 GPU driver: the graphics replay is written for Vulkan 1.3", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS
             new Req(true, "queue.graphicsCompute", "1", "A graphics and compute queue: everything is submitted to one such queue", true),   // i18n-keep: the report's English; the screen reads REQ_KEYS

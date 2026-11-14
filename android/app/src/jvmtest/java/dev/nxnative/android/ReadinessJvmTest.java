@@ -54,8 +54,12 @@ public final class ReadinessJvmTest {
             String what = r.title + (r.why.isEmpty() ? "" : ": " + r.why);
             check(r.english().equals(what), "HOST " + r.fact + ": the resource's English [" + r.english() + "] is the row's [" + what + "]");
             check(r.shown().equals(what) && r.shownTitle().equals(r.title) && r.shownWhy().equals(r.why), "HOST " + r.fact + ": shown in English on the JVM");
-            if (r.res >= 0) { withRes++; check(Readiness.REQ_FACTS[r.res].equals(r.fact), "HOST " + r.fact + ": its own table row"); }
+            if (r.res >= 0) { withRes++; check(Readiness.REQ_FACTS[r.res].equals(r.fact) || Readiness.REQ_FACTS[r.res].equals(r.fact + ">=" + r.min), "HOST " + r.fact + ": its own table row"); }
         }
+        // Two HOST rows of one fact (android.sdk 31 and 33): each reads its own key, the later one through "fact>=min"
+        java.util.Set<Integer> sdkRows = new java.util.HashSet<>();
+        for (Readiness.Req r : Readiness.HOST) if (r.fact.equals("android.sdk")) check(sdkRows.add(r.res) && r.res >= 0, "android.sdk " + r.min + ": a resource of its own");
+        check(sdkRows.size() == 2, "both android.sdk rows: " + sdkRows);
         check(withRes == Readiness.REQ_FACTS.length, "every REQ_FACTS fact is a HOST row (" + withRes + " of " + Readiness.REQ_FACTS.length + ")");
         Readiness.Req own = Readiness.parseReqs("required|feature.timelineSemaphore|1|Fences: this game's own words").get(0);
         check(own.res == -1 && own.shown().equals("Fences: this game's own words") && own.shownTitle().equals("Fences"), "a game's row keeps its readiness.tsv English");
