@@ -47,9 +47,9 @@
     <string name="home_share_log_value">El registro más reciente</string>
     <string name="home_adb">Control por ADB</string>
     <string name="home_adb_debug">%1$s (depuración)</string>
-    <string name="home_adb_value">Permite que comandos adb agreguen juegos, inicien Preparar e instalen controladores de GPU. Desactivado: solo tú, desde la app</string>
+    <string name="home_adb_value">Permite que comandos adb agreguen juegos, inicien la preparación de un juego e instalen controladores de GPU. Desactivado: solo tú, desde la app</string>
     <string name="home_adb_confirm_title">¿Activar el control por ADB?</string>
-    <string name="home_adb_confirm_body">Mientras esté activado, adb y cualquier otra app de este teléfono pueden agregar juegos, iniciar Preparar e instalar o elegir un controlador de GPU a través del launcher de Anka Native, sin preguntarte. Un controlador de GPU es código que se ejecuta dentro del juego. Actívalo solo mientras uses adb y luego vuelve a desactivarlo.</string>
+    <string name="home_adb_confirm_body">Mientras esté activado, adb y cualquier otra app de este teléfono pueden agregar juegos, iniciar la preparación de un juego e instalar o elegir un controlador de GPU a través del launcher de Anka Native, sin preguntarte. Un controlador de GPU es código que se ejecuta dentro del juego. Actívalo solo mientras uses adb y luego vuelve a desactivarlo.</string>
     <string name="home_adb_turn_on">Activar</string>
     <string name="home_section_about">Acerca de</string>
     <string name="home_about">Title IDs: %1$s\n%2$s Créditos y licencias de sus componentes: NOTICE.md en el código fuente, github.com/%3$s.</string>
@@ -147,8 +147,8 @@
     <string name="home_this_game">Este juego</string>
     <string name="home_no_pack_nup_unavailable">No se encontró un paquete para este .nup. %1$s</string>
     <string name="home_no_pack_folder_unavailable">No se encontró un paquete para esta carpeta. %1$s</string>
-    <string name="home_no_pack_nup_no_dump">No se encontró un paquete para este .nup, y no es un volcado que Preparar pueda usar.</string>
-    <string name="home_no_pack_folder_no_dump">No se encontró un paquete para esta carpeta, y no es un volcado que Preparar pueda usar.</string>
+    <string name="home_no_pack_nup_no_dump">No se encontró un paquete para este .nup, y no es un volcado a partir del cual se pueda preparar el juego.</string>
+    <string name="home_no_pack_folder_no_dump">No se encontró un paquete para esta carpeta, y no es un volcado a partir del cual se pueda preparar el juego.</string>
     <string name="home_other_version_title">Otra versión de %1$s</string>
     <string name="home_no_pack_nup_title">No hay paquete para este .nup</string>
     <string name="home_no_pack_folder_title">No hay paquete para esta carpeta</string>

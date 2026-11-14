@@ -120,7 +120,7 @@
     <string name="packs_dump_nup_no_code">%1$s no contiene código del juego: no hay exefs/main en su base ni en un paquete de actualización.</string>
     <string name="packs_dump_not_dump">%1$s no es una carpeta de volcado: no tiene base/exefs/main ni updates/&lt;version&gt;/exefs/main. Elige la carpeta con base/ o updates/ (y dlc/).</string>
     <string name="packs_missing_what_dump">Este volcado</string>
-    <string name="packs_dump_unsupported">%1$s contiene %2$s (%3$s), que no es una versión que esta app admita. %4$s Un paquete se crea para una versión exacta: el código y los shaders de otra versión son distintos y no se probaron aquí, así que Preparar no empieza a partir de ella. Vuelca esa versión o usa un paquete creado en otro lugar para esta versión (scripts/build_ipa_from_nsp.py en una Mac crea uno a partir de un perfil derivado para ella).</string>
+    <string name="packs_dump_unsupported">%1$s contiene %2$s (%3$s), que no es una versión que esta app admita. %4$s Un paquete se crea para una versión exacta: el código y los shaders de otra versión son distintos y no se probaron aquí, así que no se prepara a partir de ella. Vuelca esa versión o usa un paquete creado en otro lugar para esta versión (scripts/build_ipa_from_nsp.py en una Mac crea uno a partir de un perfil derivado para ella).</string>
     <string name="packs_dump_no_npdm">%1$s no tiene exefs/main.npdm: el volcado está incompleto.</string>
     <string name="packs_dump_no_romfs">%1$s de %2$s no tiene RomFS con archivos (ni propio ni de la base): el volcado está incompleto.</string>
     <string name="packs_dump_other_title">%1$s es de %2$s, pero el juego es %3$s.</string>
