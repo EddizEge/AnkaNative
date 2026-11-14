@@ -128,26 +128,31 @@ final class DumpLayout {
         }
     }
 
-    /** "the base", "update 458752" */
-    static String name(long v) { return v == 0 ? "the base" : "update " + v; }
+    /** "the base", "update 458752": English (MainActivity's log line); {@link #nameMsg} is the screen's */
+    static String name(long v) { return nameMsg(v).english(); }
 
-    /** What a dump holds, for a message: "the base (main 9e244438c3d8ef1c…) and update 65536 (main 1a2b…)" */
-    static String describe(File dump) {
+    static Msg nameMsg(long v) { return v == 0 ? new Msg("packs_dump_base") : new Msg("packs_dump_update", v); }
+
+    /** What a dump holds, for a message: "the base (main 9e244438c3d8ef1c…) and update 65536 (main 1a2b…)"; English */
+    static String describe(File dump) { return describeMsg(dump).english(); }
+
+    static Msg describeMsg(File dump) {
         List<Long> vs = versions(dump);
-        if (vs.isEmpty()) return "no game code (no exefs/main in the base or an update)";
-        StringBuilder s = new StringBuilder();
+        if (vs.isEmpty()) return new Msg("packs_dump_no_code");
+        Msg s = null;
         for (int i = 0; i < vs.size(); i++) {
             long v = vs.get(i);
-            s.append(i == 0 ? "" : i == vs.size() - 1 ? " and " : ", ").append(name(v));
             String id = mainBuild(dump, v);
-            if (id != null) s.append(" (main ").append(id, 0, 16).append("…)");
+            Msg one = id != null ? new Msg("packs_dump_version_main", nameMsg(v), id.substring(0, 16)) : nameMsg(v);
+            s = i == 0 ? one : i == vs.size() - 1 ? new Msg("packs_dump_list_last", s, one) : new Msg("packs_dump_list", s, one);
         }
-        return s.toString();
+        return s;
     }
 
-    /** What {@link #find} found: the game and the version Prepare starts from with its modules' build IDs, or why there is none (error, a sentence) */
+    /** What {@link #find} found: the game and the version Prepare starts from with its modules' build IDs, or why there is none (error, a sentence in English; errorMsg the same as a Msg, for the screen) */
     static final class Found {
         String titleId, error;
+        Msg errorMsg;
         long version = -1;
         long build = -1;   // the profile's build row (its version key) whose build IDs the version's modules have: another number than version when the dump keeps that code under another version
         final Map<String, String> buildIds = new LinkedHashMap<>();   // module → its NSO build ID (64 hex digits)
@@ -161,32 +166,32 @@ final class DumpLayout {
      */
     static Found find(File dump) {
         Found f = new Found();
-        f.error = find(f, dump);
+        f.errorMsg = find(f, dump);
+        f.error = f.errorMsg == null ? null : f.errorMsg.english();
         return f;
     }
 
-    private static String find(Found f, File dump) {
+    private static Msg find(Found f, File dump) {
         String fn = dump.getName();
         boolean nup = Nup.isNup(dump);
-        if (Nup.wrongCase(dump)) return fn + ": rename it so that its name ends in \".nup\" (lower case); the tools and the game read only that name.";
+        if (Nup.wrongCase(dump)) return new Msg("packs_dump_wrong_case", fn);
         if (nup) {
-            if (!dump.isFile() || !dump.canRead()) return dump + " is not a file this app can read. Check that All files access is on.";
-            try { Nup.open(dump); } catch (IOException e) { return fn + " cannot be used: " + e.getMessage(); }
-        } else if (!dump.isDirectory()) return dump + " is not a folder this app can read. Check that All files access is on.";
+            if (!dump.isFile() || !dump.canRead()) return new Msg("packs_dump_unreadable_file", dump);
+            try { Nup.open(dump); } catch (IOException e) { return new Msg("packs_game_unusable", fn, Pack.why(e)); }
+        } else if (!dump.isDirectory()) return new Msg("packs_dump_unreadable_folder", dump);
         List<Long> have = versions(dump);
         if (have.isEmpty()) {
             if (!nup && new File(dump, "exefs/main.npdm").isFile())
-                return fn + " is one version's folder. Pick the dump folder above it, the one with base/ (and updates/).";
-            return nup ? fn + " holds no game code: no exefs/main in its base or an update package."
-                    : dump + " is not a dump folder: it has no base/exefs/main and no updates/<version>/exefs/main. Pick the folder with base/ or updates/ (and dlc/).";
+                return new Msg("packs_dump_one_version", fn);
+            return nup ? new Msg("packs_dump_nup_no_code", fn) : new Msg("packs_dump_not_dump", dump);
         }
         try {
             f.titleId = Pack.titleIdOf(dump);
         } catch (IOException e) {
-            return e.getMessage();
+            return Pack.why(e);
         }
         Profile prof = Profile.of(f.titleId);
-        if (prof == null) return Profile.missing(f.titleId, "This dump");
+        if (prof == null) return new Msg("packs_as_is", Profile.missing(f.titleId, Tr.english("packs_missing_what_dump")));   // English, as Profile.missing takes it; the integrator switches to missingMsg
         Map<Long, Map<String, String>> builds = prof.buildMap();
         for (int i = have.size() - 1; i >= 0 && f.version < 0; i--) {
             long v = have.get(i);
@@ -195,27 +200,24 @@ final class DumpLayout {
                 if (ids != null) { f.version = v; f.build = row.getKey(); f.buildIds.putAll(ids); break; }
             }
         }
-        if (f.version < 0)
-            return fn + " holds " + prof.name + " " + describe(dump) + ", not a build this app supports. " + prof.supported()
-                    + " A pack is made for one exact build: another version's code and shaders differ and it has not been tested here, so Prepare does not start from it."
-                    + " Dump that version, or use a pack made for this version elsewhere (scripts/build_ipa_from_nsp.py on a Mac makes one from a profile derived for it).";
+        if (f.version < 0) return new Msg("packs_dump_unsupported", fn, prof.name, describeMsg(dump), prof.supportedMsg());
         long v = f.version;
-        String where = nup ? fn + ":" + selector(dump, v, false) : name(v);
-        if (!exists(dump, v, "exefs/main.npdm")) return where + " has no exefs/main.npdm: the dump is incomplete.";
-        if (!hasRomfs(dump, v)) return name(v) + " of " + fn + " has no RomFS with files (neither its own nor the base's): the dump is incomplete.";
+        Object where = nup ? fn + ":" + selector(dump, v, false) : nameMsg(v);
+        if (!exists(dump, v, "exefs/main.npdm")) return new Msg("packs_dump_no_npdm", where);
+        if (!hasRomfs(dump, v)) return new Msg("packs_dump_no_romfs", nameMsg(v), fn);
         try {
             String id = npdmTitle(dump, v);
-            if (!id.equals(f.titleId)) return where + " is of " + id + ", the game is " + f.titleId + ".";
+            if (!id.equals(f.titleId)) return new Msg("packs_dump_other_title", where, id, f.titleId);
             if (nup) f.dlc = Nup.open(dump).of(Nup.ADDON).size();
         } catch (IOException e) {
-            return where + ": " + e.getMessage();
+            return new Msg("packs_build_where", where, Pack.why(e));
         }
         if (!nup) {
             File[] dlc = new File(dump, "dlc").listFiles(File::isDirectory);
             f.dlc = dlc == null ? 0 : dlc.length;
         }
         // the RomFS is this version's data (game.tsv romfs_check: a file line that differs between versions, where romfs_marker cannot tell)
-        return RomfsCheck.check(prof, path(dump, v, "romfs"), f.buildIds.get("main"), v);
+        return RomfsCheck.checkMsg(prof, path(dump, v, "romfs"), f.buildIds.get("main"), v);
     }
 
     /**
@@ -255,7 +257,7 @@ final class DumpLayout {
         String sel = selector(dump, v, false);
         Nup.Pkg p = n.find(sel);
         Nup.Node x = p == null ? null : n.lookup(p, "exefs/main.npdm");
-        if (x == null || x.dir) throw new IOException("no exefs/main.npdm");
+        if (x == null || x.dir) throw new LocalizedIOException("packs_dump_no_npdm_short");
         return Pack.programId(n.read(x, -1), dump.getName() + ":" + sel + "/exefs/main.npdm");
     }
 

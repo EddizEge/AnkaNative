@@ -59,7 +59,7 @@ final class RewriteKey {
         variants.add(new ArrayList<>());
         for (String f : rewriter) {
             byte[] cur = tools.get("dm/tools/" + f);
-            if (cur == null) throw new IOException("the APK's tools have no dm/tools/" + f);
+            if (cur == null) throw new IOException("the APK's tools have no dm/tools/" + f);   // i18n-keep: PackCheck.code takes any IOException as "cannot tell", never shown
             List<byte[]> alt = new ArrayList<>();
             alt.add(cur);
             String pre = EQUIV + f + ".";   // <file>.<commit>
@@ -83,7 +83,7 @@ final class RewriteKey {
         byte[] pp = tools.get(gameDir + "patches.py");
         if (pp != null) part(all, "patches.py", pp);
         byte[] gt = tools.get(gameDir + "game.tsv");
-        if (gt == null) throw new IOException("the APK's tools have no " + gameDir + "game.tsv");
+        if (gt == null) throw new IOException("the APK's tools have no " + gameDir + "game.tsv");   // i18n-keep: never shown (as above)
         List<Object[]> tails = new ArrayList<>();
         tails.add(new Object[] {ROWS, buildRows(gt)});
         tails.add(new Object[] {"game.tsv", gt});
@@ -95,7 +95,7 @@ final class RewriteKey {
             part(d, (String) t[0], (byte[]) t[1]);
             StringBuilder s = new StringBuilder();
             for (byte b : d.digest()) s.append(String.format(Locale.ROOT, "%02x", b & 0xff));
-            out.add(s + " target=android");
+            out.add(s + " target=android");   // i18n-keep: machine data, the key format pack_android.py writes
         }
         return out;
     }

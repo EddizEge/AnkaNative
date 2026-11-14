@@ -16,11 +16,23 @@ final class RomfsCheck {
     private RomfsCheck() {}
 
     /**
-     * null when every check of the profile holds for this RomFS, else a sentence the user can act on.
+     * null when every check of the profile holds for this RomFS, else a sentence the user can act on (English: DumpLayout's and BuildCheck's callers log it).
      * romfs: a RomFS folder, or a .nup's &lt;file&gt;.nup:&lt;selector&gt;/romfs (NUP.md naming); mainId: the build ID of the version's main (hex, 32 or 64 digits;
      * null: "main" checks are skipped); version: the version the code is (0: the base game)
      */
     static String check(Profile prof, String romfs, String mainId, long version) {
+        Msg[] p = problem(prof, romfs, mainId, version);
+        return p == null ? null : p[0].english();
+    }
+
+    /** {@link #check} as a Msg (the screen's text(), a log's english()), null when every check holds */
+    static Msg checkMsg(Profile prof, String romfs, String mainId, long version) {
+        Msg[] p = problem(prof, romfs, mainId, version);
+        return p == null ? null : p[0];
+    }
+
+    /** null when every check holds, else {the sentence, what was found against what was expected (its part in parentheses: BuildCheck's detail)} */
+    static Msg[] problem(Profile prof, String romfs, String mainId, long version) {
         if (prof == null || prof.romfsChecks.isEmpty() || romfs == null) return null;
         for (String row : prof.romfsChecks.split(";")) {
             String[] c = row.split("\\|", -1);
@@ -38,11 +50,12 @@ final class RomfsCheck {
             boolean ok = text != null && (main ? sameBuild(text, mainId) : text.equals(c[2]));
             if (ok) continue;
             boolean nup = Nup.parse(romfs) != null;
-            String what = version == 0 ? "the base game's RomFS" : "version " + version + "'s full update RomFS";
-            String found = text == null ? "missing" : "line " + line + " is \"" + (text.length() > 48 ? text.substring(0, 48) + "…" : text) + "\"";
-            String want = main ? "main's build ID " + mainId.substring(0, Math.min(16, mainId.length())) + "…" : "\"" + c[2] + "\"";
-            return "This game " + (nup ? ".nup" : "folder") + "'s " + (version == 0 ? "" : "update ") + "data is not " + what + " (" + c[0] + ": " + found + ", expected " + want + (text == null ? " on line " + line : "")
-                    + "). Dump or extract the " + (version == 0 ? "game" : "update") + " again as the patched RomFS" + (nup ? "." : ", or use the .nup.");
+            Msg found = text == null ? new Msg("packs_romfs_found_missing") : new Msg("packs_romfs_found_line", line, text.length() > 48 ? text.substring(0, 48) + "…" : text);
+            Msg want = main ? new Msg("packs_romfs_want_main", mainId.substring(0, Math.min(16, mainId.length()))) : new Msg("packs_romfs_want_text", c[2]);
+            Msg detail = text == null ? new Msg("packs_romfs_detail_line", c[0], found, want, line) : new Msg("packs_romfs_detail", c[0], found, want);
+            Msg sentence = version == 0 ? (nup ? new Msg("packs_romfs_nup_base", detail) : new Msg("packs_romfs_folder_base", detail))
+                    : nup ? new Msg("packs_romfs_nup_update", version, detail) : new Msg("packs_romfs_folder_update", version, detail);
+            return new Msg[] {sentence, detail};
         }
         return null;
     }
@@ -61,13 +74,13 @@ final class RomfsCheck {
         if (r != null) {
             Nup nup = Nup.open(new File(r.path));
             Nup.Pkg p = r.selector == null ? nup.newest() : nup.find(r.selector);
-            if (p == null) throw new IOException(romfs + ": no such package");
+            if (p == null) throw new IOException(romfs + ": no such package");   // i18n-keep: check() catches it (the line is "missing"), never shown
             Nup.Node x = nup.lookup(p, (r.sub.isEmpty() ? "romfs" : r.sub) + "/" + path);
-            if (x == null || x.dir) throw new IOException(romfs + "/" + path + " is not there");
+            if (x == null || x.dir) throw new IOException(romfs + "/" + path + " is not there");   // i18n-keep: check() catches it (the line is "missing"), never shown
             b = nup.read(x, -1);
         } else {
             File f = new File(romfs, path);
-            if (!f.isFile()) throw new IOException(f + " is not there");
+            if (!f.isFile()) throw new IOException(f + " is not there");   // i18n-keep: check() catches it (the line is "missing"), never shown
             b = Files.readAllBytes(f.toPath());
         }
         String[] lines = new String(b, StandardCharsets.UTF_8).split("\r?\n", -1);

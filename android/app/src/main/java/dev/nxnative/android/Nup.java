@@ -127,7 +127,7 @@ final class Nup {
         String path = spec.substring(0, k + EXT.length()), rest = spec.substring(k + EXT.length() + 1);
         if (rest.isEmpty()) return new Ref(path, null, "");
         Matcher m = SEL.matcher(rest);
-        if (!m.matches()) throw new IllegalArgumentException("not a package of a .nup: \"" + rest + "\" (base, update/<version> or addon/<16 hex digits>)");
+        if (!m.matches()) throw new IllegalArgumentException("not a package of a .nup: \"" + rest + "\" (base, update/<version> or addon/<16 hex digits>)");   // i18n-keep: a developer's error (a pack.tsv or tool name), never shown: Pack catches it as "no selector"
         String sel = m.group(1);
         if (sel.startsWith("addon/")) sel = sel.toLowerCase(Locale.ROOT);
         if (sel.startsWith("update/")) sel = "update/" + Long.parseLong(sel.substring(7));   // no leading zeros
@@ -167,24 +167,24 @@ final class Nup {
     static Nup peek(File f) throws IOException { return read(f, false); }
 
     private static Nup read(File f, boolean verify) throws IOException {
-        if (!f.isFile()) throw new IOException(f + " is not a file");
+        if (!f.isFile()) throw new LocalizedIOException("packs_nup_not_file", f);
         try (RandomAccessFile r = new RandomAccessFile(f, "r")) {
             long len = r.length();
-            if (len < 0x80) throw new IOException(f.getName() + " is too short for a .nup");
+            if (len < 0x80) throw new LocalizedIOException("packs_nup_too_short", f.getName());
             byte[] sb = new byte[0x80];
             r.readFully(sb);
-            if (sb[0] != 'N' || sb[1] != 'U' || sb[2] != 'P') throw new IOException(f.getName() + " is not a .nup (no NUP magic)");
-            if (sb[3] != 1) throw new IOException(f.getName() + " is .nup format " + (sb[3] & 0xff) + "; this app reads format 1");
+            if (sb[0] != 'N' || sb[1] != 'U' || sb[2] != 'P') throw new LocalizedIOException("packs_nup_no_magic", f.getName());
+            if (sb[3] != 1) throw new LocalizedIOException("packs_nup_format", f.getName(), sb[3] & 0xff);
             int headerSize = u16(sb, 4);
             long tocOff = u64(sb, 8), tocSize = u64(sb, 0x10), blob = u64(sb, 0x38), size = u64(sb, 0x40);
             long pkgCount = u32(sb, 0x48), flags = u32(sb, 0x4C);
-            if (headerSize < 0x80) throw new IOException(f.getName() + ": header size " + headerSize);
-            if (tocOff != headerSize) throw new IOException(f.getName() + ": the TOC is not right after the header");
-            if ((blob & 15) != 0 || tocSize < 0x30 || blob < tocOff + tocSize) throw new IOException(f.getName() + ": the TOC and blob offsets do not fit");
-            if (size != len) throw new IOException(f.getName() + " is " + len + " bytes, its header says " + size + ": it is incomplete (still being copied?) or damaged");
-            if (flags != 0) throw new IOException(f.getName() + " has flags " + flags + " this app does not know");
-            if (pkgCount < 1 || pkgCount > 65536) throw new IOException(f.getName() + " has " + pkgCount + " packages");
-            if (0x30 + 0x40 * pkgCount > tocSize) throw new IOException(f.getName() + ": the package records do not fit in the TOC");
+            if (headerSize < 0x80) throw new LocalizedIOException("packs_nup_header_size", f.getName(), headerSize);
+            if (tocOff != headerSize) throw new LocalizedIOException("packs_nup_toc_place", f.getName());
+            if ((blob & 15) != 0 || tocSize < 0x30 || blob < tocOff + tocSize) throw new LocalizedIOException("packs_nup_offsets", f.getName());
+            if (size != len) throw new LocalizedIOException("packs_nup_size", f.getName(), len, size);
+            if (flags != 0) throw new LocalizedIOException("packs_nup_flags", f.getName(), flags);
+            if (pkgCount < 1 || pkgCount > 65536) throw new LocalizedIOException("packs_nup_package_count", f.getName(), pkgCount);
+            if (0x30 + 0x40 * pkgCount > tocSize) throw new LocalizedIOException("packs_nup_records", f.getName());
             byte[] head = new byte[(int) (0x30 + 0x40 * pkgCount)];
             r.seek(tocOff);
             r.readFully(head);
@@ -195,33 +195,33 @@ final class Nup {
                 long left = tocSize - head.length;
                 while (left > 0) {
                     int n = r.read(buf, 0, (int) Math.min(buf.length, left));
-                    if (n < 0) throw new IOException(f.getName() + ": the TOC ends early");
+                    if (n < 0) throw new LocalizedIOException("packs_nup_toc_short", f.getName());
                     h.update(buf, 0, n);
                     left -= n;
                 }
                 if (!Arrays.equals(h.digest(), Arrays.copyOfRange(sb, 0x18, 0x38)))
-                    throw new IOException(f.getName() + ": its table of contents does not match its SHA-256: the file is damaged");
+                    throw new LocalizedIOException("packs_nup_toc_hash", f.getName());
             }
-            if (head[0] != 'T' || head[1] != 'O' || head[2] != 'C' || head[3] != 1) throw new IOException(f.getName() + ": no TOC magic");
-            if (u32(head, 4) != pkgCount) throw new IOException(f.getName() + ": the TOC and the header count different packages");
+            if (head[0] != 'T' || head[1] != 'O' || head[2] != 'C' || head[3] != 1) throw new LocalizedIOException("packs_nup_toc_magic", f.getName());
+            if (u32(head, 4) != pkgCount) throw new LocalizedIOException("packs_nup_toc_count", f.getName());
             long dirs = u64(head, 8), files = u64(head, 0x10), poolOff = u64(head, 0x18), poolSize = u64(head, 0x20);
             long kidsEnd = 0x30 + 0x40 * pkgCount + 0x18 * dirs + 0x50 * files;
             if (dirs > tocSize / 0x18 || files > tocSize / 0x50 || kidsEnd > tocSize || poolOff < kidsEnd || poolOff + poolSize > tocSize)
-                throw new IOException(f.getName() + ": the TOC's tables do not fit in it");
+                throw new LocalizedIOException("packs_nup_toc_tables", f.getName());
             List<Pkg> pk = new ArrayList<>();
             int bases = 0;
             for (int i = 0; i < pkgCount; i++) {
                 int o = 0x30 + 0x40 * i;
                 int kind = head[o + 0x18] & 0xff;
-                if (kind >= 5) throw new IOException(f.getName() + ": package " + i + " is of kind " + kind + ", which this app does not know");
+                if (kind >= 5) throw new LocalizedIOException("packs_nup_package_kind", f.getName(), i, kind);
                 Pkg p = new Pkg(i, u64(head, o), u32(head, o + 8), u32(head, o + 0xC), u32(head, o + 0x10), u32(head, o + 0x14), kind, head[o + 0x19] & 0xff);
                 for (long d : new long[] {p.rootDir, p.exefsDir, p.romfsDir})
-                    if (d != NONE && d >= dirs) throw new IOException(f.getName() + ": package " + i + " names a directory past the table");
-                if (p.rootDir == NONE) throw new IOException(f.getName() + ": package " + i + " has no root");
+                    if (d != NONE && d >= dirs) throw new LocalizedIOException("packs_nup_package_dir", f.getName(), i);
+                if (p.rootDir == NONE) throw new LocalizedIOException("packs_nup_package_root", f.getName(), i);
                 if (kind == BASE) bases++;
                 pk.add(p);
             }
-            if (bases > 1) throw new IOException(f.getName() + " has " + bases + " base packages");
+            if (bases > 1) throw new LocalizedIOException("packs_nup_bases", f.getName(), bases);
             return new Nup(f, len, tocOff, tocSize, blob, dirs, files, poolOff, poolSize, pk);
         }
     }
@@ -262,7 +262,7 @@ final class Nup {
     String programId() throws IOException {
         Pkg p = base();
         if (p == null) p = newest();
-        if (p == null) throw new IOException(file.getName() + " has neither a base package nor an update");
+        if (p == null) throw new LocalizedIOException("packs_nup_no_game", file.getName());
         Node npdm = lookup(p, "exefs/main.npdm");
         if (npdm != null && !npdm.dir) return Pack.programId(read(npdm, -1), file.getName() + ":" + p.selector() + "/exefs/main.npdm");
         return String.format(Locale.ROOT, "%016X", p.titleId);
@@ -276,22 +276,22 @@ final class Nup {
             return new Node(true, id, name(r, u32(b, 0), u32(b, 4)), 0, 0, 0, 0, null, u32(b, 8), u32(b, 12));
         }
         long fi = id - dirCount;
-        if (fi >= fileCount) throw new IOException(file.getName() + ": node " + id + " past the tables");
+        if (fi >= fileCount) throw new LocalizedIOException("packs_nup_node", file.getName(), id);
         byte[] b = toc(r, offFile + 0x50 * fi, 0x50);
         long size = u64(b, 8), eo = u64(b, 0x10), es = u64(b, 0x18);
         int codec = b[0x40] & 0xff;
-        if (codec > 1) throw new IOException(file.getName() + ": a file of codec " + codec + ", which this app does not read");
-        if (es > 0 && (eo < blobOffset || eo + es > fileSize || eo + es < eo)) throw new IOException(file.getName() + ": a file's extent is outside the blob region");
+        if (codec > 1) throw new LocalizedIOException("packs_nup_codec", file.getName(), codec);
+        if (es > 0 && (eo < blobOffset || eo + es > fileSize || eo + es < eo)) throw new LocalizedIOException("packs_nup_extent", file.getName());
         return new Node(false, fi, name(r, u32(b, 0), u32(b, 4)), size, eo, es, codec, Arrays.copyOfRange(b, 0x20, 0x40), 0, 0);
     }
 
     private String name(RandomAccessFile r, long off, long len) throws IOException {
-        if (off + len > poolSize || len > 4096) throw new IOException(file.getName() + ": a name outside the string pool");
+        if (off + len > poolSize || len > 4096) throw new LocalizedIOException("packs_nup_name", file.getName());
         return new String(toc(r, poolOff + off, (int) len), StandardCharsets.UTF_8);
     }
 
     private byte[] toc(RandomAccessFile r, long off, int n) throws IOException {
-        if (off + n > tocSize) throw new IOException(file.getName() + ": a TOC read past its end");
+        if (off + n > tocSize) throw new LocalizedIOException("packs_nup_toc_end", file.getName());
         byte[] b = new byte[n];
         r.seek(tocOffset + off);
         r.readFully(b);
@@ -304,7 +304,7 @@ final class Nup {
         if (!dir.dir) return out;
         try (RandomAccessFile r = new RandomAccessFile(file, "r")) {
             long kids = (offKids + 4 * (dir.firstChild + dir.childCount));
-            if (kids > poolOff) throw new IOException(file.getName() + ": a directory's children past the table");
+            if (kids > poolOff) throw new LocalizedIOException("packs_nup_children", file.getName());
             byte[] ids = toc(r, offKids + 4 * dir.firstChild, (int) (4 * dir.childCount));
             for (int i = 0; i < dir.childCount; i++) out.add(node(r, u32(ids, 4 * i)));
         }
@@ -338,13 +338,13 @@ final class Nup {
 
     /** A file's bytes: max &lt; 0 all of them (checked against its SHA-256), else at least its first max bytes (fewer when it is shorter) */
     byte[] read(Node f, long max) throws IOException {
-        if (f.dir) throw new IOException(f.name + " is a directory");
+        if (f.dir) throw new LocalizedIOException("packs_nup_is_dir", f.name);
         if (f.size == 0) return new byte[0];
-        if (f.extentSize > Integer.MAX_VALUE - 16 || (max < 0 && f.size > Integer.MAX_VALUE - 16)) throw new IOException(f.name + " is too large to read into memory");
+        if (f.extentSize > Integer.MAX_VALUE - 16 || (max < 0 && f.size > Integer.MAX_VALUE - 16)) throw new LocalizedIOException("packs_nup_too_large", f.name);
         byte[] out;
         try (RandomAccessFile r = new RandomAccessFile(file, "r")) {
             if (f.codec == 0) {
-                if (f.extentSize != f.size) throw new IOException(f.name + ": a raw extent of another size than the file");
+                if (f.extentSize != f.size) throw new LocalizedIOException("packs_nup_raw_size", f.name);
                 int n = (int) (max < 0 ? f.size : Math.min(f.size, max));
                 out = new byte[n];
                 r.seek(f.extentOffset);
@@ -356,12 +356,12 @@ final class Nup {
                 r.readFully(z);
                 out = Zstd.decode(z, 0, z.length, max);
                 if (max >= 0) return out;
-                if (out.length != f.size) throw new IOException(f.name + ": decompressed to " + out.length + " bytes, the TOC says " + f.size);
+                if (out.length != f.size) throw new LocalizedIOException("packs_nup_unpacked_size", f.name, out.length, f.size);
             }
         } catch (IOException e) {
-            throw new IOException(file.getName() + ": " + f.name + ": " + e.getMessage(), e);
+            throw new LocalizedIOException(new Msg("packs_nup_file_error", file.getName(), f.name, Pack.why(e)), e);
         }
-        if (!Arrays.equals(sha256().digest(out), f.sha256)) throw new IOException(file.getName() + ": " + f.name + " does not match its SHA-256: the file is damaged");
+        if (!Arrays.equals(sha256().digest(out), f.sha256)) throw new LocalizedIOException("packs_nup_file_hash", file.getName(), f.name);
         return out;
     }
 

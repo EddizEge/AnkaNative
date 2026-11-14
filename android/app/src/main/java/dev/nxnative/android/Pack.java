@@ -28,8 +28,8 @@ final class Pack {
     private Pack(File dir, Map<String, List<String>> rows) throws IOException {
         this.dir = dir;
         String format = one(rows, "format");
-        if (!String.valueOf(FORMAT).equals(format)) throw new IOException("pack format " + format + ", this launcher reads " + FORMAT + ": pack again with this commit's scripts/pack_android.py");
-        if (!"android".equals(one(rows, "target"))) throw new IOException("not an Android pack (target " + one(rows, "target") + ")");
+        if (!String.valueOf(FORMAT).equals(format)) throw new LocalizedIOException("packs_format_other", format, FORMAT);
+        if (!"android".equals(one(rows, "target"))) throw new LocalizedIOException("packs_not_android", one(rows, "target"));
         titleId = one(rows, "title_id").toUpperCase(Locale.ROOT);
         name = one(rows, "name");
         version = one(rows, "version");
@@ -43,7 +43,7 @@ final class Pack {
         }
         modules = one(rows, "modules").split(" ");
         for (String m : modules)
-            if (!new File(dir, m + ".patched.bin").isFile()) throw new IOException("the pack has no " + m + ".patched.bin");
+            if (!new File(dir, m + ".patched.bin").isFile()) throw new LocalizedIOException("packs_no_module", m);
         builds = rows.getOrDefault("build", List.of());
         List<String> pk = rows.get("packer");
         packer = pk == null || pk.isEmpty() ? "" : pk.get(0);
@@ -95,8 +95,14 @@ final class Pack {
         return out;
     }
 
-    /** Why the game (titleId) would draw nothing with this pack folder, in one sentence; null when it has this APK's shader library built from that game's profile */
+    /** Why the game (titleId) would draw nothing with this pack folder, in one sentence (English: logs and the callers' reports); null when it has this APK's shader library built from that game's profile */
     static String libraryProblem(File dir, String titleId) {
+        Msg m = libraryProblemMsg(dir, titleId);
+        return m == null ? null : m.english();
+    }
+
+    /** {@link #libraryProblem} as a Msg: the screen shows its text(), a log its english(); null when the library is this APK's */
+    static Msg libraryProblemMsg(File dir, String titleId) {
         Profile prof = Profile.of(titleId);
         String inputs = prof == null ? "unknown" : prof.shaderInputs;
         File lib = libraryOf(dir);
@@ -117,22 +123,21 @@ final class Pack {
                     r.readFully(h);
                     st.put("inputs", new String(h, 56, 16, StandardCharsets.US_ASCII).replace("\0", "").trim());
                 } catch (IOException e2) {
-                    return "The pack's shader library (" + lib + ") cannot be read: " + e2.getMessage();
+                    return new Msg("packs_library_unreadable", lib, why(e2));
                 }
             }
             if (inputs.equals(st.get("inputs"))) return null;
-            return "The pack's shader library was built from other shader tables (inputs " + st.get("inputs") + ") than this app's (" + inputs
-                    + "): its shaders need making again.";
+            return new Msg("packs_library_other_inputs", st.get("inputs"), inputs);
         }
         List<String> have = libraryVersions(dir);
         String need = BuildConfig.NX_DMSH_VK_CHAIN;
-        if (have.isEmpty()) return "The pack folder " + dir + " has no shader library: this app needs shaders/v-" + need + "/dmsh_vk.lib in it.";
-        return "The pack folder " + dir + " has the shader library version " + String.join(", ", have) + ", but this app needs version " + need + " (shaders/v-" + need + "/dmsh_vk.lib).";
+        if (have.isEmpty()) return new Msg("packs_library_none", dir, need);
+        return new Msg("packs_library_other_version", dir, String.join(", ", have), need);
     }
 
     private static String one(Map<String, List<String>> rows, String key) throws IOException {
         List<String> v = rows.get(key);
-        if (v == null || v.isEmpty()) throw new IOException("pack.tsv has no " + key);
+        if (v == null || v.isEmpty()) throw new LocalizedIOException("packs_tsv_no_row", key);
         return v.get(0);
     }
 
@@ -159,7 +164,7 @@ final class Pack {
         try (RandomAccessFile r = new RandomAccessFile(npdm, "r")) {
             byte[] h = new byte[0x80];
             r.readFully(h);
-            if (h[0] != 'M' || h[1] != 'E' || h[2] != 'T' || h[3] != 'A') throw new IOException(npdm + ": not an NPDM");
+            if (h[0] != 'M' || h[1] != 'E' || h[2] != 'T' || h[3] != 'A') throw new LocalizedIOException("packs_not_npdm", npdm);
             long off = le32(h, 0x70);
             byte[] aci = new byte[0x18];
             r.seek(off);
@@ -170,14 +175,14 @@ final class Pack {
 
     /** The same, of a main.npdm's bytes (a .nup's: Nup.programId); name says which in an error */
     static String programId(byte[] npdm, String name) throws IOException {
-        if (npdm.length < 0x80 || npdm[0] != 'M' || npdm[1] != 'E' || npdm[2] != 'T' || npdm[3] != 'A') throw new IOException(name + ": not an NPDM");
+        if (npdm.length < 0x80 || npdm[0] != 'M' || npdm[1] != 'E' || npdm[2] != 'T' || npdm[3] != 'A') throw new LocalizedIOException("packs_not_npdm", name);
         long off = le32(npdm, 0x70);
-        if (off + 0x18 > npdm.length) throw new IOException(name + ": no ACI0 section");
+        if (off + 0x18 > npdm.length) throw new LocalizedIOException("packs_no_aci0", name);
         return aciProgramId(java.util.Arrays.copyOfRange(npdm, (int) off, (int) off + 0x18), name);
     }
 
     private static String aciProgramId(byte[] aci, String name) throws IOException {
-        if (aci[0] != 'A' || aci[1] != 'C' || aci[2] != 'I' || aci[3] != '0') throw new IOException(name + ": no ACI0 section");
+        if (aci[0] != 'A' || aci[1] != 'C' || aci[2] != 'I' || aci[3] != '0') throw new LocalizedIOException("packs_no_aci0", name);
         long id = le32(aci, 0x10) | (le32(aci, 0x14) << 32);
         return String.format(Locale.ROOT, "%016X", id);
     }
@@ -188,12 +193,21 @@ final class Pack {
             try {
                 return Nup.open(game).programId();
             } catch (IOException e) {
-                throw new IOException(game.getName() + " cannot be used: " + e.getMessage(), e);
+                throw new LocalizedIOException(new Msg("packs_game_unusable", game.getName(), why(e)), e);
             }
         }
         File npdm = npdmOf(game);
-        if (npdm == null) throw new IOException(game + " has no main.npdm (base/exefs/, updates/<version>/exefs/ or exefs/).");
+        if (npdm == null) throw new LocalizedIOException("packs_no_npdm", game);
         return programId(npdm);
+    }
+
+    /**
+     * An exception's message as an argument of a sentence (docs/i18n.md): a LocalizedIOException's Msg (so it renders in the sentence's language), else its English
+     * message (Java's and Android's own exceptions, and English-by-rule classes such as Zstd), as it is in every language
+     */
+    static Msg why(Throwable e) {
+        if (e instanceof LocalizedIOException && ((LocalizedIOException) e).msg != null) return ((LocalizedIOException) e).msg;
+        return new Msg("packs_as_is", e.getMessage());
     }
 
     private static long le32(byte[] b, int o) {
