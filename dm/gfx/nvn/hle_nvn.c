@@ -1651,6 +1651,12 @@ static const char *const g_nops[] = {
     "nvnCommandBufferPopDebugGroupId",
     "nvnCommandBufferInsertDebugMarkerStatic",
     "nvnCommandBufferWaitEvent",
+    // NVN2 variable-rate shading (Ocarina of Time binds a shading-rate image and its palette every frame: 13,498 and 2,059 [RED] lines in one phone log). The host shades
+    // every pixel, the finest rate the image can ask for, so the picture keeps its detail; only the speed the coarser rate would save is lost. From Banana Native b39bf8b5
+    "nvnCommandBufferBindShadingRateImage",
+    "nvnCommandBufferSetShadingRatePaletteMode",
+    "nvnCommandBufferShadingRateImagePalette",
+    "nvnCommandBufferSetGraphicsWorkloadPriority",   // (the compute one has its own entry, which logs it once: one queue in submission order)
     "nvnWindowFinalize",
 };
 __attribute__((constructor)) static void nvn_nops_register(void) {
