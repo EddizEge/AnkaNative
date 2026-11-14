@@ -28,16 +28,25 @@ final class Prefs {
     /** The game's window size (Game resolution): DM_WINDOW_SIZE for the host (loader.c window_apply), "1920x1080" (Phone 1080p, the default), "original" (the game's own, 2880x1620 in Donkey Kong Bananza) or "1280x720" (Phone 720p: less GPU time a frame). DM_WINDOW_SIZE in env.txt overrides it for a run.
      *  A game whose profile has graphics_scale rows gets the graphics scale and operation mode that give the size instead (Profile.resolutionEnv).
      *  The stored value is the size itself; new sizes go at the end so the list's first entries keep their places. */
-    static final String[] WINDOWS = {"1920x1080", "original", "1280x720"}, WINDOW_NAMES = {"Phone 1080p (1920x1080)", "Original (the game's own size)", "Phone 720p (1280x720)"},
-            WINDOW_SHORT = {"1080p", "Original", "720p"};
-    /** A window size's name in the lists, its short name for a settings row (short); the value itself when it is none of WINDOWS (an env.txt-style size) */
+    static final String[] WINDOWS = {"1920x1080", "original", "1280x720"};
+    /** The names of WINDOWS (same index) in the lists, and their short names for a settings row: key tables of strings_home.xml (docs/i18n.md) */
+    static final String[] WINDOW_NAME_KEYS = {"home_window_1080p", "home_window_original", "home_window_720p"},
+            WINDOW_SHORT_KEYS = {"home_window_1080p_short", "home_window_original_short", "home_window_720p_short"};
+    /** A window size's name in the lists, its short name for a settings row (short), in the user's language (screen only); the value itself when it is none of
+     *  WINDOWS (an env.txt-style size) */
     static String windowName(String v, boolean shortName) {
         int i = java.util.Arrays.asList(WINDOWS).indexOf(v);
-        return i < 0 ? v : (shortName ? WINDOW_SHORT : WINDOW_NAMES)[i];
+        if (i < 0) return v;
+        if (shortName) return Tr.s(WINDOW_SHORT_KEYS[i]);
+        return Tr.s(WINDOW_NAME_KEYS[i]);
     }
-    /** The names of WINDOWS, in its order, for a list of all sizes. Another area's list (GameSettings) reads them here, never WINDOW_NAMES or a home_ key
+    /** The names of WINDOWS, in its order, for a list of all sizes. Another area's list (GameSettings) reads them here, never WINDOW_NAME_KEYS or a home_ key
      *  (docs/i18n.md): the home area decides how they are stored and translated */
-    static String[] windowNames() { return WINDOW_NAMES.clone(); }
+    static String[] windowNames() {
+        String[] names = new String[WINDOW_NAME_KEYS.length];
+        for (int k = 0; k < WINDOW_NAME_KEYS.length; k++) names[k] = Tr.s(WINDOW_NAME_KEYS[k]);
+        return names;
+    }
     static String window(Context c) { return of(c).getString("window", WINDOWS[0]); }
     static void window(Context c, String v) { of(c).edit().putString("window", v).commit(); }
 

@@ -60,7 +60,7 @@ public final class FrontendLaunch extends Activity {
         android.util.Log.i("nxnative", "frontend launch from " + getReferrer() + ": action " + i.getAction() + ", data " + (i.getData() != null) + ", extras "
                 + (i.getExtras() != null ? i.getExtras().keySet() : "none"));
         if (!Environment.isExternalStorageManager()) {
-            Toast.makeText(this, "Turn on All files access for " + getString(R.string.app_name) + ", then start the game again.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.home_frontend_no_access, getString(R.string.app_name)), Toast.LENGTH_LONG).show();
             home(null);
             return;
         }
@@ -69,10 +69,10 @@ public final class FrontendLaunch extends Activity {
         String path = pathOf(i);
         if (path == null) {
             fail(i.getData() != null || Frontend.contentUri(i.getStringExtra("game"))
-                    ? "The frontend sent a link that does not name a file on this phone's storage by a path the app can read. Set the frontend to send the file's path, or its storage (SAF) URI from the phone's own storage."
+                    ? getString(R.string.home_frontend_bad_link)
                     : i.getStringExtra("game") != null
-                    ? "The frontend sent \"" + i.getStringExtra("game") + "\", which is not a file on this phone's shared storage."
-                    : "The frontend sent no game: send the .nup (or the game folder) as the intent's data, or the extra \"game\" with its path.");
+                    ? getString(R.string.home_frontend_not_shared, i.getStringExtra("game"))
+                    : getString(R.string.home_frontend_no_game));
             return;
         }
         byCard(path, null);
@@ -113,9 +113,9 @@ public final class FrontendLaunch extends Activity {
     private void byCard(String path, String tid) {
         File file = path != null ? new File(path) : null;
         if (file != null) {
-            if (Nup.wrongCase(file)) { fail(file.getName() + ": rename it so that its name ends in \".nup\" (lower case); the game and the tools read only that name."); return; }
-            if (!file.exists()) { fail(file + " is not there."); return; }
-            if (!file.canRead()) { fail(file + " cannot be read. Check that All files access is on."); return; }
+            if (Nup.wrongCase(file)) { fail(getString(R.string.home_nup_wrong_case, file.getName())); return; }
+            if (!file.exists()) { fail(getString(R.string.home_file_missing, file)); return; }
+            if (!file.canRead()) { fail(getString(R.string.home_file_unreadable, file)); return; }
         }
         new Thread(() -> {
             List<Game> list = Game.load(this);
@@ -127,7 +127,7 @@ public final class FrontendLaunch extends Activity {
             runOnUiThread(() -> {
                 if (isFinishing()) return;
                 if (card == null && tid != null) {
-                    fail("No game with title ID " + tid + " is on Home. Add it in " + getString(R.string.app_name) + " first, or send the game's file instead.");
+                    fail(getString(R.string.home_frontend_no_card, tid, getString(R.string.app_name)));
                     return;
                 }
                 if (r != null) play(r);
@@ -173,7 +173,7 @@ public final class FrontendLaunch extends Activity {
     }
 
     private void fail(String why) {
-        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Cannot start the game").setMessage(why)
-                .setPositiveButton("OK", null).setOnDismissListener(d -> finish()).show();
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(R.string.home_frontend_fail_title).setMessage(why)
+                .setPositiveButton(android.R.string.ok, null).setOnDismissListener(d -> finish()).show();
     }
 }

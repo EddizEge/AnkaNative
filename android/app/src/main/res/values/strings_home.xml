@@ -3,4 +3,240 @@
 <resources>
     <string name="home_access_title">Allow file access</string>
     <string name="home_access_body">Needed to read your game dump.</string>
+
+    <!-- Prefs: the window sizes (Prefs.WINDOW_NAME_KEYS, WINDOW_SHORT_KEYS; same order as Prefs.WINDOWS) -->
+    <string name="home_window_1080p">Phone 1080p (1920x1080)</string>
+    <string name="home_window_original">Original (the game\'s own size)</string>
+    <string name="home_window_720p">Phone 720p (1280x720)</string>
+    <string name="home_window_1080p_short" translatable="false">1080p</string>
+    <string name="home_window_original_short">Original</string>
+    <string name="home_window_720p_short" translatable="false">720p</string>
+
+    <!-- FrontendLaunch: the play intent for emulator frontends -->
+    <string name="home_frontend_no_access">Turn on All files access for %1$s, then start the game again.</string>
+    <string name="home_frontend_bad_link">The frontend sent a link that does not name a file on this phone\'s storage by a path the app can read. Set the frontend to send the file\'s path, or its storage (SAF) URI from the phone\'s own storage.</string>
+    <string name="home_frontend_not_shared">The frontend sent \"%1$s\", which is not a file on this phone\'s shared storage.</string>
+    <string name="home_frontend_no_game">The frontend sent no game: send the .nup (or the game folder) as the intent\'s data, or the extra \"game\" with its path.</string>
+    <string name="home_nup_wrong_case">%1$s: rename it so that its name ends in \".nup\" (lower case); the game and the tools read only that name.</string>
+    <string name="home_file_missing">%1$s is not there.</string>
+    <string name="home_file_unreadable">%1$s cannot be read. Check that All files access is on.</string>
+    <string name="home_frontend_no_card">No game with title ID %1$s is on Home. Add it in %2$s first, or send the game\'s file instead.</string>
+    <string name="home_frontend_fail_title">Cannot start the game</string>
+
+    <!-- MainActivity: Home's header, the Settings page -->
+    <string name="home_settings">Settings</string>
+    <string name="home_section_updates">Updates</string>
+    <string name="home_check_updates">Check for updates</string>
+    <string name="home_section_game_defaults">Game defaults</string>
+    <string name="home_overlay">Overlay</string>
+    <string name="home_resolution">Resolution</string>
+    <string name="home_fps_cap">Frame rate cap</string>
+    <string name="home_frame_gen">Frame generation</string>
+    <string name="home_defaults_hint">A game\'s own settings (⋯ on its card) override these.</string>
+    <string name="home_section_system">System</string>
+    <string name="home_gpu_driver">GPU driver</string>
+    <string name="home_folders">Folders</string>
+    <string name="home_folders_value">Game, pack and save folders</string>
+    <string name="home_section_help">Help</string>
+    <string name="home_readiness">Readiness check</string>
+    <string name="home_readiness_value">Can this phone run your games?</string>
+    <string name="home_selftest">Graphics self-test</string>
+    <string name="home_selftest_value">Needs no game</string>
+    <string name="home_share_log">Share log</string>
+    <string name="home_share_log_value">The newest log</string>
+    <string name="home_adb">ADB control (debug)</string>
+    <string name="home_adb_value">Lets adb commands add games, start Prepare and install GPU drivers. Off: only you, in the app</string>
+    <string name="home_adb_confirm_title">Turn ADB control on?</string>
+    <string name="home_adb_confirm_body">While it is on, adb, and any other app on this phone, can add games, start Prepare and install or pick a GPU driver through Anka Native\'s launcher, without asking you. A GPU driver is code that runs inside the game. Turn it on only while you use adb, then off again.</string>
+    <string name="home_adb_turn_on">Turn on</string>
+    <string name="home_section_about">About</string>
+    <!-- %1$s: the title IDs, %2$s: home_license or home_license_gpl, %3$s: the repository (owner/name) -->
+    <string name="home_about">Title IDs: %1$s\n%2$s Credits and the licenses of its parts: NOTICE.md in the source, github.com/%3$s.</string>
+    <string name="home_license">License: GPL-3.0-or-later as a whole.</string>
+    <!-- %1$s: home_license_lsfg_xlate, home_license_lsfg or home_license_xlate -->
+    <string name="home_license_gpl">License: GPL-3.0-or-later as a whole (this build includes GPL-3.0-or-later code: %1$s).</string>
+    <string name="home_license_lsfg_xlate">LSFG frame generation and the shader translator</string>
+    <string name="home_license_lsfg">LSFG frame generation</string>
+    <string name="home_license_xlate">the shader translator</string>
+    <!-- %1$s: the app's version -->
+    <string name="home_update_version">Anka Native %1$s</string>
+    <string name="home_update_version_release_only">Anka Native %1$s · release app only</string>
+    <!-- %1$d of %2$d: the overlay items that are on, of all -->
+    <string name="home_overlay_on">On · %1$d of %2$d items</string>
+    <string name="home_off">Off</string>
+    <string name="home_lsfg_not_built">Not in this build</string>
+    <!-- %1$d: the frame generation multiplier (2x, 3x, …) -->
+    <string name="home_lsfg_on">On · %1$dx</string>
+    <string name="home_lsfg_on_no_dll">On · %1$dx · Lossless.dll missing</string>
+    <string name="home_gpu_system">System</string>
+    <string name="home_control_ignored">A command from another app was ignored (Settings › ADB control is off)</string>
+    <string name="home_no_pack_next_to">No pack found for %1$s next to %2$s.</string>
+
+    <!-- MainActivity: a game a frontend sent (fromFrontend) -->
+    <string name="home_frontend_start_title">Start %1$s?</string>
+    <string name="home_frontend_add_title">Add this game?</string>
+    <string name="home_frontend_start_body">Another app asked to start %1$s. It cannot start straight away: Play checks what it needs and asks before it changes anything.</string>
+    <!-- %1$s: the app's name, %2$s: the file, %3$s: home_add (the button) -->
+    <string name="home_frontend_add_body">Another app asked %1$s to open\n\n%2$s\n\nwhich is not on your list. Add game checks it and adds it to Home; nothing is added unless you tap %3$s.</string>
+    <string name="home_play">Play</string>
+    <string name="home_add">Add</string>
+
+    <!-- MainActivity: Home's games, the empty card, a game's card -->
+    <string name="home_your_games">Your games</string>
+    <string name="home_add_game">Add game</string>
+    <string name="home_empty_title">Add your game</string>
+    <string name="home_empty_body">Pick your dump folder, the one with base/ (and updates/), or your game\'s .nup file.</string>
+    <string name="home_empty_body_pc">Prepare the game once on a computer (the README\'s Install steps), copy the pack next to the dump, then pick your dump folder or .nup file.</string>
+    <!-- The empty card's three steps (shown as "1  Pick dump"): short labels -->
+    <string name="home_step_pick_dump">Pick dump</string>
+    <string name="home_step_prepare">Prepare</string>
+    <string name="home_step_play">Play</string>
+    <string name="home_step_prepare_pc">Prepare on PC</string>
+    <!-- A game card's state (after a coloured dot) -->
+    <string name="home_state_unsupported">Not supported</string>
+    <string name="home_state_checking">Checking…</string>
+    <string name="home_state_needs_prepare">Needs preparing</string>
+    <string name="home_state_no_pack">No pack</string>
+    <string name="home_state_pack_unfinished">Pack unfinished</string>
+    <string name="home_state_preparing">Preparing…</string>
+    <string name="home_state_shaders_needed">Shaders needed</string>
+    <string name="home_state_ready">Ready</string>
+    <string name="home_state_ready_updating">Ready · updating shaders</string>
+    <string name="home_state_ready_legacy">Ready · shaders need one update</string>
+    <!-- The ⋯ button's description: %1$s the game's name -->
+    <string name="home_manage_game">Manage %1$s</string>
+    <string name="home_legacy_chip">Shaders need one update</string>
+    <string name="home_prepare_shaders">Prepare shaders</string>
+    <string name="home_prepare">Prepare</string>
+    <string name="home_foreign_pack">Pack from other tools</string>
+    <!-- %1$s: home_prepare_again (the Manage sheet's row) -->
+    <string name="home_foreign_pack_body">This game\'s pack was made by other tools than this app\'s. It usually still runs. If the game misbehaves, ⋯ › %1$s remakes it from your dump.</string>
+
+    <!-- MainActivity: a game's Manage sheet -->
+    <string name="home_game_settings">Game settings</string>
+    <string name="home_backup_saves">Back up saves</string>
+    <!-- %1$s: the backup folder -->
+    <string name="home_backup_to">To %1$s</string>
+    <string name="home_restore_saves">Restore saves</string>
+    <string name="home_import_save">Import save</string>
+    <string name="home_prepare_again">Prepare again</string>
+    <string name="home_prepare_again_value">Remakes what does not fit</string>
+    <string name="home_export_pack">Export pack…</string>
+    <string name="home_export_pack_value">One .zip, into a folder you pick</string>
+    <string name="home_import_pack">Import pack…</string>
+    <string name="home_import_pack_value">A .zip or a pack folder</string>
+    <!-- %1$s: title ID, %2$s: the game (a folder, or home_manage_game_nup), %3$s: the pack folder, %4$s: home_manage_shaders_present or what is wrong with them, %5$s: the save folder or home_manage_saves_not_set -->
+    <string name="home_manage_facts">Title ID: %1$s\nGame: %2$s\nPack: %3$s\nShaders: %4$s\nSaves: %5$s</string>
+    <string name="home_manage_game_nup">%1$s (.nup)</string>
+    <!-- %1$s: the shader library version -->
+    <string name="home_manage_shaders_present">present (%1$s)</string>
+    <string name="home_manage_saves_not_set">not set</string>
+    <string name="home_remove">Remove from list</string>
+    <string name="home_done">Done</string>
+
+    <!-- MainActivity: file access, Add game, the pickers -->
+    <string name="home_access_needed">The app needs All files access to read your game dump. Allow it, then come back.</string>
+    <string name="home_open_settings">Open settings</string>
+    <string name="home_add_game_kind">Add game: your dump is…</string>
+    <string name="home_add_game_folder">A folder (with base/, and updates/ if any)</string>
+    <string name="home_add_game_nup">A .nup file</string>
+    <string name="home_pick_dump_folder">Pick your dump folder (with base/, and updates/ if any)</string>
+    <string name="home_pick_nup">Pick your game\'s .nup file</string>
+    <string name="home_nup_not_on_storage">That file is not on this phone\'s storage by a path the app can read (%1$s). Pick it from the phone\'s storage (☰ › the phone\'s name), not from Recent or Downloads.</string>
+    <string name="home_dll_installed">Lossless.dll installed</string>
+    <!-- %1$s: why (Lsfg) -->
+    <string name="home_dll_not_installed">Lossless.dll not installed: %1$s</string>
+    <string name="home_folder_not_on_storage">That folder is not on this phone\'s storage (%1$s).</string>
+    <string name="home_no_game_in_folder">%1$s has no main.npdm (base/exefs/, updates/&lt;version&gt;/exefs/ or exefs/), no .nup file and no game folder in it. Pick the game\'s own folder, its .nup file, or the folder that holds your games.</string>
+    <string name="home_checking_game">Checking %1$s…</string>
+    <plurals name="home_checking_games">
+        <item quantity="one">Checking %1$d game…</item>
+        <item quantity="other">Checking %1$d games…</item>
+    </plurals>
+    <string name="home_nup_wrong_case_short">%1$s: rename it so that its name ends in \".nup\" (lower case).</string>
+    <!-- Inside Profile.missing's English sentence (settings) for one picked game, in English until that sentence moves -->
+    <string name="home_this_game">This game</string>
+    <!-- One picked game without a usable pack: .nup and folder forms; %1$s: why this version cannot prepare (Ondevice) -->
+    <string name="home_no_pack_nup_unavailable">No pack found for this .nup. %1$s</string>
+    <string name="home_no_pack_folder_unavailable">No pack found for this folder. %1$s</string>
+    <string name="home_no_pack_nup_no_dump">No pack found for this .nup, and it is not a dump Prepare can start from.</string>
+    <string name="home_no_pack_folder_no_dump">No pack found for this folder, and it is not a dump Prepare can start from.</string>
+    <string name="home_other_version_title">Another version of %1$s</string>
+    <string name="home_no_pack_nup_title">No pack for this .nup</string>
+    <string name="home_no_pack_folder_title">No pack for this folder</string>
+    <!-- %1$s: why there is no pack -->
+    <string name="home_no_pack_nup_body">%1$s\n\nIf you have a pack folder made for exactly this .nup (with pack.tsv), you can pick it.</string>
+    <string name="home_no_pack_folder_body">%1$s\n\nIf you have a pack folder made for exactly this folder (with pack.tsv), you can pick it.</string>
+    <string name="home_pick_a_pack_folder">Pick a pack folder</string>
+    <string name="home_pick_android_pack">Pick the pack folder (android-pack, with pack.tsv)</string>
+    <!-- The summary of Add game for a folder of games: one paragraph each; also logged in English -->
+    <string name="home_added_ok">Added: %1$s.</string>
+    <!-- %2$s: home_prepare (the card's button) -->
+    <string name="home_added_prepare">Needs Prepare: %1$s. No pack that fits was found: its card\'s %2$s makes one on this phone (one game at a time).</string>
+    <!-- %2$s: the title IDs this app runs -->
+    <string name="home_added_unsupported">Not supported by this app: %1$s. This app runs: %2$s.</string>
+    <string name="home_added_no_pack">No pack found: %1$s. Add it on its own to pick its pack folder.</string>
+    <string name="home_added_failed">Not added: %1$s</string>
+    <!-- %1$s: the file, %2$s: why -->
+    <string name="home_added_failed_item">%1$s: %2$s</string>
+    <!-- %2$s: home_remove (the Manage sheet's button) -->
+    <string name="home_added_twice">Another dump of the same game was on the list already, so both cards are kept: %1$s. ⋯ › %2$s takes one away (nothing is deleted).</string>
+    <string name="home_added_none_title">No game added</string>
+    <string name="home_added_title">Games added</string>
+    <!-- Another dump of a game on the list; %2$s: the other dumps' paths, each on its own line -->
+    <string name="home_replace_title">Replace %1$s?</string>
+    <string name="home_replace_body">Another dump of %1$s is on your list:%2$s\n\nUse %3$s instead? Only the list entry changes: no dump, pack or save is deleted.</string>
+    <string name="home_replace">Replace</string>
+    <string name="home_keep_both">Keep both</string>
+    <string name="home_pick_pack_folder">Pick the pack folder (the one with pack.tsv and shaders/)</string>
+    <string name="home_added_game">Added %1$s.</string>
+    <!-- %2$s: what is wrong with its shaders (Pack) -->
+    <string name="home_added_game_note">Added %1$s. %2$s</string>
+    <string name="home_pack_other_title_nup">The pack is for %1$s, the game .nup holds %2$s.</string>
+    <string name="home_pack_other_title_folder">The pack is for %1$s, the game folder holds %2$s.</string>
+    <string name="home_game_unusable">%1$s cannot be used: %2$s</string>
+    <!-- %2$s: which update (Pack.romfsSelector), %3$s: the pack's version -->
+    <string name="home_nup_no_romfs">%1$s has no %2$s with a RomFS (the pack is for version %3$s).</string>
+    <!-- %2$s: the RomFS folder the pack names -->
+    <string name="home_folder_no_romfs">No RomFS in %1$s (looked for %2$s, romfs/ and updates/&lt;version&gt;/romfs).</string>
+
+    <!-- MainActivity: removing a game, Play -->
+    <string name="home_remove_title">Remove %1$s?</string>
+    <!-- %1$s: the save folder, %2$s: home_add_game -->
+    <string name="home_remove_body_save">Only the list entry goes. Your dump, its pack and your saves (%1$s) stay on the phone; %2$s brings it back.</string>
+    <string name="home_remove_body">Only the list entry goes. Your dump, its pack and your saves stay on the phone; %1$s brings it back.</string>
+    <string name="home_remove_yes">Remove</string>
+    <string name="home_busy_save">A save backup or restore of %1$s is still working: Play waits for it.</string>
+    <string name="home_busy_pack">An export or import of the pack of %1$s is still working: Play waits for it.</string>
+    <string name="home_pack_unusable">The pack cannot be used: %1$s</string>
+    <string name="home_pack_placeholder">This pack is a placeholder, not a pack to play.</string>
+    <string name="home_no_pack_for">No pack for %1$s</string>
+    <!-- %1$s: why this version cannot prepare (Ondevice), %2$s: the pack folder -->
+    <string name="home_no_pack_for_body">%1$s\n\nPack: %2$s</string>
+    <string name="home_pick_pack_folder_button">Pick pack folder</string>
+    <string name="home_shaders_missing">Shaders missing</string>
+    <!-- %1$s: what Prepare makes, lower-cased (Ondevice.shadersText, until Ondevice.prepareShadersMsg replaces this sentence), %2$s: what is wrong with the shaders (Pack) -->
+    <string name="home_shaders_missing_prepare">Prepare %1$s\n\n%2$s</string>
+    <string name="home_shaders_missing_body">Without them the game draws nothing.\n\n%1$s</string>
+    <string name="home_start_anyway">Start anyway</string>
+    <string name="home_pack_cannot_start">The pack cannot start this game</string>
+    <!-- %1$s: home_prepare_again, %2$s: why (PackCheck), %3$s: the pack folder -->
+    <string name="home_pack_problem_dump">%1$s fixes it from your dump, on this phone.\n\n%2$s\n\nPack: %3$s</string>
+    <string name="home_pack_problem">%1$s\n\nPack: %2$s</string>
+
+    <!-- MainActivity: the Settings page's dialogs, the logs -->
+    <string name="home_game_resolution">Game resolution</string>
+    <!-- Frame rate cap labels (MainActivity.capLabel; GameSettings shows them too) -->
+    <string name="home_cap_default">Default</string>
+    <string name="home_cap_own">The game\'s own</string>
+    <string name="home_cap_fps">%1$d fps</string>
+    <!-- %1$s: frame generation's note (Lsfg) -->
+    <string name="home_lsfg_no_dll">%1$s. Put it in Documents/Emulation/bios or Switch2, or pick it.</string>
+    <string name="home_lsfg_credit">Ported from Eden (GPL-3.0-or-later). Lossless.dll is yours; it is never part of the app.</string>
+    <string name="home_pick_dll">Pick Lossless.dll</string>
+    <string name="home_no_log">No log yet.</string>
+    <string name="home_no_game_log">No log of this game yet.</string>
+    <!-- The share's subject; %1$s: the log file's name -->
+    <string name="home_log_subject">Anka Native log %1$s</string>
+    <string name="home_share_file">Share %1$s</string>
 </resources>
