@@ -556,7 +556,8 @@ final class Ondevice {
             if (job == null) return;
             Ui.confirmDanger(a, "Forget this job?", "Deleted: nothing. The screen stops showing the job.\n\nKept: its files in " + job.dir()
                     + ", the pack, your dump and your saves. Picking the same dump again finds the job.\n\nThe split's kept progress (a copy in the app's own storage) "
-                    + "is deleted when a job of another game starts; until then an unfinished split resumes from it.", "Forget", () -> {
+                    + "and the translated shaders (up to about 1 GB, also in the app's own storage) are deleted when a job of another game starts; until then an "
+                    + "unfinished job resumes from them.", "Forget", () -> {
                 Job.remember(a, null);
                 job = null;
                 show();
