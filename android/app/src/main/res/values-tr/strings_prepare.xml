@@ -2,4 +2,153 @@
 <!-- Türkçe: the prepare area (Ondevice, Job, PackService, DumpCheck). docs/i18n.md: keys start with prepare_, one file per area, translations keep the English file's name -->
 <resources>
     <string name="prepare_cannot_use">%1$s kullanılamıyor: %2$s</string>
+
+    <!-- Ondevice: a build without the packer -->
+    <string name="prepare_unavailable">Bu Anka Native sürümü bir oyunu telefonda hazırlayamaz. Oyunu bir kez bilgisayarda (Linux ya da Mac) README dosyasındaki \"Install\" adımlarında anlatıldığı gibi hazırla (github.com/EddizEge/AnkaNative), paketi dökümün yanına &lt;title ID&gt;-work/android-pack olarak kopyala, sonra oyunu yeniden ekle ya da o paket klasörünü seç.</string>
+    <!-- Ondevice.shadersText -->
+    <string name="prepare_shaders_update">Shader\'ları dökümden günceller: %2$,d shader içinden bu uygulama sürümünde değişen %1$,d tanesi (%3$s, arka planda).</string>
+    <string name="prepare_shaders_make">Shader\'ları dökümden yapar (%1$s, arka planda).</string>
+    <string name="prepare_shaders_make_default">Shader\'ları dökümden yapar (yaklaşık 20-35 dakika, arka planda).</string>
+    <!-- Ondevice.prepareShadersMsg -->
+    <string name="prepare_shaders_update_step">Hazırlama, shader\'ları dökümden günceller: %2$,d shader içinden bu uygulama sürümünde değişen %1$,d tanesi (%3$s, arka planda).</string>
+    <string name="prepare_shaders_make_step">Hazırlama, shader\'ları dökümden yapar (%1$s, arka planda).</string>
+    <string name="prepare_shaders_make_step_default">Hazırlama, shader\'ları dökümden yapar (yaklaşık 20-35 dakika, arka planda).</string>
+    <string name="prepare_not_on_storage">Bu klasör telefonun depolamasında değil (%1$s).</string>
+
+    <!-- Ondevice: the Preparing card -->
+    <string name="prepare_card_heading">Hazırlanıyor</string>
+    <string name="prepare_card_manage">Hazırlama işini yönet</string>
+    <string name="prepare_button_play">Oyna</string>
+    <string name="prepare_head_pending">Hazırlanmaya hazır: %1$s</string>
+    <string name="prepare_head_failed">Hazırlanamadı: %1$s</string>
+    <string name="prepare_head_running">Hazırlanıyor: %1$s</string>
+    <string name="prepare_card_update">Güncelleme %1$s</string>
+    <string name="prepare_card_simulated">%1$s  (benzetim motoru)</string>
+    <string name="prepare_card_progress">%%%1$d  ·  shader %2$,d / %3$,d</string>
+    <string name="prepare_button_pause">Duraklat</string>
+    <string name="prepare_button_prepare_again">Yeniden hazırla</string>
+    <string name="prepare_button_retry">Yeniden dene</string>
+    <string name="prepare_button_start">Başlat</string>
+    <string name="prepare_button_resume">Devam et</string>
+    <string name="prepare_game_ready_toast">%1$s oynamaya hazır.</string>
+    <string name="prepare_checking">Kontrol ediliyor: %1$s…</string>
+
+    <!-- Ondevice: a picked dump -->
+    <string name="prepare_resume_title">Hazırlamaya devam edilsin mi?</string>
+    <string name="prepare_resume_body">%1$s\n\nKaldığı yerden devam eder.</string>
+    <string name="prepare_label_delete_work">Çalışma dosyalarını sil</string>
+    <string name="prepare_label_manage">Yönet</string>
+    <string name="prepare_other_folder_job">Bu döküm için bitmemiş bir iş %1$s konumuna yazıyor: %2$s\n\nBaşka bir klasöre hazırlamadan önce işe karttan devam et ya da çalışma dosyalarını sil (⋯ › %3$s).</string>
+    <string name="prepare_busy">%1$s şu anda hazırlanıyor (%2$s). Önce duraklat, sonra yeniden dene.</string>
+    <string name="prepare_redo_code_update">Oyun kodunu yeniden yazar (birkaç dakika). %1$s</string>
+    <string name="prepare_redo_both">Oyun kodunu ve shader\'ları dökümden yeniden yapar (%1$s, arka planda).</string>
+    <string name="prepare_redo_code">Oyun kodunu dökümden yeniden yazar (birkaç dakika, arka planda). Shader\'lar korunur.</string>
+    <string name="prepare_redo_other_tools">Paketin oyun kodu, bu uygulamanınkinden farklı araçlarla yapılmış.</string>
+    <string name="prepare_pack_line">Paket: %1$s</string>
+    <string name="prepare_redo_title_code">Paket güncellensin mi?</string>
+    <string name="prepare_redo_title_shaders">Shader\'lar hazırlansın mı?</string>
+    <string name="prepare_button_prepare">Hazırla</string>
+    <string name="prepare_pick_other_pack">Başka bir paket klasörü seç</string>
+    <string name="prepare_what_base">Temel oyun</string>
+    <string name="prepare_what_update">Güncelleme %1$s</string>
+    <string name="prepare_what_base_code">Temel oyun (kod: %1$s)</string>
+    <string name="prepare_what_update_code">Güncelleme %1$s (kod: %2$s)</string>
+    <string name="prepare_ask_text">%1$s, %2$d DLC.\n\nUygulama oyunun paketini ve %3$,d shader\'ı dökümden bir kez oluşturur: arka planda %4$s sürer, en iyisi şarjdayken. İstediğin zaman duraklatabilirsin.\n\nYaklaşık 1,5 GB gerekir (%5$.1f GB boş): çalışma dosyaları %6$s içinde, paket uygulamanın depolamasında (%7$s).</string>
+    <string name="prepare_cannot_start">Başlatılamıyor: %1$s</string>
+    <string name="prepare_ask_elsewhere">Başka yerde yapılmış bir paketin mi var (bilgisayarda yapılmış ya da başka bir telefondan dışa aktarılmış)?</string>
+    <string name="prepare_use_existing">Var olan bir paketi kullan…</string>
+    <string name="prepare_import">Paketi içe aktar…</string>
+    <string name="prepare_ask_title">%1$s hazırlansın mı?</string>
+    <string name="prepare_ready_title">Oynamaya hazır</string>
+    <string name="prepare_ready_body">Paketi uyuyor: hazırlanması gereken bir şey yok.\n\nPaket: %1$s</string>
+    <string name="prepare_simulated_pack">Bu paket benzetim motoruyla yapıldı: bir yer tutucu olduğu için oyun başlatılmaz. Paket ve kütüphanesi tamam olduğu için %1$s etkin.</string>
+
+    <!-- Ondevice: the job's Manage sheet -->
+    <string name="prepare_manage_info">%1$s\n\nDöküm: %2$s\nÇalışma dosyaları: %3$s\nPaket: %4$s\nGünlükler: %5$s</string>
+    <string name="prepare_manage_running">Unutmak ya da silmek için önce duraklat.</string>
+    <string name="prepare_manage_forget">Bu işi unut…</string>
+    <string name="prepare_manage_delete_pack">Hazırlanan paketi de sil…</string>
+    <string name="prepare_manage_title">Hazırlanıyor: %1$s</string>
+    <string name="prepare_button_done">Bitti</string>
+    <string name="prepare_forget_title">Bu iş unutulsun mu?</string>
+    <string name="prepare_forget_body">Silinecek: hiçbir şey. Ekran yalnızca işi göstermeyi bırakır.\n\nKalacak: %1$s içindeki dosyaları, paket, döküm ve kayıtların. Aynı dökümü yeniden seçince iş bulunur.\n\nAyırma adımının saklanan ilerlemesi (uygulamanın kendi depolamasındaki bir kopya) başka bir oyunun işi başladığında silinir; o zamana kadar yarım kalmış bir ayırma oradan devam eder.</string>
+    <string name="prepare_button_forget">Unut</string>
+    <string name="prepare_not_deleted_dump">Silinmedi: %1$s, dökümü içeriyor ya da dökümün içinde.</string>
+    <string name="prepare_not_deleted_save">Silinmedi: %1$s, kayıt klasörünü içeriyor ya da kayıt klasörünün içinde.</string>
+    <string name="prepare_deleted_work">Silinecek:\n· %1$s içindeki çalışma dosyaları (yeniden yazılmış kod, ayrılmış ve çevrilmiş shader\'lar, işin ilerlemesi)\n· ayırma adımının saklanan ilerlemesi, uygulamanın kendi depolamasındaki bir kopya</string>
+    <string name="prepare_deleted_work_pack_inside">Silinecek:\n· %1$s içindeki çalışma dosyaları (yeniden yazılmış kod, ayrılmış ve çevrilmiş shader\'lar, işin ilerlemesi)\n· ayırma adımının saklanan ilerlemesi, uygulamanın kendi depolamasında, içinde paketin de bulunduğu bir kopya</string>
+    <string name="prepare_deleted_work_and_pack">Silinecek:\n· %1$s içindeki çalışma dosyaları (yeniden yazılmış kod, ayrılmış ve çevrilmiş shader\'lar, işin ilerlemesi)\n· ayırma adımının saklanan ilerlemesi, uygulamanın kendi depolamasındaki bir kopya\n· hazırlanan paket ve shader kütüphanesi (%2$s)</string>
+    <string name="prepare_kept">Kalacak: döküm (%1$s) ve kayıtların. Kayıtlar burada asla silinmez.</string>
+    <string name="prepare_kept_save">Kalacak: döküm (%1$s) ve kayıtların (%2$s). Kayıtlar burada asla silinmez.</string>
+    <string name="prepare_kept_pack">Kalacak: döküm (%1$s), kayıtların ve paket (%2$s). Kayıtlar burada asla silinmez.</string>
+    <string name="prepare_kept_pack_save">Kalacak: döküm (%1$s), kayıtların (%2$s) ve paket (%3$s). Kayıtlar burada asla silinmez.</string>
+    <string name="prepare_deleted_pack_end">Oyun yeniden hazırlanana kadar başlamaz (yaklaşık 30-45 dakika).</string>
+    <string name="prepare_deleted_work_end">Yeni bir hazırlama baştan başlar.</string>
+    <string name="prepare_delete_pack_title">Hazırlanan paket silinsin mi?</string>
+    <string name="prepare_delete_work_title">Çalışma dosyaları silinsin mi?</string>
+    <string name="prepare_button_delete">Sil</string>
+    <string name="prepare_deleting">Siliniyor…</string>
+    <string name="prepare_deleted_toast">Silindi. Döküm ve kayıtlarına dokunulmadı.</string>
+
+    <!-- Job: the steps; the _in_sentence forms are noun phrases: "<step> sırasında durdu", "Android, <step> adımını … durdurdu" -->
+    <string name="prepare_step_identify">Döküm kontrol ediliyor</string>
+    <string name="prepare_step_rewrite">Oyun kodu yeniden yazılıyor</string>
+    <string name="prepare_step_split">Shader\'lar bulunuyor</string>
+    <string name="prepare_step_shaders">Shader\'lar çevriliyor</string>
+    <string name="prepare_step_pack">Paket tamamlanıyor</string>
+    <string name="prepare_step_identify_in_sentence">döküm kontrolü</string>
+    <string name="prepare_step_rewrite_in_sentence">oyun kodunun yeniden yazılması</string>
+    <string name="prepare_step_split_in_sentence">shader\'ların bulunması</string>
+    <string name="prepare_step_shaders_in_sentence">shader çevirisi</string>
+    <string name="prepare_step_pack_in_sentence">paketin tamamlanması</string>
+    <string name="prepare_stage_library">Shader kütüphanesi yazılıyor</string>
+    <string name="prepare_stage_check">Shader kütüphanesi kontrol ediliyor</string>
+    <string name="prepare_step_shaders_progress">Shader\'lar çevriliyor: %1$,d / %2$,d</string>
+    <!-- Job.statusMsg -->
+    <string name="prepare_status_done">Oynamaya hazır.</string>
+    <string name="prepare_status_failed">Hazırlama, %1$s sırasında durdu: %2$s. Devam etmek için %3$s düğmesine dokun.</string>
+    <string name="prepare_status_pending">Henüz başlamadı.</string>
+    <string name="prepare_status_paused">Duraklatıldı: %1$s. %2$s.</string>
+    <string name="prepare_status_running">%1$s (adım %2$d / %3$d).</string>
+    <string name="prepare_status_interrupted">Yarıda kesildi: %1$s. Devam etmek için %2$s düğmesine dokun.</string>
+    <!-- Job.reasonMsg -->
+    <string name="prepare_reason_user">elle</string>
+    <string name="prepare_reason_battery">pil yüzde 20\'nin altında: devam etmesi için şarj cihazını tak</string>
+    <string name="prepare_reason_thermal">telefon çok ısındı: soğuyunca devam eder</string>
+    <string name="prepare_reason_timeout">Android\'in arka plan işleri için günlük sınırı doldu: uygulamayı aç ve %1$s düğmesine dokun</string>
+    <string name="prepare_reason_refused">Android arka planda başlamasına izin vermedi: uygulamayı aç ve %1$s düğmesine dokun</string>
+    <string name="prepare_reason_apk">uygulama başka shader araçlarıyla güncellendi: shader\'lar yeniden çevriliyor</string>
+    <string name="prepare_reason_none">durduruldu</string>
+    <string name="prepare_cannot_make_folder">%1$s oluşturulamıyor</string>
+
+    <!-- PackService: the notification -->
+    <string name="prepare_channel_name">Oyun hazırlama</string>
+    <string name="prepare_channel_description">Uygulama dökümden bir oyun hazırlarken ilerleme</string>
+    <string name="prepare_note_none">Oyun hazırlanıyor</string>
+    <string name="prepare_note_simulated">%1$s (benzetim)</string>
+    <string name="prepare_note_starting">Başlatılıyor…</string>
+    <string name="prepare_note_done">%1$s oynamaya hazır</string>
+    <string name="prepare_note_done_text">Anka Native uygulamasını aç ve %1$s düğmesine dokun.</string>
+    <string name="prepare_note_running">Hazırlanıyor: %1$s</string>
+    <string name="prepare_note_waiting">Bekliyor: %1$s</string>
+    <string name="prepare_note_failed">Hazırlanamadı: %1$s</string>
+    <string name="prepare_note_paused">Duraklatıldı: %1$s</string>
+    <string name="prepare_note_step">Adım %1$d / %2$d · %%%3$d</string>
+    <string name="prepare_note_progress">%1$s · %%%2$d</string>
+    <string name="prepare_note_progress_why">%1$s · %%%2$d\n%3$s</string>
+
+    <!-- PackService: why a step failed (PrepareErrors) -->
+    <string name="prepare_error_step_killed">Android, %1$s adımını bitmeden %2$d kez durdurdu; büyük olasılıkla bellek yüzünden (en fazla %3$.1f GB gerekiyor). Diğer uygulamaları kapat, sonra %4$s düğmesine dokun</string>
+    <string name="prepare_error_dump_changed">döküm değişti: şimdi %1$s, sürüm %2$s</string>
+    <string name="prepare_error_tool_exit">%1$s, %2$d koduyla durdu (günlük: %3$s)</string>
+    <string name="prepare_error_tool_exit_red">%1$s, %2$d koduyla durdu: %3$s (günlük: %4$s)</string>
+    <string name="prepare_error_compare">dökümün shader\'ları uygulamanın listesiyle karşılaştırılamıyor: %1$s</string>
+    <string name="prepare_error_shader_map">dökümün shader\'ları, bu uygulamanın %1$s için bildikleriyle aynı değil (%2$s, %3$s farklı). Döküm eksik ya da değiştirilmiş olabilir: oyunun dökümünü yeniden al, sonra %4$s düğmesine dokun</string>
+
+    <!-- DumpCheck: whole sentences -->
+    <string name="prepare_dump_free_unknown">%1$s konumundaki boş alan okunamıyor.</string>
+    <string name="prepare_dump_space">Hazırlama için dökümün yanında %1$.1f GB boş alan gerekiyor; %2$s içinde %3$.2f GB boş.</string>
+    <string name="prepare_dump_not_writable">%1$s oluşturulamıyor: dökümün yanındaki klasöre yazılamıyor.</string>
+    <string name="prepare_status_failed_coded">Hazırlama, %1$s sırasında durdu. %2$s Devam etmek için %3$s düğmesine dokun.</string>
+    <string name="prepare_status_failed_sentence">Hazırlama, %1$s sırasında durdu: %2$s Devam etmek için %3$s düğmesine dokun.</string>
 </resources>
