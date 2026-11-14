@@ -84,14 +84,17 @@ It needs nothing beyond that Python (the standard library; `dm/tools/prepare_tui
    `~/.config`).
 3. **Confirm**: the game and version (`v` for another), the pack folder (`o` to change), the shaders translated at once (`+` / `-`; the default is one per
    CPU thread, fewer when the free memory is short), the disk space the run needs against what is free, what an earlier run left that is kept, and a first
-   guess of the time. Enter checks that the folders can be written and that no other run of the interface is using the pack folder or the shader cache.
+   guess of the time. It says when the game was picked through a link (the packer works beside the file the link points to, so the pack folder is there)
+   and when the pack folder already holds a pack whose modules will be rewritten. On a small terminal it scrolls (Up / Down). Enter checks that the folders
+   can be written and that no other run of the interface is using the pack folder or the shader cache.
 4. **Prepare**: `pack_android.py` runs as a child process. The steps with the current one marked, a bar for the step and one for the whole job, the shaders
    done and the rate, the time elapsed and left with the clock time it should be done ("About 12 minutes left, done around 21:40"; nothing is shown until
-   the speed is measured, and "a first guess" is added while the translation's part is still the fixed figure), the last lines and the warnings.
+   the speed is measured, and "a first guess" is added while the time is still mostly the fixed figure), the last lines and the warnings. After a resume
+   the whole job's bar goes on from where the stopped run was: what an earlier run finished counts as done.
    If the packer is killed, the run ends at once as failed, and workers it left behind are ended. The whole output goes to `<pack folder>/../prepare-logs/prepare-<time>.log`. `q` or Ctrl+C asks,
    then stops the packer and its workers cleanly; starting again goes on from what was finished. Closing the window stops them too.
 5. **End**: where the pack is, its size and the time it took, and the steps on the phone; or the failure in plain words ([error codes](#error-codes)), its
-   last lines and the log.
+   last lines (of a Python traceback only what was raised; the log has it whole) and the log.
 
 When the input or output is not a terminal, `TERM` is `dumb`, the console takes no escape sequences, or with `--plain`, it asks the same questions and prints
 the progress as lines (`--yes` starts without asking; the game is then given on the command line). `NO_COLOR` or `--no-color` turns the colours off,
