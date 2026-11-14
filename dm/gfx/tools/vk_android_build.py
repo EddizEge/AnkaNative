@@ -1098,11 +1098,11 @@ def run_batches_interps(batches):
         try: it.exec(WORKER_BOOT)
         except interpreters.ExecutionFailed as e: raise RuntimeError(f'translation worker set-up: {e.excinfo.type.__name__}: {e.excinfo.msg}\n{e.excinfo.formatted}') from None
         ready.add(it.id)
-        idle.put((it, res))
+        return it, res   # (not put in idle by new(): another thread could take it before the caller)
 
     def one(batch):
         try: it, res = idle.get_nowait()
-        except queue.Empty: new(); it, res = idle.get_nowait()
+        except queue.Empty: it, res = new()
         try:
             it.exec(f'_out.put(_ns["run_batch_json"]({list(batch)!r}))')
             n, c = json.loads(res.get())   # (exec has returned: the result is in the queue, no wait)
@@ -1113,7 +1113,7 @@ def run_batches_interps(batches):
 
     ex = None
     try:
-        try: new()
+        try: idle.put(new())
         except Exception as e: return interps_unusable(e)
         if not INTERPS_SAID: print(f'subinterpreters: {INTERPS} translation workers', flush=True); INTERPS_SAID.append(1)
         ex = cf.ThreadPoolExecutor(min(INTERPS, len(batches)))
