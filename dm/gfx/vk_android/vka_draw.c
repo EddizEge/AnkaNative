@@ -1777,11 +1777,23 @@ static int ndve_net(uint64_t key) {   // a network or last-pass key the direct p
     for (size_t i = 0; i < sizeof k_ndve_net / sizeof *k_ndve_net; i++) if (key == k_ndve_net[i]) return 1;
     return 0;
 }
-static const uint64_t k_ndsr = 0xd99fbeeb53d38847ull;   // agl's NDSR upscaler network (DM_VK_NDSR_STANDIN, below)
+// agl's NDSR upscaler networks (DM_VK_NDSR_STANDIN, below): agl_ndsr_vr_light.pck has one network per range of scale, and the game dispatches the one for its
+// dynamic-resolution level's input size. Each fixed level of Ocarina of Time (DM_RES_LEVEL fixed:<n>), Deku Tree 2F, Adreno 830 under Turnip, output 2048x1152,
+// the network's step in DM_VK_GPUPROF (2026-11-14, session-2026-11-14 resolution-cost.md): until then only d99 was replaced, so every level from 0 to 7 ran its network
+// (30-64 ms of GPU a frame) and only 8 and 9 had the stand-in. The pack's 9 other networks were not dispatched in these runs; they are not listed (unchecked)
+static const uint64_t k_ndsr_net[] = {
+    0xfa3033d05c0a41d6ull,   // level 0, 1536x864: 30 ms
+    0xaad7ea7e5c02f41dull,   // levels 1-2, 1457x820, 1366x768: 39-44 ms
+    0xb106afba1a18faa9ull,   // levels 3-4, 1275x717, 1195x672: 45-52 ms
+    0x04135bb812a0d66eull,   // levels 5-6, 1093x615, 1024x576: 53-64 ms
+    0x7c511cc23ff85d14ull,   // level 7, 911x512: 54 ms
+    0xd99fbeeb53d38847ull,   // levels 8-9, 763x429, 683x384 (the floor): 46 ms
+};
+static int ndsr_net(uint64_t key) { for (size_t i = 0; i < sizeof k_ndsr_net / sizeof *k_ndsr_net; i++) if (key == k_ndsr_net[i]) return 1; return 0; }
 static int ndsr_standin_on(void) { return VKA_ENV("DM_VK_NDSR_STANDIN", 0) != 0; }
-// A compute key whose dispatches the replay replaces (the NDVE network, the NDSR network under DM_VK_NDSR_STANDIN): its pipeline is not made ahead (vka_pso.c pw_main), so its
+// A compute key whose dispatches the replay replaces (the NDVE network, the NDSR networks under DM_VK_NDSR_STANDIN): its pipeline is not made ahead (vka_pso.c pw_main), so its
 // private memory never sizes Turnip's per-fiber buffer. One that still runs (the switch turned off live, a dispatch the replacement refuses) is made at its dispatch
-int vka_ndve_replaced(uint64_t key) { return ndve_net(key) || (key == k_ndsr && ndsr_standin_on()); }
+int vka_ndve_replaced(uint64_t key) { return ndve_net(key) || (ndsr_net(key) && ndsr_standin_on()); }
 // The one storage image a compute shader writes (from the walk), 0 when it has none or several
 static int cs_image_tid(uint8_t *dim) {
     int tid = 0, n = 0;
@@ -1807,7 +1819,7 @@ static int ndve_scale(vka_dstate *d, vka_shader *const sh[VKA_NSTAGE]) {
     return 1;
 }
 
-// ---------- agl's NDSR upscaler network replaced by a bilinear stand-in (DM_VK_NDSR_STANDIN, default 0) ----------
+// ---------- agl's NDSR upscaler networks replaced by a bilinear stand-in (DM_VK_NDSR_STANDIN, default 0) ----------
 // Ocarina of Time's d99fbeeb53d38847 (agl_ndsr_vr_light.pck) upscales the frame, 683x384 at the dynamic-resolution floor, into a B10G11R11 storage image (2048x1152,
 // 1536x864): an HMMA network of about 46 ms of GPU a frame on the Adreno 830 under Turnip, whose 4,608 bytes of per-fiber private memory also size the device's spill
 // buffer (docs/reference/shaders.md "agl's NDSR upscaler replaced by a bilinear stand-in on the Vulkan replay"). Its input texture holds the square root of the tonemapped
@@ -1815,14 +1827,16 @@ static int ndve_scale(vka_dstate *d, vka_shader *const sh[VKA_NSTAGE]) {
 // buffer (c[1].xy the output origin, c[4].zw the workgroup tile, c[6].xy the extent its writes keep to, c[6].zw the UV step per output texel). With the switch on, that
 // term squared is written instead
 // (selftest/ndsr.comp) and the network is not recorded, its pipeline never made (vka_ndve_replaced). The picture is softer than the network's (no detail added); a
-// workaround for the network's cost, which is the driver's (spills, per-fiber layout). A dispatch whose bindings are not the network's runs as recorded (a [RED] line)
+// workaround for the network's cost, which is the driver's (spills, per-fiber layout). A dispatch whose bindings are not the network's runs as recorded (a [RED] line).
+// The networks of the other levels (k_ndsr_net) bind the same: one 2D texture (the level's own image, 763x429 to 1536x864), one 2D storage image (the 2048x1152 output),
+// no constant buffer the replay finds, so they get mode 0, the whole input over the whole output, as d99 does
 static struct { int st; VkPipeline p; VkPipelineLayout lay; VkDescriptorSetLayout dsl; VkSampler samp; uint64_t seen[32]; unsigned nseen; unsigned long long n; } g_ndsr;
 static int ndsr_ready(void) {
     if (g_ndsr.st) return g_ndsr.st > 0;
     g_ndsr.st = -1;
-    if (!V.push_desc) { VRED("NDSR stand-in: the device has no push descriptors: d99fbeeb53d38847 runs as recorded"); return 0; }
+    if (!V.push_desc) { VRED("NDSR stand-in: the device has no push descriptors: the NDSR networks run as recorded"); return 0; }
     VkPhysicalDeviceFeatures pf; vk.vkGetPhysicalDeviceFeatures(V.pd, &pf);   // (ndsr.comp writes its output without a declared format; the device enables every supported feature)
-    if (!pf.shaderStorageImageWriteWithoutFormat) { VRED("NDSR stand-in: the device has no shaderStorageImageWriteWithoutFormat: d99fbeeb53d38847 runs as recorded"); return 0; }
+    if (!pf.shaderStorageImageWriteWithoutFormat) { VRED("NDSR stand-in: the device has no shaderStorageImageWriteWithoutFormat: the NDSR networks run as recorded"); return 0; }
     VkDescriptorSetLayoutBinding b[3] = {{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL}, {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL},
                                          {2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL}};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR, .bindingCount = 3, .pBindings = b};
@@ -1839,7 +1853,7 @@ static int ndsr_ready(void) {
     if (!r) { VkComputePipelineCreateInfo ci = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, .stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = m, .pName = "main"}, .layout = g_ndsr.lay};
               r = vk.vkCreateComputePipelines(V.dev, VK_NULL_HANDLE, 1, &ci, NULL, &g_ndsr.p); }
     if (m) vk.vkDestroyShaderModule(V.dev, m, NULL);
-    if (r) { VRED("NDSR stand-in: its layout, sampler or pipeline: VkResult %d: d99fbeeb53d38847 runs as recorded", r); return 0; }
+    if (r) { VRED("NDSR stand-in: its layout, sampler or pipeline: VkResult %d: the NDSR networks run as recorded", r); return 0; }
     g_ndsr.st = 1; return 1;
 }
 // The format a dispatch's view of texture ID tid reads (vka_tex.c view_of, as vka_nanscan.c works it out): the registration's NVN format as Vulkan (storage: the image format,
@@ -1868,7 +1882,8 @@ static const char *ndsr_fmt_name(VkFormat f, char *b, size_t n) {
 }
 // 1 = the stand-in was recorded in place of the dispatch; 0 = the network runs as recorded (logged)
 static int ndsr_standin(vka_dstate *d, vka_shader *const sh[VKA_NSTAGE], const p_dispatch *dp) {
-    if (dp->ind) { VRED_ONCE("NDSR stand-in: an indirect dispatch of d99fbeeb53d38847 (its extent unknown here): it runs as recorded"); return 0; }
+    const unsigned long long key = (unsigned long long)sh[5]->key;
+    if (dp->ind) { VRED_ONCE("NDSR stand-in: an indirect dispatch of %016llx (its extent unknown here): it runs as recorded", key); return 0; }
     if (!ndsr_ready()) return 0;
     walk_all(d, sh);
     if (g_wk.n[5] < 0) return 0;   // (the dispatch path logs the refusal)
@@ -1878,15 +1893,15 @@ static int ndsr_standin(vka_dstate *d, vka_shader *const sh[VKA_NSTAGE], const p
         else if (r->what == VKA_R_IMG && r->tid) { out = r->tid; dout = r->dim; nout++; }
         else if (r->what == VKA_R_BUF && r->desc == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) { cb = r; ncb++; } }
     if (nin != 1 || nout != 1 || ncb > 1 || din != 1 || dout != 1) {   // (dim 1: a 2D float view, as the network declares both)
-        VRED_ONCE("NDSR stand-in: the dispatch of d99fbeeb53d38847 binds %d textures, %d storage images and %d constant buffers (shapes %#x, %#x), not one 2D texture, one 2D image and its constants: it runs as recorded",
-                  nin, nout, ncb, din, dout);
+        VRED_ONCE("NDSR stand-in: the dispatch of %016llx binds %d textures, %d storage images and %d constant buffers (shapes %#x, %#x), not one 2D texture, one 2D image and its constants: it runs as recorded",
+                  key, nin, nout, ncb, din, dout);
         return 0;
     }
     VkImageLayout ls, lt;
     VkImageView vs = vka_tex_id_view(in, g_cb, din, 0, &ls), vt = vka_tex_id_view(out, g_cb, dout, 1, &lt);   // as the dispatch would bind them (the output with storage use)
     vka_img *s = vka_tex_id_img(in, g_cb), *t = vka_tex_id_img(out, g_cb);
     if (!vs || !vt || !s || !t || s == t || s->f.kind != 0 || t->f.kind != 0) {
-        VRED_ONCE("NDSR stand-in: d99fbeeb53d38847's input (texture ID %d) or output (texture ID %d) has no float view here: it runs as recorded", in, out);
+        VRED_ONCE("NDSR stand-in: %016llx's input (texture ID %d) or output (texture ID %d) has no float view here: it runs as recorded", key, in, out);
         return 0;
     }
     if (VKA_ENV("DM_VK_NDSR_STANDIN_AA", 0)) {   // ("The game's AA before the network" above): 1 its input is a335c's output, 2 a335c's output read instead, 3 none this frame
@@ -1918,23 +1933,25 @@ static int ndsr_standin(vka_dstate *d, vka_shader *const sh[VKA_NSTAGE], const p
     vk.vkCmdPushDescriptorSetKHR(g_cb, VK_PIPELINE_BIND_POINT_COMPUTE, g_ndsr.lay, 0, 3, w); vka_dyn_invalidate();   // the draws' last push is no longer bound (push_same)
     vk.vkCmdPushConstants(g_cb, g_ndsr.lay, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, pc);
     vk.vkCmdDispatch(g_cb, (t->w + 7) / 8, (t->h + 7) / 8, 1);   // every texel of level 0; the shader keeps to the view's size and, in mode 1, to the network's own extent
-    if (vka_gp_active) { char b[96]; snprintf(b, sizeof b, "dispatch %016llx NDSR stand-in %ux%u", (unsigned long long)k_ndsr, t->w, t->h); vka_gp_pass(b); }   // DM_VK_GPUPROF
+    if (vka_gp_active) { char b[96]; snprintf(b, sizeof b, "dispatch %016llx NDSR stand-in %ux%u", key, t->w, t->h); vka_gp_pass(b); }   // DM_VK_GPUPROF
     vka_barrier(g_cb);
     vka_img_written(t);
     g_ndsr.n++;
-    // Once per output image: the sizes and formats, and the network's constants as the CPU sees them at recording (the GPU reads them in order)
-    unsigned k = 0; while (k < g_ndsr.nseen && g_ndsr.seen[k] != t->serial) k++;
+    // Once per input and output image (a level change gives the network another input): the sizes and formats, and the network's constants as the CPU sees them at
+    // recording (the GPU reads them in order)
+    uint64_t pair = (uint64_t)s->serial << 32 ^ (uint64_t)t->serial;
+    unsigned k = 0; while (k < g_ndsr.nseen && g_ndsr.seen[k] != pair) k++;
     if (k == g_ndsr.nseen && g_ndsr.nseen < sizeof g_ndsr.seen / sizeof *g_ndsr.seen) {
-        g_ndsr.seen[g_ndsr.nseen++] = t->serial;
+        g_ndsr.seen[g_ndsr.nseen++] = pair;
         uint32_t c[28] = {0}; int rd = mode && cpu_read(cb->addr, c, sizeof c);
         float uvs[2]; memcpy(uvs, &c[26], sizeof uvs);
         char fi[24], fo[24], cs[200];
         if (rd) snprintf(cs, sizeof cs, "origin %d,%d, extent %d,%d, tile %d,%d, UV step %g,%g (%.1f x %.1f output texels to the input)", (int)c[4], (int)c[5], (int)c[24], (int)c[25],
                          (int)c[18], (int)c[19], (double)uvs[0], (double)uvs[1], uvs[0] > 0 ? 1.0 / uvs[0] : 0.0, uvs[1] > 0 ? 1.0 / uvs[1] : 0.0);
         else snprintf(cs, sizeof cs, mode ? "not readable by the CPU" : "no constant buffer bound: the whole input over the whole output");
-        VLOG("NDSR stand-in: %ux%u %s -> %ux%u %s (input serial %llu image VkFormat %d, output serial %llu, groups %d,%d; constants: %s); d99fbeeb53d38847 not run (DM_VK_NDSR_STANDIN=0 runs it)",
+        VLOG("NDSR stand-in: %ux%u %s -> %ux%u %s (input serial %llu image VkFormat %d, output serial %llu, groups %d,%d; constants: %s); %016llx not run (DM_VK_NDSR_STANDIN=0 runs it)",
              s->w, s->h, ndsr_fmt_name(ndsr_view_fmt(in, s, 0), fi, sizeof fi), t->w, t->h, ndsr_fmt_name(ndsr_view_fmt(out, t, 1), fo, sizeof fo), (unsigned long long)s->serial, (int)s->f.vk,
-             (unsigned long long)t->serial, dp->x, dp->y, cs);
+             (unsigned long long)t->serial, dp->x, dp->y, cs, key);
     }
     return 1;
 }
@@ -1962,7 +1979,7 @@ void vka_dispatch(vka_dstate *d, const p_dispatch *dp) {
         else if (ndve_net(key)) VRED_ONCE("NDVE movie: network shader %016llx dispatched with no colour conversion before it: it runs as recorded (its pipeline is made)", (unsigned long long)key);
     }
     // agl's NDSR network replaced by its bilinear term (DM_VK_NDSR_STANDIN)
-    if (sh[5]->key == k_ndsr && ndsr_standin_on() && ndsr_standin(d, sh, dp)) { g_dispatches++; return; }
+    if (ndsr_net(sh[5]->key) && ndsr_standin_on() && ndsr_standin(d, sh, dp)) { g_dispatches++; return; }
     vka_layout lay; if (!vka_layout_of(sh, 1, &lay)) SKIP("dispatch skipped: no pipeline layout");
     VkPipeline p = vka_cs_pipeline(sh[5], &lay);
     if (vka_nan_on()) vka_tex_watch_dispatch(sh[5]->key);

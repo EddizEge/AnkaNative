@@ -93,24 +93,24 @@ How the game picks its 3D size (v131072 main, disassembled 2026-11-14; agl's con
 - **Moving between levels** (`main+0x805f98`…): a sharper level is taken only after a delay counter (`ctl+0x181`, reset from `ctl+0x1c8`) runs out; a less sharp one after another (`ctl+0x180`, from `ctl+0x1c4`), which the instructions after the call skip (they zero it) in some states (`ctl+0xa3`, `ctl+0xa8`). A level of -1 (no level) draws at scale 1.0 (`main+0x806378`).
 - **Issue 10**: bursts of exactly 5 frames of about 1 s GPU (Adreno 840). Not proven, but consistent with the controller: the prediction or the budget lets it climb to a sharp level (or the -1 / full-scale state), and the down delay holds it there for a fixed number of frames before the slow frames reach the history.
 
-**3D resolution** (Game settings, `DM_RES_LEVEL`; profile key `drs_level`): the host writes, at load, a branch at `main+0x805f8c` (the instruction after `bl main+0x8065e0`) to six to eight words in the zero padding at `main+0x8065c4` (7 words) and `main+0x806874` (3 words): `fixed:<n>` answers level n, `cap:<n>` at least n, both at most the palette's last (`ctl+0x1a0` - 1), and a step down is then always immediate. `fixed:lowest` is the palette's last level. The launcher's choices (the profile's `res_choice` rows): Lowest (level 9), and Dynamic never above level 1 or level 4; any level is still reachable with `DM_RES_LEVEL=fixed:<n>` in `env.txt`. A workaround on the game's own code; the cause (the controller tuned for the Switch 2's GPU, or the GPU time it reads) is open. What it does not touch: the full-scale path when the controller's dynamic resolution is off (flag bit 0), and the frames while the game holds its level itself (`ctl+0xa1` bit 0, which skips the selector).
+**3D resolution** (Game settings, `DM_RES_LEVEL`; profile key `drs_level`): the host writes, at load, a branch at `main+0x805f8c` (the instruction after `bl main+0x8065e0`) to six to eight words in the zero padding at `main+0x8065c4` (7 words) and `main+0x806874` (3 words): `fixed:<n>` answers level n, `cap:<n>` at least n, both at most the palette's last (`ctl+0x1a0` - 1), and a step down is then always immediate. `fixed:lowest` is the palette's last level. The launcher's choices (the profile's `res_choice` rows): Max (level 0), High (1), Medium (4), Low (6), Lowest (9), and Dynamic never above High (`cap:1`) or Medium (`cap:4`); any other level is reachable with `DM_RES_LEVEL=fixed:<n>` in `env.txt`. A workaround on the game's own code; the cause (the controller tuned for the Switch 2's GPU, or the GPU time it reads) is open. What it does not touch: the full-scale path when the controller's dynamic resolution is off (flag bit 0), and the frames while the game holds its level itself (`ctl+0xa1` bit 0, which skips the selector).
 
-Measured on the phone (2026-11-14, POCO F8 Pro, Adreno 830, Anka Turnip 1.0.0; Deku Tree 2F; each run started from 33.9 °C after a cool-down; frame rate over 10 s, game speed, GPU time a frame; the `resolution:` log line was there in every run but Dynamic):
+Measured on the phone (2026-11-14, POCO F8 Pro, Adreno 830, Anka Turnip 1.0.0; Deku Tree 2F; each run started from 33.9 °C after a cool-down; frame rate over 10 s, game speed, GPU time a frame). "Before" is work/resolution before the NDSR stand-in took every level's network, "after" with it (`<work>/session-2026-11-14/resolution-cost.md`):
 
-| Setting | Scene size | fps | Game speed | GPU ms |
-|---|---|---|---|---|
-| Dynamic (the game's own) | 683x384 (its floor) | 24.0 | 1.02x | 25.0 |
-| `fixed:lowest` (level 9) | 683x384 | 20.0 | 1.00x | 25.7 |
-| `fixed:6` | 1024x576 | 13.6 | 0.62x | 71.8 |
-| `fixed:4` | 1195x672 | 13.4 | 0.62x | 73.3 |
-| `fixed:1` | 1457x820 | 13.0 | 0.61x | 75.3 |
-| `fixed:0` (the sharpest) | 1536x864 | 16.4 | 0.76x | 60.7 |
-| `cap:4` | 683x384 | 22.0 | 1.03x | 24.1 |
-| `cap:1` | 683x384 | 20.0 | 1.00x | 24.4 |
+| Setting | Scene size | Before: fps / speed / GPU ms | After: fps / speed / GPU ms |
+|---|---|---|---|
+| Dynamic (the game's own) | before: 683x384 (its floor); after: levels 0 to 9 | 24.0 / 1.02x / 25.0 | 22.0 / 1.02x / 26.6 |
+| `fixed:lowest` (level 9) | 683x384 | 20.0 / 1.00x / 25.7 | 20.0 / 1.00x / 24.5 |
+| `fixed:6` | 1024x576 | 13.6 / 0.62x / 71.8 | 22.3 / 1.02x / 27.2 |
+| `fixed:4` | 1195x672 | 13.4 / 0.62x / 73.3 | 22.2 / 1.02x / 28.8 |
+| `fixed:1` | 1457x820 | 13.0 / 0.61x / 75.3 | 21.9 / 1.01x / 30.1 |
+| `fixed:0` (the sharpest) | 1536x864 | 16.4 / 0.76x / 60.7 | 26.4 / 1.02x / 31.8 |
+| `cap:4` | before: 683x384; after: levels 4 to 9 | 22.0 / 1.03x / 24.1 | 23.8 / 1.02x / 24.7 |
+| `cap:1` | before: 683x384; after: levels 1 to 9 | 20.0 / 1.00x / 24.4 | 25.7 / 1.00x / 26.8 |
 
-The GPU time does not follow the pixel count: every level held above the lowest costs about 61 to 75 ms whatever its size, and level 0 is cheaper than level 1. The NDSR stand-in's log line (`NDSR stand-in: 683x384 … -> 2048x1152`) appears only in the runs at 683x384, so at the other sizes something else takes the time (suspected, not yet measured: the game's own upscaling network, which the stand-in replaces only for that input). That is why the levels above the lowest are not in the launcher's menu. On this phone the game stayed at its floor with Dynamic and with both caps, so the caps changed nothing measurable here; whether they stop the issue 10 bursts on an Adreno 840 is not tested. Lowest ran at 20 fps against Dynamic's 24 in the same place; whether it runs cooler was not measured.
+Each level has its own upscaler network in `agl_ndsr_vr_light.pck` (levels 8-9 `d99fbeeb53d38847`, the others five more). Before, the NDSR stand-in replaced only `d99`, so every level from 0 to 7 ran its network at 30-64 ms of GPU a frame (61-75 ms in all where the floor takes 25), and Dynamic and both caps stayed at the floor. Now `DM_VK_NDSR_STANDIN` replaces all six ([agl's NDSR upscaler replaced by a bilinear stand-in on the Vulkan replay](../../../docs/reference/shaders.md#agls-ndsr-upscaler-replaced-by-a-bilinear-stand-in-on-the-vulkan-replay)): the GPU time follows the level (24.5 ms at the floor to 31.8 ms at level 0), every setting ran at full game speed, and Dynamic and the caps move between levels. The fps moves with the game's own frame pacing (its intervals give 20, 22, 26 and 30), so it is noisier than the GPU column (`fixed:0` above `fixed:1` is pacing, not GPU). Not measured: whether Lowest runs cooler, heat over a long run at a sharp level, other scenes, the handheld output size, and whether a cap stops the issue 10 bursts on an Adreno 840.
 
-Side effects: the levels are the game's own, inside the render targets it allocates for its sharpest level, so no render target, texture pool or upscaler input outside what the game itself uses. With any `DM_RES_LEVEL` value a step to a less sharp level is taken at once, without the game's down delay.
+Side effects: the levels are the game's own, inside the render targets it allocates for its sharpest level, so no render target, texture pool or upscaler input outside what the game itself uses; the sharper levels raise the GPU work per frame (level 0 has about 5 times the pixels of level 9; 31.8 against 24.5 ms above). With any `DM_RES_LEVEL` value a step to a less sharp level is taken at once, without the game's down delay. The stand-in is bilinear, so the networks' added detail is gone at every level.
 
 ## Test runs (Android)
 
@@ -118,7 +118,7 @@ The intro skip ([android/TESTING.md](../../../android/TESTING.md#intro-skip)) ta
 
 ## Open
 
-- 3D resolution (`DM_RES_LEVEL`): a level held above the lowest costs 61 to 75 ms of GPU a frame on the Adreno 830 whatever its size (0.61 to 0.76x game speed): find what runs there that does not at 683x384 (`DM_VK_GPUPROF` on `fixed:4` against `fixed:lowest`), and make the NDSR stand-in take the other input sizes; then the levels can go back into the menu. Whether a cap stops the issue 10 bursts on an Adreno 840, and whether the bursts come from a level or from the full-scale state, is not tested ([Dynamic resolution](#dynamic-resolution)). The Mac path of `DM_RES_LEVEL` is not tested.
+- 3D resolution (`DM_RES_LEVEL`): measured on the POCO F8 Pro at every level (2026-11-14, `<work>/session-2026-11-14/resolution-cost.md`), only by `env.txt`: the launcher's Game settings › 3D resolution with the stand-in build, the handheld output size, other scenes than Deku Tree 2F and heat over a long run at a sharp level are not tested. Whether a cap stops the issue 10 bursts on an Adreno 840, and whether the bursts come from a level or from the full-scale state, is not tested ([Dynamic resolution](#dynamic-resolution)). The 9 networks of `agl_ndsr_vr_light.pck` that no level dispatched at the 2048x1152 output (another output size, handheld?) still run as recorded. The Mac path of `DM_RES_LEVEL` is not tested.
 - The title screen's text with the full library of the current translator (its module alone checked on the phone), and the memory pressure (heat, audio dropouts) ([Boot](#boot-android-v131072), step 14).
 - The NDVE network itself on Turnip: replaced by a scale (step 13); its last pass's zeros on Mesa main not followed.
 - The `prepo` hook on the phone: past the first play report after the opening movie (step 7).
