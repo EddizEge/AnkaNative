@@ -122,7 +122,8 @@ final class Folders {
         AlertDialog[] d = new AlertDialog[1];
 
         String pack = pickedPack(a, g.titleId);
-        String lp = Pack.libraryProblem(new File(g.packDir), g.titleId);
+        Msg lpm = Pack.libraryProblemMsg(new File(g.packDir), g.titleId);
+        String lp = lpm == null ? null : lpm.text();
         String packState = lp == null ? a.getString(R.string.settings_folders_library_present, BuildConfig.NX_DMSH_VK_CHAIN) : lp;
         File save = save(a, g);
         String saveKey = "save_" + g.titleId;
@@ -204,7 +205,8 @@ final class Folders {
         if (g != null && !p.titleId.equals(g.titleId)) { a.error(a.getString(R.string.settings_folders_pack_other_game, p.titleId, g.name, g.titleId)); return; }
         pickedPack(a, p.titleId, dir.getPath());
         setPack(a, p.titleId, dir);
-        String lp = Pack.libraryProblem(dir, p.titleId);
+        Msg lpm = Pack.libraryProblemMsg(dir, p.titleId);
+        String lp = lpm == null ? null : lpm.text();
         new AlertDialog.Builder(a).setTitle(a.getString(R.string.settings_folders_pack_set))
                 .setMessage(lp == null ? a.getString(R.string.settings_folders_pack_set_ready, dir, BuildConfig.NX_DMSH_VK_CHAIN) : a.getString(R.string.settings_folders_pack_set_problem, dir, lp))
                 .setPositiveButton(android.R.string.ok, (x, w) -> { if (g != null) dialog(a, g); }).show();

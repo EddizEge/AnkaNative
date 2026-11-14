@@ -515,7 +515,7 @@ public final class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         File save = Folders.save(this, g);
-        String lp = Pack.libraryProblem(new File(g.packDir), g.titleId);
+        String lp = text(Pack.libraryProblemMsg(new File(g.packDir), g.titleId));
         Msg noProfile = Profile.missingMsg(g.titleId, g.name);
         AlertDialog[] d = new AlertDialog[1];
         if (noProfile != null) Ui.add(box, Ui.small(this, noProfile.text()), 0);
@@ -820,7 +820,7 @@ public final class MainActivity extends Activity {
         if (err != null) { error(shown(err)); return false; }
         refresh();
         if (packDir.equals(pendingPackPick)) Folders.pickedPack(this, id, packDir.getPath());   // a pack folder the user picked is remembered for this game's next pick and updates
-        String lp = Pack.libraryProblem(packDir, id);
+        String lp = text(Pack.libraryProblemMsg(packDir, id));
         String name;
         try { name = Pack.read(packDir).name; } catch (IOException e) { name = id; }
         if (name.isEmpty()) name = id;
@@ -857,6 +857,9 @@ public final class MainActivity extends Activity {
 
     /** The same for a log line: English */
     private static String english(Object why) { return why instanceof Msg ? ((Msg) why).english() : String.valueOf(why); }
+
+    /** A Msg of another area (a pack's problem) for the screen, null for null */
+    private static String text(Msg m) { return m == null ? null : m.text(); }
 
     /** Remove from the list (the Manage sheet): says exactly what goes (the list entry) and what stays (the folders and the saves) */
     private void confirmRemove(Game g) {
@@ -896,11 +899,11 @@ public final class MainActivity extends Activity {
         }
         // The pack's code must be of the game build in the folder (else the game crashes at once), and of a build this app supports: a plain message, and Prepare
         // again from the dump, instead of a start that cannot work
-        String bad = PackCheck.blocking(this, p, gd);
-        if (bad != null) { packProblem(g, bad, pickPack); return; }
+        Msg bad = PackCheck.blockingMsg(this, p, gd);
+        if (bad != null) { packProblem(g, bad.text(), pickPack); return; }
         // The host loads <pack>/shaders/v-<its DMSH_VK_CHAIN>/dmsh_vk.lib: without it the game runs but draws nothing. Say so, and offer to prepare the shaders
         // (a dump) or another pack folder
-        String lp = Pack.libraryProblem(new File(g.packDir), g.titleId);
+        String lp = text(Pack.libraryProblemMsg(new File(g.packDir), g.titleId));
         if (lp != null && Pack.playableLibrary(new File(g.packDir), g.titleId) != null) {   // the older library plays while the update makes this version's (vka_shader.c lib_load)
             if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
             start(g);

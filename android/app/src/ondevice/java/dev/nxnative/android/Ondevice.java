@@ -334,7 +334,7 @@ final class Ondevice {
             File existing;   // a job.json beside the dump
             File packDir;    // the pack Folders.packFor finds for it (null: none)
             Pack pack;       // that pack, when it reads as this game's pack
-            String build;    // PackCheck.blocking: why its code cannot run with this dump (unfinished, another game build), null when it fits
+            Msg build;       // PackCheck.blockingMsg: why its code cannot run with this dump (unfinished, another game build), null when it fits
             Boolean code;    // PackCheck.code: its code is this APK's rewriter's (null: cannot tell)
         }
 
@@ -368,7 +368,7 @@ final class Ondevice {
                         Pack p = f.packDir == null ? null : Pack.read(f.packDir);
                         if (p != null && !p.simulated && p.titleId.equals(f.r.titleId)) {
                             f.pack = p;
-                            f.build = PackCheck.blocking(a, p, f.r.dump);
+                            f.build = PackCheck.blockingMsg(a, p, f.r.dump);
                             if (f.build == null) f.code = PackCheck.code(a, p, f.r.dump);
                         }
                     } catch (IOException e) {
@@ -418,14 +418,13 @@ final class Ondevice {
             // A pack already there (the picked pack folder, else beside the dump): what fits is kept
             if (f.pack != null) {
                 File pd = f.packDir;
-                String lp = PackCheck.shaders(pd, r.titleId);
+                Msg lpm = PackCheck.shadersMsg(pd, r.titleId);
+                String lp = lpm == null ? null : lpm.text();
                 boolean code = f.build != null || again && !Boolean.TRUE.equals(f.code), shaders = lp != null;
                 if (!code && !shaders) { adopt(r, pd, false, false); return; }
                 Runnable redo = () -> adopt(r, pd, code, shaders);
                 if (start) { redo.run(); return; }
                 int delta = shaders ? deltaShaders(pd, r.titleId) : -1;
-                // ShaderLibs.jobMinutesText, PackCheck.blocking (f.build) and PackCheck.shaders (lp) are the packs area's English: the integrator switches them to
-                // jobMinutesMsg, blockingMsg and shadersMsg after both packages merge
                 String what = code && shaders ? (delta >= 0 ? a.getString(R.string.prepare_redo_code_update, shadersText(pd, r.titleId))
                                 : a.getString(R.string.prepare_redo_both, ShaderLibs.jobMinutesMsg(Profile.of(r.titleId).shaderTotal).text()))
                         : code ? a.getString(R.string.prepare_redo_code)
@@ -433,7 +432,7 @@ final class Ondevice {
                 // the dialog's paragraphs: what is redone, why, the pack folder
                 List<String> message = new ArrayList<>();
                 message.add(what);
-                if (f.build != null) message.add(f.build);
+                if (f.build != null) message.add(f.build.text());
                 else if (again && code) message.add(a.getString(R.string.prepare_redo_other_tools));
                 if (lp != null) message.add(lp);
                 message.add(a.getString(R.string.prepare_pack_line, pd));
