@@ -61,6 +61,9 @@ public final class ReadinessActivity extends Activity {
     private static String vulkan;
     private static String probedDriver;
 
+    /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         FrameLayout frame = new FrameLayout(this);

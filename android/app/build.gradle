@@ -140,6 +140,9 @@ android {
         }
     }
     buildFeatures { buildConfig true }
+    // The launcher's languages (docs/i18n.md): English in res/values (res/resources.properties names it en-US), translations in values-tr, values-pt-rBR and
+    // values-b+es+419. The generated localeConfig lists them for Android 13+'s per-app language (the system's App languages and Settings › Language, Lang.java)
+    androidResources { generateLocaleConfig true }
     // The icon's variant badge: a "T" dot on the test app, none on the play app (res/drawable/ic_launcher_badge*.xml)
     sourceSets {
         main {
@@ -154,8 +157,11 @@ android {
         if (nxLive) live { storeFile file(signStore); storePassword signStorePass; keyAlias signAlias; keyPassword signKeyPass }
     }
     buildTypes {
-        debug { jniDebuggable true }
+        // Pseudo-locales (Developer options › Languages: English (XA) accented and longer, ar-XB right to left) show a text still written in the code and a label
+        // that overflows; in every build but the public release
+        debug { jniDebuggable true; pseudoLocalesEnabled true }
         release {
+            pseudoLocalesEnabled !nxLive
             minifyEnabled false
             debuggable !nxLive       // bring-up builds: run-as and the app's files stay reachable over adb; the release is not debuggable
             signingConfig nxLive ? signingConfigs.live : signingConfigs.debug

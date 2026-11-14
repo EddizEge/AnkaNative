@@ -50,6 +50,9 @@ public final class FrontendLaunch extends Activity {
         return r;
     }
 
+    /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         if (saved != null) { finish(); return; }   // recreated after it handed the game on

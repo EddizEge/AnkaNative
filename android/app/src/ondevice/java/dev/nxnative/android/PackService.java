@@ -85,6 +85,9 @@ public final class PackService extends Service {
         @Override public void onReceive(Context c, Intent i) { battery(i); policy(); }
     };
 
+    /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override public void onCreate() {
         super.onCreate();
         nm = getSystemService(NotificationManager.class);

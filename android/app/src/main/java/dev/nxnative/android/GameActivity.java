@@ -69,6 +69,9 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     private AudioDeviceCallback route;
     private boolean routeReady;
 
+    /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         // This game's own host (libnxhost_<title ID>.so, with its profile compiled in): a game this APK has no profile for gets a sentence, not a crash

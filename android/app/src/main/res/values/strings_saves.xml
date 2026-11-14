@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English (the source): the saves area (SaveUi, SaveStore, SaveMigrate). docs/i18n.md: keys start with saves_, one file per area, translations keep the English file's name -->
+<resources>
+</resources>

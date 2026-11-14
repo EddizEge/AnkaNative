@@ -55,6 +55,9 @@ public final class MainActivity extends Activity {
     private String pendingId;
     private File pendingPackPick;   // the pack folder the user just picked (remembered in Prefs once it is accepted)
 
+    /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         if (saved != null) settingsPage = saved.getBoolean("settings");
@@ -168,6 +171,7 @@ public final class MainActivity extends Activity {
         gpuRow = new Ui.Setting(this, "🎮", "GPU driver", v -> GpuDriver.dialog(this, PICK_DRIVER)).chevron(this);   // custom GPU drivers (GpuDriver.java)
         sys.addView(gpuRow.view);
         sys.addView(new Ui.Setting(this, "📁", "Folders", v -> Folders.dialog(this)).value("Game, pack and save folders").chevron(this).view);   // the game, pack and save folders, kept across updates (Folders.java)
+        sys.addView(new Ui.Setting(this, "🌐", getString(R.string.settings_language), v -> Lang.dialog(this)).value(Lang.label(this)).chevron(this).view);   // the app's language (Lang.java)
 
         Ui.add(content, Ui.section(this, "Help"), Ui.SECTION_GAP);
         LinearLayout help = settingsCard(content);

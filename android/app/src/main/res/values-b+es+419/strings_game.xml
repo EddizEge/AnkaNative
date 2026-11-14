@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Español (Latinoamérica): the game area (GameActivity, SidePanel, TouchControls, Overlay, Fsr, Lsfg, SelftestActivity). docs/i18n.md: keys start with game_, one file per area, translations keep the English file's name -->
+<resources>
+</resources>

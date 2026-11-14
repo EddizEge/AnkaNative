@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English (the source): the settings area (GameSettings, Folders, GpuDriver, DriverFetch, DriverZip, Updater, UpdateCheck, ReleaseNotes, MemText, Signer, Profile, Lang). docs/i18n.md: keys start with settings_, one file per area, translations keep the English file's name -->
+<resources>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_language_en" translatable="false">English</string>
+    <string name="settings_language_tr" translatable="false">Türkçe</string>
+    <string name="settings_language_pt_br" translatable="false">Português (Brasil)</string>
+    <string name="settings_language_es_419" translatable="false">Español (Latinoamérica)</string>
+    <string name="settings_language_failed">The language could not be changed: %1$s</string>
+</resources>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe: the errors area (JobErrors: the packer's error codes). docs/i18n.md: keys start with errors_, one file per area, translations keep the English file's name -->
+<resources>
+</resources>

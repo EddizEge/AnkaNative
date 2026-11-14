@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Português (Brasil): the packs area (PackUi, Pack, PackZip, PackFind, PackCheck, BuildCheck, DumpLayout, RomfsCheck, Nup, ShaderLibs, RewriteKey). docs/i18n.md: keys start with packs_, one file per area, translations keep the English file's name -->
+<resources>
+</resources>

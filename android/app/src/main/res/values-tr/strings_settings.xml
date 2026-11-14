@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe: the settings area (GameSettings, Folders, GpuDriver, DriverFetch, DriverZip, Updater, UpdateCheck, ReleaseNotes, MemText, Signer, Profile, Lang). docs/i18n.md: keys start with settings_, one file per area, translations keep the English file's name -->
+<resources>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_system">Sistem varsayılanı</string>
+    <string name="settings_language_failed">Dil değiştirilemedi: %1$s</string>
+</resources>

@@ -31,6 +31,9 @@ public final class SelftestActivity extends Activity implements SurfaceHolder.Ca
     private final Handler ui = new Handler(Looper.getMainLooper());
     private boolean running;
 
+    /** Android 12: the language picked in Settings › Language (Lang.wrap; Android 13+ applies it itself) */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         Native.load(Profile.first().titleId);   // any game's host has the selftest: the APK's first game's
