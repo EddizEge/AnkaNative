@@ -37,7 +37,7 @@
     <string name="readiness_gpu_error">Não foi possível usar o driver de GPU (%1$s): o jogo precisa de Vulkan 1.3.</string>
     <string name="readiness_gpu_unchecked">Não verificado (%1$s): não se sabe se esta GPU tem o que o jogo precisa.</string>
     <string name="readiness_check_status">Status no Android</string>
-    <string name="readiness_status_bring_up">Este jogo ainda está sendo adaptado para o Android: ele pode parar ou desenhar errado em qualquer celular, inclusive neste.</string>
+    <string name="readiness_status_bring_up">Este jogo ainda está sendo adaptado para o Android: ele pode travar ou exibir gráficos errados em qualquer celular, inclusive neste.</string>
     <!-- Readiness.gpuMsg: the GPU line -->
     <string name="readiness_gpu_not_reported">GPU não informada</string>
     <string name="readiness_gpu_not_reported_why">GPU não informada (%1$s)</string>
@@ -76,13 +76,13 @@
         <item quantity="one">%1$d problema no celular</item>
         <item quantity="other">%1$d problemas no celular</item>
     </plurals>
-    <string name="readiness_summary_met_warnings">Tudo o que os jogos precisam está presente; veja os avisos abaixo.</string>
-    <string name="readiness_summary_met">Tudo o que os jogos precisam está presente.</string>
+    <string name="readiness_summary_met_warnings">Todos os requisitos dos jogos são atendidos; veja os avisos abaixo.</string>
+    <string name="readiness_summary_met">Todos os requisitos dos jogos são atendidos.</string>
     <!-- ReadinessActivity's checks -->
     <string name="readiness_check_gpu">GPU e driver</string>
     <string name="readiness_gpu_stale">%1$s. O driver de GPU foi trocado enquanto esta tela estava aberta: saia e abra de novo para verificar o novo driver.</string>
     <string name="readiness_check_driver_picked">Driver de GPU escolhido</string>
-    <string name="readiness_check_own_driver">Driver de GPU próprio</string>
+    <string name="readiness_check_own_driver">Driver de GPU do jogo</string>
     <string name="readiness_own_driver_same">%1$s, o mesmo que esta tela verificou.</string>
     <string name="readiness_own_driver_other">Este jogo usa o próprio driver de GPU, %1$s; esta tela verificou %2$s. A verificação feita antes de o jogo iniciar usa o driver do jogo, e o resultado dela pode ser diferente deste.</string>
     <string name="readiness_check_files">Arquivos do jogo</string>
@@ -117,7 +117,7 @@
     <string name="readiness_last_exit">O último jogo %1$s, %2$s. Para enviar o log dele, use %3$s › %4$s.</string>
     <string name="readiness_last_exit_desc">O último jogo %1$s, %2$s (%3$s). Para enviar o log dele, use %4$s › %5$s.</string>
     <string name="readiness_exit_memory">foi encerrado pelo Android por falta de memória</string>
-    <string name="readiness_exit_crashed">travou</string>
+    <string name="readiness_exit_crashed">fechou com erro</string>
     <string name="readiness_exit_anr">parou de responder</string>
     <string name="readiness_exit_normal">terminou normalmente</string>
     <!-- %1$s: one of readiness_exit_reason_* -->
@@ -158,5 +158,5 @@
     <string name="readiness_switches_unreadable">Ativadas no env.txt: (não foi possível ler o env.txt).</string>
     <!-- The clipboard's label of the copied report (Android may show it) -->
     <string name="readiness_clip_label">Relatório de compatibilidade</string>
-    <string name="readiness_req_android_sdk_33">Android 13 ou mais recente: o Android 12 e o 12L não foram testados; neles o jogo pode não iniciar ou desenhar errado</string>
+    <string name="readiness_req_android_sdk_33">Android 13 ou mais recente: o Android 12 e o 12L não foram testados; neles o jogo pode não iniciar ou exibir gráficos errados</string>
 </resources>
