@@ -51,14 +51,14 @@ final class PackZip {
 
     private static void files(File dir, String rel, TreeMap<String, File> out) throws IOException {
         String[] names = dir.list();
-        if (names == null) throw new IOException("cannot list " + dir);
+        if (names == null) throw new LocalizedIOException("packs_zip_cannot_list", dir);
         for (String n : names) {
             File f = new File(dir, n);
             String r = rel.isEmpty() ? n : rel + "/" + n;
-            if (Files.isSymbolicLink(f.toPath())) throw new IOException(r + " is a link: a pack holds files and folders only");
+            if (Files.isSymbolicLink(f.toPath())) throw new LocalizedIOException("packs_zip_link", r);
             if (Files.isDirectory(f.toPath(), LinkOption.NOFOLLOW_LINKS)) files(f, r, out);
             else if (Files.isRegularFile(f.toPath(), LinkOption.NOFOLLOW_LINKS)) out.put(r, f);
-            else throw new IOException(r + " is neither a file nor a folder");
+            else throw new LocalizedIOException("packs_zip_odd_file", r);
         }
     }
 
@@ -83,8 +83,8 @@ final class PackZip {
     /** Exports the pack folder as a stored zip into outDir (see the class comment); returns the zip */
     static File export(File packDir, File outDir) throws IOException {
         Pack p = Pack.read(packDir);
-        if (SaveStore.inside(outDir, packDir)) throw new IOException("the zip cannot go inside the pack folder " + packDir);
-        if (!outDir.isDirectory() && !outDir.mkdirs()) throw new IOException("cannot create " + outDir);
+        if (SaveStore.inside(outDir, packDir)) throw new LocalizedIOException("packs_zip_inside_pack", packDir);
+        if (!outDir.isDirectory() && !outDir.mkdirs()) throw new LocalizedIOException("packs_zip_cannot_create", outDir);
         TreeMap<String, File> fl = files(packDir);
         File zip = freeFile(outDir, exportName(p)), tmp = new File(zip.getPath() + PARTIAL);
         TreeMap<String, long[]> want = new TreeMap<>();
@@ -107,7 +107,7 @@ final class PackZip {
                         int k;
                         while ((k = in.read(b)) > 0) { z.write(b, 0, k); n += k; }
                     }
-                    if (n != size) throw new IOException(e.getKey() + " changed while it was written");   // ZipOutputStream checks the CRC too
+                    if (n != size) throw new LocalizedIOException("packs_zip_changed", e.getKey());   // ZipOutputStream checks the CRC too
                     z.closeEntry();
                     want.put(e.getKey(), new long[] {size, c});
                 }
@@ -120,12 +120,12 @@ final class PackZip {
                 for (Enumeration<? extends ZipEntry> en = zf.entries(); en.hasMoreElements(); ) {
                     ZipEntry ze = en.nextElement();
                     long[] w = want.get(ze.getName());
-                    if (w == null || w[0] != ze.getSize() || w[1] != ze.getCrc()) throw new IOException("the zip does not match the pack at " + ze.getName());
+                    if (w == null || w[0] != ze.getSize() || w[1] != ze.getCrc()) throw new LocalizedIOException("packs_zip_mismatch", ze.getName());
                     count++;
                 }
-                if (count != want.size()) throw new IOException("the zip has " + count + " files, the pack " + want.size());
+                if (count != want.size()) throw new LocalizedIOException("packs_zip_count", count, want.size());
             }
-            if (!tmp.renameTo(zip)) throw new IOException("cannot name the zip " + zip);
+            if (!tmp.renameTo(zip)) throw new LocalizedIOException("packs_zip_cannot_name", zip);
         } finally {
             if (tmp.exists()) tmp.delete();
         }
@@ -135,11 +135,11 @@ final class PackZip {
     /** A zip entry's name as a path inside the pack (the top folder stripped when the zip has one); null for the top folder itself. Refuses zip slip */
     static String safeName(String name, String prefix) throws IOException {
         if (name.indexOf('\\') >= 0 || name.startsWith("/") || name.indexOf('\0') >= 0 || name.matches("^[A-Za-z]:.*"))
-            throw new IOException("the zip has an entry outside the pack (" + name + "): it is not imported");
+            throw new LocalizedIOException("packs_zip_slip", name);
         for (String s : name.split("/", -1))
-            if (s.equals("..") || s.equals(".")) throw new IOException("the zip has an entry outside the pack (" + name + "): it is not imported");
+            if (s.equals("..") || s.equals(".")) throw new LocalizedIOException("packs_zip_slip", name);
         if (!prefix.isEmpty()) {
-            if (!name.startsWith(prefix)) throw new IOException("the zip has files beside its top folder (" + name + ")");
+            if (!name.startsWith(prefix)) throw new LocalizedIOException("packs_zip_beside_top", name);
             name = name.substring(prefix.length());
         }
         while (name.endsWith("/")) name = name.substring(0, name.length() - 1);
@@ -154,10 +154,10 @@ final class PackZip {
             String n = en.nextElement().getName();
             int s = n.indexOf('/');
             String t = s < 0 ? null : n.substring(0, s + 1);
-            if (t == null || top != null && !top.equals(t)) throw new IOException("the zip has no pack.tsv at its root");
+            if (t == null || top != null && !top.equals(t)) throw new LocalizedIOException("packs_zip_no_tsv_root");
             top = t;
         }
-        if (top == null || zf.getEntry(top + "pack.tsv") == null) throw new IOException("the zip has no pack.tsv (it is not a pack made by Export pack…)");
+        if (top == null || zf.getEntry(top + "pack.tsv") == null) throw new LocalizedIOException("packs_zip_no_tsv", new Msg("packs_label_export"));
         return top;
     }
 
@@ -166,20 +166,20 @@ final class PackZip {
         byte[] tsv;
         if (source.isDirectory()) {
             File f = new File(source, "pack.tsv");
-            if (!f.isFile()) throw new IOException(source + " has no pack.tsv: not a pack folder");
+            if (!f.isFile()) throw new LocalizedIOException("packs_zip_not_pack_folder", source);
             tsv = Files.readAllBytes(f.toPath());
         } else {
             try (ZipFile zf = new ZipFile(source)) {
                 ZipEntry e = zf.getEntry(prefix(zf) + "pack.tsv");
                 try (InputStream in = zf.getInputStream(e)) { tsv = Streams.readAll(in); }
             } catch (java.util.zip.ZipException e) {
-                throw new IOException(source.getName() + " is not a zip file (" + e.getMessage() + ")");
+                throw new LocalizedIOException(new Msg("packs_zip_not_zip", source.getName(), e.getMessage()), e);
             }
         }
         for (String l : new String(tsv, StandardCharsets.UTF_8).split("\n")) {
             if (l.startsWith("title_id\t")) return l.substring(9).trim().toUpperCase(Locale.ROOT);
         }
-        throw new IOException("pack.tsv has no title_id");
+        throw new LocalizedIOException("packs_tsv_no_row", "title_id");
     }
 
     /** Unpacks a zip into to (which must not exist), every entry checked by safeName */
@@ -189,18 +189,18 @@ final class PackZip {
             List<ZipEntry> all = new ArrayList<>();
             for (Enumeration<? extends ZipEntry> en = zf.entries(); en.hasMoreElements(); ) all.add(en.nextElement());
             for (ZipEntry e : all) safeName(e.getName(), prefix);   // the whole zip first: nothing is written from a zip with one bad name
-            if (!to.mkdirs()) throw new IOException("cannot create " + to);
+            if (!to.mkdirs()) throw new LocalizedIOException("packs_zip_cannot_create", to);
             String root = to.getCanonicalPath() + File.separator;
             byte[] b = new byte[1 << 16];
             for (ZipEntry e : all) {
                 String n = safeName(e.getName(), prefix);
                 if (n == null) continue;
                 File f = new File(to, n);
-                if (!f.getCanonicalPath().startsWith(root)) throw new IOException("the zip has an entry outside the pack (" + e.getName() + "): it is not imported");
-                if (e.isDirectory()) { if (!f.isDirectory() && !f.mkdirs()) throw new IOException("cannot create " + f); continue; }
+                if (!f.getCanonicalPath().startsWith(root)) throw new LocalizedIOException("packs_zip_slip", e.getName());
+                if (e.isDirectory()) { if (!f.isDirectory() && !f.mkdirs()) throw new LocalizedIOException("packs_zip_cannot_create", f); continue; }
                 File parent = f.getParentFile();
-                if (!parent.isDirectory() && !parent.mkdirs()) throw new IOException("cannot create " + parent);
-                if (f.exists()) throw new IOException("the zip has " + n + " twice");
+                if (!parent.isDirectory() && !parent.mkdirs()) throw new LocalizedIOException("packs_zip_cannot_create", parent);
+                if (f.exists()) throw new LocalizedIOException("packs_zip_twice", n);
                 try (InputStream in = zf.getInputStream(e); OutputStream out = new FileOutputStream(f)) {   // ZipFile checks each entry's CRC as it reads
                     int k;
                     while ((k = in.read(b)) > 0) out.write(b, 0, k);
@@ -208,7 +208,7 @@ final class PackZip {
                 }
             }
         } catch (java.util.zip.ZipException e) {
-            throw new IOException(zip.getName() + " is not a whole zip file (" + e.getMessage() + ")");
+            throw new LocalizedIOException(new Msg("packs_zip_not_whole", zip.getName(), e.getMessage()), e);
         }
     }
 
@@ -218,29 +218,29 @@ final class PackZip {
      */
     static Pack stage(File source, File packs, String want) throws IOException {
         String id = titleOf(source);
-        if (!id.matches("[0-9A-F]{16}")) throw new IOException("pack.tsv names the title " + id + ", not a title ID");
-        String why = Profile.missing(id, "That pack's game");
+        if (!id.matches("[0-9A-F]{16}")) throw new LocalizedIOException("packs_zip_bad_title", id);
+        String why = Profile.missing(id, Tr.english("packs_missing_what"));   // English, as Profile.missing takes it; the integrator switches to missingMsg
         if (why != null) throw new IOException(why);
-        if (want != null && !want.equals(id)) throw new IOException("that pack is for " + id + ", not " + want);
+        if (want != null && !want.equals(id)) throw new LocalizedIOException("packs_zip_other_game", id, want);
         File target = new File(packs, id), part = new File(packs, id + PARTIAL);
-        if (SaveStore.inside(source, packs) || SaveStore.inside(packs, source)) throw new IOException(source + " is the app's own pack folder (or holds it): nothing to import");
+        if (SaveStore.inside(source, packs) || SaveStore.inside(packs, source)) throw new LocalizedIOException("packs_zip_own_folder", source);
         if (part.exists()) SaveStore.deleteTree(part);   // an import that stopped: only this code writes there
-        if (part.exists()) throw new IOException("cannot clear " + part);
+        if (part.exists()) throw new LocalizedIOException("packs_zip_cannot_clear", part);
         try {
             if (source.isDirectory()) {
-                if (!part.mkdirs()) throw new IOException("cannot create " + part);
+                if (!part.mkdirs()) throw new LocalizedIOException("packs_zip_cannot_create", part);
                 for (java.util.Map.Entry<String, File> e : files(source).entrySet()) {
                     File f = new File(part, e.getKey());
-                    if (!f.getParentFile().isDirectory() && !f.getParentFile().mkdirs()) throw new IOException("cannot create " + f.getParentFile());
+                    if (!f.getParentFile().isDirectory() && !f.getParentFile().mkdirs()) throw new LocalizedIOException("packs_zip_cannot_create", f.getParentFile());
                     SaveStore.copyTree(e.getValue(), f);
                 }
             } else extract(source, part);
             Pack p = Pack.read(part);
-            if (!p.titleId.equals(id)) throw new IOException("pack.tsv names " + p.titleId);
-            if (p.simulated) throw new IOException("that pack is a placeholder of the simulated engine, not a pack to play");
+            if (!p.titleId.equals(id)) throw new LocalizedIOException("packs_zip_tsv_names", p.titleId);
+            if (p.simulated) throw new LocalizedIOException("packs_zip_simulated");
             String m = p.unfinishedModule();
-            if (m != null) throw new IOException("the pack's code is unfinished (" + m + " has no .android.key): prepare it again where it was made");
-            if (Pack.libraryOf(part) == null && Pack.libraryVersions(part).isEmpty()) throw new IOException("the pack has no shader library (shaders/v-<version>/dmsh_vk.lib)");
+            if (m != null) throw new LocalizedIOException("packs_zip_unfinished", m);
+            if (Pack.libraryOf(part) == null && Pack.libraryVersions(part).isEmpty()) throw new LocalizedIOException("packs_zip_no_library");
             return p;
         } catch (IOException | RuntimeException e) {
             SaveStore.deleteTree(part);
@@ -253,10 +253,10 @@ final class PackZip {
         File old = new File(target.getPath() + REPLACED);
         recover(target);
         if (old.exists()) SaveStore.deleteTree(old);   // target is there (recover): a removal that stopped
-        if (target.exists() && !target.renameTo(old)) throw new IOException("cannot move the current pack " + target + " aside");
+        if (target.exists() && !target.renameTo(old)) throw new LocalizedIOException("packs_zip_cannot_move", target);
         if (!part.renameTo(target)) {
-            if (old.exists() && !old.renameTo(target)) throw new IOException("cannot name the new pack " + target + ", and the old one stays as " + old);
-            throw new IOException("cannot name the new pack " + target + "; the old one is kept");
+            if (old.exists() && !old.renameTo(target)) throw new LocalizedIOException("packs_zip_cannot_name_new_old", target, old);
+            throw new LocalizedIOException("packs_zip_cannot_name_new", target);
         }
         SaveStore.deleteTree(old);
     }

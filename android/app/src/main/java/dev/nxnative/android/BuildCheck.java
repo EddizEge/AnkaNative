@@ -18,31 +18,47 @@ import java.util.Map;
 final class BuildCheck {
     private BuildCheck() {}
 
-    /** What {@link #build} found: OK, or the kind of problem, a sentence for the user (message) and the build IDs compared (detail, for the card and the log) */
+    /**
+     * What {@link #build} found: OK, or the kind of problem, a sentence for the user (message) and the build IDs compared (detail, for the card and the log).
+     * message, detail and label() are English (logs, reports, the callers that log them); msg, detailMsg and labelMsg() are the same as Msgs, for the screen
+     */
     enum Kind { OK, OTHER_BUILD, MISSING, UNREADABLE, UNSUPPORTED, ROMFS }
 
     static final class Result {
         final Kind kind;
         final String message, detail;
+        final Msg msg, detailMsg;   // null: none (detail is then "")
 
-        Result(Kind kind, String message, String detail) { this.kind = kind; this.message = message; this.detail = detail; }
+        Result(Kind kind, Msg msg, Msg detailMsg) {
+            this.kind = kind;
+            this.msg = msg;
+            this.detailMsg = detailMsg;
+            this.message = msg == null ? null : msg.english();
+            this.detail = detailMsg == null ? "" : detailMsg.english();
+        }
 
         boolean ok() { return kind == Kind.OK; }
 
-        /** The card's short state */
+        /** The card's short state, English (a log line) */
         String label() {
+            Msg m = labelMsg();
+            return m == null ? null : m.english();
+        }
+
+        /** The card's short state as a Msg; null for OK */
+        Msg labelMsg() {
             switch (kind) {
-                case OTHER_BUILD: return "Pack is for another build";
-                case MISSING: return "Pack is for another update";
-                case UNREADABLE: return "Game file cannot be read";
-                case UNSUPPORTED: return "Update not supported";
-                case ROMFS: return "Game data of another version";
+                case OTHER_BUILD: return new Msg("packs_build_label_other_build");
+                case MISSING: return new Msg("packs_build_label_missing");
+                case UNREADABLE: return new Msg("packs_build_label_unreadable");
+                case UNSUPPORTED: return new Msg("packs_build_label_unsupported");
+                case ROMFS: return new Msg("packs_build_label_romfs");
                 default: return null;
             }
         }
     }
 
-    static final Result OK = new Result(Kind.OK, null, "");
+    static final Result OK = new Result(Kind.OK, null, null);
 
     /**
      * The folder's module of the pack's version: updates/&lt;version&gt;/exefs/&lt;module&gt;, else the base's (an update without its own ExeFS: DumpLayout), base/exefs
@@ -66,15 +82,18 @@ final class BuildCheck {
         final Nup nup;          // or a .nup's
         final Nup.Node node;
         final String label;
-        final String error;     // the .nup could not be read
+        final String error;     // the .nup could not be read (English)
+        final Msg errorMsg;     // the same as a Msg, null when it could
 
-        private Mod(File file, Nup nup, Nup.Node node, String label, String error) { this.file = file; this.nup = nup; this.node = node; this.label = label; this.error = error; }
+        private Mod(File file, Nup nup, Nup.Node node, String label, Msg errorMsg) {
+            this.file = file; this.nup = nup; this.node = node; this.label = label; this.errorMsg = errorMsg; this.error = errorMsg == null ? null : errorMsg.english();
+        }
 
         boolean exists() { return file != null ? file.isFile() : node != null && !node.dir; }
 
         /** The first n bytes (fewer when it is shorter) */
         byte[] head(int n) throws IOException {
-            if (error != null) throw new IOException(error);
+            if (errorMsg != null) throw new LocalizedIOException(new Msg("packs_as_is", errorMsg), null);
             if (nup != null) return nup.read(node, n);
             try (java.io.RandomAccessFile r = new java.io.RandomAccessFile(file, "r")) {
                 byte[] b = new byte[(int) Math.min(n, r.length())];
@@ -85,7 +104,7 @@ final class BuildCheck {
 
         /** Its bytes into the hash */
         void hash(MessageDigest h) throws IOException {
-            if (error != null) throw new IOException(error);
+            if (errorMsg != null) throw new LocalizedIOException(new Msg("packs_as_is", errorMsg), null);
             if (nup != null) { h.update(nup.read(node, -1)); return; }
             try (InputStream in = new FileInputStream(file)) {
                 byte[] buf = new byte[1 << 16];
@@ -114,7 +133,7 @@ final class BuildCheck {
             Nup.Pkg p = n.find(sel);
             return new Mod(null, n, p == null ? null : n.lookup(p, "exefs/" + m), label, null);
         } catch (IOException e) {
-            return new Mod(null, null, null, label, e.getMessage());
+            return new Mod(null, null, null, label, Pack.why(e));
         }
     }
 
@@ -125,7 +144,7 @@ final class BuildCheck {
 
     /** An NSO's build ID (64 hex digits, lower case) from its first 0x60 bytes */
     static String nsoBuildId(byte[] h, String name) throws IOException {
-        if (h.length < 0x60 || h[0] != 'N' || h[1] != 'S' || h[2] != 'O' || h[3] != '0') throw new IOException(name + " is not an NSO");
+        if (h.length < 0x60 || h[0] != 'N' || h[1] != 'S' || h[2] != 'O' || h[3] != '0') throw new LocalizedIOException("packs_not_nso", name);
         StringBuilder b = new StringBuilder();
         for (int i = 0x40; i < 0x60; i++) b.append(String.format(Locale.ROOT, "%02x", h[i] & 0xff));
         return b.toString();
@@ -151,31 +170,33 @@ final class BuildCheck {
         Map<String, String> want = builds(p);
         if (want.isEmpty()) return OK;   // a pack from before the build rows: nothing to compare
         String name = p.name.isEmpty() ? p.titleId : p.name;
-        StringBuilder diff = new StringBuilder();
+        Msg diff = null;
         String firstMod = null, firstWant = null, firstHave = null;
         String gv = p.gameVersion(game);   // the dump's version with the pack's build IDs (the same code under another version number plays as it is), else the pack's
         for (Map.Entry<String, String> e : want.entrySet()) {
             Mod nso = mod(game, gv, e.getKey());
-            if (nso.error != null) return new Result(Kind.UNREADABLE, nso.error, nso.label + ": " + nso.error);
+            if (nso.errorMsg != null) return new Result(Kind.UNREADABLE, nso.errorMsg, new Msg("packs_build_where", nso.label, nso.errorMsg));
             if (!nso.exists())
-                return new Result(Kind.MISSING, "The pack is for " + name + " " + Profile.versionName(parse(p.version)) + ", but the game " + (nso.nup != null ? ".nup" : "folder")
-                        + " has no " + nso.label + ". Pick the dump that has that update, or Prepare again from this one.", "no " + nso.label + " (pack version " + p.version + ")");
+                return new Result(Kind.MISSING, nso.nup != null
+                        ? new Msg("packs_build_missing_nup", name, Profile.versionMsg(parse(p.version)), nso.label, new Msg("packs_label_prepare_again"))
+                        : new Msg("packs_build_missing_folder", name, Profile.versionMsg(parse(p.version)), nso.label, new Msg("packs_label_prepare_again")),
+                        new Msg("packs_build_missing_detail", nso.label, p.version));
             String id;
             try {
                 id = nsoBuildId(nso.head(0x60), nso.label);
             } catch (IOException ex) {
-                return new Result(Kind.UNREADABLE, nso.label + " cannot be read: " + ex.getMessage(), nso.label + ": " + ex.getMessage());
+                return new Result(Kind.UNREADABLE, new Msg("packs_build_unreadable", nso.label, Pack.why(ex)), new Msg("packs_build_where", nso.label, Pack.why(ex)));
             }
             if (!id.startsWith(e.getValue())) {
-                diff.append(diff.length() == 0 ? "" : "; ").append(e.getKey()).append(": pack ").append(shortId(e.getValue())).append(", game ").append(shortId(id))
-                        .append(" (").append(nso.label).append(')');
+                diff = list(diff, new Msg("packs_build_diff_game", e.getKey(), shortId(e.getValue()), shortId(id), nso.label));
                 if (firstMod == null) { firstMod = e.getKey(); firstWant = e.getValue(); firstHave = id; }
             }
         }
         if (firstMod != null)
-            return new Result(Kind.OTHER_BUILD, "The pack was made from another build of " + name + " (" + firstMod + " " + shortId(firstWant) + "…) than the one in the game "
-                    + (Nup.isNup(game) ? ".nup" : "folder") + " (" + shortId(firstHave) + "…, " + Profile.versionName(parse(p.version))
-                    + "). Its code would crash with this game: Prepare again makes a pack from this dump.\n\nBuild IDs that differ: " + diff, diff.toString());
+            return new Result(Kind.OTHER_BUILD, Nup.isNup(game)
+                    ? new Msg("packs_build_other_nup", name, firstMod, shortId(firstWant), shortId(firstHave), Profile.versionMsg(parse(p.version)), new Msg("packs_label_prepare_again"), diff)
+                    : new Msg("packs_build_other_folder", name, firstMod, shortId(firstWant), shortId(firstHave), Profile.versionMsg(parse(p.version)), new Msg("packs_label_prepare_again"), diff),
+                    diff);
         Profile prof = Profile.of(p.titleId);
         Map<Long, Map<String, String>> sup = prof == null ? Map.of() : prof.buildMap();
         if (!sup.isEmpty()) {
@@ -184,28 +205,28 @@ final class BuildCheck {
             for (Map<String, String> row : sup.values()) ok |= sameBuild(row, want);
             if (!ok) {
                 Map<String, String> row = sup.get(parse(p.version));
-                StringBuilder bad = new StringBuilder();
+                Msg bad = null;
                 if (row != null) for (Map.Entry<String, String> e : row.entrySet()) {
                     String have = want.get(e.getKey());
                     if (have != null && !have.startsWith(e.getValue()) && !e.getValue().startsWith(have))
-                        bad.append(bad.length() == 0 ? "" : "; ").append(e.getKey()).append(": pack ").append(shortId(have)).append(", app ").append(shortId(e.getValue()));
+                        bad = list(bad, new Msg("packs_build_diff_app", e.getKey(), shortId(have), shortId(e.getValue())));
                 }
-                StringBuilder s = new StringBuilder();
+                StringBuilder s = new StringBuilder();   // version numbers, as the profile names them (Latin digits)
                 for (Long v : sup.keySet()) s.append(s.length() == 0 ? "" : ", ").append(v);
-                return new Result(Kind.UNSUPPORTED, "The pack is for a build of " + name + " this app does not support (" + Profile.versionName(parse(p.version)) + "). " + prof.supported()
-                        + " Dump that build and Prepare it.", row == null ? "pack version " + p.version + ", app supports " + s : bad.toString());
+                return new Result(Kind.UNSUPPORTED, new Msg("packs_build_unsupported", name, Profile.versionMsg(parse(p.version)), prof.supportedMsg()),
+                        row == null ? new Msg("packs_build_unsupported_detail", p.version, s.toString()) : bad);
             }
         }
         // its RomFS is the data of that version (RomfsCheck: game.tsv romfs_check), else the game takes another version's data and may crash
         String romfs;
         try { romfs = p.romfsPath(game); } catch (IOException e) { romfs = null; }
-        String bad = RomfsCheck.check(prof, romfs, want.get("main"), parse(gv));
-        if (bad != null) {
-            int a = bad.indexOf('('), b = bad.lastIndexOf(").");
-            return new Result(Kind.ROMFS, bad, a >= 0 && b > a ? bad.substring(a + 1, b) : bad);
-        }
+        Msg[] bad = RomfsCheck.problem(prof, romfs, want.get("main"), parse(gv));
+        if (bad != null) return new Result(Kind.ROMFS, bad[0], bad[1]);
         return OK;
     }
+
+    /** A list of findings, "; " between them (a Msg of Msgs, so it renders in one language) */
+    private static Msg list(Msg list, Msg item) { return list == null ? item : new Msg("packs_build_list", list, item); }
 
     /** Whether a pack's build rows are a profile build row's (every module both name, by prefix: game.tsv keeps 16 bytes) */
     private static boolean sameBuild(Map<String, String> row, Map<String, String> want) {

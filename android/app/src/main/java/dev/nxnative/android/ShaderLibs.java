@@ -102,9 +102,15 @@ final class ShaderLibs {
         return best;
     }
 
-    /** The warning for a game played on such a library */
-    static final String LEGACY_WARNING = "This game's shaders were made before versioned shader updates, so this app version cannot update them in part. "
-            + "You can keep playing on them, but updating the shaders once more with Prepare shaders is suggested: after that, shader fixes arrive as small incremental updates.";
+    /**
+     * The warning for a game played on such a library, English: MainActivity shows it today, until the integrator switches it to {@link #legacyWarning}, the same
+     * text in the user's language (packs_legacy_warning)
+     */
+    static final String LEGACY_WARNING = "This game's shaders were made before versioned shader updates, so this app version cannot update them in part. "   // i18n-keep: English twin of packs_legacy_warning
+            + "You can keep playing on them, but updating the shaders once more with Prepare shaders is suggested: after that, shader fixes arrive as small incremental updates.";   // i18n-keep
+
+    /** {@link #LEGACY_WARNING} in the user's language (screen only) */
+    static String legacyWarning() { return Tr.s("packs_legacy_warning", new Msg("packs_label_prepare_shaders")); }
 
     /** The versions of the libraries of titleId's game a pack folder has, other than current (what a delta update can start from) */
     static List<String> older(File packDir, String titleId, String current) {
@@ -208,7 +214,7 @@ final class ShaderLibs {
         byte[] buf = new byte[1 << 20];
         try (InputStream in = new FileInputStream(src); FileOutputStream out = new FileOutputStream(dst)) {
             byte[] h = new byte[128];
-            for (int got = 0, n; got < h.length; got += n) if ((n = in.read(h, got, h.length - got)) < 0) throw new IOException("short library");
+            for (int got = 0, n; got < h.length; got += n) if ((n = in.read(h, got, h.length - got)) < 0) throw new IOException("short library");   // i18n-keep: restamp catches it, never shown
             java.util.Arrays.fill(h, STAMP_VERSION_AT, STAMP_VERSION_AT + STAMP_VERSION_LEN, (byte) 0);
             byte[] v = version.getBytes(StandardCharsets.US_ASCII);
             System.arraycopy(v, 0, h, STAMP_VERSION_AT, Math.min(v.length, STAMP_VERSION_LEN));
@@ -228,17 +234,23 @@ final class ShaderLibs {
         f.delete();
     }
 
-    static String minutesText(int n) {
+    /** {@link #minutes} in words, English ("about 5-10 minutes"); {@link #minutesMsg} is the same as a Msg */
+    static String minutesText(int n) { return minutesMsg(n).english(); }
+
+    static Msg minutesMsg(int n) {
         int[] m = minutes(n);
-        return String.format(Locale.ROOT, "about %d-%d minutes", m[0], m[1]);
+        return new Msg("packs_minutes", m[0], m[1]);
     }
 
     /**
      * A whole Prepare (the code rewritten, then every shader of the game's map, n: Profile.shaderTotal) as "a-b" minutes: the rewrite's 2-5 minutes on the phone
      * (Donkey Kong Bananza 74 s, ONDEVICE.md "Phone test status") and the shaders step as {@link #minutes}. DKB (22,852 shaders) 24-45, Mario Kart World (11,604) 16-30
      */
-    static String jobMinutesText(int n) {
+    static String jobMinutesText(int n) { return jobMinutesMsg(n).english(); }
+
+    /** {@link #jobMinutesText} as a Msg */
+    static Msg jobMinutesMsg(int n) {
         int[] m = minutes(n);
-        return String.format(Locale.ROOT, "about %d-%d minutes", m[0] + 2, m[1] + 5);
+        return new Msg("packs_minutes", m[0] + 2, m[1] + 5);
     }
 }

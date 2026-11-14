@@ -34,14 +34,21 @@ final class PackCheck {
 
     /**
      * null when the pack's code can be started with the game folder, else why not: a module whose rewrite did not finish (no key file: Pack.unfinishedModule),
-     * a job rewriting this pack's code now or stopped while it did (the job beside the dump, or the one the launcher shows), or code of another game build (build)
+     * a job rewriting this pack's code now or stopped while it did (the job beside the dump, or the one the launcher shows), or code of another game build (build).
+     * English (logs, and the callers that report it); {@link #blockingMsg} is the screen's
      */
     static String blocking(Context c, Pack p, File game) {
+        Msg m = blockingMsg(c, p, game);
+        return m == null ? null : m.english();
+    }
+
+    /** {@link #blocking} as a Msg (the screen's text(), a log's english()), null when the code can be started */
+    static Msg blockingMsg(Context c, Pack p, File game) {
         String m = p.unfinishedModule();
-        if (m != null) return "The pack's game code is unfinished (" + m + ".android.key is missing: an update of the pack was stopped part way). Prepare again finishes it.";
+        if (m != null) return new Msg("packs_check_unfinished", m, new Msg("packs_label_prepare_again"));
         Job j = rewriting(c, p.dir, game, p.titleId);
-        if (j != null) return "The pack's game code is being rewritten (" + j.name() + ": " + j.statusText(false) + "). Let preparing finish first.";
-        return build(p, game);
+        if (j != null) return new Msg("packs_check_rewriting", j.name(), j.statusText(false));   // statusText: prepare's, English; the integrator switches it to statusMsg
+        return BuildCheck.build(p, game).msg;
     }
 
     /** The job that is rewriting the code of this pack folder or stopped while it did (its rewrite step is running in job.json), else null */
@@ -62,8 +69,11 @@ final class PackCheck {
     /** null when the pack's code is of the game build in the folder and of a build this APK supports, else why not (BuildCheck.build; the build IDs that differ are in the message) */
     static String build(Pack p, File game) { return BuildCheck.build(p, game).message; }
 
-    /** null when the pack has this APK's shader library, else why not */
+    /** null when the pack has this APK's shader library, else why not (English) */
     static String shaders(File packDir, String titleId) { return Pack.libraryProblem(packDir, titleId); }
+
+    /** {@link #shaders} as a Msg, null when the library is this APK's */
+    static Msg shadersMsg(File packDir, String titleId) { return Pack.libraryProblemMsg(packDir, titleId); }
 
     // ---- The rewriter's key (slow: off the main thread) ----
 
