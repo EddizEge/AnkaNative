@@ -30,6 +30,8 @@ SPDX headers are kept. Every `libnxhost.so` is therefore a GPL-3.0-or-later work
 Some fixes follow other projects' findings without copying their code: [kartnative](https://github.com/pahorema/kartnative) by pahorema (MIT) for
 GPU-written sparse textures (`dm/gfx/vk_android/vka_tex.c`) and the per-primitive header of mesh programs (`dm/gfx/tools/shader_split.py`), and
 [switch2mac](https://github.com/azmasm/switch2mac) by azmasm (MIT outside `nx2_lower`) for the SPIR-V mesh entry points marked in the translator. Thanks to them.
+The split of a shader update that reads only the dump's files holding the shaders it needs (`dm/gfx/tools/split_delta.py`, `shader_split.py` `DM_SPLIT_DELTA`)
+follows Banana Native's targeted split (f86575b0, 7f09ca1f; MIT).
 
 `Lossless.dll` belongs to Lossless Scaling (proprietary, sold separately). It is never in this repository or in an APK: the user supplies their own copy, which the
 launcher finds on the phone or lets the user pick, and copies into the app's private files.
