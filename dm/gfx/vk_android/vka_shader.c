@@ -234,10 +234,19 @@ static void single_lane(uint64_t key, int stage, uint32_t **w, size_t *nb) {
                                                             stage == DMSH_VK_STAGE_GS && V.driver_id == VK_DRIVER_ID_MESA_TURNIP ? "Turnip's geometry stage (DM_VK_SUBGROUP_GS)" : V.subgroup_stages & g_stage_bit[stage] ? "the device's subgroup size in this stage is not the library's and cannot be pinned" : "the device has none in this stage");
     free(*w); *w = o; *nb = on * 4;
 }
+// DM_VK_TEXFB_SET (vka_tex.c): a reporting module's feedback bitmap moved from the pool set (1) to its own set (VKA_FB_OWN_SET), in place. A module of the flag without the
+// binding there would be one the build made another way: logged, left as it is (its pipeline then lacks a set it reads, so its draws report nothing)
+static void fb_own_set(uint64_t key, uint32_t *w, size_t nb) {
+    if (!vka_tex_fb_own_set() || !vka_tex_fb_layout()) return;
+    int n = vka_spv_move_set(w, nb / 4, DMSH_VK_SET_POOL, DMSH_VK_POOL_FB_BINDING, VKA_FB_OWN_SET);
+    if (n <= 0) { static _Atomic int k; if (atomic_fetch_add(&k, 1) < 8) VRED("shader %016llx: its texture-use feedback bitmap not found at set %d binding %d (%d): not moved to set %d (DM_VK_TEXFB_SET)",
+                                                                             (unsigned long long)key, DMSH_VK_SET_POOL, DMSH_VK_POOL_FB_BINDING, n, VKA_FB_OWN_SET); }
+}
 static VkShaderModule spv_module(const vka_shlib *L, const dmsh_vk_entry *e, const dmsh_vk_module *m, uint64_t key, const char **why, char *err, size_t errn) {
     size_t nb = 0; uint32_t *w = vka_shlib_spirv(L, m, &nb, err, errn);
     if (!w) { *why = err; return VK_NULL_HANDLE; }
     if (e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB)) single_lane(key, e->stage, &w, &nb);
+    if (e->flags & DMSH_VK_F_TEXFB) fb_own_set(key, w, nb);
     VkShaderModuleCreateInfo ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = nb, .pCode = w};
     VkShaderModule mod = VK_NULL_HANDLE; VkResult r = vk.vkCreateShaderModule(V.dev, &ci, NULL, &mod);
     free(w);
@@ -265,6 +274,7 @@ static int gs_words(vka_shader *s, uint32_t **out, size_t *on, char *err, size_t
     size_t nb = 0; uint32_t *w = m ? vka_shlib_spirv(s->lib, m, &nb, err, errn) : NULL;
     if (!w) return -1;
     if (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB)) single_lane(s->key, s->e->stage, &w, &nb);
+    if (s->e->flags & DMSH_VK_F_TEXFB) fb_own_set(s->key, w, nb);
     int r = vka_spv_gs_claim(w, nb / 4, VKA_GS_CLAIM_BINDING, out, on, err, errn);
     free(w); return r;
 }
@@ -294,6 +304,7 @@ VkShaderModule vka_shader_vin_module(vka_shader *s, uint32_t umask, uint32_t sma
     const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
     size_t nb = 0; uint32_t *w = m ? vka_shlib_spirv(s->lib, m, &nb, err, sizeof err) : NULL;
     if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, s->e->stage, &w, &nb);
+    if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, nb);
     size_t on = 0; uint32_t *o = w ? vka_spv_vin_retype(w, nb / 4, umask, smask, &on, err, sizeof err) : NULL;
     if (o) { VkShaderModuleCreateInfo ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = on * 4, .pCode = o};
              VkResult r = vk.vkCreateShaderModule(V.dev, &ci, NULL, &mod); if (r) { snprintf(err, sizeof err, "vkCreateShaderModule %d", r); mod = VK_NULL_HANDLE; } else own = 1; }
@@ -319,6 +330,7 @@ VkShaderModule vka_shader_fout_module(vka_shader *s, uint32_t umask, uint32_t sm
     const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
     size_t nb = 0; uint32_t *w = m ? vka_shlib_spirv(s->lib, m, &nb, err, sizeof err) : NULL;
     if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, s->e->stage, &w, &nb);
+    if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, nb);
     size_t on = 0; uint32_t *o = w ? vka_spv_fout_retype(w, nb / 4, umask, smask, &on, err, sizeof err) : NULL;
     if (o) { VkShaderModuleCreateInfo ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = on * 4, .pCode = o};
              VkResult r = vk.vkCreateShaderModule(V.dev, &ci, NULL, &mod); if (r) { snprintf(err, sizeof err, "vkCreateShaderModule %d", r); mod = VK_NULL_HANDLE; } else own = 1; }
@@ -333,6 +345,36 @@ VkShaderModule vka_shader_fout_module(vka_shader *s, uint32_t umask, uint32_t sm
         return had; }
     struct vka_vinmod *v = malloc(sizeof *v);
     if (v) { *v = (struct vka_vinmod){s->fout, umask, smask, mod}; s->fout = v; }
+    pthread_mutex_unlock(&g_mu);
+    return mod;
+}
+// The base pixel module with the zero blend weight guard (vka_spvpatch.c vka_spv_blend_zero; vka_pso.c DM_VK_BLEND_ZERO), made once per modes word: the base module when
+// no output of those locations is a vec4 of floats, or when the rewrite fails (logged)
+VkShaderModule vka_shader_bz_module(vka_shader *s, uint32_t modes) {
+    pthread_mutex_lock(&g_mu);
+    for (struct vka_vinmod *v = s->bz; v; v = v->next) if (v->u == modes) { VkShaderModule m = v->mod; pthread_mutex_unlock(&g_mu); return m; }
+    pthread_mutex_unlock(&g_mu);
+    VkShaderModule mod = VK_NULL_HANDLE; char err[256] = ""; int own = 0;
+    const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
+    size_t nb = 0; uint32_t *w = m ? vka_shlib_spirv(s->lib, m, &nb, err, sizeof err) : NULL;
+    if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, s->e->stage, &w, &nb);
+    if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, nb);
+    size_t on = 0; uint32_t *o = w ? vka_spv_blend_zero(w, nb / 4, modes, &on, err, sizeof err) : NULL;
+    if (o) { VkShaderModuleCreateInfo ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = on * 4, .pCode = o};
+             VkResult r = vk.vkCreateShaderModule(V.dev, &ci, NULL, &mod); if (r) { snprintf(err, sizeof err, "vkCreateShaderModule %d", r); mod = VK_NULL_HANDLE; } else own = 1; }
+    free(w); free(o);
+    if (!mod) {
+        if (err[0]) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("pixel shader %016llx: zero blend weight guard (outputs %#x) not made: %s; the base module", (unsigned long long)s->key, modes, err); }
+        mod = vka_shader_module(s, DMSH_VK_MOD_BASE);
+    } else { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VLOG("pixel shader %016llx: a NaN or Inf colour under a zero blend weight written as 0 (outputs %#x, DM_VK_BLEND_ZERO)", (unsigned long long)s->key, modes); }
+    if (!mod) return VK_NULL_HANDLE;
+    pthread_mutex_lock(&g_mu);
+    for (struct vka_vinmod *x = s->bz; x; x = x->next) if (x->u == modes) {
+        VkShaderModule had = x->mod; pthread_mutex_unlock(&g_mu);
+        if (own && mod != had) vk.vkDestroyShaderModule(V.dev, mod, NULL);
+        return had; }
+    struct vka_vinmod *v = malloc(sizeof *v);
+    if (v) { *v = (struct vka_vinmod){s->bz, modes, 0, mod}; s->bz = v; }
     pthread_mutex_unlock(&g_mu);
     return mod;
 }

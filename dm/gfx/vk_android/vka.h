@@ -132,6 +132,7 @@ void vka_present_fill(uint64_t tk, const tex_t *t, double period_s, const int cr
 uint64_t vka_present_inline(const tex_t *t, double period_s, const int crop[4]);
 uint64_t vka_hang_ns(void);                         // how long a fence may make no progress before it is a hang (DM_VK_HANG_S, default 6 s)
 int vka_hung(void);
+void vka_device_lost(const char *what);   // vka_dev.c: a call returned VK_ERROR_DEVICE_LOST: the hang is declared now, with the driver's fault report
 int vka_queue_idle(void);                           // vkQueueWaitIdle bounded by the hang time (0 = not idle: hung or timed out)                                 // 1 = a GPU hang was declared (vka_dev.c): nothing more is submitted, waits return at once
 void vka_fence_post(uint64_t fence, void *ops, int n, void (*run)(void *ops, int n));   // effects run by the completion thread when fence completes
 uint64_t vka_done(void);
@@ -329,6 +330,10 @@ int vka_tex_pool_lazy(void);                                  // vka_tex.c: lazy
 int vka_tex_pool_mark(const uint32_t *w, size_t n, uint64_t range, int fb);   // vka_tex.c: texture IDs a pool-reading draw may index (its storage buffers' words, from a binding range of that size: 0 unknown): the deferred ones queued; returns how many. fb: the draw reports the IDs it indexes (DM_VK_TEXFB gate)
 // GPU texture-use feedback (vka_tex.c "Texture-use feedback", DM_VK_TEXFB; dmsh_abi_vk.h DMSH_VK_POOL_FB_BINDING)
 int vka_tex_fb_spec(void);                                    // 1: pipelines of DMSH_VK_F_TEXFB modules get DMSH_VK_SPEC_TEXFB true (fixed for the process)
+#define VKA_FB_OWN_SET 2                                  // DM_VK_TEXFB_SET: the feedback bitmap's set of its own (vka_tex.c)
+int vka_tex_fb_own_set(void);                                 // DM_VK_TEXFB_SET on (restart)
+VkDescriptorSetLayout vka_tex_fb_layout(void);                // its layout (VK_NULL_HANDLE: off, or not made)
+VkDescriptorSet vka_tex_fb_set(void);                         // its set, bound with the pool set
 void vka_tex_fb_draw(int reporting);                          // a draw or dispatch reads the texture pool: its shaders report (1) or not (0: a blind one, the release rule waits)
 void vka_tex_fb_commit(VkCommandBuffer cb, uint64_t fence);   // the submission's end (vka_exec.c): its bitmap copied out and cleared when it had a reporting draw
 int vka_shader_texfb(int *complete);                          // vka_shader.c: the library has DMSH_VK_F_TEXFB entries; *complete: every entry with a texture pool binding has it
@@ -381,6 +386,7 @@ typedef struct vka_shader {
     VkShaderModule mods[5];             // by DMSH_VK_MOD_* variant, made when a pipeline first asks (the base when the shader is made)
     struct vka_vinmod *vin;             // vertex modules with integer-fed inputs retyped, by masks (vka_shader_vin_module)
     struct vka_vinmod *fout;            // pixel modules with float outputs retyped for integer targets, by masks (vka_shader_fout_module)
+    struct vka_vinmod *bz;              // pixel modules with the zero blend weight guard, by modes word (vka_shader_bz_module; u = the modes)
     vka_span c1; VkDeviceSize c1_len;   // the c1 bytes in static memory (none when c1_len is 0)
     int bad;                            // refused: no module, an unknown binding, an NV-only capability (logged once with its key)
     int gs_fx;                          // a geometry shader's memory writes (vka_spv_gs_claim): above 0, its draws bind a claim buffer at VKA_GS_CLAIM_BINDING
@@ -399,6 +405,7 @@ VkShaderModule vka_shader_cs_module(vka_shader *s);  // a compute shader's modul
 VkShaderModule vka_shader_gs_module(vka_shader *s);   // a geometry shader's module with its memory writes made once per primitive (vka_spv_gs_claim)
 #define VKA_GS_CLAIM_BINDING (DMSH_VK_STAGE_GS * DMSH_VK_STAGE_BINDINGS + DMSH_VK_STAGE_BINDINGS - 1)   // set 0: the claim words of such a shader (the stage's last binding)
 VkShaderModule vka_shader_fout_module(vka_shader *s, uint32_t umask, uint32_t smask);
+VkShaderModule vka_shader_bz_module(vka_shader *s, uint32_t modes);   // the base pixel module with NaN / Inf under a zero blend weight written as 0 (vka_spv_blend_zero), made once per modes word
 int vka_shader_fout_retyped(vka_shader *s, uint32_t umask, uint32_t smask);   // 1 when that module is a rewritten one (not the base module it falls back to)   // the base pixel module with those float outputs as uint / int vectors of their bits (vka_spv_fout_retype), made once per masks
 #define VKA_FS_RETYPE 4                  // vka_gkey.fs_variant beyond the library's pixel DMSH_VK_MOD_* (4 is DMSH_VK_MOD_SHUFFLE_LDS of compute modules, never a pixel variant): the base pixel module with its float outputs at integer attachments retyped (vka_pso.c fout_masks)
 VkShaderModule vka_shader_vin_module(vka_shader *s, uint32_t umask, uint32_t smask);   // the base module with those float inputs as uvec4 / ivec4 (vka_spv_vin_retype), made once per masks   // the module of that variant (DMSH_VK_MOD_*), made on first use; VK_NULL_HANDLE = the entry has none   // the shader of key in library L (the game's, or the selftest's own); NULL = not there or refused
@@ -415,7 +422,7 @@ typedef struct {   // what a graphics pipeline is made from beyond its shaders a
     struct { uint32_t fmt, offset; uint8_t binding, used, pad[2]; } va[32];   // by location
     struct { uint32_t stride, divisor; uint8_t used, pad[3]; } vb[33];         // by binding (stream; 32 = the zero buffer of inputs no attribute feeds)
 } vka_gkey;
-typedef struct { VkPipelineLayout layout; VkDescriptorSetLayout set0; int push; uint32_t ndesc; } vka_layout;
+typedef struct { VkPipelineLayout layout; VkDescriptorSetLayout set0; int push; uint32_t ndesc; int fbset; } vka_layout;   // fbset: set 2 is the feedback bitmap's (DM_VK_TEXFB_SET)
 int vka_layout_of(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout *out);   // the set-0 layout of these stages' records with the pools' set 1
 VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k);
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);

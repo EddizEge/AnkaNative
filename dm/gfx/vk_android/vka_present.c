@@ -566,9 +566,11 @@ static int present_one(const pq_item *it) {
     { static int mode = -1, at; if (mode < 0) { const char *e = getenv("DM_VK_TEST_HANG"); mode = 0; if (e && sscanf(e, "%d,%d", &mode, &at) < 1) mode = 0; if (at <= 0) at = 600; }
       if (mode && it->ticket == (uint64_t)at && it->fence) { wv[1] = mode == 1 ? vka_fence_last() + 1 : V.tl_queued + 1000000000ull;
           VRED("DM_VK_TEST_HANG=%d: present ticket %llu waits for fence %llu (%llu handed to the queue)", mode, (unsigned long long)it->ticket, (unsigned long long)wv[1], (unsigned long long)V.tl_queued); } }
-    r = vka_hung() ? VK_ERROR_DEVICE_LOST : vk.vkQueueSubmit(V.q, 1, &si, g_fr[k].fence);
+    int hung = vka_hung();
+    r = hung ? VK_ERROR_DEVICE_LOST : vk.vkQueueSubmit(V.q, 1, &si, g_fr[k].fence);
     VkResult pr = r ? r : vk.vkQueuePresentKHR(V.q, &pi);
     pthread_mutex_unlock(&V.qmu);
+    if (!hung && (r == VK_ERROR_DEVICE_LOST || pr == VK_ERROR_DEVICE_LOST)) vka_device_lost(r ? "vkQueueSubmit (present copy)" : "vkQueuePresentKHR");
     g_fr[k].held = im;
     if (!r) vka_ctl_shot_done(g_fr[k].fence);
     if (r) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("present submission %d", r); return 0; }

@@ -6,6 +6,7 @@
 // so the next start builds from it. Layouts follow dmsh_abi_vk.h: set 0 the per-draw records of every stage (push descriptors when they fit), set 1 the pools (vka_tex.c)
 #if defined(__ANDROID__)
 #include "vka.h"
+#include "vka_aspick.h"
 #include "../nvn/nvn_mtl.h"
 #include <stdlib.h>
 #include <string.h>
@@ -116,8 +117,9 @@ static int layout_slow(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout
     VkResult r = vk.vkCreateDescriptorSetLayout(V.dev, &li, NULL, &L->set0);
     free(lb);
     if (!r) {
-        VkDescriptorSetLayout sets[2] = {L->set0, vka_bindless_layout()};
-        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = sets[1] ? 2 : 1, .pSetLayouts = sets};
+        VkDescriptorSetLayout sets[3] = {L->set0, vka_bindless_layout(), vka_tex_fb_layout()};   // set 2: the feedback bitmap's own (DM_VK_TEXFB_SET), only beside the pool set
+        L->fbset = sets[1] && sets[2];
+        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = L->fbset ? 3 : sets[1] ? 2 : 1, .pSetLayouts = sets};
         r = vk.vkCreatePipelineLayout(V.dev, &pi, NULL, &L->layout);
     }
     if (r) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("pipeline layout of %u bindings (%u descriptors): %d", k.n, ndesc, r); L->layout = VK_NULL_HANDLE; }
@@ -291,7 +293,7 @@ void mtl_pso_line(char *out, size_t n) {
     int k = snprintf(out, n, "%llu graphics + %llu compute pipelines (%llu failed, %llu compute (program, layout) pairs not made for shared memory, %llu on the frame path), %llu set layouts, %.0f ms creating", (unsigned long long)g_ngfx, (unsigned long long)g_ncs,
                      (unsigned long long)g_nfail, (unsigned long long)g_ncs_over, (unsigned long long)g_frame_made, (unsigned long long)g_nlayouts, g_create_ms);
     if (V.gpl && k > 0 && (size_t)k + 3 < n) { memcpy(out + k, "; ", 3); vka_gpl_line(out + k + 2, n - (size_t)k - 2); }
-    size_t o = strlen(out); char a[200]; vka_pso_async_line(a, sizeof a);
+    size_t o = strlen(out); char a[400]; vka_pso_async_line(a, sizeof a);
     if (a[0] && o + 2 < n) snprintf(out + o, n - o, "; %s", a);
 }
 
@@ -340,6 +342,29 @@ static void fout_masks(const vka_shader *fs, const vka_gkey *k, uint32_t *um, ui
         if (c && (fs->e->fout_mask >> i & 1) && (fs->e->fout_types >> (2 * i) & 3) == DMSH_VK_TYPE_FLOAT) { if (c == 1) *um |= 1u << i; else *sm |= 1u << i; }
     }
 }
+// DM_VK_BLEND_ZERO=1 (restart; default 0 = as before): NVIDIA's float blender takes a blend term whose weight is 0 as 0 whatever the colour ("zero times anything is zero",
+// SET_BLEND_FLOAT_OPTION, which NVN's driver turns on at start); Vulkan's blending follows IEEE, 0 x NaN = 0 x Inf = NaN, as Apple's does. nxnative found Ocarina of Time's
+// half-resolution mist shader writing NaN at alpha 0 into an RGBA16F target blended SRC_ALPHA / ONE_MINUS_SRC_ALPHA, which the bloom spread into white blotches over the
+// foliage at the Kokiri Forest exit (their 0662f9d8, issue #2187); what Adreno's blender does with it is not known. With the switch, a pipeline whose colour output i
+// blends into a floating-point attachment by a sum or difference with a source colour factor of SRC_ALPHA (zero where alpha is 0: mode 1) or ONE_MINUS_SRC_ALPHA (zero where
+// alpha is 1: mode 2), and whose destination factor does not read the source colour, gets the pixel module whose output i returns a NaN or Inf rgb component as 0 there
+// (vka_shader_bz_module). The modes come from the key's blend state, so the pipeline key needs nothing more. Only for the base pixel module: a pipeline that already takes
+// another variant (integer targets, the library's variants) is left as it is
+static int bz_on(void) { static int v = -1; if (v < 0) v = VKA_ENV("DM_VK_BLEND_ZERO", 0) != 0; return v; }
+static int vkf_float(uint32_t f) { return (f >= VK_FORMAT_R16_SFLOAT && f <= VK_FORMAT_R16G16B16A16_SFLOAT && (f - VK_FORMAT_R16_SFLOAT) % 7 == 0) || f == VK_FORMAT_R32_SFLOAT || f == VK_FORMAT_R32G32_SFLOAT
+                                          || f == VK_FORMAT_R32G32B32_SFLOAT || f == VK_FORMAT_R32G32B32A32_SFLOAT || f == VK_FORMAT_B10G11R11_UFLOAT_PACK32; }
+static uint32_t bz_modes(const vka_gkey *k) {
+    uint32_t w = 0;
+    for (uint32_t i = 0; i < k->ncolor && i < 8; i++) {
+        if (!k->att[i].en || !vkf_float(k->cfmt[i]) || k->logic_en) continue;
+        if (k->att[i].op > VK_BLEND_OP_REVERSE_SUBTRACT) continue;   // (MIN / MAX: no weights)
+        uint8_t d = k->att[i].dst;
+        if (d == VK_BLEND_FACTOR_SRC_COLOR || d == VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR || (d >= VK_BLEND_FACTOR_SRC1_COLOR && d <= VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA)) continue;
+        uint32_t m = k->att[i].src == VK_BLEND_FACTOR_SRC_ALPHA ? 1 : k->att[i].src == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ? 2 : 0;
+        w |= m << (2 * i);
+    }
+    return w;
+}
 static int spec_has(const VkSpecializationInfo *si, uint32_t id) { for (uint32_t i = 0; si && i < si->mapEntryCount; i++) if (si->pMapEntries[i].constantID == id) return 1; return 0; }
 // 0 = a stage's module is missing (logged by vka_shader_module)
 static int pstate_fill(pstate *P, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k) {
@@ -356,8 +381,10 @@ static int pstate_fill(pstate *P, vka_shader *const sh[VKA_NSTAGE], const vka_la
         vka_shader *s = sh[order[i]]; if (!s) continue;
         int fs = order[i] == 1, gl = k->gl_depth && order[i] == last_pre && (s->e->flags & DMSH_VK_F_GL_DEPTH);
         uint32_t fu = 0, fsm = 0; if (fs && k->fs_variant == VKA_FS_RETYPE) fout_masks(s, k, &fu, &fsm);
+        uint32_t bz = fs && k->fs_variant == DMSH_VK_MOD_BASE && bz_on() ? bz_modes(k) : 0;   // DM_VK_BLEND_ZERO (above)
         VkShaderModule mod = order[i] == 0 && (k->vin_u | k->vin_s) ? vka_shader_vin_module(s, k->vin_u, k->vin_s) : order[i] == 2 && k->gs_fx ? vka_shader_gs_module(s)
                            : fs && k->fs_variant == VKA_FS_RETYPE ? (fu | fsm ? vka_shader_fout_module(s, fu, fsm) : vka_shader_module(s, DMSH_VK_MOD_BASE))
+                           : bz ? vka_shader_bz_module(s, bz)
                            : vka_shader_module(s, fs ? k->fs_variant : DMSH_VK_MOD_BASE);
         if (!mod && order[i] == 2 && k->gs_fx) mod = vka_shader_module(s, DMSH_VK_MOD_BASE);   // no module with the claim (logged): the shader as it is
         if (!mod) return 0;
@@ -595,8 +622,8 @@ static unsigned pre_probe(const VkGraphicsPipelineCreateInfo *ci0, const pstate 
     if (pinned) { VkResult r = try_lib(c, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT, g_pc, 0); NOTE("no subgroup size pins", r); }
     if (npre > 1) { c = *ci0; c.stageCount = 1; c.pStages = pre; c.pTessellationState = NULL; VkResult r = try_lib(c, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT, g_pc, 0); NOTE("first stage only", r); }
     {   // The pipeline layout with independent sets (diagnostic: a pipeline of such a layout binds only with it, not adopted)
-        VkDescriptorSetLayout sets[2] = {P->set0, vka_bindless_layout()}; VkPipelineLayout il = VK_NULL_HANDLE;
-        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT, .setLayoutCount = sets[1] ? 2 : 1, .pSetLayouts = sets};
+        VkDescriptorSetLayout sets[3] = {P->set0, vka_bindless_layout(), vka_tex_fb_layout()}; VkPipelineLayout il = VK_NULL_HANDLE;
+        VkPipelineLayoutCreateInfo pi = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT, .setLayoutCount = sets[1] && sets[2] ? 3 : sets[1] ? 2 : 1, .pSetLayouts = sets};
         if (P->set0 && !vk.vkCreatePipelineLayout(V.dev, &pi, NULL, &il)) { c = *ci0; c.layout = il; VkResult r = try_lib(c, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT, g_pc, 0); NOTE("independent-sets layout", r); vk.vkDestroyPipelineLayout(V.dev, il, NULL); }
     }
     VkResult r_comb = VK_ERROR_UNKNOWN;
@@ -909,6 +936,13 @@ static void pw_explain(vka_shader *const sh[5], const vka_gkey *k, uint32_t klen
 static gval *gfx_obtain(const gkey_full *fk, uint64_t h, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int *made);
 static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, int prewarm, int *made);
 static int as_run(int wait);
+// DM_VK_PREWARM_OVERLAP=0 (restart; default 1 = each thread builds on its own, as before, on every driver): one prewarm build at a time, the A/B for Turnip. Banana
+// Native found Ocarina of Time on Turnip (Galaxy S25, Adreno 830) crashing about 16 s into a warm run: four prewarm builds started within one second, 11-12 s each, took
+// the process past vm.max_map_count (66,160 maps; SIGSEGV at 0 and std::bad_alloc in the driver); one at a time it peaked at 36,972 maps. Qualcomm's own driver's compiler
+// does not take the maps with it (21,450 at most on the same phone and game), so its threads keep building side by side. The threads still look up and prepare their keys in
+// parallel, and a warm run's cache hits take milliseconds each. From Banana Native d393736c and 84d1b9df (wraphs), without their long-compile hold (40ce6c6b). Banana Native
+// makes it the default on Turnip; here it stays a switch until a Turnip phone shows the crash or measures the cost (one build at a time makes a first run's prewarm slower)
+static pthread_mutex_t g_pw_one = PTHREAD_MUTEX_INITIALIZER;
 static void *pw_main(void *a) {
     (void)a; pthread_setname_np(pthread_self(), "vk-prewarm");
     setpriority(PRIO_PROCESS, 0, 10);   // this thread (Linux: per-thread nice), under the game's threads
@@ -916,6 +950,7 @@ static void *pw_main(void *a) {
     size_t *offs = NULL;   // walked once by each thread to find the record of index i: built here (the list is small)
     uint32_t n = g_pw_load_n; offs = malloc((n ? n : 1) * sizeof *offs);
     if (offs) for (size_t o = 0, i = 0; i < n; i++) { offs[i] = o; pwrec r; memcpy(&r, g_pw_load + o, sizeof r); o += pw_size(&r); }
+    int overlap = VKA_ENV("DM_VK_PREWARM_OVERLAP", 1) != 0;   // 1 (default): each thread builds on its own, as before; 0: g_pw_one
     for (;;) {
         pause_point();
         // DM_VK_PREWARM_HELP (default on): a pipeline whose draws are being skipped now (the DM_VK_PSO_ASYNC queue) comes before the next key of the list, which no draw waits
@@ -931,7 +966,8 @@ static void *pw_main(void *a) {
         else for (int s = 0; s < 5; s++) if (r.key[s] && !(sh[s] = vka_shader_by_key(r.key[s]))) bad = 1;
         vka_layout lay;
         if (!bad && !vka_layout_of(sh, r.kind == 1, &lay)) bad = 1;
-        int made = 0;
+        int made = 0, one = !bad && !overlap;
+        if (one) pthread_mutex_lock(&g_pw_one);   // one prewarm build at a time (g_pw_one)
         if (bad) { atomic_fetch_add(&g_pw_bad, 1); pw_mark_bad(offs[i]); }
         else if (r.kind == 1 && vka_ndve_replaced(r.key[0])) {}   // a network a host path replaces (NDVE direct, NDSR stand-in; vka_draw.c): never made, on Turnip an NDVE one spoils later pipelines
         else if (r.kind == 1) { cs_obtain(sh[5], &lay, 1, &made); }
@@ -944,6 +980,7 @@ static void *pw_main(void *a) {
                 gfx_obtain(&fk, fnv(&fk, len, 1469598103934665603ull), len, sh, &lay, &k, 1, &made);
             }
         }
+        if (one) pthread_mutex_unlock(&g_pw_one);
         if (made) atomic_fetch_add(&g_pw_made, 1); else if (!bad) atomic_fetch_add(&g_pw_had, 1);
         setpriority(PRIO_PROCESS, 0, 10);   // back under the game's threads if a waiting frame path raised it (busy_wait)
     }
@@ -967,7 +1004,9 @@ static void pw_start(void) {
     if (nt > 4) nt = 4;
     g_pw_t0 = now_ns(); g_pw_threads = 0;
     for (int i = 0; i < nt; i++) { pthread_t th; if (!pthread_create(&th, NULL, pw_main, NULL)) { pthread_detach(th); g_pw_threads++; } }
-    VLOG("prewarm: %u pipeline keys of earlier runs made ahead on %d background threads (DM_VK_PREWARM=0 off)", g_pw_load_n, g_pw_threads);
+    int ov = VKA_ENV("DM_VK_PREWARM_OVERLAP", 1) != 0;
+    VLOG("prewarm: %u pipeline keys of earlier runs made ahead on %d background threads (DM_VK_PREWARM=0 off), %s", g_pw_load_n, g_pw_threads,
+         ov ? "building side by side (DM_VK_PREWARM_OVERLAP=0: one at a time)" : "one build at a time (DM_VK_PREWARM_OVERLAP=0)");
 }
 
 // ---------- Graphics pipelines: the lookup ----------
@@ -990,7 +1029,19 @@ static void busy_wait(gval *g) {
 // The queue is taken by need (DM_VK_PSO_ASYNC_NEED, default on; 0: in queue order): the job whose pipeline a draw was last skipped for (gval need, the frame), the oldest
 // of those first, so at a load the pipelines the current frame draws come before those of frames already gone (a cold Ocarina of Time run queued 57 deep, 745 ms a
 // fragment shader library, and waited up to 40 s). The prewarm threads take jobs too while they run (pw_main, DM_VK_PREWARM_HELP)
-typedef struct as_job { struct as_job *next; gval *g; size_t len; vka_shader *sh[VKA_NSTAGE]; vka_layout lay; vka_gkey k; uint64_t t0; } as_job;
+typedef struct as_job { struct as_job *next; gval *g; size_t len; vka_shader *sh[VKA_NSTAGE]; vka_layout lay; vka_gkey k; uint64_t t0, cost; } as_job;
+// DM_VK_PSO_CHEAP=1 (live; default 0 = the order above, as before): among the jobs of the newest need frame the cheapest goes first, and the oldest of them takes its turn
+// once it has waited DM_VK_PSO_FAIR_MS (live, 2000) (vka_aspick.h; after Banana Native 49fa341d). A job's predicted cost: the SPIR-V bytes of its stages' base modules
+static uint64_t as_cost(vka_shader *const sh[VKA_NSTAGE]) {
+    uint64_t c = 0;
+    for (int i = 0; i < VKA_NSTAGE; i++) {
+        const vka_shader *x = sh[i]; if (!x) continue;
+        const dmsh_vk_module *m = x->lib && x->e ? vka_shlib_module(x->lib, x->e, DMSH_VK_MOD_BASE) : NULL;
+        c += m ? m->size : 65536;
+    }
+    return c;
+}
+static _Atomic uint64_t g_as_cheap_n;   // jobs taken ahead of an older one of the same need frame by DM_VK_PSO_CHEAP
 static as_job *g_as_head, **g_as_tail = &g_as_head; static pthread_mutex_t g_as_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_as_cv = PTHREAD_COND_INITIALIZER;
 static _Atomic uint64_t g_as_queued, g_as_made, g_as_skips, g_as_ns, g_as_lat_max_ns, g_as_ahead, g_as_helped; static _Atomic int g_as_depth, g_as_depth_max;
 static void gfx_build(gval *g, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int async, uint64_t t_make);
@@ -1000,7 +1051,13 @@ static int as_run(int wait) {
     if (!wait && !g_as_head) { pthread_mutex_unlock(&g_as_mu); return 0; }
     while (!g_as_head) pthread_cond_wait(&g_as_cv, &g_as_mu);
     as_job **best = &g_as_head;
-    if (VKA_ENV("DM_VK_PSO_ASYNC_NEED", 1))
+    if (VKA_ENV("DM_VK_PSO_CHEAP", 0)) {   // (vka_aspick.h; the first CAND jobs of the queue are the candidates)
+        enum { CAND = 512 }; vka_as_cand c[CAND]; as_job **at[CAND]; int n = 0;
+        for (as_job **q = &g_as_head; *q && n < CAND; q = &(*q)->next, n++) { c[n] = (vka_as_cand){__atomic_load_n(&(*q)->g->need, __ATOMIC_RELAXED), (*q)->t0, (*q)->cost}; at[n] = q; }
+        int need = VKA_ENV("DM_VK_PSO_ASYNC_NEED", 1), fair = VKA_ENV("DM_VK_PSO_FAIR_MS", 2000);
+        int i = vka_as_pick(c, n, need, 1, now_ns(), fair > 0 ? (uint64_t)fair * 1000000ull : UINT64_MAX), o = vka_as_pick(c, n, need, 0, 0, 0);
+        best = at[i]; if (i != o) atomic_fetch_add(&g_as_cheap_n, 1);
+    } else if (VKA_ENV("DM_VK_PSO_ASYNC_NEED", 1))
         for (as_job **q = &g_as_head->next; *q; q = &(*q)->next)
             if ((int32_t)(__atomic_load_n(&(*q)->g->need, __ATOMIC_RELAXED) - __atomic_load_n(&(*best)->g->need, __ATOMIC_RELAXED)) > 0) best = q;
     as_job *j = *best; *best = j->next; if (!j->next) g_as_tail = best;
@@ -1040,7 +1097,7 @@ static int pc_burst(uint64_t t) {
 static void as_queue(gval *g, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, uint64_t t0) {
     as_job *j = malloc(sizeof *j);
     if (!j) { gfx_build(g, len, sh, lay, k, 0, 0, t0); return; }
-    j->next = NULL; j->g = g; j->len = len; memcpy(j->sh, sh, sizeof j->sh); j->lay = *lay; j->k = *k; j->t0 = t0;
+    j->next = NULL; j->g = g; j->len = len; memcpy(j->sh, sh, sizeof j->sh); j->lay = *lay; j->k = *k; j->t0 = t0; j->cost = as_cost(sh);
     int d = atomic_fetch_add(&g_as_depth, 1) + 1, m = atomic_load(&g_as_depth_max);
     while (d > m && !atomic_compare_exchange_weak(&g_as_depth_max, &m, d)) {}
     atomic_fetch_add(&g_as_queued, 1);
@@ -1051,9 +1108,10 @@ void vka_pso_async_line(char *out, size_t n) {
     out[0] = 0;
     if (as_threads() <= 0) return;
     snprintf(out, n, "asynchronous: %llu queued, %llu made (%.0f ms in all, longest wait from the miss %.0f ms), deepest queue %d, draws skipped waiting %llu; "
-             "made ahead of older jobs (needed by a later frame) %llu, made by prewarm threads %llu",
+             "made ahead of older jobs (needed by a later frame) %llu, made by prewarm threads %llu, taken as the cheapest (DM_VK_PSO_CHEAP) %llu",
              (unsigned long long)atomic_load(&g_as_queued), (unsigned long long)atomic_load(&g_as_made), atomic_load(&g_as_ns) / 1e6, atomic_load(&g_as_lat_max_ns) / 1e6,
-             atomic_load(&g_as_depth_max), (unsigned long long)atomic_load(&g_as_skips), (unsigned long long)atomic_load(&g_as_ahead), (unsigned long long)atomic_load(&g_as_helped));
+             atomic_load(&g_as_depth_max), (unsigned long long)atomic_load(&g_as_skips), (unsigned long long)atomic_load(&g_as_ahead), (unsigned long long)atomic_load(&g_as_helped),
+             (unsigned long long)atomic_load(&g_as_cheap_n));
 }
 static gval *gfx_obtain(const gkey_full *fk, uint64_t h, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int *made) {
     *made = 0;

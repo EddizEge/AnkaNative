@@ -126,6 +126,10 @@ The intro skip ([android/TESTING.md](../../../android/TESTING.md#intro-skip)) ta
 - HyperOS's `uinput-xiaomi`: the front end's filter that leaves it without a player (step 5) is not yet checked on the phone.
 - The memory keys are still Mario Kart World's, not measured: about 10.0 of 10.9 GiB in use while playing.
 - The microphone path (no device on the host; [Files](#files)).
+- On Qualcomm's own driver, the texture-use feedback bitmap in a set of its own: `DM_VK_TEXFB_SET=1` against unset ([memory.md](../../../docs/reference/memory.md#an-area-loads-textures-outrun-the-low-memory-killer-android)): whether the `texture-use feedback` stats count indexed IDs at all, and whether the world stays textured under memory pressure (the black world on the system driver).
+- The asynchronous pipeline queue (this profile's `DM_VK_PSO_ASYNC=2`) cheapest first: `DM_VK_PSO_CHEAP=1` against unset in a busy area (Kakariko, Castle Town market): the `asynchronous:` part of the stats line (longest wait, draws skipped waiting, taken as the cheapest) and how long objects stay missing after a load (after Banana Native 49fa341d; not run on our phones).
+- One prewarm build at a time on Turnip (`DM_VK_PREWARM_OVERLAP=0`, off by default; after Banana Native d393736c / 84d1b9df, whose Galaxy S25 run crashed past `vm.max_map_count` with four long builds at once): not yet measured on our phones; compare a warm and a cold run's `prewarm:` line, any crash in the first minutes and their stutter against unset.
+- The raw counter reports' rate ([Raw NVN timestamp units](../../../docs/reference/frame-rate.md#raw-nvn-timestamp-units), nxnative PR #1714): `DM_NVN_TS_HZ=31250000` against unset on the phone: the speed of the swaying grass, leaves and hanging plants in Kokiri Forest, and the dynamic-resolution level and GPU time the game settles at (the 683x384 floor).
 
 ## Found on this game
 
@@ -147,4 +151,5 @@ The intro skip ([android/TESTING.md](../../../android/TESTING.md#intro-skip)) ta
 - [A deferred write under a false guard](../../../docs/reference/shaders.md#a-deferred-write-under-a-false-guard): the title and menu text not drawn, every glyph quad of `b19e1bdd247555ec` at one y (checked on the phone with that module replaced).
 - [Storage buffer reads below the bound address on the Vulkan replay](../../../docs/reference/shaders.md#storage-buffer-reads-below-the-bound-address-on-the-vulkan-replay): made for the title text on a wrong diagnosis; `b19e1bdd247555ec` reads within its bound size.
 - [Textures of two formats over one image on the Vulkan replay](../../../docs/reference/rendering.md#textures-of-two-formats-over-one-image-on-the-vulkan-replay): its gameplay picture black, an R32_UINT view of a B10G11R11 target never learned (fixed, not yet checked on the phone).
+- [A NaN colour under a zero blend weight (Android)](../../../docs/reference/rendering.md#a-nan-colour-under-a-zero-blend-weight-android): nxnative's white blotches over the foliage at the Kokiri Forest exit; `DM_VK_BLEND_ZERO=1` (off by default) for a phone A/B there, not yet run.
 - [A colour texture sampled over a depth target's storage (Android)](../../../docs/reference/rendering.md#a-colour-texture-sampled-over-a-depth-targets-storage-android): its 4096² R32F texture over the DEPTH32F target, 64 MiB of zeros (fixed, not yet checked on the phone).

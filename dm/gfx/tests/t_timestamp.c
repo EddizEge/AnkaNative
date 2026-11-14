@@ -1,6 +1,7 @@
 // NVN raw timestamp ABI: known vectors, long uptimes and an independent game's inline conversion.
 #include "../nvn/nvn_timestamp.h"
 #include <stdio.h>
+#include <string.h>
 
 static int checks, fails;
 #define CHECK(c, why) do { checks++; if (!(c)) { fails++; fprintf(stderr, "FAIL: %s\n", why); } } while (0)
@@ -24,26 +25,41 @@ static float nier_dr_ms(uint64_t ticks) {
     return (float)(int64_t)(a >> 7) / 1000.0f;
 }
 
+// The 614.4 MHz checks below hold whatever DM_NVN_TS_HZ says: they take the default rate explicitly
+#define FROM(ns) nvn_ts_from_ns_hz((ns), NVN_TS_HZ_DEFAULT)
+#define TO(t) nvn_ts_to_ns_hz((t), NVN_TS_HZ_DEFAULT)
 int main(void) {
     const struct { uint64_t ns, ticks; } exact[] = {
         {0, 0}, {625, 384}, {1000000, 614400}, {16000000, 9830400}, {1000000000, 614400000},
         {UINT64_C(5000000000000000000), UINT64_C(3072000000000000000)},
     };
     for (unsigned i = 0; i < sizeof exact / sizeof *exact; i++) {
-        CHECK(nvn_timestamp_from_ns(exact[i].ns) == exact[i].ticks, "known ns -> 614.4 MHz ticks");
-        CHECK(nvn_timestamp_to_ns(exact[i].ticks) == exact[i].ns, "known raw ticks -> ns");
+        CHECK(FROM(exact[i].ns) == exact[i].ticks, "known ns -> 614.4 MHz ticks");
+        CHECK(TO(exact[i].ticks) == exact[i].ns, "known raw ticks -> ns");
     }
-    CHECK(nvn_timestamp_from_ns(1) == 0 && nvn_timestamp_from_ns(2) == 1, "ns -> ticks rounds down");
-    CHECK(nvn_timestamp_to_ns(1) == 1 && nvn_timestamp_to_ns(2) == 3, "ticks -> ns rounds down");
+    CHECK(FROM(1) == 0 && FROM(2) == 1, "ns -> ticks rounds down");
+    CHECK(TO(1) == 1 && TO(2) == 3, "ticks -> ns rounds down");
     const uint64_t ns[] = {1, 2, 624, 626, 16666667, UINT64_C(1234567890123456789), UINT64_MAX};
     for (unsigned i = 0; i < sizeof ns / sizeof *ns; i++) {
-        uint64_t back = nvn_timestamp_to_ns(nvn_timestamp_from_ns(ns[i]));
+        uint64_t back = TO(FROM(ns[i]));
         CHECK(back <= ns[i] && ns[i] - back <= 2, "ns round trip loses at most 2 ns, including long uptime");
     }
     CHECK(nier_dr_ms(614400) == 1.0f, "independent NieR raw counter conversion: 614400 ticks = 1 ms");
-    CHECK(nier_dr_ms(nvn_timestamp_from_ns(16000000)) == 16.0f, "NieR sees a 16 ms GPU report as 16 ms");
-    CHECK(nier_dr_ms(nvn_timestamp_from_ns(1000000000)) == 1000.0f, "NieR sees a 1 second GPU report as 1000 ms");
+    CHECK(nier_dr_ms(FROM(16000000)) == 16.0f, "NieR sees a 16 ms GPU report as 16 ms");
+    CHECK(nier_dr_ms(FROM(1000000000)) == 1000.0f, "NieR sees a 1 second GPU report as 1000 ms");
     CHECK(nier_dr_ms(307200) == 0.5f, "old 19.2 MHz report of 16 ms was read as 0.5 ms");
+    // DM_NVN_TS_HZ (nxnative PR #1714's question for Ocarina of Time): the Switch 2's 31.25 MHz system counter rate
+    CHECK(nvn_ts_from_ns_hz(1000000, 31250000) == 31250 && nvn_ts_to_ns_hz(31250, 31250000) == 1000000, "31.25 MHz: 1 ms = 31250 ticks, both ways");
+    CHECK(nvn_ts_from_ns_hz(17580000, 31250000) == 549375, "31.25 MHz: 17.58 ms of GPU time");
+    CHECK(nvn_ts_from_ns_hz(UINT64_C(5000000000000000000), 31250000) == UINT64_C(156250000000000000), "31.25 MHz: long uptime without overflow");
+    CHECK(nvn_ts_to_ns_hz(nvn_ts_from_ns_hz(16666667, 31250000), 31250000) <= 16666667 && 16666667 - nvn_ts_to_ns_hz(nvn_ts_from_ns_hz(16666667, 31250000), 31250000) < 32, "31.25 MHz round trip loses less than a tick");
+    CHECK(nvn_ts_from_ns_hz(1000000, NVN_TS_HZ_DEFAULT) == 614400, "the default rate's arithmetic is unchanged");
+    {   // the switch as the process sees it: unset (or not a positive number) = 614.4 MHz; the test runs again with DM_NVN_TS_HZ=31250000 (Makefile check_t_timestamp)
+        const char *e = getenv("DM_NVN_TS_HZ");
+        uint64_t want = e && !strcmp(e, "31250000") ? 31250000 : NVN_TS_HZ_DEFAULT;
+        CHECK(nvn_ts_hz() == want, "DM_NVN_TS_HZ read: 31250000 when set so, else the default");
+        CHECK(nvn_timestamp_from_ns(1000000) == want / 1000 && nvn_timestamp_to_ns(want / 1000) == 1000000, "reports and nvnDeviceGetTimestampInNanoseconds at the same rate");
+    }
     printf("timestamp: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

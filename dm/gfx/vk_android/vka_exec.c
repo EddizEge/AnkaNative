@@ -105,7 +105,8 @@ static VkQueryPool g_sqp; static int g_sq_n, g_sq_base, g_seg = -1;
 static PFN_vkGetQueryPoolResults g_sq_get; static double g_sq_ns;
 static int seg_ts(void) {
     if (g_seg < 0) { const char *e = getenv("DM_NVN_GPU_TS"); g_seg = e && *e ? !strcmp(e, "segment") : DM_GAME_GPU_TS_SEGMENT;
-                     VLOG("counter timestamps: %s (profile key gpu_timestamps; DM_NVN_GPU_TS=segment / submission)", g_seg ? "GPU time of their place in the submission" : "one time for the whole submission"); }
+                     VLOG("counter timestamps: %s (profile key gpu_timestamps; DM_NVN_GPU_TS=segment / submission), %.4g MHz ticks%s", g_seg ? "GPU time of their place in the submission" : "one time for the whole submission",
+                          nvn_ts_hz() / 1e6, nvn_ts_hz() == NVN_TS_HZ_DEFAULT ? "" : " (DM_NVN_TS_HZ)"); }
     return g_seg;
 }
 static void post_run(void *ops_, int n) {   // the completion thread, in submission order, before the fence reads as done

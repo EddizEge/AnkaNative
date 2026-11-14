@@ -1318,7 +1318,8 @@ static int bind_sets(const vka_dstate *d, vka_shader *const sh[VKA_NSTAGE], cons
             if (k == nseen) { seen[nseen++] = sh[st]->key; VLOG("texture pool: shader %016llx (stage %d) reads it (a bindless texture or sampler the translator found no fixed slot for)", (unsigned long long)sh[st]->key, st); }
         }
     }
-    if (any_pool) { VkDescriptorSet ps = vka_bindless_set(); if (ps) vk.vkCmdBindDescriptorSets(g_cb, bp, lay->layout, 1, 1, &ps, 0, NULL); else VRED_ONCE("a shader reads the texture pool and there is no pool set"); }
+    if (any_pool) { VkDescriptorSet ps[2] = {vka_bindless_set(), lay->fbset ? vka_tex_fb_set() : VK_NULL_HANDLE};   // (set 2: the feedback bitmap's own, DM_VK_TEXFB_SET)
+                    if (ps[0]) vk.vkCmdBindDescriptorSets(g_cb, bp, lay->layout, 1, ps[1] ? 2 : 1, ps, 0, NULL); else VRED_ONCE("a shader reads the texture pool and there is no pool set"); }
     return 1;
 }
 // Images first used by a draw (from the walk, walk_all), or remade with storage use (vka_tex.c img_storage_upgrade): dry = only whether there is one

@@ -2475,7 +2475,8 @@ static void bindless_init(void) {
     // The texture-use feedback bitmap ("Texture-use feedback"): in the layout whatever DM_VK_TEXFB says, since a DMSH_VK_F_TEXFB module declares it; partially bound (no
     // update after bind), so it is written only when feedback is on, and a module whose constant is false never reads the slot
     int fbb = p12.maxPerStageDescriptorUpdateAfterBindStorageBuffers > DMSH_VK_STAGE_BINDINGS && p12.maxDescriptorSetUpdateAfterBindStorageBuffers > DMSH_VK_STAGE_BINDINGS;
-    if (fbb) { b[nb] = (VkDescriptorSetLayoutBinding){DMSH_VK_POOL_FB_BINDING, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, NULL}; ps[nb] = (VkDescriptorPoolSize){VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
+    if (vka_tex_fb_layout()) fbb = 1;   // (DM_VK_TEXFB_SET: the bitmap in set 2, not here; its set not made: here, as before)
+    else if (fbb) { b[nb] = (VkDescriptorSetLayoutBinding){DMSH_VK_POOL_FB_BINDING, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, NULL}; ps[nb] = (VkDescriptorPoolSize){VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
                bfs[nb++] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT; }
     else VRED("texture-use feedback: the device's update-after-bind storage buffer limits (%u per stage, %u per set) leave no room for the bitmap at set 1 binding %d: "
               "DMSH_VK_F_TEXFB modules' pipelines lack it", p12.maxPerStageDescriptorUpdateAfterBindStorageBuffers, p12.maxDescriptorSetUpdateAfterBindStorageBuffers, DMSH_VK_POOL_FB_BINDING);
@@ -2963,16 +2964,40 @@ static void tfb_make(void) {
     else VRED("texture-use feedback: the %u KiB bitmap was not made: off, the constant false (DM_VK_TEXFB %d)", TFB_BYTES >> 10, tfb_mode());
 }
 int vka_tex_fb_spec(void) { if (!tfb_mode()) return 0; pthread_once(&g_tfb_once, tfb_make); return g_tfb_made; }
+// DM_VK_TEXFB_SET=1 (restart; default 0 = in the pool set, set 1, as before): the bitmap in a descriptor set of its own, set VKA_FB_OWN_SET (2). Banana Native probed on
+// Qualcomm's driver (Adreno 840, 0x8034a02c) that a storage buffer in the same set as a 2^20 sampled-image array is never written (their v0.2.9, ad509ad8): with the
+// bitmap at set 1 nothing reports there, and with this profile's DM_VK_TEXFB=2 the gate could then hold back textures the GPU does sample (a lead for the black world on
+// that driver; unverified here). The library's modules declare it at set 1: every DMSH_VK_F_TEXFB module is rewritten to set 2 when it is made (vka_shader.c,
+// vka_spv_move_set), and every pipeline layout with the pool set gets this one as set 2 (vka_pso.c), bound with the pool set (vka_draw.c). Made whatever DM_VK_TEXFB says,
+// since the modules declare it; partially bound, written only when feedback is on
+int vka_tex_fb_own_set(void) { static int v = -1; if (v < 0) v = VKA_ENV("DM_VK_TEXFB_SET", 0) != 0; return v; }
+static VkDescriptorSetLayout g_fbo_dsl; static VkDescriptorPool g_fbo_pool; static VkDescriptorSet g_fbo_set; static pthread_once_t g_fbo_once = PTHREAD_ONCE_INIT;
+static void fbo_make(void) {
+    VkDescriptorBindingFlags bf = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+    VkDescriptorSetLayoutBinding b = {DMSH_VK_POOL_FB_BINDING, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, NULL};
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, .bindingCount = 1, .pBindingFlags = &bf};
+    VkDescriptorSetLayoutCreateInfo li = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .pNext = &bfi, .bindingCount = 1, .pBindings = &b};
+    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1};
+    VkDescriptorPoolCreateInfo pi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, .maxSets = 1, .poolSizeCount = 1, .pPoolSizes = &ps};
+    VkDescriptorSetAllocateInfo ai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, .descriptorSetCount = 1, .pSetLayouts = &g_fbo_dsl};
+    VkResult r;
+    if ((r = vk.vkCreateDescriptorSetLayout(V.dev, &li, NULL, &g_fbo_dsl)) || (r = vk.vkCreateDescriptorPool(V.dev, &pi, NULL, &g_fbo_pool)) || ((ai.descriptorPool = g_fbo_pool), (r = vk.vkAllocateDescriptorSets(V.dev, &ai, &g_fbo_set)))) {
+        VRED("texture-use feedback: the set of its own (DM_VK_TEXFB_SET) not made: %d; the bitmap stays in the pool set, set 1, as without it", r);   // (what was made stays, once, as bindless_init's)
+        g_fbo_dsl = VK_NULL_HANDLE; g_fbo_pool = VK_NULL_HANDLE; g_fbo_set = VK_NULL_HANDLE; return; }
+    VLOG("texture-use feedback: the bitmap's binding in a set of its own, set %d (DM_VK_TEXFB_SET)", VKA_FB_OWN_SET);
+}
+VkDescriptorSetLayout vka_tex_fb_layout(void) { if (!vka_tex_fb_own_set()) return VK_NULL_HANDLE; pthread_once(&g_fbo_once, fbo_make); return g_fbo_dsl; }
+VkDescriptorSet vka_tex_fb_set(void) { return vka_tex_fb_layout() ? g_fbo_set : VK_NULL_HANDLE; }
 static void tfb_init(void) {
     if (!vka_tex_fb_spec()) return;
     VkDescriptorBufferInfo bi = {g_tfb_buf, 0, VK_WHOLE_SIZE};
-    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = g_set, .dstBinding = DMSH_VK_POOL_FB_BINDING, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .pBufferInfo = &bi};
+    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = vka_tex_fb_set() ? vka_tex_fb_set() : g_set, .dstBinding = DMSH_VK_POOL_FB_BINDING, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .pBufferInfo = &bi};
     vk.vkUpdateDescriptorSets(V.dev, 1, &w, 0, NULL);
     g_tfb_clear = 1; atomic_store(&g_tfb_ok, 1);
     int cpl = 0, lib = vka_shader_texfb(&cpl);
-    VLOG("texture-use feedback: on, DM_VK_TEXFB %d (%s): a %u KiB bitmap at set 1 binding %d; the library %s", tfb_mode(),
+    VLOG("texture-use feedback: on, DM_VK_TEXFB %d (%s): a %u KiB bitmap at set %d binding %d%s; the library %s", tfb_mode(),
          tfb_mode() == 1 ? "logged only" : tfb_mode() == 2 ? "scan-named images gated under memory pressure" : "scan-named images gated always",
-         TFB_BYTES >> 10, DMSH_VK_POOL_FB_BINDING, lib ? (cpl ? "reports from every pool-reading shader" : "reports from some pool-reading shaders (the others' draws are blind)")
+         TFB_BYTES >> 10, vka_tex_fb_set() ? VKA_FB_OWN_SET : 1, DMSH_VK_POOL_FB_BINDING, vka_tex_fb_set() ? " (a set of its own, DM_VK_TEXFB_SET)" : "", lib ? (cpl ? "reports from every pool-reading shader" : "reports from some pool-reading shaders (the others' draws are blind)")
                                                    : "has no reporting shader (loaded later, or built before DMSH_VK_F_TEXFB): nothing reports, nothing is gated");
 }
 // The placeholders a held-back slot shows (DM_VK_TEXFB 2 or 3; caller holds g_tmu; cb outside a render pass): one 1x1 RGBA8 image of 6 layers (2D, 2D array, cube, cube
