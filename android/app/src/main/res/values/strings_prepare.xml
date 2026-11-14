@@ -169,4 +169,7 @@
     <string name="prepare_dump_free_unknown">Cannot read the free space of %1$s.</string>
     <string name="prepare_dump_space">Preparing needs %1$.1f GB free beside the dump; %2$s has %3$.2f GB free.</string>
     <string name="prepare_dump_not_writable">Cannot make %1$s: the folder beside the dump is not writable.</string>
+    <!-- Job.statusMsg: a failure the packer gave an error code (JobErrors); %1$s: a step (prepare_step_*_in_sentence), %2$s: the code's text (errors_*, whole
+         sentences ending in a full stop), Tap %3$s: the button's label -->
+    <string name="prepare_status_failed_coded">Stopped at %1$s. %2$s Tap %3$s to go on.</string>
 </resources>

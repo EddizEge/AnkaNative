@@ -86,6 +86,21 @@ public final class JobErrorsJvmTest {
                 "The dump lacks 12 of the 3456 shaders this app knows for the game: it is of another game version, or incomplete. Dump the game again.", "shaders_other_build");
         same(JobErrors.message("translator_crashed", new String[0]).english(), "The shader translator crashed. Try again; if it crashes again, report it with the log.",
                 "translator_crashed");
+        // Watch: the error: line right before the last [RED] line goes with the failure (PackService's job.json error_code / error_args)
+        JobErrors.Watch w = new JobErrors.Watch();
+        for (String l : new String[] {"progress 1/3 main", "error: version_missing\t5", "", "[RED] no updates/5 (have: none)"}) w.line(l);
+        check(w.code() != null && w.code().length == 2 && w.code()[0].equals("version_missing") && w.code()[1].equals("5"), "Watch: the code before [RED], a blank line between");
+        w.line("[RED] a later red line");
+        check(w.code() == null, "Watch: a later [RED] line without a code: none");
+        w = new JobErrors.Watch();
+        for (String l : new String[] {"error: no_space\t/x", "progress 2/3 main", "[RED] failed"}) w.line(l);
+        check(w.code() == null, "Watch: another line between the code and [RED]: none");
+        w = new JobErrors.Watch();
+        w.line("error: no_space\t/x");
+        check(w.code() == null, "Watch: a code without its [RED] line: none");
+        w = new JobErrors.Watch();
+        for (String l : new String[] {"error: out_of_memory\tpatch_nso.py", "[RED] the rewriter ran out of memory", "progress 3/3"}) w.line(l);
+        same(String.join("|", w.code()), "out_of_memory|patch_nso.py", "Watch: lines after the [RED] line keep its code");
         // a Msg: toString is English (job.json, logs)
         Msg m = JobErrors.message("no_profile", new String[] {"0100000000001000"});
         same(String.valueOf(m), "This app has no profile for the game 0100000000001000, so it cannot prepare it.", "toString");

@@ -27,8 +27,8 @@ import java.util.regex.Pattern;
  * out_of_memory         tool                    a tool stopped for want of memory (a MemoryError, or killed with SIGKILL by the out-of-memory killer)
  * translator_crashed    (none)                  the shader translator crashed (no tool prints it yet: pack_errors.py says why)
  * </pre>
- * PackService stores the code and arguments in job.json ({@code error_code}, {@code error_args}) beside the English {@code error}, and Job shows
- * {@link #message} when it is not null (wired by the integrator after phase 1).
+ * PackService reads each step's log through a {@link Watch}, stores the code and arguments of the line right before the failure's last {@code [RED]} line in
+ * job.json ({@code error_code}, {@code error_args}) beside the English {@code error}, and Job shows {@link #message} when it is not null (Job.errorMsg).
  */
 final class JobErrors {
     /** The codes; KEYS and ARGS at the same index */
@@ -58,6 +58,26 @@ final class JobErrors {
         if (!line.startsWith(PREFIX) || end < PREFIX.length()) return null;
         String[] p = line.substring(PREFIX.length(), end).split("\t", -1);
         return CODE.matcher(p[0]).matches() ? p : null;
+    }
+
+    /**
+     * The error: line that goes with a step's failure, read from its log line by line: the code of the line right before the last {@code [RED]} line (the
+     * sentence job.json's error carries), null when that [RED] line had none. Any other line between them (a progress line) breaks the pair; blank lines do not.
+     */
+    static final class Watch {
+        private String[] pending;
+        private volatile String[] code;   // read by the step's thread after the log's reader thread wrote it
+
+        /** One line of the log (PackService trims them) */
+        void line(String line) {
+            String[] p = parse(line);
+            if (p != null) { pending = p; return; }
+            if (line.startsWith("[RED] ")) { code = pending; pending = null; return; }
+            if (!line.trim().isEmpty()) pending = null;
+        }
+
+        /** {code, argument...} of the last [RED] line, or null */
+        String[] code() { return code == null ? null : code.clone(); }
     }
 
     /** The code's text with its arguments, in the user's language on the screen and English in a log (a Msg); null for an unknown code or a wrong number of arguments */

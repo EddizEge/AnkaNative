@@ -298,6 +298,7 @@ public final class PackService extends Service {
                     save(j, true);
                     break;
                 }
+                failCode = null;
                 String fail = step(j, i);
                 j.ended(s);
                 if (stopReason != null) { j.stepState(s, "pending"); break; }
@@ -305,7 +306,7 @@ public final class PackService extends Service {
                 if (fail != null && (autoReason != null || fail.equals("interrupted"))) { j.stepState(s, "pending"); continue; }
                 if (fail != null) {
                     j.stepState(s, "pending");
-                    j.state("failed", null, fail);
+                    j.state("failed", null, fail, failCode);   // the packer's error code beside the English error (JobErrors)
                     save(j, true);
                     break;
                 }
@@ -469,6 +470,7 @@ public final class PackService extends Service {
         }
         Log.i(TAG, s + ": exit " + code);
         if (code == PackEngine.INTERRUPTED) return "interrupted";
+        if (code != 0) failCode = tail.lastRed != null ? tail.watch.code() : null;
         if (code != 0) return (tail.lastRed != null ? new Msg("prepare_error_tool_exit_red", s, code, tail.lastRed, log) : new Msg("prepare_error_tool_exit", s, code, log)).english();
         if (s.equals("split")) {
             Outputs.finish(split);   // every output synced, then the marker: a reboot after the step is recorded done cannot leave cut tables accepted in split/
@@ -503,7 +505,10 @@ public final class PackService extends Service {
         return new Msg("prepare_error_shader_map", j.name(), Profile.versionName(j.version()), have.getName(), new Msg("prepare_button_retry")).english();
     }
 
-    /** Reads the step's log as it grows: progress lines into the job, the last [RED] line for a failure's message */
+    /** The packer's error: line of the failed step's last [RED] line ({code, argument...}, JobErrors.Watch), null for none; set by step(), read by the loop */
+    private volatile String[] failCode;
+
+    /** Reads the step's log as it grows: progress lines into the job, the last [RED] line for a failure's message and the error: line right before it */
     private final class Tail extends Thread {
         private final Job j;
         private final String step;
@@ -512,6 +517,7 @@ public final class PackService extends Service {
         private long pos;
         private final StringBuilder partial = new StringBuilder();
         volatile String lastRed;
+        final JobErrors.Watch watch = new JobErrors.Watch();
 
         Tail(Job j, String step, File log) {
             super("nxpack-tail");
@@ -555,6 +561,7 @@ public final class PackService extends Service {
             while ((nl = partial.indexOf("\n")) >= 0) {
                 String line = partial.substring(0, nl).trim();
                 partial.delete(0, nl + 1);
+                watch.line(line);
                 Matcher m = PROGRESS.matcher(line);
                 if (m.find()) {
                     j.stepProgress(step, Long.parseLong(m.group(1)), Long.parseLong(m.group(2)), m.group(3));
@@ -656,8 +663,8 @@ public final class PackService extends Service {
             else b.setProgress(100, pct, false);
             b.setContentText(step).setSubText(steps).setOngoing(true).addAction(pauseAction);
         } else {
-            // a failure's English error (job.json) as it is: the integrator shows JobErrors' text for the packer's error codes (docs/i18n.md "Errors of the packer")
-            String why = state.equals("failed") ? j.error() : Job.reasonMsg(j.reason()).text();
+            // a failure: the text of the packer's error code when it has one, else the English error (job.json)
+            String why = state.equals("failed") ? j.errorText() : Job.reasonMsg(j.reason()).text();
             b.setContentText(getString(R.string.prepare_note_progress, step, pct))
                     .setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_progress_why, step, pct, why))).setOngoing(false);
             Intent resume = new Intent(this, PackService.class).setAction(ACTION_START).putExtra(EXTRA_JOB, j.file.getPath());

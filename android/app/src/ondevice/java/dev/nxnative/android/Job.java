@@ -2,6 +2,7 @@ package dev.nxnative.android;
 
 import android.content.Context;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -20,7 +21,8 @@ import java.nio.file.StandardCopyOption;
  * <pre>
  * { "format": 1, "title_id", "name", "version", "dump", "work", "pack": the pack folder the job writes,
  *   "apk": { "engine", "dmsh_chain", "dmsh_vk_chain", "xlate_source", "version_code" }: what the outputs depend on (a change restarts the translation),
- *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, timeout) or "", "error": why failed,
+ *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, timeout) or "", "error": why failed (English),
+ *   "error_code": the packer's error code of that failure (JobErrors) or "", "error_args": its arguments (strings),
  *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
  * </pre>
  * A "running" job whose service is gone (the process was killed, the phone rebooted) is resumed by the service (START_STICKY) or the launcher's Resume.
@@ -191,12 +193,37 @@ final class Job {
     /** The pack folder this job took over as it was (Job.adopt), "" when the job makes its own */
     synchronized String adopted() { return o.optString("adopted", ""); }
 
-    synchronized void state(String state, String reason, String error) {
+    synchronized void state(String state, String reason, String error) { state(state, reason, error, null); }
+
+    /** coded: {code, argument...} of the packer's error: line that goes with error (JobErrors.Watch), null for none; every other state change clears it */
+    synchronized void state(String state, String reason, String error, String[] coded) {
         try {
-            o.put("state", state).put("reason", reason == null ? "" : reason).put("error", error == null ? "" : error);
+            JSONArray args = new JSONArray();
+            if (coded != null) for (int k = 1; k < coded.length; k++) args.put(coded[k]);
+            o.put("state", state).put("reason", reason == null ? "" : reason).put("error", error == null ? "" : error)
+                    .put("error_code", coded == null ? "" : coded[0]).put("error_args", args);
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /** The packer's error code of the failure, "" for none (a job.json of an older app has none) */
+    synchronized String errorCode() { return o.optString("error_code", ""); }
+
+    synchronized String[] errorArgs() {
+        JSONArray a = o.optJSONArray("error_args");
+        String[] out = new String[a == null ? 0 : a.length()];
+        for (int k = 0; k < out.length; k++) out[k] = a.optString(k);
+        return out;
+    }
+
+    /** The failure as the code's text (JobErrors.message), null when it has no code this app knows: then the English error() is all there is */
+    synchronized Msg errorMsg() { return errorCode().isEmpty() ? null : JobErrors.message(errorCode(), errorArgs()); }
+
+    /** The failure for the screen: the code's text in the user's language, else the English error */
+    synchronized String errorText() {
+        Msg m = errorMsg();
+        return m != null ? m.text() : error();
     }
 
     private JSONObject step(String s) {
@@ -308,14 +335,18 @@ final class Job {
     }
 
     /**
-     * One line for the screen and the notification: what the job is doing or why it stopped. A failure's English error (job.json) is its argument: the
-     * integrator shows JobErrors' text for the packer's error codes after the errors package merges (docs/i18n.md "Errors of the packer")
+     * One line for the screen and the notification: what the job is doing or why it stopped. A failure shows the text of the packer's error code when it has
+     * one this app knows (errorMsg, docs/i18n.md "Errors of the packer"), else its English error (job.json) as an argument
      */
     synchronized Msg statusMsg(boolean serviceAlive) {
         String s = state();
         switch (s) {
             case "done": return new Msg("prepare_status_done");
-            case "failed": return new Msg("prepare_status_failed", stepInSentence(current()), error().replaceAll("[.\\s]+$", ""), new Msg("prepare_button_retry"));
+            case "failed": {
+                Msg coded = errorMsg();
+                if (coded != null) return new Msg("prepare_status_failed_coded", stepInSentence(current()), coded, new Msg("prepare_button_retry"));
+                return new Msg("prepare_status_failed", stepInSentence(current()), error().replaceAll("[.\\s]+$", ""), new Msg("prepare_button_retry"));
+            }
             case "pending": return new Msg("prepare_status_pending");
             case "paused": return new Msg("prepare_status_paused", reasonMsg(reason()), stepMsg());
             case "running": return serviceAlive ? new Msg("prepare_status_running", stepMsg(), current() + 1, STEPS.length)

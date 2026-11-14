@@ -159,6 +159,9 @@ public final class PrepareTextsJvmTest {
         String error = "pack stopped with code 1: the dump is incomplete (log: /x/pack.log).";
         eq("Stopped at " + "translating shaders" + ": " + error.replaceAll("[.\\s]+$", "") + ". Tap Retry to go on.", "prepare_status_failed",
                 new Msg("prepare_step_shaders_in_sentence"), error.replaceAll("[.\\s]+$", ""), new Msg("prepare_button_retry"));
+        // a failure with the packer's error code (Job.statusMsg with JobErrors' text, added by the integrator): whole sentences, one full stop each
+        eq("Stopped at translating shaders. Not enough free space (/storage/emulated/0). Free some space, then try again. Tap Retry to go on.", "prepare_status_failed_coded",
+                new Msg("prepare_step_shaders_in_sentence"), new Msg("errors_no_space", "/storage/emulated/0"), new Msg("prepare_button_retry"));
         eq("Not started yet.", "prepare_status_pending");
         eq("Paused: " + "by you" + ". " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_user"), step);
         eq(stepOld + " (" + ("step " + 4 + " of " + 5) + ").", "prepare_status_running", step, 4, 5);
