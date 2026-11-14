@@ -355,7 +355,7 @@ int vka_ctl_bufshot_want(unsigned long long index, int *slot);   // the ctl bufs
 void vka_ctl_bufshot_record(VkCommandBuffer cb, uint64_t key, uint64_t addr, VkBuffer src, VkDeviceSize off, VkDeviceSize n);   // after that dispatch's barrier
 vka_img *vka_img_of_serial(uint64_t serial);   // the image a texture serial has now, NULL if none (vka_tex.c; the ctl texshot)
 int vka_ndve_direct(void);              // DM_VK_NDVE_DIRECT: the movie library's NDVE network replaced by a scale of its converted frame (vka_draw.c)
-int vka_ndve_replaced(uint64_t key);   // a shader a host path replaces (the NDVE network under DM_VK_NDVE_DIRECT, the NDSR network under DM_VK_NDSR_STANDIN): its pipeline is not made
+int vka_ndve_replaced(uint64_t key);   // a shader a host path replaces (the NDVE network under DM_VK_NDVE_DIRECT, the NDSR networks under DM_VK_NDSR_STANDIN): its pipeline is not made
 
 VkImageView vka_tex_id_view(int id, VkCommandBuffer cb, uint8_t dim, int storage, VkImageLayout *layout);   // texture ID id as a view of shape dim (DMSH_VK_DIM_*); VK_NULL_HANDLE = none fits
 void vka_tex_id_desc(int id, char *b, size_t n);   // texture ID id described for a [RED] line
