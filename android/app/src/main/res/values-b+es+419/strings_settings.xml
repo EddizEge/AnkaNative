@@ -17,7 +17,7 @@
     <string name="settings_profile_missing">%1$s no tiene un perfil de juego en esta app, así que no puede ejecutarse aquí. Esta app ejecuta: %2$s.</string>
     <string name="settings_profile_missing_named">%1$s (%2$s) no tiene un perfil de juego en esta app, así que no puede ejecutarse aquí. Esta app ejecuta: %3$s.</string>
     <!-- GameSettings -->
-    <string name="settings_game_intro">Solo para este juego, a partir de su próximo inicio. La opción Predeterminado sigue lo que indica %1$s.</string>
+    <string name="settings_game_intro">Solo para este juego, a partir de su próximo inicio. Predeterminado usa lo que elegiste en %1$s.</string>
     <string name="settings_game_resolution">Resolución del juego</string>
     <string name="settings_game_res_level">Resolución 3D</string>
     <string name="settings_game_fps_cap">Límite de FPS</string>
@@ -74,7 +74,7 @@
     <string name="settings_folders_save">Carpeta de partidas</string>
     <string name="settings_folders_save_picked">%1$s (elegida)</string>
     <string name="settings_folders_pick_save">Elige la carpeta de partidas de %1$s</string>
-    <string name="settings_folders_kept">Esto se conserva cuando se actualiza la app. Elegir una carpeta nunca mueve, copia ni elimina nada sin preguntar.</string>
+    <string name="settings_folders_kept">Estas carpetas se conservan cuando se actualiza la app. Elegir una carpeta nunca mueve, copia ni elimina nada sin preguntar.</string>
     <string name="settings_folders_title">Carpetas · %1$s</string>
     <string name="settings_folders_not_pack">No es una carpeta de paquete: %1$s</string>
     <string name="settings_folders_that_pack_game">El juego de ese paquete</string>
@@ -123,7 +123,7 @@
     <string name="settings_driverzip_cannot_move">no se puede mover el controlador a %1$s</string>
     <!-- GitHub -->
     <string name="settings_net_not_https">no es un enlace https: %1$s</string>
-    <string name="settings_net_rate_limit">Se alcanzó el límite de solicitudes de GitHub; vuelve a intentarlo más tarde</string>
+    <string name="settings_net_rate_limit">se alcanzó el límite de solicitudes de GitHub; vuelve a intentarlo más tarde</string>
     <string name="settings_net_http">GitHub respondió HTTP %1$d</string>
     <string name="settings_net_no_network">Sin conexión (no se puede acceder a GitHub)</string>
     <string name="settings_net_timeout">Sin conexión (GitHub no respondió a tiempo)</string>
