@@ -102,13 +102,14 @@ final class PackFind {
 
     /**
      * READY when the pack has this APK's shader library (Pack.libraryProblem null), UPDATE when it has an older one of the game that becomes this version's by
-     * its header alone (a "stamp" row of the profile names it: Pack.restamp) or, for a dump, that the profile's delta manifest knows (Pack.deltaShaders), else -1
+     * its header alone (a "stamp" row of the profile names it: Pack.restamp) or, for a dump, that the profile's delta manifest knows (Pack.deltaShaders: an older
+     * version, or this version made from older profile inputs, ShaderLibs.older), else -1
      */
     static int shaderTier(File packDir, String id, boolean dump) {
         if (Pack.libraryProblem(packDir, id) == null) return READY;
         Profile prof = Profile.of(id);
         if (prof == null) return -1;
-        List<String> older = ShaderLibs.older(packDir, id, BuildConfig.NX_DMSH_VK_CHAIN);
+        List<String> older = ShaderLibs.older(packDir, id, BuildConfig.NX_DMSH_VK_CHAIN, prof.shaderInputs);
         for (String row : prof.stamp.split(";")) {   // only named here: Pack.restamp checks the hashes when the card is shown (no big file is read now)
             String[] c = row.trim().split(":");
             if (c.length == 3 && older.contains(c[0])) return UPDATE;

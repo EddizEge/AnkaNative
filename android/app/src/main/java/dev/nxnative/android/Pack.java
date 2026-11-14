@@ -70,10 +70,18 @@ final class Pack {
     /** Shaders a delta update of this pack translates (the profile's manifest rows for the pack's older libraries, ShaderLibs.toTranslate), -1 when the manifest has none of them */
     static int deltaShaders(File dir, String titleId) {
         Profile p = Profile.of(titleId);
-        return p == null ? -1 : ShaderLibs.toTranslate(p.delta, ShaderLibs.older(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN));
+        return p == null ? -1 : ShaderLibs.toTranslate(p.delta, ShaderLibs.older(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, p.shaderInputs));
     }
 
-    static File playableLibrary(File dir, String titleId) { return ShaderLibs.playable(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, BuildConfig.NX_DMSH_VK_ABI); }
+    /**
+     * The library the host plays while the shader update makes this APK's: this version's own one made from older profile inputs, when the delta manifest knows those
+     * inputs (the replay loads it first, ShaderLibs.ownOtherInputs; the update is the automatic one), else one of another version (ShaderLibs.playable); null when none
+     */
+    static File playableLibrary(File dir, String titleId) {
+        File own = ShaderLibs.ownOtherInputs(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, BuildConfig.NX_DMSH_VK_ABI);
+        if (own != null && deltaShaders(dir, titleId) >= 0) return own;
+        return ShaderLibs.playable(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN, BuildConfig.NX_DMSH_VK_ABI);
+    }
 
     /** A library of another version made before versioned shader updates (no ABI): played with a warning when no playable one is there (ShaderLibs.legacy), null when none */
     static File legacyLibrary(File dir, String titleId) { return ShaderLibs.legacy(dir, titleId, BuildConfig.NX_DMSH_VK_CHAIN); }
@@ -121,6 +129,10 @@ final class Pack {
                 }
             }
             if (inputs.equals(st.get("inputs"))) return null;
+            int n = deltaShaders(dir, titleId);
+            if (n >= 0)   // the delta manifest knows those inputs: an update of the shaders this app version added or changed (android/SHADERS.md#profile-input-updates)
+                return String.format(java.util.Locale.ROOT, "The pack's shader library was made from older shader tables (inputs %s) than this app's (%s): %,d of the game's %,d "
+                        + "shaders are new or changed and need making from your dump; the other ones are kept.", st.get("inputs"), inputs, n, prof.shaderTotal);
             return "The pack's shader library was built from other shader tables (inputs " + st.get("inputs") + ") than this app's (" + inputs
                     + "): its shaders need making again.";
         }

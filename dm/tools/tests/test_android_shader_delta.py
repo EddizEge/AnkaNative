@@ -118,6 +118,20 @@ class Manifest(unittest.TestCase):
         m = delta.parse_manifest(t)
         self.assertEqual((m['version'], m['game'], m['inputs'], m['from'], m['hashes']), ('76b097613f15', GAME, '5dd843bed8d1', {'66d1dd2cd5ff': 2322}, self.H))
 
+    def test_older_inputs_rows(self):
+        """A "from" row of this version's library made from older profile inputs: "<version>@<inputs>" (android/SHADERS.md#profile-input-updates)"""
+        t = delta.format_manifest('0dd4341ae6ce', GAME, 'a6b20a286c27', self.H, [('0dd4341ae6ce@4610dec2c950', 582), ('66d1dd2cd5ff', 9)])
+        self.assertIn('from\t0dd4341ae6ce@4610dec2c950\t582\n', t)
+        self.assertEqual(delta.parse_manifest(t)['from'], {'0dd4341ae6ce@4610dec2c950': 582, '66d1dd2cd5ff': 9})
+        for bad in ('from\t0dd4341ae6ce@4610dec2c95\t1', 'from\t0dd4341ae6ce@\t1', 'from\t0dd4341ae6ce@4610dec2c950@4610dec2c950\t1', 'from\t0dd4341ae6ce@/home/x\t1'):
+            self.assertTrue(delta.manifest_problems(t + bad + '\n'), bad)
+
+    def test_publish_measures_older_inputs(self):
+        src = (REPO / 'dm/gfx/tools/vk_android_build.py').read_text()
+        self.assertIn("_froms[f'{_m[\"version\"]}@{_prev[\"inputs\"]}'] = len(delta.to_translate(_prev['hashes'], _m['hashes']))", src,
+                      '--publish-delta counts a same-version library of the previous manifest\'s inputs')
+        self.assertIn("own and L.inputs == INPUTS", src, 'the output\'s own library of other inputs is a delta source')
+
     def test_stamp_rows(self):
         o, n = 'a' * 64, 'b' * 64
         t = delta.format_manifest('76b097613f15', GAME, '5dd843bed8d1', self.H, [('66d1dd2cd5ff', 0)], [('66d1dd2cd5ff', o, n)])
@@ -234,6 +248,26 @@ class Launcher(unittest.TestCase):
         self.assertEqual(self.java('legacy', pack, GAME, '444444444444'), 'none', 'never the current version')
         self.assertEqual(self.java('legacy', pack, '0100000000001000', cur), 'none', 'never another game\'s')
 
+    def test_older_inputs(self):
+        """This version's own library made from other profile inputs: a delta source ("<version>@<inputs>") and what the replay loads, only with this APK's ABI"""
+        pack = self.tmp / 'oi'; abi = delta.abi_digest(); cur = '0dd4341ae6ce'
+        sh = [('00000000000000aa', [spirv(10, 1)], b'')]
+        own = pack / f'shaders/v-{cur}'
+        write_lib(own / 'dmsh_vk.lib', cur, abi=abi, shaders=sh)   # header inputs 5dd843bed8d1 (write_lib)
+        self.assertEqual(self.java('inputs', own), '5dd843bed8d1', 'the header when there is no inputs.tsv')
+        (own / 'inputs.tsv').write_text('# made from\ngame\t040074A01BF12000\ninputs\t4610dec2c950\n')
+        self.assertEqual(self.java('inputs', own), '4610dec2c950', 'inputs.tsv first')
+        write_lib(pack / 'shaders/v-111111111111/dmsh_vk.lib', '111111111111', abi=abi, shaders=sh)
+        self.assertEqual(self.java('older', pack, GAME, cur), '111111111111', 'without the APK\'s inputs: older versions only')
+        self.assertEqual(self.java('older', pack, GAME, cur, 'a6b20a286c27'), f'0dd4341ae6ce@4610dec2c950,111111111111')
+        self.assertEqual(self.java('older', pack, GAME, cur, '4610dec2c950'), '111111111111', 'the same inputs: current, not an update')
+        self.assertEqual(self.java('older', pack, GAME, cur, 'unknown'), '111111111111')
+        self.assertEqual(self.java('translate', '0dd4341ae6ce@4610dec2c950=582,111111111111=9000', f'0dd4341ae6ce@4610dec2c950,111111111111'), '582')
+        self.assertEqual(self.java('own', pack, GAME, cur, abi), f'v-{cur}')
+        self.assertEqual(self.java('own', pack, GAME, cur, '0123456789ab'), 'none', 'another ABI: the replay refuses it')
+        self.assertEqual(self.java('own', pack, '0100000000001000', cur, abi), 'none', 'another game')
+        self.assertEqual(self.java('own', pack, GAME, '222222222222', abi), 'none', 'no library of that version')
+
     def test_restamp(self):
         pack = self.tmp / 'rs'; cur = '6607c8d19abc'; abi = '01b52a48538b'
         sh = [('00000000000000aa', [spirv(10, 1)], b''), ('00000000000000bb', [spirv(40, 2)], b'x' * 33)]
@@ -259,6 +293,10 @@ class Launcher(unittest.TestCase):
         self.assertEqual(self.java('translate', '66d1dd2cd5ff=0', '66d1dd2cd5ff'), '0')
         lo, hi, text = self.java('minutes', 22852).split(' ', 2)
         self.assertTrue(18 <= int(lo) <= 25 and 32 <= int(hi) <= 42, (lo, hi))   # the full step's 20-35 minutes (android/ONDEVICE.md)
+        # The game's own split time (game.tsv android_split_minutes): most of a small update's time (Ocarina of Time's 508 new shaders after a 30-45 minute split)
+        lo3, hi3, text3 = self.java('minutes', 582, 30, 45).split(' ', 2)
+        self.assertTrue(31 <= int(lo3) <= 33 and 46 <= int(hi3) <= 48, (lo3, hi3))
+        self.assertEqual(text3, f'about {lo3}-{hi3} minutes')
         lo2, hi2, _ = self.java('minutes', 2322).split(' ', 2)
         self.assertTrue(int(lo2) < int(lo) and int(hi2) < int(hi) and int(lo2) >= 5)
         self.assertRegex(text, r'^about \d+-\d+ minutes$')

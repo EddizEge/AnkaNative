@@ -75,9 +75,10 @@ final class Ondevice {
     static String shadersText(File packDir, String titleId) {
         int n = deltaShaders(packDir, titleId);
         Profile p = Profile.of(titleId);
-        if (n >= 0 && p != null) return String.format(Locale.getDefault(), "Updates the shaders from your dump: %,d of the %,d changed in this app version (%s, in the background).",
-                n, p.shaderTotal, ShaderLibs.minutesText(n));
-        return "Makes the shaders from your dump (" + (p != null ? ShaderLibs.minutesText(p.shaderTotal) : "about 20-35 minutes") + ", in the background).";
+        if (n >= 0 && p != null) return String.format(Locale.getDefault(), "Updates the shaders from your dump: %,d of the %,d are new or changed in this app version; the "
+                + "others are kept as they are. The dump's shaders are read again first, which is most of the time: %s in all, in the background.",
+                n, p.shaderTotal, ShaderLibs.minutesText(n, p.split()));
+        return "Makes the shaders from your dump (" + (p != null ? ShaderLibs.minutesText(p.shaderTotal, p.split()) : "about 20-35 minutes") + ", in the background).";
     }
 
     private static final java.util.Set<String> autoTried = new java.util.HashSet<>();
@@ -414,7 +415,7 @@ final class Ondevice {
                 if (start) { redo.run(); return; }
                 int delta = shaders ? deltaShaders(pd, r.titleId) : -1;
                 String what = code && shaders ? (delta >= 0 ? "Rewrites the game code (a few minutes). " + shadersText(pd, r.titleId)
-                                : "Makes the game code and the shaders again from your dump (" + ShaderLibs.jobMinutesText(Profile.of(r.titleId).shaderTotal) + ", in the background).")
+                                : "Makes the game code and the shaders again from your dump (" + ShaderLibs.jobMinutesText(Profile.of(r.titleId).shaderTotal, Profile.of(r.titleId).split()) + ", in the background).")
                         : code ? "Rewrites the game code from your dump (a few minutes, in the background). The shaders are kept."
                         : shadersText(pd, r.titleId);
                 String why = (f.build != null ? f.build + "\n\n" : again && code ? "The pack's game code was made by other tools than this app's.\n\n" : "") + (lp != null ? lp + "\n\n" : "");
@@ -427,7 +428,7 @@ final class Ondevice {
             Profile prof = Profile.of(r.titleId);   // DumpCheck refused a dump without one
             String text = String.format(Locale.getDefault(), "%s, %d DLC.\n\nThe app builds the game's pack and %,d shaders from your dump, once: %s "
                     + "in the background, best on the charger. You can pause any time.\n\nNeeds about 1.5 GB (%.1f GB free): working files in %s, the pack in the app's storage (%s).",
-                    (r.version == 0 ? "Base game" : "Update " + r.version) + (r.build >= 0 && r.build != r.version ? " (the code of " + prof.buildName(r.build) + ")" : ""), r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesText(prof.shaderTotal), r.free / 1073741824.0, r.work, AppStorage.pack(a, r.titleId));
+                    (r.version == 0 ? "Base game" : "Update " + r.version) + (r.build >= 0 && r.build != r.version ? " (the code of " + prof.buildName(r.build) + ")" : ""), r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesText(prof.shaderTotal, prof.split()), r.free / 1073741824.0, r.work, AppStorage.pack(a, r.titleId));
             Runnable go = () -> {
                 try {
                     Job j = Job.create(r, AppStorage.pack(a, r.titleId));

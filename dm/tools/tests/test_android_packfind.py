@@ -13,7 +13,7 @@ SRC = REPO / 'android/app/src/main/java/dev/nxnative/android'
 TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/PackFindJvmTest.java'
 STUB = '''package dev.nxnative.android;
 public final class BuildConfig {
-    public static final String NX_PROFILES = "040074A01BF12000\\tDonkey Kong Bananza\\t22852\\tabcdef012345\\t458752 main=aa\\t\\t\\t0ld000000001=500\\t"
+    public static final String NX_PROFILES = "040074A01BF12000\\tDonkey Kong Bananza\\t22852\\tabcdef012345\\t458752 main=aa\\t\\t\\t0ld000000001=500,c0ffee000001@111111111111=7\\t"
             + "57a000000001:%s:%s\\t\\n0400C3F00006E000\\tMario Kart World\\t0\\tunknown\\t";
     public static final String NX_DMSH_VK_CHAIN = "c0ffee000001", NX_DMSH_VK_ABI = "abc123abc123";
 }

@@ -41,6 +41,10 @@ mem_map_limit	on
 shader_groups	/Shader/ApplicationPackage=layout /Shader/=shader /Effect/=effect /UI/=layout /Layout2Shader/=layout
 shader_note	The Legend of Zelda: Ocarina of Time shaders
 
+# The phone's own split (Prepare, and every shader update, which reads every shader of the dump again): about 35 minutes on the POCO F8 Pro (2026-11-09, 42,346
+# shaders); the launcher's time estimates take it (ShaderLibs.minutes)
+android_split_minutes	30	45
+
 # ---- Frame rate ----
 # The game steps its time by a frame ratio, base rate / its int frame rate, whatever the frame took (main+0x6e6cc4): at 15 fps it played at 25 % speed (session-2026-11-07
 # play/PLAY.md section 3). The ratio takes the host's frame step instead (FRAME_STEP in patches.py, ported from seedds/nxnative 7d8dcdf8): 1 vsync at 60 fps, up to 3 when 60

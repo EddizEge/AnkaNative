@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * PackFind on the JVM, driven by dm/tools/tests/test_android_packfind.py (a stub BuildConfig: DKB with shader inputs abcdef012345, a delta row for library
- * version 0ld000000001 and a stamp row for 57a000000001; MKW; chain c0ffee000001). Arguments: the repository and an empty work folder. Checks:
+ * version 0ld000000001, one for this version made from inputs 111111111111 and a stamp row for 57a000000001; MKW; chain c0ffee000001). Arguments: the repository and an empty work folder. Checks:
  * <ul>
  * <li>the finder: a pack in an ancestor's &lt;id&gt;-work/&lt;any name&gt; is found; one with this APK's library beats one that needs a shader update; one whose
  *     code the judge refuses (another build) is never chosen; another title's pack is ignored; the app's pack is preferred when it fits, but a fitting pack beats
@@ -61,7 +61,9 @@ public final class PackFindJvmTest {
         write(new File(dir, "main.patched.bin"), "code");
         write(new File(dir, "main.android.key"), "key");
         if (version != null) {
-            write(new File(dir, "shaders/v-" + version + "/dmsh_vk.lib"), lib(id, inputs, "abc123abc123"));
+            byte[] h = lib(id, inputs, "abc123abc123");
+            put(h, 24, version);   // the header's own version (vk_chain), as the folder's
+            write(new File(dir, "shaders/v-" + version + "/dmsh_vk.lib"), h);
             write(new File(dir, "shaders/v-" + version + "/inputs.tsv"), "inputs\t" + inputs + "\n");
         }
         return dir;
@@ -116,6 +118,14 @@ public final class PackFindJvmTest {
         // A library of other shader inputs: not current
         File inputs = pack(new File(t, "inputs-pack"), DKB, "aa", cur, "000000000000", false);
         check(PackFind.shaderTier(inputs, DKB, true) == -1, "a library of other shader tables is not current");
+        // This version's library of older shader tables the delta manifest knows (a "c0ffee000001@111111111111" row): the automatic update, for a dump
+        File olderInputs = pack(new File(t, "older-inputs-pack"), DKB, "aa", cur, "111111111111", false);
+        check(PackFind.shaderTier(olderInputs, DKB, true) == PackFind.UPDATE, "this version from older inputs the manifest knows: update tier");
+        check(PackFind.shaderTier(olderInputs, DKB, false) == -1, "that update needs a dump too");
+        check(Pack.deltaShaders(olderInputs, DKB) == 7, "its row's count");
+        check(Pack.libraryProblem(olderInputs, DKB).contains("7 of the game's 22,852 shaders are new or changed"), "the card says what the update makes: " + Pack.libraryProblem(olderInputs, DKB));
+        check(Pack.playableLibrary(olderInputs, DKB) != null, "and Play stays on: the replay loads this version's library (same ABI)");
+        check(Pack.playableLibrary(inputs, DKB) == null, "but not for inputs the manifest does not know");
 
         // The app's pack: preferred when it fits; a fitting ancestor pack beats an app pack that needs an update
         File app = pack(new File(t, "app/packs/" + DKB), DKB, "aa", cur);
