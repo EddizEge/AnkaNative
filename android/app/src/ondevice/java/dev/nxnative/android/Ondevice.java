@@ -107,10 +107,18 @@ final class Ondevice {
 
     /**
      * autoUpdate for Play (Play.start), which also runs where Home is not the caller (a frontend's game, FrontendLaunch): through Home's panel while Home lives
-     * in this process. Without one (the frontend started the app's process), nothing starts now: Home's card starts it when Home next shows it (MainActivity.check)
+     * in this process. Without one (the frontend started the app's process), nothing starts now: Home's card starts it when Home next shows it (MainActivity.check).
+     * A frontend's request finds Home stopped (behind the frontend or the game): its panel is unbound from the service (Panel.pause), so alive() cannot see a
+     * job the service runs, and picked() would write and remember a second job the service never starts (it runs one at a time). Then job.json decides:
+     * a job that may be running (Panel.mayRun) leaves the update to Home, which starts it when it next shows the card
      */
     static void autoUpdate(File dump, File packDir, String titleId) {
-        if (panel != null && !panel.a.isDestroyed()) autoUpdate(panel.a, dump, packDir, titleId);
+        if (panel == null || panel.a.isDestroyed()) return;
+        if (!panel.resumed) {
+            panel.load();
+            if (panel.job != null && Panel.mayRun(panel.job)) return;
+        }
+        autoUpdate(panel.a, dump, packDir, titleId);
     }
 
     /** Whether a folder or .nup is a dump Prepare can start from: an update, or a base game with its code and RomFS (Pack.isDump; DumpCheck checks it fully);
@@ -288,6 +296,15 @@ final class Ondevice {
 
         /** Whether the service's worker is running the job now (or may be: just resumed, the binding not yet answered) */
         boolean alive() { return jobAlive || (service == null && SystemClock.elapsedRealtime() - resumedAt < 2500 && job != null && "running".equals(job.state())); }
+
+        /**
+         * Whether the service's worker may be running a job, read from its job.json alone (no binding): running (also after the :pack process died, as a sticky
+         * restart resumes it), or paused by the service's own policy (a wait for the battery or the heat: its worker waits, PackService.waitWhileAuto)
+         */
+        static boolean mayRun(Job j) {
+            String s = j.state();
+            return "running".equals(s) || "paused".equals(s) && !"user".equals(j.reason()) && !"timeout".equals(j.reason());
+        }
 
         void show() {
             boolean alive = job != null && alive();

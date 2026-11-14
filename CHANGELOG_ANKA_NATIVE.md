@@ -17,7 +17,7 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   than Play: a pack whose shader library was this version's but made from older shader inputs, which Play starts while the automatic update runs, was
   "not ready", so Home asked first and the game started only from Home's Play, without bringing the frontend back when it stopped. Play and the
   frontend's request now take one decision (`PlayRule`): whatever Play starts at once, the frontend starts at once (with the automatic shader update of a
-  dump's pack, as Play, when Home is running; else when Home next shows the card), and a game that needs a pack, Prepare or shaders gets Play's own
+  dump's pack, as Play, when Home is running and no Prepare job is; else when Home next shows the card), and a game that needs a pack, Prepare or shaders gets Play's own
   dialog with no question in front; its buttons ignore taps through another app's overlay, and a game it starts ("Start anyway") also brings the
   frontend back. Play itself now refuses a pack of another title with its pack dialog. A file that is not on Home still asks "Add this game?"
   (android/FRONTENDS.md). Checked on the JVM and in a build, not yet on a phone.

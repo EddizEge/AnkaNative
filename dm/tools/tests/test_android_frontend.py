@@ -84,6 +84,18 @@ class FrontendPlayOnly(unittest.TestCase):
         self.assertIn('new Intent(a, GameActivity.class).putExtra("title_id", g.titleId).putExtra("name", g.name).putExtra("game", g.gameDir).putExtra("pack", g.packDir);', go,
                       'the game starts with the card\'s own paths')
 
+    def test_auto_update_waits_for_a_running_job(self):
+        """Play.start's automatic shader update from a frontend finds Home stopped (behind the frontend or the game), its panel unbound from the service, so
+        alive() cannot see a running Prepare: job.json decides, or a second job would be written and remembered that the service never runs"""
+        od = re.sub(r'/\*.*?\*/|//[^\n]*', '', (REPO / 'android/app/src/ondevice/java/dev/nxnative/android/Ondevice.java').read_text(), flags=re.S)
+        au = body(od, 'static void autoUpdate(File dump, File packDir, String titleId) {')
+        self.assertIn('if (!panel.resumed) {\n            panel.load();\n            if (panel.job != null && Panel.mayRun(panel.job)) return;\n        }', au)
+        self.assertTrue(au.rstrip().endswith('autoUpdate(panel.a, dump, packDir, titleId);'), 'the guarded call is the last thing it does')
+        may = re.search(r'static boolean mayRun\(Job j\) \{(.*?)\n        \}', od, re.S)
+        self.assertIsNotNone(may)
+        self.assertIn('"running".equals(s) || "paused".equals(s) && !"user".equals(j.reason()) && !"timeout".equals(j.reason())', may.group(1),
+                      'a job paused by the service\'s own policy still has its worker')
+
     def test_home_takes_only_the_token(self):
         main = (SRC / 'MainActivity.java').read_text()
         self.assertNotIn('"frontend_game"', main, 'Home must not take a game path from an extra another app can send')
