@@ -55,7 +55,8 @@ the rest after it is unambiguous. Tools take these wherever they take the matchi
 - `dm/tools/nup.py`: reader. Checks a `.nup` per SPEC §6.1 (TOC SHA-256 before any TOC value is used, bounds, no overlapping
   extents but shared ones, sorted acyclic directories; unknown codec, kind, flags refused), lists packages, resolves selectors,
   and gives walk / list / stat / read and seekable streams. zstd: in memory up to 64 MiB, streamed above that, a temp file in
-  `$DM_TEMP` only when a caller needs a descriptor for mmap. CLI: `packages`, `ls`, `cat`, `verify`.
+  `$DM_TEMP` only when a caller needs a descriptor for mmap. The streams of one `.nup` read through one descriptor of it
+  (`Nup.reader`; a stream opens its own only for `fileno()`), as each open is a FUSE call on shared storage. CLI: `packages`, `ls`, `cat`, `verify`.
 - `dm/tools/romfs.py` (`Path`, `open`, `os`, `mmap` for paths inside images) is the access layer: a path with `.nup:` goes to
   a NUP view, so `shader_split.py`, `romfs_image.py` and `pack_dump.py` (scan, pack_version, pack_dlc) take `.nup` paths with
   no code of their own. `<file>.nup:` with an empty selector is the container root (folders `base`, `update/<v>`,

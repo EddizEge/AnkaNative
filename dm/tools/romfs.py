@@ -179,7 +179,11 @@ else:
 def stat(path, **kwargs):
     resolved = _resolve(path)
     if not resolved: return _os.stat(path, **kwargs)
-    image, relative = resolved; k = image.find(relative)
+    image, relative = resolved
+    return _stat_of(image, image.find(relative))
+
+
+def _stat_of(image, k):   # stat of node k of an image or NUP folder
     a, b, _, _, t, _ = image.entry(k); s = image.stat
     return SimpleNamespace(st_mode=(_stat.S_IFREG | 0o444) if t else (_stat.S_IFDIR | 0o555), st_size=b if t else 0,
                            st_ino=image.ino(k), st_dev=s.st_dev, st_mtime=s.st_mtime, st_mtime_ns=s.st_mtime_ns,
@@ -198,10 +202,12 @@ def isfile(path):
 
 
 class _Entry:
-    def __init__(self, parent, name): self.name, self.path = name, _os.path.join(parent, name)
-    def stat(self, **kwargs): return stat(self.path)
-    def is_dir(self, **kwargs): return isdir(self.path)
-    def is_file(self, **kwargs): return isfile(self.path)
+    """A scandir entry of an image or NUP folder: its node as children() gave it, so its type and stat need no lookup of its path again (walk asked each of a
+    game's 186,583 files whether it is a folder, each by its whole path)"""
+    def __init__(self, parent, name, image, k): self.name, self.path, self.image, self.k = name, _os.path.join(parent, name), image, k
+    def stat(self, **kwargs): return _stat_of(self.image, self.k)
+    def is_dir(self, **kwargs): return _stat.S_ISDIR(self.stat().st_mode)
+    def is_file(self, **kwargs): return _stat.S_ISREG(self.stat().st_mode)
     def is_symlink(self): return False
     def inode(self): return self.stat().st_ino
     def __fspath__(self): return self.path
@@ -220,7 +226,7 @@ def scandir(path):
     resolved = _resolve(path)
     if not resolved: return _os.scandir(path)
     image, relative = resolved
-    return _Scan(_Entry(path, name) for name, _ in image.children(image.find(relative)))
+    return _Scan(_Entry(path, name, image, k) for name, k in image.children(image.find(relative)))
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):

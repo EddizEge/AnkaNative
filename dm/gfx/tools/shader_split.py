@@ -786,8 +786,10 @@ def zip_jobs(files, parts=64):
     221 nxcontent/nvsb/*.nvsb files, but no name is relied on). → ([(path, rel, (ZIP, members)), …], the zip paths). An archive zipfile cannot read is scanned as one file, as before"""
     import zipfile
     zs = []
-    for p, r in files:
-        with open(p, 'rb') as f: h = f.read(4)
+    def head(pr):   # (each file's first 4 bytes: read by several threads, as reading them one after another waited on the storage for each; a phone took minutes)
+        with open(pr[0], 'rb') as f: return f.read(4)
+    with cf.ThreadPoolExecutor(min(8, os.cpu_count() or 1)) as ex: heads = list(ex.map(head, files, chunksize=256))
+    for (p, r), h in zip(files, heads):
         if h != ZIP: continue
         try:
             with open(p, 'rb') as source, zipfile.ZipFile(source) as z: zs.append((p, r, [(i.filename, i.file_size) for i in z.infolist() if not i.is_dir()]))
@@ -3132,7 +3134,8 @@ def main():
         # before the file count is known (the RomFS listing, main's decompression and scan take minutes on a phone): a stage line so the step does not look stuck
         print(f'progress: {i}/{len(romfs_v)} main', flush=True)
         tag = os.path.basename(os.path.dirname(os.path.abspath(romfs))) if i else ''
-        files += sorted((os.path.join(dp, f), (tag + '/' if tag else '') + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)   # '/' on Windows too: the source column and the keys
+        vfiles = sorted((os.path.join(dp, f), (tag + '/' if tag else '') + os.path.relpath(os.path.join(dp, f), romfs).replace(os.sep, '/')) for dp, _, fs in os.walk(romfs) for f in fs)   # '/' on Windows too: the source column and the keys
+        files += vfiles
         img = nso_image(mainnso)
         if not i:
             import unityfs
@@ -3156,7 +3159,7 @@ def main():
         # Unreal Engine shader code archives decoded on the Mac (uepak.py): <version dir>/ue_shaders, or DM_UE_SHADERS; needed when the RomFS has Unreal paks
         ued = os.environ.get('DM_UE_SHADERS') or os.path.join(os.path.dirname(os.path.abspath(romfs)), 'ue_shaders')
         names = sorted(f for f in os.listdir(ued) if f.endswith('.ushaderbytecode')) if os.path.isdir(ued) else []
-        if not names and uepak.unreal_paks(romfs, inline=False): red(f'the RomFS has Unreal paks, but there are no decoded shader code archives in {ued} (the NSP script writes them)')
+        if not names and uepak.unreal_paks(romfs, inline=False, pak_paths=[p for p, _ in vfiles if p.endswith('.pak')]): red(f'the RomFS has Unreal paks, but there are no decoded shader code archives in {ued} (the NSP script writes them)')
         for nm in names: found += ue_shaders(open(os.path.join(ued, nm), 'rb').read(), f'/ue_shaders/{nm}')
         results.append(('main', {skey(c, k): (w, s, c, k) for w, s, c, k in found}, var_pairs(found), {}))
     for romfs in dlc_v:

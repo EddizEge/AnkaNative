@@ -485,11 +485,12 @@ def inline_shaders(path):
         doff, dsz = r.take('<QQ'); d = read_range(f, doff, dsz, path)
     return b'.ushaderbytecode\0' not in d and b'.uexp\0' in d
 
-def unreal_paks(romfs, inline=None):
+def unreal_paks(romfs, inline=None, pak_paths=None):
     """The paks under the RomFS that Unreal wrote (its magic in the footer; inline None = any, True = those whose shaders are inline in the cooked packages, False = the others, inline_shaders):
-    the NSP script decodes the shader code archives of the others (decode_ue_shaders); shader_split.py reads the inline ones file by file (ue_legacy_jobs)"""
+    the NSP script decodes the shader code archives of the others (decode_ue_shaders); shader_split.py reads the inline ones file by file (ue_legacy_jobs). pak_paths: paks(romfs)
+    when the caller has walked the RomFS already (shader_split.py: a second walk of 186,583 files took minutes on a phone)"""
     out = []
-    for p in paks(romfs):
+    for p in (paks(romfs) if pak_paths is None else pak_paths):
         try: inl = inline_shaders(p)
         except (OSError, ValueError, struct.error): continue   # shorter than a footer, or no Unreal pak
         if inline is None or inl == inline: out.append(p)
