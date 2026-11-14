@@ -676,7 +676,7 @@ class ZbicCheck(unittest.TestCase):
 
 
 SYSTEMS = ('windows', 'mac', 'debian', 'fedora', 'arch', 'suse', 'linux')
-TOOLS = ('brew', 'micromamba', 'python3.14', 'py', 'sudo', 'curl')   # what a fix line may need that a computer may lack
+TOOLS = ('brew', 'micromamba', 'python3.14', 'py', 'pymanager', 'sudo', 'curl')   # what a fix line may need that a computer may lack
 
 
 class Prereq(unittest.TestCase):
@@ -727,7 +727,7 @@ class Prereq(unittest.TestCase):
         self.path()   # no Homebrew, no micromamba, no python3.14
         f = self.fixes('mac')
         self.assertIn('https://brew.sh', f['spirv'][0]); self.assertEqual(f['spirv'][1], c.BREW_GET); self.assertEqual(f['spirv'][-1], 'brew install spirv-tools')
-        self.assertIn('https://www.python.org/downloads/macos/', f['venv'][0]); self.assertEqual(f['venv'][1], 'python3.14 -m venv <dump folder>/.venv-anka')
+        self.assertIn('https://www.python.org/downloads/macos/', f['venv'][0]); self.assertIn('not 3.15', f['venv'][0]); self.assertEqual(f['venv'][1], 'python3.14 -m venv <dump folder>/.venv-anka')
         for k in ('dotnet', 'venv', 'cc'): self.assertNotIn('brew', ' '.join(f[k]).replace('https://brew.sh', ''), k)   # only spirv-val takes Homebrew
         self.assertIn('https://dotnet.microsoft.com/download/dotnet/10.0', f['dotnet'][0]); self.assertNotIn('dotnet-sdk', ' '.join(f['dotnet']))   # (.NET 11)
         self.path('brew')
@@ -792,7 +792,10 @@ class Prereq(unittest.TestCase):
     def test_windows(self):
         self.path()
         f = self.fixes('windows')
-        self.assertIn('https://www.python.org/downloads/', f['venv'][0]); self.assertTrue(f['venv'][1].startswith('py -3.14 '))
+        self.assertIn('https://www.python.org/downloads/windows/', f['venv'][0]); self.assertIn('install manager', f['venv'][0])
+        self.assertEqual(f['venv'][1], 'py install 3.14'); self.assertTrue(f['venv'][2].startswith('py -3.14 '))   # (py -3.14 does not install it itself)
+        self.path('py'); self.assertIn('install manager', self.fixes('windows')['venv'][0])   # an old launcher has no py install
+        self.path('py', 'pymanager'); self.assertEqual(self.fixes('windows')['venv'][0], 'py install 3.14')
         for w in ('dotnet', 'spirv', 'cc'): self.assertIn('https://', f[w][0], w)
 
     def test_no_tool_without_a_way(self):
@@ -802,7 +805,7 @@ class Prereq(unittest.TestCase):
         import itertools
         words = [re.compile(re.escape(v).replace(r'\{\}', '.*') + '$', re.S) for v in texts.TEXTS.values()]
         gets = {'brew': r'https://brew\.sh', 'micromamba': r'mamba\.readthedocs\.io', 'curl': r"(?:install|-S) curl'?$|curl package",
-                'python3.14': r'python\.org', 'py': r'python\.org', 'sudo': r'(?!)'}   # sudo: only when found (root() takes su without it)
+                'python3.14': r'python\.org', 'py': r'python\.org', 'pymanager': r'python\.org', 'sudo': r'(?!)'}   # sudo: only when found (root() takes su without it)
         first_words = {'brew', 'micromamba', 'python3.14', 'py', 'sudo', 'su', 'xcode-select', 'eval', '<dump', '"${SHELL}"', '/bin/bash', 'D:\\Switch2\\.venv-anka\\Scripts\\python',
                        self.checks.py_cmd().split()[0]}
         n = 0

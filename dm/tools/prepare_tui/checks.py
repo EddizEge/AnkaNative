@@ -117,8 +117,9 @@ def mamba(sysname):
 def venv_fix(sysname):
     """The commands that make the packer's environment (android/README.md) and start this interface with it: with python3.14 when it is on the PATH, else
     micromamba when it is (first on the Mac, where a python3.14 may be an Intel Homebrew's, which starts the translator as Intel code), else how to get one"""
-    if sysname == 'windows':
-        return [T('fix.python_win'), r'py -3.14 -m venv D:\Switch2\.venv-anka',
+    if sysname == 'windows':   # (python.org's default download is the Python install manager, whose py installs 3.14 only when asked: py install)
+        get = [] if found('pymanager') and found('py') else [T('fix.python_win')]
+        return get + ['py install 3.14', r'py -3.14 -m venv D:\Switch2\.venv-anka',
                 rf'D:\Switch2\.venv-anka\Scripts\python {PIP}', r'D:\Switch2\.venv-anka\Scripts\python scripts\prepare.py']
     venv = f'python3.14 -m venv {VENV}'
     if sysname == 'mac':

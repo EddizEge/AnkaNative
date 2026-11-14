@@ -41,8 +41,10 @@ TEXTS = {
     'check.cc_unreadable': 'CC is set to "{}", which cannot be read as a command ({})',
     'check.tree_ok': 'its shader tools are the committed ones (version {})',
     'check.tree_bad': "chain {}, the committed one is {}: its files are not the repository's (CRLF line ends?)",
-    'fix.python_win': 'Install Python 3.14 from https://www.python.org/downloads/, then in PowerShell:',
-    'fix.python_mac': 'Install Python 3.14 from https://www.python.org/downloads/macos/ (its installer adds python3.14), then in a new Terminal:',
+    'fix.python_win': 'Install the Python install manager from https://www.python.org/downloads/windows/ (it brings the py command; the next line '
+                      'installs Python 3.14 with it), then in a new PowerShell:',
+    'fix.python_mac': 'Install Python 3.14 from https://www.python.org/downloads/macos/ (the newest 3.14 release there, not 3.15: its installer adds '
+                      'python3.14), then in a new Terminal:',
     'fix.python_pkg': 'There is no python3.14 here. Where the distribution has Python 3.14, install it, then check again:',
     'fix.python_mamba': 'Where it has none, use micromamba:',
     'fix.python_other': "There is no python3.14 here: install the distribution's Python 3.14 and check again, or use micromamba:",
