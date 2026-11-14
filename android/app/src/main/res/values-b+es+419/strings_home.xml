@@ -17,7 +17,7 @@
     <string name="home_nup_wrong_case">%1$s: cámbiale el nombre para que termine en \".nup\" (en minúsculas); el juego y las herramientas solo leen ese nombre.</string>
     <string name="home_file_missing">%1$s no existe.</string>
     <string name="home_file_unreadable">No se puede leer %1$s. Verifica que Acceso a todos los archivos esté activado.</string>
-    <string name="home_frontend_no_card">No hay ningún juego con el title ID %1$s en la pantalla principal. Agrégalo primero con %2$s o envía el archivo del juego.</string>
+    <string name="home_frontend_no_card">No hay ningún juego con el title ID %1$s en la pantalla principal. Agrégalo primero en %2$s o envía el archivo del juego.</string>
     <string name="home_frontend_fail_title">No se puede iniciar el juego</string>
 
     <!-- Ui -->
@@ -28,7 +28,7 @@
     <string name="home_settings">Configuración</string>
     <string name="home_section_updates">Actualizaciones</string>
     <string name="home_check_updates">Buscar actualizaciones</string>
-    <string name="home_section_game_defaults">Valores predeterminados de los juegos</string>
+    <string name="home_section_game_defaults">Predeterminados de los juegos</string>
     <string name="home_overlay">Superposición</string>
     <string name="home_resolution">Resolución</string>
     <string name="home_fps_cap">Límite de FPS</string>
@@ -76,8 +76,8 @@
     <string name="home_play">Jugar</string>
     <string name="home_add">Agregar</string>
     <string name="home_frontend_not_one_game">Otra app pidió a %1$s abrir %2$s, que no es un solo juego: envía un único .nup o una sola carpeta de juego. No se agregó nada.</string>
-    <string name="home_frontend_same_build_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque es la misma versión del juego (build) que tu tarjeta de %3$s (%4$s). Al tocar %5$s se inicia tu tarjeta con sus propios archivos y su paquete; ese archivo no se agrega y tu tarjeta no cambia.</string>
-    <string name="home_frontend_add_body_others">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %5$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.\n\nTu lista ya tiene otro volcado de este juego:\n%4$s\n\nDurante %5$s se te preguntará si este archivo lo reemplaza o si conservas los dos.</string>
+    <string name="home_frontend_same_build_body">Otra app pidió a %1$s abrir\n\n%2$s\n\nque es la misma versión del juego (build) que tu tarjeta de %3$s (%4$s). Al tocar %5$s, se inicia el juego de tu tarjeta con sus propios archivos y su paquete; ese archivo no se agrega y tu tarjeta no cambia.</string>
+    <string name="home_frontend_add_body_others">Otra app pidió a %1$s abrir\n\n%2$s\n\nque no está en tu lista. Con %5$s, la app lo revisa y lo agrega a la pantalla principal; no se agrega nada a menos que toques %3$s.\n\nTu lista ya tiene otro volcado de este juego:\n%4$s\n\nAl agregarlo con %5$s, se te preguntará si este archivo lo reemplaza o si conservas los dos.</string>
     <string name="home_frontend_other_dump_item">• %1$s (paquete %2$s)</string>
 
     <!-- MainActivity: Home's games, the empty card, a game's card -->
@@ -92,7 +92,7 @@
     <string name="home_step_prepare_pc">Preparar en PC</string>
     <string name="home_state_unsupported">No compatible</string>
     <string name="home_state_checking">Revisando…</string>
-    <string name="home_state_needs_prepare">Hay que prepararlo</string>
+    <string name="home_state_needs_prepare">Necesita preparación</string>
     <string name="home_state_no_pack">Sin paquete</string>
     <string name="home_state_pack_unfinished">Paquete incompleto</string>
     <string name="home_state_preparing">Preparando…</string>
@@ -105,7 +105,7 @@
     <string name="home_prepare_shaders">Preparar shaders</string>
     <string name="home_prepare">Preparar</string>
     <string name="home_foreign_pack">Paquete de otras herramientas</string>
-    <string name="home_foreign_pack_body">El paquete de este juego se creó con herramientas distintas de las de esta app. Normalmente funciona igual. Si el juego falla, ⋯ › %1$s lo vuelve a crear a partir de tu volcado.</string>
+    <string name="home_foreign_pack_body">El paquete de este juego se creó con herramientas distintas de las de esta app. Normalmente funciona igual. Si el juego da problemas, ⋯ › %1$s lo vuelve a crear a partir de tu volcado.</string>
 
     <!-- MainActivity: a game's Manage sheet -->
     <string name="home_game_settings">Configuración del juego</string>
@@ -190,7 +190,7 @@
     <string name="home_no_pack_for_body">%1$s\n\nPaquete: %2$s</string>
     <string name="home_pick_pack_folder_button">Elegir carpeta de paquete</string>
     <string name="home_shaders_missing">Faltan shaders</string>
-    <string name="home_shaders_missing_body">Sin ellos, el juego no dibuja nada.\n\n%1$s</string>
+    <string name="home_shaders_missing_body">Sin ellos, el juego no muestra ninguna imagen.\n\n%1$s</string>
     <string name="home_start_anyway">Iniciar de todos modos</string>
     <string name="home_pack_cannot_start">El paquete no puede iniciar este juego</string>
     <string name="home_pack_problem_dump">Con %1$s se corrige a partir de tu volcado, en este teléfono.\n\n%2$s\n\nPaquete: %3$s</string>
