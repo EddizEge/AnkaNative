@@ -437,7 +437,7 @@ final class Updater {
                 String msg = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
                 Activity a = front.get();
                 if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-                    Intent confirm = Build.VERSION.SDK_INT >= 33 ? i.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class) : intentExtra(i);
+                    Intent confirm = Build.VERSION.SDK_INT >= 34 ? i.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class) : intentExtra(i);
                     if (confirm == null) return;
                     if (a != null && !gone(a)) a.startActivity(confirm);
                     else c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -458,7 +458,8 @@ final class Updater {
         else app.registerReceiver(r, f, app.getPackageName() + STATUS_PERMISSION, null);
     }
 
-    /** The installer's confirmation screen before Android 13, which has no typed getParcelableExtra */
+    /** The installer's confirmation screen before Android 14: 12 and 12L have no typed getParcelableExtra, and 13's has a bug (AndroidX IntentCompat
+     *  takes the typed call only from 14), so the untyped call with a type check */
     @SuppressWarnings("deprecation")
     private static Intent intentExtra(Intent i) {
         Object o = i.getParcelableExtra(Intent.EXTRA_INTENT);
