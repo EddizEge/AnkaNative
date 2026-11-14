@@ -309,6 +309,48 @@ class Launcher(unittest.TestCase):
         self.assertTrue(dkb[0] >= int(lo) and 40 <= dkb[1] <= 50 and mkw[0] < dkb[0] and mkw[1] < dkb[1], (dkb, mkw))
 
 
+class BuildOlderLibraries(unittest.TestCase):
+    """vk_android_build.py older_libraries on the PC (DMSH_VK_DELTA_FROM unset: the output's cache folder): the output's own library, left by a build of other
+    profile inputs (0.2.2's Ocarina of Time library, 4610dec2c950, under the same version folder as 0.2.3's a6b20a286c27), is a delta source; one of these
+    inputs is not (its entries are results already). The function runs from the tool's source, with the globals it reads."""
+    @classmethod
+    def setUpClass(cls):
+        import ast
+        src = (REPO / 'dm/gfx/tools/vk_android_build.py').read_text(encoding='utf-8')
+        fn = [n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == 'older_libraries']
+        cls.code = compile(ast.Module(body=fn, type_ignores=[]), 'vk_android_build.py', 'exec')
+
+    def run_in(self, cache_root, version, inputs, delta_from=None):
+        ns = {'os': os, 'struct': struct, 'delta': delta, 'VK': VK, 'GAME': type('G', (), {'id': GAME}), 'INPUTS': inputs, 'cache_root': str(cache_root),
+              'out': str(cache_root / (VK['DIR_PREFIX'] + version))}
+        exec(self.code, ns)
+        old = os.environ.pop('DMSH_VK_DELTA_FROM', None)
+        if delta_from is not None: os.environ['DMSH_VK_DELTA_FROM'] = delta_from
+        try:
+            libs = ns['older_libraries']()
+            return sorted((L.version, L.inputs) for L in libs)
+        finally:
+            for L in locals().get('libs', []): L.close()
+            os.environ.pop('DMSH_VK_DELTA_FROM', None)
+            if old is not None: os.environ['DMSH_VK_DELTA_FROM'] = old
+
+    def test_own_library_of_older_inputs(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / 'cache'; v = '0dd4341ae6ce'
+            sh = [('00000000000000aa', [spirv(10, 1)], b'')]
+            write_lib(root / f'v-{v}/dmsh_vk.lib', v, shaders=sh, codec=0)   # header inputs 5dd843bed8d1 (write_lib): the older inputs
+            write_lib(root / 'v-111111111111/dmsh_vk.lib', '111111111111', shaders=sh, codec=0)
+            write_lib(root / 'v-222222222222/dmsh_vk.lib', '222222222222', game='0100000000001000', shaders=sh, codec=0)   # another game's: never
+            self.assertEqual(self.run_in(root, v, 'a6b20a286c27'), [(v, '5dd843bed8d1'), ('111111111111', '5dd843bed8d1')],
+                             'other inputs: the own folder\'s library is a delta source, beside the older versions')
+            self.assertEqual(self.run_in(root, v, '5dd843bed8d1'), [('111111111111', '5dd843bed8d1')],
+                             'the same inputs: the own library is this build\'s, its entries results already')
+            # the same folder named by DMSH_VK_DELTA_FROM (the phone passes the pack's shaders/): the same answer
+            self.assertEqual(self.run_in(root, v, 'a6b20a286c27', str(root)), [(v, '5dd843bed8d1'), ('111111111111', '5dd843bed8d1')])
+            # an own library of these inputs elsewhere than the output (another pack's copy) is no own library: taken
+            self.assertEqual(self.run_in(root, '333333333333', '5dd843bed8d1', str(root / f'v-{v}')), [(v, '5dd843bed8d1')])
+
+
 class RequireAll(unittest.TestCase):
     """DMSH_VK_REQUIRE_ALL (the phone's shaders step) needs every shader the Mac's full build of the same version holds: a shader the profile's manifest has as "-"
     did not build there either and does not fail the step (Mario Kart World 1.8.0: 11,603 of 11,604 by design); without a manifest of this version every shader must build"""
