@@ -69,5 +69,21 @@ class FrontendPlayOnly(unittest.TestCase):
         self.assertIn('if (!Prefs.adbControl(this))', main)
 
 
+    def test_new_file_never_replaces_a_card(self):
+        """Add game replaces a card of the same title and build with no question (GameList.matches): a frontend's new file must be checked against the
+        cards first and, when it is such a copy, only ever start that card (review of work/frontend-launch, MainActivity.fromFrontend)."""
+        main = re.sub(r'/\*.*?\*/|//[^\n]*', '', (SRC / 'MainActivity.java').read_text(), flags=re.S)
+        m = re.search(r'private void fromFrontend\(File game, boolean card\) \{(.*?)\n    \}\n', main, re.S)
+        self.assertIsNotNone(m)
+        body = m.group(1)
+        self.assertIn('GameList.matches(', body)
+        self.assertIn('GameList.others(', body)
+        self.assertIn('PackFind.gamesIn(', body, 'a folder of several games must not reach Add game from a frontend')
+        self.assertNotIn('gamePicked(', body, 'Add game runs only from the question, after the cards were checked')
+        launch = (SRC / 'FrontendLaunch.java').read_text()
+        self.assertIn('GameList.canon(g.gameDir)', launch, 'the card that holds the file is found through links, as Home finds it')
+        self.assertIn('Frontend.shown(i.getStringExtra("game"))', launch, 'the caller\'s text is shown cut and without control characters')
+
+
 if __name__ == '__main__':
     unittest.main()

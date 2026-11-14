@@ -93,7 +93,8 @@ final class Frontend {
     /** One name per file: the shared storage's aliases become /storage/emulated/0, "//", "/./" and a trailing '/' go */
     static String normal(String p) {
         if (p == null || p.isEmpty()) return p;
-        String s = p.replaceAll("/+", "/").replace("/./", "/");
+        String s = p.replaceAll("/+", "/");
+        while (s.contains("/./")) s = s.replace("/./", "/");   // "/././" leaves one "/./" after a single pass
         if (s.endsWith("/.")) s = s.substring(0, s.length() - 2);
         if (s.length() > 1 && s.endsWith("/")) s = s.substring(0, s.length() - 1);
         for (String a : ALIASES) if (s.equals(a) || s.startsWith(a + "/")) return PRIMARY + s.substring(a.length());
@@ -112,17 +113,21 @@ final class Frontend {
 
     /**
      * A path another app sent, as FrontendLaunch may act on it: its normal name when it is an absolute path on shared storage (/storage/…, or an alias of it,
-     * or /mnt/media_rw/…) with no "." or ".." step and no control character; else null. The app's own folders (/data/…) and Android/data and Android/obb are never
-     * named by a frontend: a SAF id or a provider path with ".." in it ("primary:../../data/…") cannot walk out of shared storage
+     * or /mnt/media_rw/…) with no ".." step and no control character ("." steps go, however many); else null. The app's own folders (/data/…) and Android/data
+     * and Android/obb (of any user's /storage/emulated/&lt;n&gt;, and of an SD card) are never named by a frontend: a SAF id or a provider path with ".." in it
+     * ("primary:../../data/…") cannot walk out of shared storage
      */
     static String sharedPath(String p) {
         if (p == null || !p.startsWith("/")) return null;
         for (int i = 0; i < p.length(); i++) if (p.charAt(i) < 0x20 || p.charAt(i) == 0x7f) return null;
         for (String step : p.split("/")) if (step.equals("..")) return null;
-        String n = normal(p);
+        String n = normal(p);   // drops every "." step
+        for (String step : n.split("/")) if (step.equals(".")) return null;
         if (!(n.startsWith("/storage/") || n.startsWith("/mnt/media_rw/"))) return null;
         String[] s = n.split("/");   // "", "storage", <volume>[, <user>], …
-        int top = n.equals(PRIMARY) || n.startsWith(PRIMARY + "/") || n.startsWith("/mnt/media_rw/") ? 4 : 3;   // the first folder under the volume's root
+        // the first folder under the volume's root: /storage/emulated/<user>/… (any user, not only 0) and /mnt/media_rw/<volume>/… are one step deeper
+        boolean user = s.length > 3 && s[1].equals("storage") && s[2].equals("emulated") && s[3].matches("[0-9]+");
+        int top = user || n.startsWith("/mnt/media_rw/") ? 4 : 3;
         if (s.length <= top) return null;   // a volume's root, or /storage itself, is no game
         if (s[top].equalsIgnoreCase("Android") && s.length > top + 1 && (s[top + 1].equalsIgnoreCase("data") || s[top + 1].equalsIgnoreCase("obb"))) return null;
         return n;
@@ -170,6 +175,20 @@ final class Frontend {
         }
         return card(gameDirs, path);
     }
+
+    /** Text another app sent, as a dialog may show it: control characters (newlines too) become spaces, and at most SHOWN characters are kept (then "…") */
+    static String shown(String v) {
+        if (v == null) return null;
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < v.length() && b.length() < SHOWN; i++) {
+            char c = v.charAt(i);
+            b.append(Character.isISOControl(c) || c == '\u2028' || c == '\u2029' ? ' ' : c);
+        }
+        if (v.length() > SHOWN) b.append('…');
+        return b.toString();
+    }
+
+    static final int SHOWN = 200;
 
     /** A title ID as the cards keep it (16 hex digits, upper case), or null */
     static String titleId(String s) {
