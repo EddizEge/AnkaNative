@@ -221,12 +221,13 @@ static int init_once(void) {
          pdr.conformanceVersion.minor, pdr.conformanceVersion.subminor, pdr.conformanceVersion.patch, V.props.driverVersion, vka_driver_tag() ? "custom (DM_VK_DRIVER)" : "the system's");
     V.driver_id = (int)pdr.driverID;
     {   // The driver's own variables in the process environment (TU_DEBUG and the like: Readiness.DRIVER_KEYS), one line when any is set. Turnip reads TU_DEBUG at the process's
-        // first vkCreateInstance, which is the launcher's readiness check: it sets these lines before that check (nxlaunch.c), so the values here are the ones the driver took
+        // first vkCreateInstance, normally the launcher's readiness check, which sets these lines before it (nxlaunch.c). That this run's driver took them is not known here (a
+        // readiness check that timed out may still be running when the host starts): the image sizes in the log say it (a TU_DEBUG=noubwc run makes smaller depth images)
         extern char **environ; char b[512]; size_t o = 0; b[0] = 0;
         static const char *const pre[] = {"TU_", "FD_", "IR3_", "MESA_"};
         for (char **e = environ; e && *e && o + 1 < sizeof b; e++)
             for (size_t i = 0; i < sizeof pre / sizeof *pre; i++) if (!strncmp(*e, pre[i], strlen(pre[i]))) { o += (size_t)snprintf(b + o, sizeof b - o, " %s", *e); break; }
-        if (o) VLOG("driver variables in the environment:%s (this build's launcher sets them before its readiness check makes the process's first Vulkan instance, where Turnip reads TU_DEBUG)", b);
+        if (o) VLOG("driver variables in the environment:%s (set in the environment; the launcher sets them before its readiness check, normally the process's first Vulkan instance, where Turnip reads TU_DEBUG)", b);
     }
     { const char *e = getenv("DM_VK_GPL"); int want = !(e && !strcmp(e, "0"));   // restart only: the libraries are made with the device's pipelines
       V.gpl = want && x_gpl && fgpl.graphicsPipelineLibrary && pgpl.graphicsPipelineLibraryFastLinking;
