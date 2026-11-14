@@ -78,7 +78,8 @@ Anka Native is built on other people's work. This file is where they are credite
   **[SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools)** (Apache-2.0) and the **[.NET](https://github.com/dotnet/runtime)** runtime the
   translator is compiled with (NativeAOT, MIT). Beside them, built from this repository, `libzbicdec.so` reads the zstd-compressed (ZBIC) code of newer
   games: **Banana Native's ZBIC decoder** (`dm/third_party/zstd-zbic`, from Banana Native f86575b0, v0.2.2), Zstandard 1.5.7's decoder (BSD-3-Clause,
-  unmodified) with Banana Native's MIT reader of ZBIC's tables.
+  unmodified) with Banana Native's MIT reader of ZBIC's tables. The notice texts of the BSD parts the APK carries (Zstandard, also in `libnxhost.so`;
+  Capstone with LLVM's for its AArch64 disassembler; python-lz4 and LZ4) are in [android/NOTICE.md](android/NOTICE.md#the-packers-bsd-parts-their-notices).
 
 ## Licenses
 
