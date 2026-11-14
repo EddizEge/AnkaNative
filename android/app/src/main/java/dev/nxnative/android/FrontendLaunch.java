@@ -89,7 +89,8 @@ public final class FrontendLaunch extends Activity {
 
     /**
      * The card the request names (Frontend.target: by title ID, else by its file, else by its title and build: sameBuild), started at once when Play would start
-     * it with no dialog (Play.check); any other card goes to Home, which runs Play for it, and a file that is no card goes to Home, which asks first
+     * it with no dialog (Play.check); any other card goes to Home, which runs Play for it, and a file that is no card goes to Home, which asks first. Which of
+     * these it is, is Frontend.route's (plain Java, checked on the JVM for every PlayRule.Kind)
      */
     private void byCard(String path, String tid) {
         File file = path != null ? new File(path) : null;
@@ -108,18 +109,25 @@ public final class FrontendLaunch extends Activity {
             PlayRule.Verdict v = card != null ? Play.check(this, card) : null;
             runOnUiThread(() -> {
                 if (isFinishing()) return;
-                if (card == null && tid != null) {
-                    fail(getString(R.string.home_frontend_no_card, tid, getString(R.string.app_name)));
-                    return;
+                switch (Frontend.route(card != null, tid != null, v != null ? v.kind : null)) {
+                    case NO_CARD:
+                        fail(getString(R.string.home_frontend_no_card, tid, getString(R.string.app_name)));
+                        return;
+                    case START:
+                        android.util.Log.i("nxnative", "frontend launch: " + card.titleId + " " + card.gameDir + " starts (" + v.kind + ")");
+                        Play.start(this, card, v.kind, true);
+                        finish();
+                        return;
+                    case PLAY_ON_HOME:
+                        android.util.Log.i("nxnative", "frontend launch: " + card.titleId + " " + card.gameDir + " goes to Play's steps on Home (" + v.kind + ")");
+                        home(Frontend.handOff(card.gameDir, true));   // Home runs Play for it, with no question in front
+                        return;
+                    case ADD_ON_HOME:
+                        home(Frontend.handOff(path, false));   // a file that is no card: Home asks before Add game's steps
+                        return;
+                    default:
+                        throw new IllegalStateException("frontend route");   // i18n-keep: every Route has its case
                 }
-                if (v != null && v.kind.straight()) {
-                    android.util.Log.i("nxnative", "frontend launch: " + card.titleId + " " + card.gameDir + " starts (" + v.kind + ")");
-                    Play.start(this, card, v.kind, true);
-                    finish();
-                } else if (card != null) {
-                    android.util.Log.i("nxnative", "frontend launch: " + card.titleId + " " + card.gameDir + " goes to Play's steps on Home (" + v.kind + ")");
-                    home(Frontend.handOff(card.gameDir, true));   // Home runs Play for it, with no question in front
-                } else home(Frontend.handOff(path, false));   // a file that is no card: Home asks before Add game's steps
             });
         }, "nx-frontend").start();
     }

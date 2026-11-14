@@ -70,6 +70,20 @@ class FrontendPlayOnly(unittest.TestCase):
                      'Folders.packFor', 'setResult', 'getContentResolver', 'FLAG_GRANT', 'getParcelableExtra', 'Intent.parseUri', 'setComponent', 'setClassName'):
             self.assertFalse(call in src, f'FrontendLaunch must not use {call}')
 
+    def test_play_start_writes_only_what_play_does(self):
+        """FrontendLaunch starts a game through Play.start / Play.go, so what they call is what another app can cause with no question: exactly the calls
+        below (the automatic shader update of the card's own pack, the card marked played last, the legacy toast, GameActivity with the card's paths). Any other
+        call added there (Ondevice.prepare, Game.put, Prefs., a driver…) fails here and must be weighed for FRONTENDS.md, "What another app can do" first"""
+        play = code('Play.java')
+        start = body(play, 'static void start(Activity a, Game g, PlayRule.Kind k, boolean frontend) {')
+        go = body(play, 'static void go(Activity a, Game g, boolean frontend) {')
+        calls = sorted(set(re.findall(r'\b([A-Z]\w*\.\w+)\(', start + go)) | set(re.findall(r'\b(a\.\w+|i\.\w+)\(', start + go)))
+        self.assertEqual(calls, ['Game.touch', 'Ondevice.autoUpdate', 'Ondevice.isDump', 'ShaderLibs.legacyWarning', 'Toast.makeText', 'a.getApplicationContext',
+                                 'a.startActivity', 'i.addFlags'], 'Play.start / Play.go call only what Play did without asking')
+        self.assertIn('Ondevice.autoUpdate(gd, new File(g.packDir), g.titleId);', start, 'only the card\'s own pack is updated')
+        self.assertIn('new Intent(a, GameActivity.class).putExtra("title_id", g.titleId).putExtra("name", g.name).putExtra("game", g.gameDir).putExtra("pack", g.packDir);', go,
+                      'the game starts with the card\'s own paths')
+
     def test_home_takes_only_the_token(self):
         main = (SRC / 'MainActivity.java').read_text()
         self.assertNotIn('"frontend_game"', main, 'Home must not take a game path from an extra another app can send')
@@ -91,19 +105,36 @@ class FrontendPlayOnly(unittest.TestCase):
         also runs Play's automatic shader update and the legacy warning"""
         launch = code('FrontendLaunch.java')
         self.assertNotIn('ready(', launch, 'FrontendLaunch keeps no rule of its own')
-        self.assertNotIn('libraryProblem', launch)
-        self.assertIn('Play.check(this, card)', launch)
-        self.assertIn('Play.start(this, card, v.kind, true)', launch)
-        self.assertIn('v.kind.straight()', launch)
+        # the verdict is Play.check's alone, and what follows from it is Frontend.route's (checked on the JVM for every PlayRule.Kind)
+        self.assertEqual(launch.count('Play.check('), 1)
+        self.assertIn('PlayRule.Verdict v = card != null ? Play.check(this, card) : null;', launch)
+        self.assertIn('switch (Frontend.route(card != null, tid != null, v != null ? v.kind : null)) {', launch)
+        self.assertNotIn('straight(', launch, 'only Frontend.route reads the verdict')
+        self.assertNotIn('Kind.', launch, 'only Frontend.route reads the verdict')
+        self.assertEqual(re.findall(r'\bv\.\w+', launch), ['v.kind'] * 4, 'the verdict is read only for the route, the log and Play.start')
+        start = re.search(r'case START:(.*?)case PLAY_ON_HOME:', launch, re.S).group(1)
+        self.assertEqual([l.strip() for l in start.strip().splitlines()][1:], ['Play.start(this, card, v.kind, true);', 'finish();', 'return;'],
+                         'a straight verdict starts the game, with nothing in front (the first line is the log)')
+        self.assertTrue(start.strip().startswith('android.util.Log.i('))
+        # nothing of the card's pack, profile or busy state is looked at on its own (2026-11-14: FrontendLaunch's own pack checks refused what Play starts)
+        for own in ('packDir', 'libraryProblem', 'PackCheck.', 'Profile.', 'SaveUi.', 'PackUi.', 'ShaderLibs.', 'romfs', 'Ondevice.'):
+            self.assertNotIn(own, launch, f'FrontendLaunch keeps no check of its own: {own}')
+        self.assertEqual(re.findall(r'\bPack\.\w+', launch), ['Pack.titleIdOf'], 'Pack is read only for the file\'s title (sameBuild)')
         main = code('MainActivity.java')
         la = body(main, 'void launch(Game g, boolean frontend) {')
-        self.assertIn('PlayRule.Verdict v = Play.check(this, g);', la)
-        self.assertIn('if (v.kind.straight()) { Play.start(this, g, v.kind, frontend); return; }', la)
+        self.assertTrue(la.lstrip().startswith('PlayRule.Verdict v = Play.check(this, g);\n        if (v.kind.straight()) { Play.start(this, g, v.kind, frontend); return; }\n'),
+                        'Play starts what PlayRule starts, before anything else')
+        self.assertIn('case NO_LIBRARY:\n                break;\n            default:', la, 'only NO_LIBRARY reaches the shaders dialog')
         for gone in ('Pack.read(', 'PackCheck.', 'Pack.libraryProblem', 'playableLibrary', 'legacyLibrary', 'SaveUi.busy', 'PackUi.busy', 'Profile.missing', 'startActivity'):
             self.assertNotIn(gone, la, f'Play decides only through PlayRule: {gone}')
         self.assertIn('void launch(Game g) { launch(g, false); }', main)
         play = code('Play.java')
         self.assertIn('return PlayRule.decide(facts(c, g));', play)
+        # the library facts are Play's own calls (Pack.playableLibrary of an older-input library is checked on the JVM by PackFindJvmTest)
+        for fact in ('@Override public Msg libraryProblem() { return Pack.libraryProblemMsg(pd, g.titleId); }',
+                     '@Override public boolean playableLibrary() { return Pack.playableLibrary(pd, g.titleId, Ondevice.isDump(gd)) != null; }',
+                     '@Override public boolean legacyLibrary() { return Pack.legacyLibrary(pd, g.titleId) != null; }'):
+            self.assertIn(fact, play)
         self.assertIn('Ondevice.autoUpdate(', body(play, 'static void start(Activity a, Game g, PlayRule.Kind k, boolean frontend) {'))
         self.assertIn('putExtra("frontend", true)', body(play, 'static void go(Activity a, Game g, boolean frontend) {'))
 
@@ -112,8 +143,9 @@ class FrontendPlayOnly(unittest.TestCase):
         a game started from a frontend must not ask "start?" again); the same game build as a card is that card, also with no question"""
         main = code('MainActivity.java')
         ff = body(main, 'private void fromFrontend(File game, boolean card) {')
-        self.assertIn('launch(x, true)', ff)
+        self.assertIn('for (Game x : games) if (GameList.samePath(x.gameDir, game.getPath())) { launch(x, true); return; }', ff)
         self.assertIn('if (s != null) { launch(s, true); return; }', ff)
+        self.assertEqual(re.findall(r'\b\w+\((?:x|s), ', ff), ['launch(x, ', 'launch(s, '], 'a card goes straight to Play, through no helper of its own')
         self.assertNotIn('AlertDialog', ff)
         for key in ('home_frontend_start_title', 'home_frontend_start_body', 'home_frontend_same_build_body'):
             self.assertNotIn(key, main)
@@ -127,8 +159,22 @@ class FrontendPlayOnly(unittest.TestCase):
         ask = body(main, 'private void askAdd(File file, List<Game> others) {')
         self.assertIn('R.string.home_frontend_add_title', ask)
         self.assertIn('(x, w) -> gamePicked(file)', ask)
-        self.assertIn('setFilterTouchesWhenObscured(true)', ask)
+        self.assertIn('filterTaps(d);', ask)
+        self.assertIn('setFilterTouchesWhenObscured(true)', body(main, 'private static void filterTaps(AlertDialog d) {'))
         self.assertEqual(main.count('askAdd('), 2, 'askAdd is fromFrontend\'s only')
+
+    def test_play_dialogs_filter_overlay_taps(self):
+        """Play's dialogs a frontend's request opens (Prepare, Prepare again, pick pack, Start anyway) keep askAdd's guard: their buttons ignore taps through
+        another app's overlay, so no hidden tap gets past the first dialog that leads to a pack write (the "Start …?" question had it before 2026-11-14)"""
+        main = code('MainActivity.java')
+        for name, sig in (('launch', 'void launch(Game g, boolean frontend) {'), ('packProblem', 'private void packProblem(Game g, String why, Runnable pickPack, boolean frontend) {')):
+            b = body(main, sig)
+            self.assertNotIn('.show()', b, f'{name}: every dialog through showPlay')
+        la = body(main, 'void launch(Game g, boolean frontend) {')
+        self.assertEqual(len(re.findall(r'showPlay\(', la)), 2)
+        self.assertEqual(la.count('packProblem('), la.count('pickPack, frontend);'), 'packProblem is told about the frontend')
+        self.assertIn('showPlay(b, frontend);', body(main, 'private void packProblem(Game g, String why, Runnable pickPack, boolean frontend) {'))
+        self.assertIn('if (frontend) d.setOnShowListener(x -> filterTaps(d));', body(main, 'private static void showPlay(AlertDialog.Builder b, boolean frontend) {'))
 
     def test_new_file_never_replaces_a_card(self):
         """Add game replaces a card of the same title and build with no question (GameList.matches): a frontend's new file must be checked against the

@@ -347,10 +347,22 @@ public final class MainActivity extends Activity {
                 .setPositiveButton(getString(R.string.home_add), (x, w) -> gamePicked(file))
                 .setNegativeButton(android.R.string.cancel, null).create();
         d.setOnShowListener(x -> {
-            for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
+            filterTaps(d);
             Button n = d.getButton(AlertDialog.BUTTON_NEGATIVE);
             if (n != null) n.requestFocus();
         });
+        d.show();
+    }
+
+    /** A dialog another app opened (a frontend's request): its buttons ignore taps that land through another app's overlay, so no hidden tap gets past it */
+    private static void filterTaps(AlertDialog d) {
+        for (int b : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) if (d.getButton(b) != null) d.getButton(b).setFilterTouchesWhenObscured(true);
+    }
+
+    /** One of Play's dialogs; frontend: a frontend's request opened it (launch(g, true)), so its buttons filter taps as askAdd's do (filterTaps) */
+    private static void showPlay(AlertDialog.Builder b, boolean frontend) {
+        AlertDialog d = b.create();
+        if (frontend) d.setOnShowListener(x -> filterTaps(d));
         d.show();
     }
 
@@ -933,20 +945,22 @@ public final class MainActivity extends Activity {
             case SAVE_BUSY: error(getString(R.string.home_busy_save, g.name, getString(R.string.home_play))); return;
             case PACK_BUSY: error(getString(R.string.home_busy_pack, g.name, getString(R.string.home_play))); return;
             case PACK_UNREADABLE:
-                if (dump) packProblem(g, getString(R.string.home_pack_unusable, v.error.getLocalizedMessage()), pickPack);
+                if (dump) packProblem(g, getString(R.string.home_pack_unusable, v.error.getLocalizedMessage()), pickPack, frontend);
                 else error(v.error.getLocalizedMessage());
                 return;
             case PLACEHOLDER:   // a placeholder of the simulated engine (Anka Native 0.1.0's Prepare made one): it has no game code and no shaders, so it never starts
-                if (dump) packProblem(g, getString(R.string.home_pack_placeholder), pickPack);
-                else new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.unavailableText(), g.packDir))
-                        .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).show();
+                if (dump) packProblem(g, getString(R.string.home_pack_placeholder), pickPack, frontend);
+                else showPlay(new AlertDialog.Builder(this).setTitle(getString(R.string.home_no_pack_for, g.name)).setMessage(getString(R.string.home_no_pack_for_body, Ondevice.unavailableText(), g.packDir))
+                        .setNegativeButton(android.R.string.cancel, null).setPositiveButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()), frontend);
                 return;
             case OTHER_TITLE:
             case PACK_BLOCKED:   // a plain message, and Prepare again from the dump, instead of a start that cannot work
-                packProblem(g, v.why.text(), pickPack);
+                packProblem(g, v.why.text(), pickPack, frontend);
                 return;
-            default:
+            case NO_LIBRARY:
                 break;
+            default:   // the straight kinds started above
+                throw new IllegalStateException("Play's steps for " + v.kind);   // i18n-keep: a caller's bug, never shown
         }
         // NO_LIBRARY: without a library it can play, the game runs but draws nothing. Say so, and offer to prepare the shaders (a dump) or another pack folder.
         // This version's library of older shader tables, with no dump to update it from (a pack made on a computer): the game plays, without the shaders the app's
@@ -959,18 +973,18 @@ public final class MainActivity extends Activity {
                 .setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run()).setNegativeButton(android.R.string.cancel, null);
         if (dump) b.setPositiveButton(R.string.home_prepare, (d, w) -> Ondevice.prepare(this, gd, false));
         else b.setPositiveButton(R.string.home_start_anyway, (d, w) -> Play.go(this, g, frontend));
-        b.show();
+        showPlay(b, frontend);
     }
 
-    /** A pack that cannot run with this game folder: why, then Prepare again from the dump (the default), or another pack folder */
-    private void packProblem(Game g, String why, Runnable pickPack) {
+    /** A pack that cannot run with this game folder: why, then Prepare again from the dump (the default), or another pack folder; frontend as for showPlay */
+    private void packProblem(Game g, String why, Runnable pickPack, boolean frontend) {
         File gd = new File(g.gameDir);
         boolean dump = Ondevice.isDump(gd);
         AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(R.string.home_pack_cannot_start)
                 .setMessage(dump ? getString(R.string.home_pack_problem_dump, getString(R.string.home_prepare_again), why, g.packDir) : getString(R.string.home_pack_problem, why, g.packDir))
                 .setNegativeButton(android.R.string.cancel, null).setNeutralButton(R.string.home_pick_pack_folder_button, (d, w) -> pickPack.run());
         if (dump) b.setPositiveButton(R.string.home_prepare_again, (d, w) -> Ondevice.prepare(this, gd, false));
-        b.show();
+        showPlay(b, frontend);
     }
 
     /** The overlay's master switch and its items (Overlay.rows); the main screen's switch follows the master switch */

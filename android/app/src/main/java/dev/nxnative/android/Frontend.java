@@ -177,6 +177,23 @@ final class Frontend {
         return card(gameDirs, path);
     }
 
+    /** What FrontendLaunch does with a request (route) */
+    enum Route {
+        NO_CARD,        // a title ID that no card has: a fail dialog
+        START,          // a card Play starts with no dialog (PlayRule.Kind.straight): the game starts at once, and the frontend comes back when it stops
+        PLAY_ON_HOME,   // any other card: Home runs Play for it (MainActivity.fromFrontend), whose own dialogs come first, with no question in front
+        ADD_ON_HOME     // a file that is no card: Home asks "Add this game?"
+    }
+
+    /**
+     * FrontendLaunch's one choice: card (the request names a card), byTitle (it named a title ID), play (PlayRule's verdict for the card, null without one). A card
+     * starts exactly when Play would start it with no dialog, so the two cannot decide differently
+     */
+    static Route route(boolean card, boolean byTitle, PlayRule.Kind play) {
+        if (!card) return byTitle ? Route.NO_CARD : Route.ADD_ON_HOME;
+        return play.straight() ? Route.START : Route.PLAY_ON_HOME;
+    }
+
     /** Text another app sent, as a dialog may show it: control characters (newlines too) become spaces, and at most SHOWN characters are kept (then "…") */
     static String shown(String v) {
         if (v == null) return null;

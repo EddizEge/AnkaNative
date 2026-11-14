@@ -219,5 +219,14 @@ public final class FrontendJvmTest {
         EnumSet<PlayRule.Kind> straight = EnumSet.noneOf(PlayRule.Kind.class);
         for (PlayRule.Kind k : PlayRule.Kind.values()) if (k.straight()) straight.add(k);
         eq(EnumSet.of(PlayRule.Kind.START, PlayRule.Kind.START_OLDER, PlayRule.Kind.START_LEGACY), straight, "what starts with no dialog");
+        // FrontendLaunch's choice (Frontend.route): a card starts from the frontend exactly when Play starts it with no dialog, for every verdict
+        for (PlayRule.Kind k : PlayRule.Kind.values()) {
+            eq(k.straight() ? Frontend.Route.START : Frontend.Route.PLAY_ON_HOME, Frontend.route(true, false, k), "a card by its file, " + k);
+            eq(k.straight() ? Frontend.Route.START : Frontend.Route.PLAY_ON_HOME, Frontend.route(true, true, k), "a card by its title ID, " + k);
+        }
+        c = new Card(); c.library = older; c.playable = true;
+        eq(Frontend.Route.START, Frontend.route(true, false, kind(c)), "the owner's iiSU start (an older library that plays while it updates) starts at once");
+        eq(Frontend.Route.ADD_ON_HOME, Frontend.route(false, false, null), "a file that is no card: Home asks before Add game");
+        eq(Frontend.Route.NO_CARD, Frontend.route(false, true, null), "a title ID no card has");
     }
 }
