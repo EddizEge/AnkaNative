@@ -327,6 +327,32 @@ final class Job {
 
     synchronized void endedAll() { for (String s : STEPS) ended(s); }
 
+    /**
+     * The time left's rate as this process measured it (Eta.carry: {step, total, map, rate}), for a later process of this job to go on from ("eta_carry", with
+     * this APK's version code: another build's tools may run at another speed); null removes it
+     */
+    synchronized void etaCarry(double[] c) {
+        try {
+            if (c == null) { o.remove("eta_carry"); return; }
+            JSONArray a = new JSONArray();
+            for (double v : c) a.put(v);
+            o.put("eta_carry", new JSONObject().put("rate", a).put("version_code", BuildConfig.VERSION_CODE));
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** The rate a process before this one kept (etaCarry), null when there is none or another build kept it */
+    synchronized double[] etaCarry() {
+        JSONObject e = o.optJSONObject("eta_carry");
+        JSONArray a = e == null || e.optInt("version_code", -1) != BuildConfig.VERSION_CODE ? null : e.optJSONArray("rate");
+        if (a == null || a.length() != 4) return null;
+        double[] c = new double[4];
+        for (int k = 0; k < 4; k++) c[k] = a.optDouble(k, Double.NaN);
+        for (double v : c) if (Double.isNaN(v)) return null;
+        return c;
+    }
+
     /** A step's count from the tool's progress lines; a stage line of the tool's start keeps a count kept from a run before (JobProgress.keepCount) */
     synchronized void stepProgress(String s, long done, long total, String stage) {
         try {

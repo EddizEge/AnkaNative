@@ -150,9 +150,23 @@
     <string name="prepare_note_pausing">Pausando: %1$s</string>
     <string name="prepare_note_failed">No se pudo preparar %1$s</string>
     <string name="prepare_note_paused">En pausa: %1$s</string>
+    <string name="prepare_eta_short_less">Queda &lt;1 min</string>
+    <plurals name="prepare_eta_short_minutes">
+        <item quantity="one">Queda %1$d min</item>
+        <item quantity="other">Quedan %1$d min</item>
+    </plurals>
+    <plurals name="prepare_eta_short_hours">
+        <item quantity="one">Queda %1$d h</item>
+        <item quantity="other">Quedan %1$d h</item>
+    </plurals>
+    <plurals name="prepare_eta_short_hours_minutes">
+        <item quantity="one">Queda %1$d h %2$d min</item>
+        <item quantity="other">Quedan %1$d h %2$d min</item>
+    </plurals>
+    <string name="prepare_note_running_left">%1$s · Preparando %2$s</string>
+    <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>
     <string name="prepare_note_progress">%1$s · %2$d %%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
-    <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>
 
     <!-- PackService: why a step failed (PrepareErrors) -->
     <string name="prepare_error_step_killed">Android detuvo %1$s %2$d veces antes de que terminara, probablemente por falta de memoria (necesita hasta %3$.1f GB). Cierra otras apps y luego toca %4$s</string>

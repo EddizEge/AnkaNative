@@ -188,12 +188,30 @@
     <string name="prepare_note_pausing">Pausing: %1$s</string>
     <string name="prepare_note_failed">Could not prepare %1$s</string>
     <string name="prepare_note_paused">Paused: %1$s</string>
+    <!-- PackService: the time left in short, first in the running notification's title, which a collapsed notification shows on one line with the step
+         (Android 12+ shows no text under a title when the notification has a progress bar). Short so it is not cut on a phone's width: whole minutes, hours and
+         minutes as Eta.text rounds them; %2$d (the minutes) is always 5-55 -->
+    <string name="prepare_eta_short_less">&lt;1 min left</string>
+    <plurals name="prepare_eta_short_minutes">
+        <item quantity="one">%1$d min left</item>
+        <item quantity="other">%1$d min left</item>
+    </plurals>
+    <plurals name="prepare_eta_short_hours">
+        <item quantity="one">%1$d h left</item>
+        <item quantity="other">%1$d h left</item>
+    </plurals>
+    <plurals name="prepare_eta_short_hours_minutes">
+        <item quantity="one">%1$d h %2$d min left</item>
+        <item quantity="other">%1$d h %2$d min left</item>
+    </plurals>
+    <!-- the running notification's title with the time left (%1$s: prepare_eta_short_*) and the game (%2$s); expanded, the title is prepare_note_running -->
+    <string name="prepare_note_running_left">%1$s · Preparing %2$s</string>
     <string name="prepare_note_step">Step %1$d of %2$d · %3$d%%</string>
     <!-- %1$s: the step (Job.stepMsg), %3$s: why it waits or stopped -->
     <string name="prepare_note_progress">%1$s · %2$d%%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d%%\n%3$s</string>
-    <!-- the running notification with the time left (Eta): %1$s: the step (Job.stepMsg), %2$s: prepare_eta_*. The time left goes first: a collapsed
-         notification shows one line of text, which the step and its count alone nearly fill. _big: the expanded notification -->
+    <!-- the running notification with the time left (Eta): %1$s: the step (Job.stepMsg), %2$s: prepare_eta_*. The notification's text; a collapsed
+         notification with a progress bar shows none on Android 12+, only its title (prepare_note_running_left) and subText. _big: the expanded notification -->
     <string name="prepare_note_running_eta">%2$s · %1$s</string>
     <string name="prepare_note_running_eta_big">%1$s\n%2$s</string>
 

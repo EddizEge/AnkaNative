@@ -543,6 +543,13 @@ public final class PackService extends Service {
         int delta = told > 1 ? -1 : Pack.deltaShaders(j.pack(), j.titleId());
         eta = new Eta(told > 1 ? (int) told : delta >= 0 ? delta : all, all, Eta.SHADER_S);
         etaKey = key;
+        // a new process of a job that ran before: the rate its last process measured goes on, if its first line is of the same part (Eta.carried)
+        double[] carry = j.etaCarry();
+        if (carry != null) {
+            eta.carried(carry);
+            Log.i(TAG, String.format(Locale.ROOT, "time left: the process before measured %.2f a second in step %s (total %d); taken if this run goes on with it",
+                    carry[3], Job.STEPS[Math.max(0, Math.min(Job.STEPS.length - 1, (int) carry[0]))], (long) carry[1]));
+        }
         return eta;
     }
 
@@ -907,8 +914,13 @@ public final class PackService extends Service {
                     long d = Long.parseLong(m.group(1)), t = Long.parseLong(m.group(2));
                     j.stepProgress(step, d, t, m.group(3));
                     Eta est = eta;
-                    if (est != null && est.progress(index, d, t, m.group(3), SystemClock.elapsedRealtime()))
-                        Log.w(TAG, "time left: the translation's total " + t + " is not the profile shader_map.tsv's shader count: its vertex shaders count as much as the others");
+                    if (est != null) {
+                        boolean wasCarried = est.carriedOver();
+                        if (est.progress(index, d, t, m.group(3), SystemClock.elapsedRealtime()))
+                            Log.w(TAG, "time left: the translation's total " + t + " is not the profile shader_map.tsv's shader count: its vertex shaders count as much as the others");
+                        if (!wasCarried && est.carriedOver()) Log.i(TAG, "time left: going on from the rate the process before measured (carried over)");
+                        j.etaCarry(est.carry());   // for a later process (a kill, a pause that ended the process): job.json keeps it with the count
+                    }
                     changed = true;
                 } else if (line.startsWith("[RED] ")) lastRed = line.substring(6);
                 // the tools' word on their subinterpreter workers (vk_android_build.py, shader_split.py): how many, or that they are not usable here and the
@@ -1031,10 +1043,15 @@ public final class PackService extends Service {
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
             if (stopping) return b.setContentText(step).setSubText(steps).setOngoing(true).build();   // no time left, no action: the tool stops at the shader in hand
-            if (etaMin >= 0) {   // the time left first, where a collapsed notification's one line keeps it; the step and its count after it, and in full when expanded
+            if (etaMin >= 0) {
+                // Collapsed, Android 12+ shows a notification with a progress bar as one line, the title and then the subText, and no text under them (the phone
+                // test of 2026-11-14: "Preparing The…  • Step 4 of…  • now" and the bar): the time left goes first in the title, in short. Expanded, the title is
+                // the usual one and the text has the step and the time left in full
                 String left = Eta.text(etaMin).text();
-                b.setContentText(getString(R.string.prepare_note_running_eta, step, left))
-                        .setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_running_eta_big, step, left)));
+                b.setContentTitle(simulated(getString(R.string.prepare_note_running_left, Eta.shortText(etaMin).text(), name), sim))
+                        .setContentText(getString(R.string.prepare_note_running_eta, step, left))
+                        .setStyle(new Notification.BigTextStyle().setBigContentTitle(simulated(getString(R.string.prepare_note_running, name), sim))
+                                .bigText(getString(R.string.prepare_note_running_eta_big, step, left)));
             } else b.setContentText(step);
             b.setSubText(steps).setOngoing(true).addAction(pauseAction);
         } else {

@@ -219,6 +219,11 @@ public final class PrepareTextsJvmTest {
         eq(stepOld + " · " + 57 + "%\n" + "battery below 20 %: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
         eq("About 45 minutes left · " + stepOld, "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
         eq(stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", step, Msg.plural("prepare_eta_minutes", 45, 45));
+        // the collapsed notification's title (Android 12+ shows no text under it beside a progress bar)
+        eq("45 min left · Preparing " + name, "prepare_note_running_left", Msg.plural("prepare_eta_short_minutes", 45, 45), name);
+        eq("<1 min left", "prepare_eta_short_less");
+        check("prepare_eta_short_hours", Msg.plural("prepare_eta_short_hours", 2, 2).english(), "2 h left");
+        check("prepare_eta_short_hours_minutes", Msg.plural("prepare_eta_short_hours_minutes", 1, 1, 15).english(), "1 h 15 min left");
 
         // PackService: job.json's errors (English)
         for (String s : new String[] {"rewrite", "shaders"}) {
