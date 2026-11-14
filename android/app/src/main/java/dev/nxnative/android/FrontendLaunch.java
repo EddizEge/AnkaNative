@@ -68,7 +68,7 @@ public final class FrontendLaunch extends Activity {
             fail(i.getData() != null || Frontend.contentUri(i.getStringExtra("game"))
                     ? "The frontend sent a link that does not name a file on this phone's storage by a path the app can read. Set the frontend to send the file's path, or its storage (SAF) URI from the phone's own storage."
                     : i.getStringExtra("game") != null
-                    ? "The frontend sent \"" + i.getStringExtra("game") + "\", which is not a file on this phone's shared storage."
+                    ? "The frontend sent \"" + Frontend.shown(i.getStringExtra("game")) + "\", which is not a file on this phone's shared storage."
                     : "The frontend sent no game: send the .nup (or the game folder) as the intent's data, or the extra \"game\" with its path.");
             return;
         }

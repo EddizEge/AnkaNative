@@ -53,6 +53,7 @@ public final class FrontendJvmTest {
         eq("/storage/emulated/0/Games/dump", Frontend.normal("/storage/emulated/0/Games/dump/"), "trailing slash");
         eq("/sdcardx/x.nup", Frontend.normal("/sdcardx/x.nup"), "a name that only starts like an alias");
         eq("/storage/1234-ABCD/x.nup", Frontend.normal("/storage/1234-ABCD/x.nup"), "an SD card stays");
+        eq("/storage/emulated/0/a/b", Frontend.normal("/storage/emulated/0/a/././b"), "/././ all go");
         // the card a path names
         List<String> cards = Arrays.asList("/storage/emulated/0/Games/a.nup", "/storage/emulated/0/Games/b-dump", "/storage/1234-ABCD/c.nup");
         eq(0, Frontend.card(cards, "/sdcard/Games/a.nup"), "alias of the first card");
@@ -74,6 +75,14 @@ public final class FrontendJvmTest {
         eq(null, Frontend.sharedPath("/storage/emulated/0/Android/data/org.evil/files/x.nup"), "Android/data");
         eq(null, Frontend.sharedPath("/sdcard/Android/obb/x/x.nup"), "Android/obb by an alias");
         eq("/storage/emulated/0/Android/media/x.nup", Frontend.sharedPath("/storage/emulated/0/Android/media/x.nup"), "Android/media is shared");
+        eq(null, Frontend.sharedPath("/storage/emulated/0/Android/././data/org.x/f.nup"), "Android/data behind /././");
+        eq(null, Frontend.sharedPath("/storage/emulated/0/Android/./././data/org.x/f.nup"), "Android/data behind three . steps");
+        eq("/storage/emulated/0/ROMs/x.nup", Frontend.sharedPath("/storage/emulated/0/ROMs/././x.nup/."), "repeated . steps go");
+        eq(null, Frontend.sharedPath("/storage/emulated/10/Android/data/org.x/f.nup"), "Android/data of another user");
+        eq(null, Frontend.sharedPath("/storage/emulated/10/Android/obb/org.x/f.nup"), "Android/obb of another user");
+        eq("/storage/emulated/10/ROMs/x.nup", Frontend.sharedPath("/storage/emulated/10/ROMs/x.nup"), "another user's shared storage");
+        eq(null, Frontend.sharedPath("/storage/emulated/10"), "another user's root");
+        eq(null, Frontend.sharedPath("/storage/1234-ABCD/Android/data/org.x/f.nup"), "an SD card's Android/data");
         eq(null, Frontend.sharedPath("/storage/emulated/0"), "the volume's root");
         eq(null, Frontend.sharedPath("/storage/1234-ABCD"), "an SD card's root");
         eq(null, Frontend.sharedPath("/storage"), "/storage");
@@ -100,6 +109,13 @@ public final class FrontendJvmTest {
         eq(2, Frontend.target(cards, ids, null, "/storage/1234-ABCD/c.nup"), "by path");
         eq(-1, Frontend.target(cards, ids, null, "/sdcard/Games/new.nup"), "a new file: no card");
         eq(-1, Frontend.target(cards, ids, null, null), "nothing");
+        // text another app sent, as a dialog shows it: no control characters, at most Frontend.SHOWN characters
+        eq("a b c", Frontend.shown("a\nb\u0000c"), "control characters become spaces");
+        eq("x y", Frontend.shown("x\u2028y"), "line separator");
+        String longText = "y".repeat(Frontend.SHOWN + 50);
+        eq("y".repeat(Frontend.SHOWN) + "…", Frontend.shown(longText), "long text is cut");
+        eq("y".repeat(Frontend.SHOWN), Frontend.shown("y".repeat(Frontend.SHOWN)), "text of the limit stays whole");
+        eq(null, Frontend.shown(null), "null");
         // title IDs
         eq("040074A01BF12000", Frontend.titleId("040074a01bf12000"), "lower case");
         eq("040074A01BF12000", Frontend.titleId(" 0x040074A01BF12000 "), "0x and spaces");
