@@ -14,7 +14,7 @@ from pathlib import Path
 
 from prepare_tui import browser, checks, eta, model, progress, runner, screen as scr, term
 from prepare_tui.screen import BOLD, DIM, REV, GREEN, RED, YELLOW, CYAN
-from prepare_tui.texts import T
+from prepare_tui.texts import T, plural
 
 PLAIN_EVERY = 30.0   # seconds between the plain mode's progress lines within a step
 STEP_KEYS = ('step.identify', 'step.rewrite', 'step.split', 'step.shaders', 'step.pack')
@@ -454,11 +454,11 @@ def run_lines(live, now):
     r = live.rate(now)
     s = T('run.elapsed', model.duration(el))
     if r is not None and i in (2, 3) and live.state.prog.get(i, (0, 0, ''))[2] not in ('library', 'check', 'done', 'main'):
-        s += '   ' + T('run.rate', f'{r:,.1f}', T('run.unit_shaders') if i == 3 else T('run.unit_files'))
+        s += '   ' + T('run.rate_shaders' if i == 3 else 'run.rate_files', f'{r:,.1f}')
     out.append((s, 0))
     m = live.minutes
     out.append((model.eta_words(m, guess=live.guess) if m >= 0 else T('run.measuring'), BOLD if m >= 0 and not live.guess else DIM if m < 0 else 0))
-    if live.state.warnings: out.append((T('run.warnings', live.state.warnings), YELLOW))
+    if live.state.warnings: out.append((plural(live.state.warnings, 'run.warning', 'run.warnings'), YELLOW))
     if live.log_error: out.append((T('run.log_error', live.log_error.strerror or live.log_error), RED))
     return out
 
@@ -494,7 +494,7 @@ def draw_run(sc, live, log, now, stopping=None):
     rows = sc.h - 2 - y
     if rows > 0:
         tail = [l for l in live.state.lines if not progress.PROGRESS.match(l) and not progress.STEP.match(l)][-rows:]
-        for i, l in enumerate(tail): sc.put(2, y + i, scr.fit(l, sc.w - 4, g.dots), RED if l.startswith(('[RED] ', 'error: ')) else DIM)
+        for i, l in enumerate(tail): sc.put(2, y + i, scr.fit(l, sc.w - 4, g.dots), YELLOW if l.startswith('[RED] ') else DIM)   # (a run that goes on: a warning)
     if stopping is not None: dialog(sc, stopping)
     footer(sc, T('keys.run'))
 
@@ -518,21 +518,27 @@ def screen_run(ui, plan, start):
 
 # ---- screen 5: the end
 
-def end_lines(o):
-    """The end's lines, the same in both modes: [(text, style)]"""
+def menu_marks(encoding):
+    """The app's own marks for its menus (its Manage button, the step to a row, an ellipsis: strings_home.xml), when the output can write them, else ASCII"""
+    try: '⋯›…'.encode(encoding or 'ascii'); return '⋯', '›', '…'
+    except (UnicodeEncodeError, LookupError): return '...', '>', '...'
+
+
+def end_lines(o, encoding='ascii'):
+    """The end's lines, the same in both modes: [(text, style)]; encoding: the output's (the app's menu marks when it can write them)"""
     live, plan = o.live, o.plan
     out = []
     if o.kind == 'done':
         pack = Path(live.state.pack or plan.out)
         out += [(T('end.done', model.duration(o.took)), GREEN | BOLD), ('', 0), (T('end.pack', pack, model.gb(model.pack_size(pack))), 0)]
-        if live.state.warnings: out.append((T('end.warnings', live.state.warnings), YELLOW))
+        if live.state.warnings: out.append((plural(live.state.warnings, 'end.warning', 'end.warnings'), YELLOW))
         out.append((T('end.log', o.log), DIM))
         out.append(('', 0))
         out.append((T('end.next'), BOLD))
         x = plan.x
         holder = x.folder.name
         dest = f'{x.app:016X}-work/{pack.name}'
-        for i, k in enumerate(('end.next1', 'end.next2', 'end.next3')): out.append((T(k, pack, holder, dest), 0))
+        for i, k in enumerate(('end.next1', 'end.next2', 'end.next3')): out.append((T(k, pack, holder, dest, *menu_marks(encoding)), 0))
         out.append((T('end.same_name', holder), DIM))
     elif o.kind == 'stopped':
         out += [(T('end.stopped'), YELLOW | BOLD), ('', 0), (T('end.resume'), 0), (T('end.took', model.duration(o.took)), 0), (T('end.log', o.log), DIM)]
@@ -608,7 +614,8 @@ def no_permission(lines):
 def draw_end(sc, o, scroll=0):
     """The end's lines from line scroll on (→ the scroll used: at most what still fills the screen)"""
     title(sc, T('where.end'))
-    lines = [(l, st) for t, st in end_lines(o) for l in (scr.wrap(t, sc.w - 4) if t else [''])]
+    enc = (getattr(sys.stdout, 'encoding', None) or 'ascii') if sc.g.unicode else 'ascii'
+    lines = [(l, st) for t, st in end_lines(o, enc) for l in (scr.wrap(t, sc.w - 4) if t else [''])]
     rows = sc.h - 3
     scroll = max(0, min(scroll, len(lines) - rows))
     for i, (l, st) in enumerate(lines[scroll:scroll + rows]): sc.put(2, 2 + i, l, st)
@@ -731,7 +738,7 @@ def plain_run_on(ui, plan, proc, live, log):
 
 def plain_end(ui, o):
     ui.say('')
-    for t, _ in end_lines(o): ui.say(t)
+    for t, _ in end_lines(o, getattr(ui.out, 'encoding', None) or 'ascii'): ui.say(t)
 
 
 # ---- the flow
@@ -834,7 +841,7 @@ def main(a):
                 o = app.full(Full(t, g, color))
             finally: t.restore()
             if o is not None:
-                for line, _ in end_lines(o): print(line)
+                for line, _ in end_lines(o, getattr(sys.stdout, 'encoding', None) or 'ascii'): print(line)
     except Quit as q:
         print(T('app.quit'))
         return q.code

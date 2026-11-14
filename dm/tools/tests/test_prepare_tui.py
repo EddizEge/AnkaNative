@@ -211,7 +211,7 @@ class Drawing(unittest.TestCase):
                         self.assertEqual(txt.count('pip install'), 1); self.assertIn('Fixed by the same steps as above.', txt)
                         self.assertIn('bin/python3)', txt)   # the long value whole, on more lines
                     if name == 'run':
-                        self.assertIn('12,034 of 42,854 shaders', txt); self.assertIn('Log:', txt); self.assertIn('1 warning lines', txt)
+                        self.assertIn('12,034 of 42,854 shaders', txt); self.assertIn('Log:', txt); self.assertIn('1 warning line (in the log)', txt)
                         self.assertIn('Build the shader library', txt)
                     if name == 'confirm' and w >= 80: self.assertIn('The Legend of Zelda: Ocarina of Time (0400486024DEC000)', txt); self.assertIn('Kept', txt)
                     if name == 'confirm-short': self.assertIn('Not enough free space', txt)
@@ -292,9 +292,9 @@ class Drawing(unittest.TestCase):
             pick.msg, pick.msg_style = '', 0
             sc = scr.Screen(80, 24); app.draw_pick(sc, pick)
             txt = sc.text()
-            rows = [l for l in txt.split('\n') if '0.0 GB' in l]
+            rows = [l for l in txt.split('\n') if '0 MB' in l]
             self.assertEqual(len(rows), len(names_), txt)
-            self.assertEqual({scr.width(l[:l.index('0.0 GB')]) for l in rows}, {scr.width(rows[-1][:rows[-1].index('0.0 GB')])}, txt)   # one column for every size
+            self.assertEqual({scr.width(l[:l.index('0 MB')]) for l in rows}, {scr.width(rows[-1][:rows[-1].index('0 MB')])}, txt)   # one column for every size
             self.assertIn('Pokémon.nup', unicodedata.normalize('NFC', txt))
             out = scr.render(sc, None, True)
             self.assertNotIn('\x9b', out); self.assertIn('csi-?31m-red', txt)
@@ -440,6 +440,18 @@ class Output(unittest.TestCase):
         self.assertIsNone(lv.rate(1016))
         for t in range(1020, 1061, 5): lv.feed(t, f'progress {(t - 1000) * 20} 42854 translate')
         self.assertAlmostEqual(lv.rate(1060), (1200 - 0) / 60, places=3)
+
+    def test_words(self):
+        """Plurals, sizes under a gigabyte, hours and minutes, and the phone's steps with the app's own menu marks where the output can write them"""
+        self.assertEqual(model.gb(40_000_000), '40 MB'); self.assertEqual(model.gb(5_400_000_000), '5.4 GB')
+        self.assertTrue(model.eta_words(65, now=0).startswith('About 1 hour 5 minutes left')); self.assertTrue(model.eta_words(130, now=0).startswith('About 2 hours 10 minutes'))
+        p = FakePlan()
+        lv, _ = live_at(p, RUN_LINES + ['progress 42854 42854 done', 'step pack', 'done: /games/pack (1.0 MiB)'])
+        o = app.Outcome('done', lv, p, 0, 100.0, Path('/x.log'))
+        utf = '\n'.join(t for t, _ in app.end_lines(o, 'utf-8')); asc = '\n'.join(t for t, _ in app.end_lines(o, 'ascii'))
+        self.assertIn('1 warning line: see the log', utf)
+        self.assertIn('⋯ › Import pack… › A pack folder', utf); self.assertIn('... > Import pack... > A pack folder', asc)
+        self.assertTrue(all(ord(c) < 128 for c in asc))
 
     def test_plain_confirm_has_no_keys(self):
         p = FakePlan()
@@ -968,7 +980,7 @@ class EndToEnd(unittest.TestCase):
         r = subprocess.run([sys.executable, str(self.d / 'run.py'), str(self.game), '--plain', '--yes', *self.args], env=self.no_compiler(), capture_output=True,
                            text=True, encoding='utf-8', timeout=120)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn('[missing] ZBIC decoder (C compiler): not built yet, and no C compiler', r.stdout)
+        self.assertIn('[missing] Game code decoder (C compiler): not built yet, and no C compiler', r.stdout)
         self.assertIn('Install a C compiler', r.stdout); self.assertIn('1 missing', r.stdout)
         self.assertNotIn('Reading', r.stdout); self.assertFalse((self.d / 'out').exists())
 

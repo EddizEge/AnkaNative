@@ -249,7 +249,9 @@ class Lock:
         return True
 
 
-def gb(n): return f'{n / 1e9:.1f} GB'
+def gb(n):
+    """Bytes as '5.4 GB', or under a gigabyte as '40 MB' ('0.0 GB' said nothing on a nearly full drive)"""
+    return f'{n / 1e9:.1f} GB' if n >= 1e9 else f'{n / 1e6:.0f} MB'
 
 
 def duration(s):
@@ -277,7 +279,7 @@ def eta_words(minutes, now=None, guess=False):
     elif minutes < 60: left = plural(minutes, 'eta.minute', 'eta.minutes')
     else:
         h, m = divmod(minutes, 60)
-        left = plural(h, 'eta.hour', 'eta.hours') if m == 0 else T('eta.hours_minutes', plural(h, 'eta.hour', 'eta.hours'), m)
+        left = plural(h, 'eta.hour', 'eta.hours') if m == 0 else T('eta.hour_minutes' if h == 1 else 'eta.hours_minutes', h, m)
     return T('eta.line_guess' if guess else 'eta.line', left, clock)
 
 
