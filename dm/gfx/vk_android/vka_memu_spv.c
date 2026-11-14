@@ -309,9 +309,21 @@ static void fn_endif(fn_t *f, uint32_t mg) { INS(f->F, OpBranch, mg); INS(f->F, 
 // constant), becomes straight code: each branch's pure instructions run unconditionally, and for each variable stored, one if (the OR of the conditions of the branches
 // that store it) does one store, its last index and its value selected by those conditions. The same stores run with the same values as before: a branch is taken only
 // when its condition holds, and then it is the only one. Only branches of pure instructions (arithmetic, conversions, comparisons, access chains, loads of Private,
-// Function, Input, push constant or uniform memory) and stores into StorageBuffer or Workgroup variables are taken, the headers after the first pure too, with no OpPhi
+// Function, Input, push constant or uniform memory through constant indices only: load_hoistable) and stores into StorageBuffer or Workgroup variables are taken, the headers after the first pure too, with no OpPhi
 // at the merges; anything else is left as it is. → the words (malloc), or NULL with *nflat 0 when nothing changed
 typedef struct { size_t at; uint32_t op, len; } lins_t;
+// Whether a load through pointer p may run where its guard did not hold: every index of every access chain it is made of is an OpConstant. Robustness is off
+// (vka_dev.c), so a load at a run-time index that the guard was keeping in bounds ("if (i < n) { v = a[i]; ... }") would read out of bounds once hoisted
+static int load_hoistable(const uint32_t *w, const size_t *def, uint32_t bound, uint32_t p) {
+    for (int g = 0; g < 16; g++) {
+        uint32_t op = p < bound && def[p] ? w[def[p]] & 0xffff : 0;
+        if (op != OpAccessChain && op != OpInBoundsAccessChain) return 1;
+        const uint32_t *c = w + def[p]; uint32_t len = c[0] >> 16;
+        for (uint32_t q = 4; q < len; q++) if (!(c[q] < bound && def[c[q]] && (w[def[c[q]]] & 0xffff) == OpConstant)) return 0;
+        p = c[3];
+    }
+    return 0;   // (a chain deeper than the walk: not known)
+}
 static int lad_pure(uint32_t op) { return op == OpExtInst || op == OpAccessChain || op == OpInBoundsAccessChain || op == OpCompositeConstruct || op == OpCompositeExtract || op == 83 || (op >= 109 && op <= 205); }
 uint32_t *vka_memu_ladders(const uint32_t *w, size_t n, size_t *on, int *nflat) {
     *nflat = 0; *on = 0;
@@ -358,7 +370,8 @@ uint32_t *vka_memu_ladders(const uint32_t *w, size_t n, size_t *on, int *nflat) 
             if (nr) for (size_t q = h + 1; q < e - 2 && ok; q++) {   // a later header: pure only (it runs before the stores now)
                 uint32_t op = I[q].op;
                 if (op == 245) ok = 0;   // (OpPhi)
-                else if (op == OpLoad) { uint32_t sc; BASE_SC(w[I[q].at + 3], sc); ok = I[q].len == 4 && (sc == SCPrivate || sc == SCFunction || sc == SCInput || sc == SCPushConstant || sc == 2 || sc == SCUniformConstant); }
+                else if (op == OpLoad) { uint32_t sc; BASE_SC(w[I[q].at + 3], sc); ok = I[q].len == 4 && (sc == SCPrivate || sc == SCFunction || sc == SCInput || sc == SCPushConstant || sc == 2 || sc == SCUniformConstant)
+                                                                    && load_hoistable(w, def, bound, w[I[q].at + 3]); }
                 else ok = lad_pure(op);
             }
             if (!ok) break;
@@ -372,7 +385,8 @@ uint32_t *vka_memu_ladders(const uint32_t *w, size_t n, size_t *on, int *nflat) 
                     const uint32_t *s = w + I[q].at; uint32_t sc; BASE_SC(s[1], sc);
                     if (I[q].len != 3 || (sc != SCStorageBuffer && sc != SCWorkgroup) || (DOP(s[1]) != OpAccessChain && DOP(s[1]) != OpInBoundsAccessChain) || ns == MAXS) ok = 0;
                     else R[nr].st[ns++] = (uint32_t)q;
-                } else if (op == OpLoad) { uint32_t sc; BASE_SC(w[I[q].at + 3], sc); ok = I[q].len == 4 && (sc == SCPrivate || sc == SCFunction || sc == SCInput || sc == SCPushConstant || sc == 2 || sc == SCUniformConstant); }
+                } else if (op == OpLoad) { uint32_t sc; BASE_SC(w[I[q].at + 3], sc); ok = I[q].len == 4 && (sc == SCPrivate || sc == SCFunction || sc == SCInput || sc == SCPushConstant || sc == 2 || sc == SCUniformConstant)
+                                                                           && load_hoistable(w, def, bound, w[I[q].at + 3]); }
                 else ok = lad_pure(op);
             }
             if (!ok || !ns) break;
@@ -472,6 +486,8 @@ static uint32_t *nest_once(const uint32_t *w, size_t n, size_t *on) {
     #define LOAD_OK(q) ({ uint32_t p_ = w[I[q].at + 3]; for (int g_ = 0; g_ < 16 && (DOP(p_) == OpAccessChain || DOP(p_) == OpInBoundsAccessChain); g_++) p_ = DW(p_)[3]; \
                           uint32_t sc_ = DOP(p_) == OpVariable ? DW(p_)[3] : 0xffffffffu; \
                           I[q].len == 4 && (sc_ == SCPrivate || sc_ == SCFunction || sc_ == SCInput || sc_ == SCPushConstant || sc_ == 2 || sc_ == SCUniformConstant); })
+    // (a load in the guard's own body runs before the guard's condition is known once folded: load_hoistable; one in an inner if stays under both conditions)
+    #define HOIST_OK(q) (LOAD_OK(q) && load_hoistable(w, def, bound, w[I[q].at + 3]))
     #define STORE_OK(q) ({ uint32_t p_ = w[I[q].at + 1]; for (int g_ = 0; g_ < 16 && (DOP(p_) == OpAccessChain || DOP(p_) == OpInBoundsAccessChain); g_++) p_ = DW(p_)[3]; \
                            uint32_t sc_ = DOP(p_) == OpVariable ? DW(p_)[3] : 0xffffffffu; I[q].len == 3 && (sc_ == SCStorageBuffer || sc_ == SCWorkgroup); })
     // The candidate with the most deeply nested start that matches: scan every header, keep the last match (an inner if comes after its guard's header)
@@ -482,7 +498,7 @@ static uint32_t *nest_once(const uint32_t *w, size_t n, size_t *on) {
         if (w[I[h + 1].at + 3] != M || I[h + 2].op != OpLabel || w[I[h + 2].at + 1] != T) continue;
         size_t q = h + 3; int inner = 0, ok = 1;
         for (;;) {
-            while (q < ni && ok && I[q].op != OpSelectionMerge && I[q].op != OpBranch) { ok = I[q].op == OpLoad ? LOAD_OK(q) : lad_pure(I[q].op); q++; }
+            while (q < ni && ok && I[q].op != OpSelectionMerge && I[q].op != OpBranch) { ok = I[q].op == OpLoad ? HOIST_OK(q) : lad_pure(I[q].op); q++; }
             if (!ok || q >= ni) { ok = 0; break; }
             if (I[q].op == OpBranch) { ok = w[I[q].at + 1] == M && q + 1 < ni && I[q + 1].op == OpLabel && w[I[q + 1].at + 1] == M && !(q + 2 < ni && I[q + 2].op == 245); break; }
             // an inner if without else: its branch only pure code and stores
@@ -518,6 +534,7 @@ static uint32_t *nest_once(const uint32_t *w, size_t n, size_t *on) {
     #undef DOP
     #undef DW
     #undef LOAD_OK
+    #undef HOIST_OK
     #undef STORE_OK
     if (O.oom) goto done;
     out = malloc((5 + O.n) * 4);

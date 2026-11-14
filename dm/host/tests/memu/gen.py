@@ -4,7 +4,7 @@
 import os, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FIXTURES = [('mesh_tri', 'MEMU_MESH_TRI'), ('mesh_pts', 'MEMU_MESH_PTS'), ('task', 'MEMU_TASK'), ('fs_prim', 'MEMU_FS_PRIM'), ('mesh_plane', 'MEMU_MESH_PLANE')]
+FIXTURES = [('mesh_tri', 'MEMU_MESH_TRI'), ('mesh_pts', 'MEMU_MESH_PTS'), ('task', 'MEMU_TASK'), ('fs_prim', 'MEMU_FS_PRIM'), ('mesh_plane', 'MEMU_MESH_PLANE'), ('mesh_plane_dyn', 'MEMU_MESH_PLANE_DYN')]
 
 
 def main():

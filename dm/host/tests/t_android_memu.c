@@ -33,6 +33,32 @@ static int count_dec(const uint32_t *w, size_t n, uint32_t dec) { int k = 0; for
 static int count_var(const uint32_t *w, size_t n, uint32_t sc) { int k = 0; for (size_t i = 5; i < n; i += w[i] >> 16) { if (!(w[i] >> 16)) break; k += (w[i] & 0xffff) == 59 && (w[i] >> 16) >= 4 && w[i + 3] == sc; } return k; }
 static uint32_t model_of(const uint32_t *w, size_t n) { for (size_t i = 5; i < n; i += w[i] >> 16) { if (!(w[i] >> 16)) break; if ((w[i] & 0xffff) == 15) return w[i + 1]; } return ~0u; }
 
+// The condition of the selection whose true branch is the block holding the first OpLoad through an access chain of a Private variable with a run-time index: its
+// defining opcode (0 = the load is in no such block: in a function's first block, a merge, or code made straight)
+static uint32_t private_load_guard(const uint32_t *w, size_t n) {
+    uint32_t bound = w[3]; size_t *def = calloc(bound, sizeof *def); uint32_t lab = 0, at = 0, op = 0;
+    if (!def) return 0;
+    for (size_t i = 5; i < n; i += w[i] >> 16) { if (!(w[i] >> 16)) break; uint32_t o = w[i] & 0xffff, len = w[i] >> 16;
+        if ((o == 43 || o == 65 || o == 66 || o == 59 || o == 170 || o == 167 || o == 176) && len >= 3 && w[i + 2] < bound) def[w[i + 2]] = i; }
+    for (size_t i = 5; i < n && !at; i += w[i] >> 16) {
+        if (!(w[i] >> 16)) break;
+        uint32_t o = w[i] & 0xffff;
+        if (o == 248) lab = w[i + 1];   // OpLabel
+        if (o == 61) { uint32_t p = w[i + 3]; int dyn = 0;
+            while (p < bound && def[p] && ((w[def[p]] & 0xffff) == 65 || (w[def[p]] & 0xffff) == 66)) {
+                for (uint32_t q = 4; q < (w[def[p]] >> 16); q++) { uint32_t x = w[def[p] + q]; dyn |= !(x < bound && def[x] && (w[def[x]] & 0xffff) == 43); }
+                p = w[def[p] + 3];
+            }
+            if (dyn && p < bound && def[p] && (w[def[p]] & 0xffff) == 59 && w[def[p] + 3] == 6) at = lab; }
+    }
+    for (size_t i = 5; i < n && at; i += w[i] >> 16) {
+        if (!(w[i] >> 16)) break;
+        if ((w[i] & 0xffff) == 250 && w[i + 2] == at) { uint32_t c = w[i + 1]; op = c < bound && def[c] ? w[def[c]] & 0xffff : 0xffff; break; }
+    }
+    free(def);
+    return op;
+}
+
 // A task or mesh module as the replay makes it (vka_shader.c memu_cs_words): its specialization constants folded (GL depth gl), then converted
 static const char *g_out;
 static void dump(const char *tag, const char *kind, const uint32_t *w, size_t n) {
@@ -138,6 +164,14 @@ int main(void) {
         CHECK(o && count_op(o, n, 247) == 3, "plane helper: 3 selections left of 11 (%d)", o ? count_op(o, n, 247) : -1);
         CHECK(o && count_op(o, n, 62) == 4 + 1 + 3, "plane helper: one arena store, one workgroup store, the index store's 3 words and the entry's (%d stores)", o ? count_op(o, n, 62) : -1);
         CHECK(o && count_op(o, n, 167) == 4, "the guards folded into both stores' conditions (%d OpLogicalAnd)", o ? count_op(o, n, 167) : -1);
+        free(o);
+        // the same with plane 1's value read through a run-time index that its guard keeps in bounds: that load is not hoisted out of its guards (robustness is off)
+        vka_memu_layout Ld; CHECK(vka_memu_layout_of(MEMU_MESH_PLANE_DYN, sizeof MEMU_MESH_PLANE_DYN / 4, &Ld, err, sizeof err), "plane mesh (run-time index) layout (%s)", err);
+        convert(MEMU_MESH_PLANE_DYN, sizeof MEMU_MESH_PLANE_DYN / 4, 0, "mesh_plane_dyn", &Ld);
+        o = vka_memu_cs(MEMU_MESH_PLANE_DYN, sizeof MEMU_MESH_PLANE_DYN / 4, &n, err, sizeof err);
+        uint32_t gop = o ? private_load_guard(o, n) : 0;
+        CHECK(gop == 170 || gop == 167, "the load at a run-time index stays under its plane's condition (OpIEqual, or OpLogicalAnd with the guards), not hoisted (%u)", gop);
+        CHECK(o && count_op(o, n, 247) > 3, "and its rung is not made straight (%d selections)", o ? count_op(o, n, 247) : -1);
         free(o);
         size_t ln = 0; int nl = 0; uint32_t *x = vka_memu_ladders(MEMU_MESH_TRI, sizeof MEMU_MESH_TRI / 4, &ln, &nl);
         CHECK(!x && !nl, "a module without a ladder is left as it is");
