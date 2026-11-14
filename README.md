@@ -83,9 +83,10 @@ the game's card says Ready; tap **Play**. If anything fails, the card says why a
 
 **On a computer** (Windows, Linux or Mac):
 
-1. **Prepare the game on a computer**, once: make the environment and run `scripts/pack_android.py` on your dump, as
-   [android/README.md](android/README.md#the-environment) describes ([Pack a game](android/README.md#pack-a-game)). It rewrites the
-   game's code for Android and translates its shaders for Vulkan into a pack (`<title ID>-work/android-pack`, next to the dump).
+1. **Prepare the game on a computer**, once: make the environment as [android/README.md](android/README.md#the-environment) describes,
+   then run `scripts/prepare.py` with its Python: a terminal interface that checks what is needed, lets you pick the dump or the `.nup`, and
+   shows the progress and the time left ([Pack a game](android/README.md#pack-a-game); `scripts/pack_android.py` is the packer it runs). It
+   rewrites the game's code for Android and translates its shaders for Vulkan into a pack (`<title ID>-work/android-pack`, next to the dump).
    Ocarina of Time has about 42,000 shaders: this takes a long time and needs .NET and several GB of free disk.
 2. Copy the dump (or the `.nup`) to the phone, for example to `Switch2/`, and the pack next to it as
    `Switch2/<title ID>-work/android-pack`. The pack is made from your dump for your phone: never share it.

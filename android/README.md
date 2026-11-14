@@ -52,11 +52,53 @@ asks of git: a copy cloned on Windows before that rule, or downloaded as a zip a
 
 ## Pack a game
 
+Start the terminal interface with the environment's Python, from the repository's folder:
+
+```sh
+<dump folder>/.venv-anka/bin/python scripts/prepare.py [<game folder or .nup>]
+```
+
+On Windows (Windows Terminal, PowerShell or cmd.exe): `D:\Switch2\.venv-anka\Scripts\python scripts\prepare.py`.
+
+It needs nothing beyond that Python (the standard library; `dm/tools/prepare_tui`) and leads through five screens:
+
+1. **Check**: Python 3.14, Capstone 5, lz4, zbic, the .NET 10 runtime (and that the committed translator starts and is the one `dmsh_chain.lock` names),
+   `spirv-val` and this copy's line ends, each found or missing with the commands that fix it on this system (the ones above). A missing one stops here.
+2. **Pick the game**: a file browser of folders, `.nup` files and dump folders (arrows, PgUp / PgDn, Home / End, Enter opens a folder or picks a game,
+   Backspace or Left goes up, typing filters the list, Ctrl+L or `/` types or pastes a full path with Tab completion, Tab moves to the places: the home
+   folder, recently used folders, the drives on Windows, mounted volumes elsewhere). The pick is checked with the packer's own code
+   (`pack_android.identify`): title ID, name, version, a profile in this tree; when it cannot be packed, the packer's error in plain words. The last folder and
+   the recent ones are kept in `anka-native/prepare.json` in the user's config folder (`%APPDATA%`, `~/Library/Application Support`, `$XDG_CONFIG_HOME` or
+   `~/.config`).
+3. **Confirm**: the game and version (`v` for another), the pack folder (`o` to change), the shaders translated at once (`+` / `-`; the default is one per
+   CPU thread, fewer when the free memory is short), the disk space the run needs against what is free, what an earlier run left that is kept, and a first
+   guess of the time.
+4. **Prepare**: `pack_android.py` runs as a child process. The steps with the current one marked, a bar for the step and one for the whole job, the shaders
+   done and the rate, the time elapsed and left with the clock time it should be done ("About 12 minutes left, done around 21:40"; nothing is shown until
+   the speed is measured), the last lines and the warnings. The whole output goes to `<pack folder>/../prepare-logs/prepare-<time>.log`. `q` or Ctrl+C asks,
+   then stops the packer and its workers cleanly; starting again goes on from what was finished. Closing the window stops them too.
+5. **End**: where the pack is, its size and the time it took, and the steps on the phone; or the failure in plain words ([error codes](#error-codes)), its
+   last lines and the log.
+
+When the input or output is not a terminal, `TERM` is `dumb`, the console takes no escape sequences, or with `--plain`, it asks the same questions and prints
+the progress as lines (`--yes` starts without asking; the game is then given on the command line). `NO_COLOR` or `--no-color` turns the colours off,
+`--ascii` draws with ASCII characters (the default when the console's encoding cannot print the others). `--out`, `--version`, `-J`, `--shader-cache` and
+`--shader-pkg` are the packer's. Exit code: 0 the pack is ready, 1 it failed or something is missing, 2 left before a run, 3 stopped. The time left follows the
+phone's Prepare estimate (running time only, the rate over a recent window, smoothed, vertex shaders weighted), ported in `prepare_tui/eta.py` with this
+computer's steps and figures. Ocarina of Time from its `.nup` took 26 minutes from nothing on a 12-thread Linux PC with 11 workers (other builds running beside it), and its
+library was byte for byte the one the phone's tools build.
+Tests: `dm/tools/tests/test_prepare_tui.py`, in `prepare-pc.yml` on Windows and Linux and in `tests.yml` on the Mac; its pseudo-terminal runs need POSIX, so on
+Windows only the console's key decoding is tested, not its console modes, and the interface has not been run by hand on Windows or the Mac yet.
+
+The packer itself, for scripts and the options the interface does not show:
+
 ```sh
 <dump folder>/.venv-anka/bin/python scripts/pack_android.py <dump folder>/<game folder or .nup>
 ```
 
-On Windows: `D:\Switch2\.venv-anka\Scripts\python scripts\pack_android.py "D:\Switch2\<game>.nup"`.
+On Windows: `D:\Switch2\.venv-anka\Scripts\python scripts\pack_android.py "D:\Switch2\<game>.nup"`. It prints `step <name>` as each step starts (identify,
+rewrite, split, shaders, pack) and the tools' `progress` lines in the three spellings the phone reads with one pattern (`pack_android.py`'s header); the
+interface reads the same lines.
 
 The game folder has the layout `scripts/pack_dump.py` reads (`base/exefs`, `base/romfs`, `updates/<version>/`, `dlc/<DLC title ID>/<n>/romfs`), and the game needs a profile in `dm/games`. The packer rewrites the profile's modules of the newest version (`--version N` for another) with `patch_nso.py --target android` into `<game folder>/../<title ID>-work/android-pack/` (`--out` for another folder) and leaves the RomFS out. A repeat run keeps the modules whose inputs did not change.
 

@@ -1,7 +1,8 @@
 # Preparing a game on a computer (android/README.md) on Windows and Linux, without game files: the checkout has LF line ends (.gitattributes), so the
 # shader chain versions are the committed ones; the translator launcher for each system starts the committed dmsh_xlate.dll and reports the source the lock
-# names; text files the tools write on Windows have LF line ends (scripts/lf_newlines.py); and the packer's unit tests pass. The Mac runs the same tools
-# with its own apphost (tests.yml).
+# names; text files the tools write on Windows have LF line ends (scripts/lf_newlines.py); and the packer's unit tests pass, with those of scripts/prepare.py's
+# terminal interface (test_prepare_tui.py: on Windows all but the pseudo-terminal runs and the plain mode's Ctrl+C, which are POSIX). The Mac runs the same tools
+# with its own apphost, and these tests with the others (tests.yml).
 name: prepare-pc
 
 on:
@@ -79,7 +80,7 @@ jobs:
           python -c "import sys; a = open('lf_a.txt', 'rb').read(); b = open('lf_b.txt', 'rb').read(); print(a, b); sys.exit(a != b'a\nb\n' or b != b'c\n')"
       - name: Packer unit tests
         run: |
-          for t in dm/tools/tests/test_pack_android.py dm/tools/tests/test_split_*.py; do
+          for t in dm/tools/tests/test_pack_android.py dm/tools/tests/test_split_*.py dm/tools/tests/test_prepare_tui.py; do
             echo "== $t"
             if python -m unittest "$t" > test.log 2>&1; then tail -2 test.log; else cat test.log; fails="$fails $t"; fi
           done
