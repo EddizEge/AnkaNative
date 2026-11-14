@@ -5,8 +5,8 @@
     <string name="game_panel_open_description">Oyun içi paneli aç</string>
     <string name="game_paused">Duraklatıldı\n\nDevam etmek için dokun  (oyun kumandasında A ya da Start)</string>
     <string name="game_stopped_in_background">Oyun arka plandayken durduruldu (Android işlemini sonlandırdı). Kaydedilmemiş ilerleme kayboldu; oyunu başlatıcıdan yeniden başlat.</string>
-    <string name="game_intro_skip_on">Girişi atla açık: oynanışa kadar A tuşuna basılıyor ve videolar bitiriliyor</string>
-    <string name="game_intro_skip_off">Girişi atla kapalı</string>
+    <string name="game_intro_skip_on">Giriş atlama açık: oynanışa kadar A tuşuna basılıyor ve videolar bitiriliyor</string>
+    <string name="game_intro_skip_off">Giriş atlama kapalı</string>
     <string name="game_save_unfinished_restore">Kayıt klasöründe tamamlanamayan yarım bir geri yükleme var: %1$s</string>
     <string name="game_test_save_cannot_create">test kayıt klasörü oluşturulamıyor: %1$s</string>
     <string name="game_cannot_create">%1$s oluşturulamıyor</string>
@@ -49,7 +49,7 @@
     <string name="game_panel_intro">Oyun bu panelin arkasında çalışmaya devam eder; her değişiklik hemen uygulanır ve saklanır.</string>
     <string name="game_panel_cap_head">Kare hızı sınırı</string>
     <string name="game_panel_cap_own">Oyunun kendi hızı</string>
-    <string name="game_panel_overlay_head">Ekran bilgisi</string>
+    <string name="game_panel_overlay_head">Performans göstergesi</string>
     <string name="game_panel_controls_head">Ekran kontrolleri</string>
     <string name="game_panel_skip_head">Girişi atla (hata ayıklama)</string>
     <string name="game_panel_skip_note">Oynanışa kadar birkaç karede bir A tuşuna basar ve videoları erken bitirir, sonra kendiliğinden durur. Oyunda: − ve + tuşlarını birlikte 1 sn basılı tut.</string>
@@ -61,7 +61,7 @@
     <string name="game_panel_stop_title">Oyun durdurulsun mu?</string>
     <string name="game_panel_stop_message">Oyun kapanır; kaydedilmemiş ilerleme kaybolur. Günlük saklanır; %1$s ile gönderebilirsin.</string>
     <string name="game_panel_stop_confirm">Durdur</string>
-    <string name="game_panel_keep_running">Çalışmaya devam etsin</string>
+    <string name="game_panel_keep_running">Devam etsin</string>
     <string name="game_panel_back">Oyuna dön</string>
     <string name="game_panel_no_cap">Bu derlemede kare hızı sınırı yok.</string>
     <string name="game_panel_starting">Başlatılıyor…</string>
@@ -92,12 +92,12 @@
 
     <!-- Overlay -->
     <string name="game_overlay_item_fps">Kare hızı ve kare süresi</string>
-    <string name="game_overlay_item_throttle">Kısılma noktası (yeşil / sarı / kırmızı)</string>
+    <string name="game_overlay_item_throttle">Kısıtlama göstergesi (yeşil / sarı / kırmızı)</string>
     <string name="game_overlay_item_gpu">Kare başına GPU süresi</string>
     <string name="game_overlay_item_cpu">CPU saat hızı sınırları</string>
     <string name="game_overlay_item_battery">Pil sıcaklığı ve seviyesi</string>
     <string name="game_overlay_item_memory">Bellek: oyunun ve telefonun</string>
-    <string name="game_overlay_master">Ekran bilgisini oyunun üzerinde göster</string>
+    <string name="game_overlay_master">Performans göstergesini oyunun üzerinde göster</string>
     <string name="game_overlay_cpu_unknown">CPU sınırı ?</string>
     <string name="game_overlay_no_lsfg">LSFG yok</string>
     <string name="game_overlay_battery">%1$.0f°C %%%2$d</string>
@@ -124,7 +124,7 @@
     <string name="game_lsfg_fixed">Sabit</string>
     <string name="game_lsfg_flow">Hareket tahmini çözünürlüğü (düşük olan daha hızlı; %1$s = oyunun kendi değeri)</string>
     <string name="game_lsfg_auto">Otomatik</string>
-    <string name="game_lsfg_mode">Mod: performans (Eden LSFG uygulamasının kullandığı tek shader seti)</string>
+    <string name="game_lsfg_mode">Mod: performans (Eden\'deki LSFG\'nin kullandığı tek shader seti)</string>
     <string name="game_lsfg_from">Lossless.dll kaynağı: %1$s</string>
     <string name="game_lsfg_not_copied">Lossless.dll kopyalanamadı (%1$s): %2$s</string>
     <string name="game_lsfg_earlier">Lossless.dll: daha önce seçilen kopya</string>
