@@ -21,6 +21,19 @@
     <string name="prepare_card_update">Actualización %1$s</string>
     <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
     <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
+    <string name="prepare_eta_less">Queda menos de un minuto</string>
+    <plurals name="prepare_eta_minutes">
+        <item quantity="one">Queda alrededor de %1$d minuto</item>
+        <item quantity="other">Quedan unos %1$d minutos</item>
+    </plurals>
+    <plurals name="prepare_eta_hours">
+        <item quantity="one">Queda alrededor de %1$d hora</item>
+        <item quantity="other">Quedan unas %1$d horas</item>
+    </plurals>
+    <plurals name="prepare_eta_hours_minutes">
+        <item quantity="one">Quedan alrededor de %1$d hora y %2$d minutos</item>
+        <item quantity="other">Quedan unas %1$d horas y %2$d minutos</item>
+    </plurals>
     <string name="prepare_button_pause">Pausar</string>
     <string name="prepare_button_prepare_again">Volver a preparar</string>
     <string name="prepare_button_retry">Reintentar</string>

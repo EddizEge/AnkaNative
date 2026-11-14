@@ -193,6 +193,9 @@ final class ShaderLibs {
      */
     static int[] minutes(int n) { return minutes(n, null); }
 
+    /** A shader's translation on the phone, seconds: {@link #minutes}' range; the high end is also the live estimate's figure before it has measured any (Eta, PackService) */
+    static final double SHADER_S_LO = 0.045, SHADER_S_HI = 0.080;
+
     /**
      * As {@link #minutes}, with the game's own split time (split: {lo, hi} minutes, game.tsv android_split_minutes, Profile.split; null: the 4-8 minutes above). A whole
      * split is most of a small update's time (Ocarina of Time: about 35 minutes on the POCO F8 Pro); an update's own split (Profile.updateSplit) reads only the files
@@ -200,7 +203,7 @@ final class ShaderLibs {
      */
     static int[] minutes(int n, int[] split) {
         int sl = split != null ? split[0] : 4, sh = split != null ? split[1] : 8;
-        int lo = sl + 1 + (int) Math.round(n * 0.045 / 60), hi = sh + 1 + (int) Math.ceil(n * 0.080 / 60);
+        int lo = sl + 1 + (int) Math.round(n * SHADER_S_LO / 60), hi = sh + 1 + (int) Math.ceil(n * SHADER_S_HI / 60);
         return new int[] {lo, Math.max(hi, lo + 1)};
     }
 

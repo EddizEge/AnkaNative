@@ -156,6 +156,8 @@ final class Ondevice {
         long resumedAt;
         Job job;
         boolean jobAlive;   // the service said its worker runs this job
+        /** The minutes the running job has left, as the service last sent them (PackService "eta_min", Eta), -1 for none: an older service sends none */
+        int etaMin = -1;
 
         Panel(MainActivity a) {
             this.a = a;
@@ -254,6 +256,7 @@ final class Ondevice {
         @Override public void onServiceDisconnected(ComponentName n) {   // the :pack process died
             service = null;
             jobAlive = false;
+            etaMin = -1;
             show();
         }
 
@@ -270,6 +273,7 @@ final class Ondevice {
             Job j = Job.of(new File(d.getString("file", "")), d.getString("job", "{}"));
             if (j != null) job = j;
             jobAlive = d.getBoolean("alive");
+            etaMin = d.getInt("eta_min", -1);
             show();
             return true;
         }
@@ -293,7 +297,10 @@ final class Ondevice {
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
             status.setText(job.statusMsg(alive).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
-            detail.setText(a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal()));
+            String progress = a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal());
+            // the time left (Eta) under it, only while the service's worker runs the job and has an estimate: none while paused, waiting or stopped
+            boolean left = jobAlive && service != null && "running".equals(st) && etaMin >= 0;
+            detail.setText(left ? a.getString(R.string.prepare_card_progress_eta, progress, Eta.text(etaMin).text()) : progress);
             boolean running = alive && ("running".equals(st) || "paused".equals(st) && !"user".equals(job.reason()) && !"timeout".equals(job.reason()));
             goPauses = running;
             go.setText(running ? R.string.prepare_button_pause : "done".equals(st) && !job.apkChanged() ? R.string.prepare_button_prepare_again

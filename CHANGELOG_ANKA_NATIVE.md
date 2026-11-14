@@ -7,6 +7,12 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 
 ## Unreleased
 
+- **Prepare says how long it has left.** While a game is being prepared on the phone, the Preparing card (under its progress line) and the notification
+  (first, before the step) show the time the whole job has left: "About 45 minutes left", "About 1 hour 15 minutes left", "Less than a minute left". It
+  follows the last minutes' speed, so it keeps up when a hot phone slows down, counts only the time the job runs (not a pause or a wait for the battery or
+  the heat), and stays quiet when it has nothing to go on: during the dump check, the code rewrite and the start of the shader scan, while paused, and when
+  progress stops. Replayed on three full Ocarina of Time Prepares measured on a POCO F8 Pro, it was about 7-16 % off on average, at times up to about 30 %
+  (more in the last few minutes). Not yet seen on a phone.
 - **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
   cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
   faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped

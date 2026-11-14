@@ -30,6 +30,23 @@
     <!-- a test build's simulated engine; %1$s: the line above. \u0020: the two spaces stay (aapt2 joins runs of spaces) -->
     <string name="prepare_card_simulated">%1$s\u0020\u0020(simulated engine)</string>
     <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d of %3$,d</string>
+    <!-- Ondevice: the progress line and under it the time the running job has left (Eta.text, prepare_eta_*) -->
+    <string name="prepare_card_progress_eta">%1$s\n%2$s</string>
+    <!-- Eta.text: the time a running job has left, rounded: whole minutes under 20, then to 5 minutes, hours and minutes from an hour. %1$d: the minutes, or the
+         hours; prepare_eta_hours_minutes picks its item by the hours, and its %2$d (the minutes) is always 5-55 -->
+    <string name="prepare_eta_less">Less than a minute left</string>
+    <plurals name="prepare_eta_minutes">
+        <item quantity="one">About %1$d minute left</item>
+        <item quantity="other">About %1$d minutes left</item>
+    </plurals>
+    <plurals name="prepare_eta_hours">
+        <item quantity="one">About %1$d hour left</item>
+        <item quantity="other">About %1$d hours left</item>
+    </plurals>
+    <plurals name="prepare_eta_hours_minutes">
+        <item quantity="one">About %1$d hour %2$d minutes left</item>
+        <item quantity="other">About %1$d hours %2$d minutes left</item>
+    </plurals>
     <string name="prepare_button_pause">Pause</string>
     <string name="prepare_button_prepare_again">Prepare again</string>
     <string name="prepare_button_retry">Retry</string>
@@ -169,6 +186,10 @@
     <!-- %1$s: the step (Job.stepMsg), %3$s: why it waits or stopped -->
     <string name="prepare_note_progress">%1$s · %2$d %%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
+    <!-- the running notification with the time left (Eta): %1$s: the step (Job.stepMsg), %2$s: prepare_eta_*. The time left goes first: a collapsed
+         notification shows one line of text, which the step and its count alone nearly fill. _big: the expanded notification -->
+    <string name="prepare_note_running_eta">%2$s · %1$s</string>
+    <string name="prepare_note_running_eta_big">%1$s\n%2$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors): English in job.json's error, with its code and arguments beside it, so the status line
          (prepare_status_failed) and the notification show it in the user's language; %1$s: prepare_step_*_in_sentence (the object of "stopped"), %2$d: how many times (2 or more), %3$.1f: the step's memory in GB, tap %4$s: the button's label -->
