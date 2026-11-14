@@ -34,8 +34,8 @@ final class PackUi {
 
     private static boolean ready(MainActivity a, Game g) {
         if (a.needAccess()) return false;
-        if (busy(g.titleId)) { a.error("An export or import of " + g.name + "'s pack is still working."); return false; }
-        if (SaveUi.gameRunning(a, g)) { a.error(g.name + " is running: stop it first (its in-game panel › Stop the game)."); return false; }
+        if (busy(g.titleId)) { a.error(a.getString(R.string.packs_ui_busy, g.name)); return false; }
+        if (SaveUi.gameRunning(a, g)) { a.error(a.getString(R.string.packs_ui_running, g.name, a.getString(R.string.packs_label_stop_game))); return false; }
         return true;
     }
 
@@ -44,25 +44,25 @@ final class PackUi {
         try {
             Pack.read(new File(g.packDir));
         } catch (IOException e) {
-            a.error("There is no pack to export: " + e.getMessage());
+            a.error(a.getString(R.string.packs_ui_export_none, e.getLocalizedMessage()));
             return;
         }
         pending = g;
-        a.pickFolder(PICK_EXPORT, "Pick the folder for the pack's .zip");
+        a.pickFolder(PICK_EXPORT, a.getString(R.string.packs_ui_export_pick));
     }
 
     static void importPick(MainActivity a, Game g) {
         if (!ready(a, g)) return;
-        new AlertDialog.Builder(a).setTitle("Import " + g.name + "'s pack from…")
-                .setItems(new String[] {"A .zip file (made by Export pack…)", "A pack folder (with pack.tsv and shaders/)"}, (d, w) -> {
+        new AlertDialog.Builder(a).setTitle(a.getString(R.string.packs_ui_import_title, g.name))
+                .setItems(new String[] {a.getString(R.string.packs_ui_import_zip, a.getString(R.string.packs_label_export)), a.getString(R.string.packs_ui_import_folder)}, (d, w) -> {
                     pending = g;
-                    if (w == 1) { a.pickFolder(PICK_IMPORT_DIR, "Pick the pack folder (the one with pack.tsv and shaders/)"); return; }
-                    Toast.makeText(a, "Pick the pack's .zip file", Toast.LENGTH_LONG).show();
+                    if (w == 1) { a.pickFolder(PICK_IMPORT_DIR, a.getString(R.string.packs_ui_import_pick_folder)); return; }
+                    Toast.makeText(a, a.getString(R.string.packs_ui_import_pick_zip), Toast.LENGTH_LONG).show();
                     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
                     i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse("content://com.android.externalstorage.documents/document/primary%3A"));
                     a.startActivityForResult(i, PICK_IMPORT_ZIP);
                 })
-                .setNegativeButton("Cancel", null).show();
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     /**
@@ -79,7 +79,7 @@ final class PackUi {
             else importRun(a, g, new File(im));
             return;
         }
-        a.error("No game of " + id + " in the list.");
+        a.error(a.getString(R.string.packs_ui_no_game, id));
     }
 
     /** MainActivity.onActivityResult, before a folder's path is read: the .zip picked for Import pack… */
@@ -89,7 +89,7 @@ final class PackUi {
         pending = null;
         if (g == null) return true;
         String p = PathUtil.documentToPath(doc);
-        if (p == null) { a.error("That file is not on this phone's storage by a path the app can read (" + doc + "). Pick it from the phone's storage (☰ › the phone's name), not from Recent or Downloads."); return true; }
+        if (p == null) { a.error(a.getString(R.string.packs_ui_not_readable, doc)); return true; }
         importRun(a, g, new File(p));
         return true;
     }
@@ -116,54 +116,55 @@ final class PackUi {
     private static void exportRun(MainActivity a, Game g, File dir) {
         if (!ready(a, g)) return;
         File pack = new File(g.packDir);
-        run(a, g, "Exporting " + g.name + "'s pack…", () -> {
+        run(a, g, a.getString(R.string.packs_ui_exporting, g.name), () -> {
             long need = size(pack);
             if (dir.isDirectory() && dir.getUsableSpace() < need + (64L << 20))
-                throw new IOException("the zip needs " + SaveStore.size(need) + ", and " + dir + " has " + SaveStore.size(dir.getUsableSpace()) + " free");
+                throw new IOException(a.getString(R.string.packs_ui_export_space, SaveStore.size(need), dir, SaveStore.size(dir.getUsableSpace())));
             return PackZip.export(pack, dir);
         }, (r, err) -> {
-            if (err != null) { a.error("No pack was exported: " + err + "\n\nThe pack in " + pack + " was only read."); return; }
+            if (err != null) { a.error(a.getString(R.string.packs_ui_export_failed, err, pack)); return; }
             File z = (File) r;
-            new AlertDialog.Builder(a).setTitle("Pack exported").setMessage(z + "\n\n" + SaveStore.size(z.length()) + ", checked against the pack file by file. Import pack… on another "
-                    + "phone (or after a new install) puts it back.").setPositiveButton("OK", null).show();
+            new AlertDialog.Builder(a).setTitle(R.string.packs_ui_exported_title)
+                    .setMessage(a.getString(R.string.packs_ui_exported, z, SaveStore.size(z.length()), a.getString(R.string.packs_label_import))).setPositiveButton(android.R.string.ok, null).show();
         });
     }
 
     private static void importRun(MainActivity a, Game g, File source) {
         if (!ready(a, g)) return;
         File packs = AppStorage.packs(a), target = AppStorage.pack(a, g.titleId);
-        run(a, g, "Importing " + g.name + "'s pack…", () -> {
+        run(a, g, a.getString(R.string.packs_ui_importing, g.name), () -> {
             long need = size(source);
             if (packs.getParentFile() != null && packs.getParentFile().getUsableSpace() < need + (256L << 20))
-                throw new IOException("the pack needs " + SaveStore.size(need) + ", and the app's storage has " + SaveStore.size(packs.getParentFile().getUsableSpace()) + " free");
+                throw new IOException(a.getString(R.string.packs_ui_import_space, SaveStore.size(need), SaveStore.size(packs.getParentFile().getUsableSpace())));
             File remembered = Job.remembered(a);
             if (remembered != null && remembered.isFile()) {
                 Job j = Job.read(remembered);
                 if (SaveStore.same(j.pack(), target) && !"done".equals(j.state()))
-                    throw new IOException("a Prepare job of this game writes to " + target + " (" + j.statusText(false) + "): let it finish, or forget it in its ⋯ Manage, first");
+                    throw new IOException(a.getString(R.string.packs_ui_import_job, target, j.statusText(false), a.getString(R.string.packs_label_manage)));   // statusText: prepare's, English; the integrator switches it to statusMsg
             }
             Pack p = PackZip.stage(source, packs, g.titleId);
             try {
-                String bad = PackCheck.blocking(a, p, new File(g.gameDir));
-                if (bad != null) throw new IOException(bad);
-                if (SaveUi.gameRunning(a, g)) throw new IOException(g.name + " was started meanwhile");
+                Msg bad = PackCheck.blockingMsg(a, p, new File(g.gameDir));
+                if (bad != null) throw new LocalizedIOException(new Msg("packs_as_is", bad), null);
+                if (SaveUi.gameRunning(a, g)) throw new IOException(a.getString(R.string.packs_ui_started_meanwhile, g.name));
                 PackZip.swapIn(p.dir, target);
             } finally {
                 if (p.dir.exists()) SaveStore.deleteTree(p.dir);
             }
             return target;
         }, (r, err) -> {
-            if (err != null) { a.error("The pack was not imported: " + err + "\n\n" + (target.isDirectory() ? "The pack in " + target + " is as it was." : "Nothing was changed.")); return; }
+            if (err != null) { a.error(target.isDirectory() ? a.getString(R.string.packs_ui_import_failed_kept, err, target) : a.getString(R.string.packs_ui_import_failed_none, err)); return; }
             String old = Folders.pickedPack(a, g.titleId);
             Folders.pickedPack(a, g.titleId, null);   // the card plays the imported pack; a picked folder would win over it at the next Add game
             if (old != null && old.equals(Prefs.folder(a, "pack"))) Prefs.folder(a, "pack", null);
             Folders.setPack(a, g.titleId, target);
-            String lp = Pack.libraryProblem(target, g.titleId);
-            String shaders = lp == null ? "It has this app's shader library (" + BuildConfig.NX_DMSH_VK_CHAIN + "): ready to play."
+            Msg lp = Pack.libraryProblemMsg(target, g.titleId);
+            String shaders = lp == null ? a.getString(R.string.packs_ui_library_current, BuildConfig.NX_DMSH_VK_CHAIN)
                     : Pack.playableLibrary(target, g.titleId) != null || Pack.legacyLibrary(target, g.titleId) != null
-                    ? "Its shaders are of an older version: the game plays with them while the app updates them, as after an app update." : lp + " The game's card offers what fixes it.";
-            new AlertDialog.Builder(a).setTitle("Pack imported").setMessage(target + "\n\n" + shaders + (old != null ? "\n\nThe pack folder picked before (" + old + ") is kept as it was; the game now uses this one." : ""))
-                    .setPositiveButton("OK", null).show();
+                    ? a.getString(R.string.packs_ui_library_older) : a.getString(R.string.packs_ui_library_problem, lp.text());
+            new AlertDialog.Builder(a).setTitle(R.string.packs_ui_imported_title)
+                    .setMessage(old != null ? a.getString(R.string.packs_ui_imported_old, target, shaders, old) : a.getString(R.string.packs_ui_imported, target, shaders))
+                    .setPositiveButton(android.R.string.ok, null).show();
         });
     }
 
@@ -176,7 +177,7 @@ final class PackUi {
         new Thread(() -> {
             String err = null;
             Object r = null;
-            try { r = work.run(); } catch (IOException | RuntimeException e) { err = e.getMessage(); }
+            try { r = work.run(); } catch (IOException | RuntimeException e) { err = e.getLocalizedMessage(); }
             String fe = err;
             Object fr = r;
             a.runOnUiThread(() -> {
