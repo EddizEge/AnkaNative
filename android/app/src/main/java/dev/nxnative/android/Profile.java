@@ -136,21 +136,23 @@ final class Profile {
         return (what == null ? titleId : what + " (" + titleId + ")") + " has no game profile in this app, so it cannot run here. This app runs: " + String.join(", ", ids) + ".";
     }
 
-    /** A version of a dump in words: 0 is the base game itself (no update installed; Mario Kart World 1.8.0's supported build), any other an update */
-    static String versionName(long version) { return version == 0 ? Tr.s("settings_profile_base_game") : Tr.s("settings_profile_update", version); }
+    /** A version of a dump in words: 0 is the base game itself (no update installed; Mario Kart World 1.8.0's supported build), any other an update.
+     *  English (Tr.english), as are supported() and buildName(): every caller still puts them into an English sentence, a log line or job.json (BuildCheck,
+     *  DumpLayout, PackService, MainActivity's log); they move to the user's language with those sentences (docs/i18n.md) */
+    static String versionName(long version) { return version == 0 ? Tr.english("settings_profile_base_game") : Tr.english("settings_profile_update", version); }
 
     /** Which versions of this game the APK supports, as a sentence for a dump it refuses (DumpCheck): its builds, by display version when game.tsv names one */
     String supported() {
         String all = null;
-        for (Long v : buildMap().keySet()) all = all == null ? buildName(v) : Tr.s("common_or", all, buildName(v));
-        return Tr.s("settings_profile_supported", name, titleId, all == null ? "" : all);
+        for (Long v : buildMap().keySet()) all = all == null ? buildName(v) : Tr.english("common_or", all, buildName(v));
+        return Tr.english("settings_profile_supported", name, titleId, all == null ? "" : all);
     }
 
     /** One of the profile's builds in words: "1.8.0 (the base game, version 0, main d00e4f399e411d06…)", "update 458752 (main e25c90c1c1366388…)" */
     String buildName(long v) {
         String d = display(v), main = buildMap().getOrDefault(v, Map.of()).get("main");
         String ids = main == null ? "" : "main " + main.substring(0, Math.min(16, main.length())) + "…";
-        if (d != null) return d + " (" + (v == 0 ? Tr.s("settings_profile_base_game_v0") : Tr.s("settings_profile_update", v)) + (ids.isEmpty() ? "" : ", " + ids) + ")";
+        if (d != null) return d + " (" + (v == 0 ? Tr.english("settings_profile_base_game_v0") : Tr.english("settings_profile_update", v)) + (ids.isEmpty() ? "" : ", " + ids) + ")";
         return versionName(v) + (ids.isEmpty() ? "" : " (" + ids + ")");
     }
 
