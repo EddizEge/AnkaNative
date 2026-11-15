@@ -81,9 +81,9 @@ class Wiring(unittest.TestCase):
 
 class OnePlace(unittest.TestCase):
     """The phone test of 2026-11-15 (rc1): "Pausing" stayed in the shade after the stop had finished (posted 8 ms after the split's exit 130, and after a Pause
-    of a job that waited for a game), because the worker's last job.json write posted the stopping form (decided from "the worker has not ended yet") a few ms
-    before finished() posted the paused one. Now one method decides and posts the notification under noteLock, which the tool's end also takes, and the form
-    says pausing only while the tool runs"""
+    of a job that waited for a game). The worker's last job.json write posted the stopping form (decided from "the worker has not ended yet") a few ms before
+    finished() posted the paused one, both on the main thread in that order, and the system kept the earlier post (why is open). Now the form says pausing
+    only while the tool runs, one method decides and posts the notification, and the final form is posted before the service leaves the foreground"""
     s = (ONDEVICE / 'PackService.java').read_text(encoding='utf-8')
 
     def test_one_place_posts(self):
@@ -94,6 +94,14 @@ class OnePlace(unittest.TestCase):
         self.assertIn('synchronized (noteLock) { startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); }', self.s)
         fin = body(self.s, 'private void finished()', '\n    }\n')
         self.assertIn('postNote(j, -1, false);', fin)
+
+    def test_final_form_before_leaving_the_foreground(self):
+        """The rc1-fixes review: the final form is the service's notification when it leaves the foreground (finished, leaveNote: the 20-s fallback,
+        onTimeout, endForGame), not a post made after it"""
+        fin = body(self.s, 'private void finished()', '\n    }\n')
+        self.assertLess(fin.index('postNote(j, -1, false);'), fin.index('stopForeground(STOP_FOREGROUND_DETACH);'))
+        leave = body(self.s, 'private void leaveNote(Job j)', '\n    }\n')
+        self.assertLess(leave.index('postNote(j, -1, false);'), leave.index('stopForeground(STOP_FOREGROUND_DETACH);'))
 
     def test_tool_end_under_the_lock(self):
         st = body(self.s, 'private String step(Job j, int i)', '\n    }\n')

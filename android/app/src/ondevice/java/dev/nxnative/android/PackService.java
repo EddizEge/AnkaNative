@@ -101,10 +101,10 @@ public final class PackService extends Service {
     /** The worker is inside a tool (engine.run): what a pause waits for. Changed only under noteLock, which the notification's every post takes */
     private volatile boolean inTool;
     /**
-     * Taken by the one place that decides the job's notification and posts it (postNote, and startForeground) and by the tool's start and end (step): a form
-     * decided while the tool ran cannot be posted after its end. The phone test of 2026-11-15 (rc1): the worker's last job.json write, made after the tool
-     * had exited, posted "Pausing" (decided from "the worker has not ended yet") a few milliseconds before finished() posted "Paused", and the shade kept
-     * "Pausing" with no button until the job was resumed or forgotten
+     * Taken by the one place that decides the job's notification and posts it (postNote, and startForeground) and by the tool's start and end (step), so the
+     * form is decided from one consistent inTool. Nearly every post runs on the main thread already (save posts publish there, finished, leaveNote, pauseDead,
+     * onTimeout); endForGame's leaveNote runs on the worker. The rc1 phone check's stuck "Pausing" was no race between threads: see JobForm.of (no "Pausing"
+     * once the tool has stopped) and leaveNote (the final form posted before the service leaves the foreground)
      */
     private final Object noteLock = new Object();
     /** The notification left for after this service (leaveNote: the 20-s fallback, onTimeout): the worker's updates no longer replace it */
@@ -432,11 +432,19 @@ public final class PackService extends Service {
         return j != null && ("running".equals(j.state()) || "paused".equals(j.state()) && JobForm.waitsByItself(j.reason()));
     }
 
-    /** The job's notification as it stands once this service is gone (paused: Resume; failed: Retry), detached from the service, which no later update replaces */
+    /**
+     * The job's notification as it stands once this service is gone (paused: Resume; failed: Retry), detached from the service, which no later update replaces.
+     * The final form is posted while the service is still foreground, and only then does it leave the foreground (finished() does the same). In the rc1 phone
+     * check (2026-11-15) the app posted "Pausing" and then, after stopForeground(DETACH), "Paused", all on the main thread in that order, yet the system kept
+     * "Pausing" (its record's when was the earlier post's), and in both cases one more post reached the shade than the app made (four for three at
+     * 10:22:55.9, three for two at 10:30:05.2): what the system does with the service's notification as it leaves the foreground came after the app's last
+     * post. Which step of Android or HyperOS that is, is open (no "Shedding" line, numRateViolations 0); with the final form posted before the service leaves
+     * the foreground, the service's notification is the final form at that step too
+     */
     private void leaveNote(Job j) {
         noteLeft = true;
-        stopForeground(STOP_FOREGROUND_DETACH);
         postNote(j, -1, false);
+        stopForeground(STOP_FOREGROUND_DETACH);
     }
 
     // ---- Battery and heat ----
@@ -630,8 +638,8 @@ public final class PackService extends Service {
             if (begin(j, true, again) == START_STICKY) return;
         }
         publish(j, true);
+        if (j != null) postNote(j, -1, false);   // worker is null: paused (Resume), failed (Retry) or done (Play); posted while still foreground (leaveNote)
         stopForeground(STOP_FOREGROUND_DETACH);
-        if (j != null) postNote(j, -1, false);   // worker is null: paused (Resume), failed (Retry) or done (Play)
         stopSelf();
         if (gameAsked && PackNative.ranTool()) {   // a game starts (a Pause was in hand, or the job ended meanwhile): what the tools left goes with this process
             Log.i(TAG, "a game starts: ending this process, which keeps what the tools left");

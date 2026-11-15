@@ -38,8 +38,10 @@ final class JobForm {
      * STOPPING only while both hold: a pause asked for while no tool runs (the worker waits for a game, the battery or the heat, or is between two steps) is
      * paused at once, and once the tool has stopped the job is paused although the worker still lives for a moment (its last job.json write, then
      * PackService.finished). The phone test of 2026-11-15 (rc1): STOPPING was decided from "the worker has not ended yet", so the worker's last write, made
-     * after the tool had exited, posted "Pausing" again a few milliseconds before finished() posted "Paused", and the shade kept "Pausing" (ongoing, no
-     * button) until the job was resumed or forgotten: 8 ms after the split's exit 130, and after a Pause of a job that waited for a game with no tool running.
+     * after the tool had exited, posted "Pausing" again a few milliseconds before finished() posted "Paused" (both on the main thread, in that order), and
+     * the shade kept the "Pausing" post (ongoing, no button) until the job was resumed or forgotten: 8 ms after the split's exit 130, and after a Pause of a
+     * job that waited for a game with no tool running. Why the system kept the earlier post is open (PackService.leaveNote); with this rule no post after
+     * the tool's end says "Pausing".
      */
     static Form of(String state, String reason, boolean worker, boolean stopAsked, boolean toolRuns) {
         if ("done".equals(state)) return Form.DONE;
