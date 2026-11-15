@@ -12,6 +12,7 @@
 #include "vka_pidx.h"
 #include "vka_rprof.h"
 #include "vka_memu_abi.h"
+#include "vka_pcguard.h"
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -1817,17 +1818,15 @@ void vka_draw(vka_dstate *d, const p_set_rt *rt, int has_rt, const p_scissor *sc
 // network also takes 550-800 ms of GPU a frame on the Adreno 830. DM_VK_NDVE_DIRECT (default 1) scales the converted frame into the output with a linear blit
 // instead: the network's dispatches are not recorded and their pipelines never made (vka_pso.c prewarm too). The picture differs from the network's by about one
 // level in 255 on average (measured on the Mac, nxnative #1375). Matched by the pack's shader keys after a conversion (the movie library may submit the conversion and the network in different frames: the replay's frame count is not
-// a boundary); the last pass ends the match. Anything else runs as recorded
-static const uint64_t k_ndve_convert = 0x49dff010b9832251ull, k_ndve_final = 0x4f41ccf24f163e0dull;
-static const uint64_t k_ndve_net[] = {0xba079f68ae288dbaull, 0xa8b4fb48fee0ccf8ull, 0xe2eebd7ba18fe35full, 0xe6be82d835fbe4d3ull, 0x9442573ee4ace011ull,
-                                      0x0a56002cdc7e1fceull, 0xd15370a382630d4eull, 0x7f7ff0f36b54d90full, 0x5a7d69b067a7f011ull};
+// a boundary); the last pass ends the match. Anything else runs as recorded. The keys are vka_pcguard.h's: a pipeline cache file that holds the network costs Turnip
+// 1.3 GB more GPU memory at every later start, so with the switch on no path makes its pipelines: a network dispatch with no conversion before it is not recorded
+// either (until 2026-11-15 it ran as recorded, and a DM_VK_DISPATCH_SKIP run that skipped the conversion made the network and saved it)
+static const uint64_t k_ndve_convert = VKA_NDVE_CONVERT, k_ndve_final = VKA_NDVE_FINAL;
 static struct { int src; unsigned long long skipped, scaled; } g_ndve;   // src: the texture ID the last conversion wrote, until the last pass (replay thread only)
 int vka_ndve_direct(void) { return VKA_ENV("DM_VK_NDVE_DIRECT", 1) != 0; }
 static int ndve_net(uint64_t key) {   // a network or last-pass key the direct path replaces
     if (!vka_ndve_direct()) return 0;
-    if (key == k_ndve_final) return 1;
-    for (size_t i = 0; i < sizeof k_ndve_net / sizeof *k_ndve_net; i++) if (key == k_ndve_net[i]) return 1;
-    return 0;
+    return vka_ndve_net_key(key);
 }
 // agl's NDSR upscaler networks (DM_VK_NDSR_STANDIN, below): agl_ndsr_vr_light.pck has one network per range of scale, and the game dispatches the one for its
 // dynamic-resolution level's input size. Each fixed level of Ocarina of Time (DM_RES_LEVEL fixed:<n>), Deku Tree 2F, Adreno 830 under Turnip, output 2048x1152,
@@ -2028,7 +2027,10 @@ void vka_dispatch(vka_dstate *d, const p_dispatch *dp) {
         if (key == k_ndve_convert) ndve = 1;
         else if (after && key == k_ndve_final) { if (ndve_scale(d, sh)) { g_ndve.src = 0; g_dispatches++; return; } }
         else if (after && ndve_net(key)) { g_ndve.skipped++; g_dispatches++; return; }
-        else if (ndve_net(key)) VRED_ONCE("NDVE movie: network shader %016llx dispatched with no colour conversion before it: it runs as recorded (its pipeline is made)", (unsigned long long)key);
+        else if (ndve_net(key)) {   // (the conversion was not met: its dispatch was skipped, or another stream of the movie library's; the output keeps what it held)
+            VRED_ONCE("NDVE movie: network shader %016llx dispatched with no colour conversion before it: not recorded either (its pipeline is never made with DM_VK_NDVE_DIRECT on); the movie output keeps its last frame", (unsigned long long)key);
+            g_ndve.skipped++; g_dispatches++; return;
+        }
     }
     // agl's NDSR network replaced by its bilinear term (DM_VK_NDSR_STANDIN)
     if (ndsr_net(sh[5]->key) && ndsr_standin_on() && ndsr_standin(d, sh, dp)) { g_dispatches++; return; }
@@ -2074,7 +2076,7 @@ void vka_dispatch(vka_dstate *d, const p_dispatch *dp) {
     if (sk && *sk) { char *e; unsigned long long a = strtoull(sk, &e, 10), b = *e == ',' ? strtoull(e + 1, NULL, 10) : ~0ull; skip = di >= a && di <= b; }
     if (lg) VLOG("dispatch %llu: %016llx groups %d,%d,%d%s local %u,%u,%u shared %u flags %#x%s", di, (unsigned long long)sh[5]->key, dp->x, dp->y, dp->z, dp->ind ? " (indirect)" : "",
                  sh[5]->e->local[0], sh[5]->e->local[1], sh[5]->e->local[2], sh[5]->e->shared, sh[5]->e->flags, skip ? " SKIPPED" : "");
-    if (skip) { vka_barrier(g_cb); g_dispatches++; return; }
+    if (skip) { if (ndve == 1) g_ndve.src = cs_image_tid(NULL); vka_barrier(g_cb); g_dispatches++; return; }   // (a skipped conversion is still the movie's frame: the network after it stays replaced)
     vk.vkCmdBindPipeline(g_cb, VK_PIPELINE_BIND_POINT_COMPUTE, p);
     if (dp->ind) vk.vkCmdDispatchIndirect(g_cb, ib, io);
     else if (dp->x > 0 && dp->y > 0 && dp->z > 0) {
