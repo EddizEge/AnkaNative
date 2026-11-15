@@ -17,7 +17,8 @@
 //   - triangles without per-primitive values are drawn indexed (the indices the arena's vertex numbers), so a vertex is shaded once rather than once per corner;
 //     per-primitive values (flat inputs of the pixel shader) and points are drawn expanded, each corner its own vertex with its primitive's values;
 //   - points (OutputPoints, CullPrimitiveEXT) and per-primitive outputs are taken; unwritten primitives are the translator's degenerate (0, 0, 0) triangles or culled points;
-//   - a mesh workgroup's own index is its index among its task's (WorkgroupId), and without a task the draw's first workgroup is applied (it was not with VK_EXT_mesh_shader).
+//   - a mesh workgroup's own index is its index among its task's (WorkgroupId), and without a task the draw's first workgroup is applied (it was not with VK_EXT_mesh_shader);
+//   - its float arithmetic is exact (NoContraction), as a vertex stage's Invariant position is, so two programs' equal position arithmetic gives equal depths (exact_float).
 // GPL-3.0-or-later: see vka_memu_abi.h.
 #include "vka_memu_spv.h"
 #include "vka_memu_abi.h"
@@ -40,7 +41,7 @@ enum {
 };
 enum { SCUniformConstant = 0, SCInput = 1, SCOutput = 3, SCWorkgroup = 4, SCPrivate = 6, SCFunction = 7, SCPushConstant = 9, SCStorageBuffer = 12, SCTaskPayload = 5402 };
 enum { DecBlock = 2, DecArrayStride = 6, DecBuiltIn = 11, DecFlat = 14, DecInvariant = 18, DecNonWritable = 24, DecLocation = 30, DecBinding = 33, DecDescriptorSet = 34,
-       DecOffset = 35, DecPerPrimitive = 5271 };
+       DecOffset = 35, DecFPFastMathMode = 40, DecNoContraction = 42, DecPerPrimitive = 5271 };
 enum { BIPosition = 0, BIPointSize = 1, BIClipDistance = 3, BICullDistance = 4, BINumWorkgroups = 24, BIWorkgroupId = 26, BILocalInvocationIndex = 29, BIVertexIndex = 42,
        BIPrimitivePointIndices = 5294, BIPrimitiveLineIndices = 5295, BIPrimitiveTriangleIndices = 5296, BICullPrimitive = 5299 };
 enum { EMVertex = 0, EMFragment = 4, EMGLCompute = 5, EMTask = 5364, EMMesh = 5365 };
@@ -560,6 +561,47 @@ uint32_t *vka_memu_nest(const uint32_t *w, size_t n, size_t *on, int *nflat) {
     return cur;
 }
 
+// ---------- Exact float arithmetic ----------
+// A mesh program's position must come out bit for bit the same in every program that draws the same geometry: the game draws a depth prepass with one mesh program
+// and its shading with another, with depth EQUAL, and a pixel whose two depths differ in the last bit keeps what was drawn before (Ocarina of Time's Kokiri Forest:
+// white sky pixels along the edges of mesh-drawn objects). The two programs' position arithmetic is the same instructions, but a vertex stage's Position is Invariant
+// (the translator puts it there), which makes the driver keep that arithmetic exact, and a compute shader has no such output. Mesa (Turnip) then reassociates it by
+// how often each partial result is used elsewhere in the program: its late "reassociate the last addition into the first multiplication" rules are kept out of vertex
+// and geometry shaders for this very reason (Z-fighting between passes) and run on compute shaders, and nir_opt_reassociate_matrix_mul turns (A * B) * v into
+// A * (B * v) where its partial sums are used once. NoContraction on every float arithmetic result makes all of it exact (Mesa: nir_fp_exact), as Invariant does for
+// the vertex stage's position chain (nir_propagate_invariant). Every one, not only the position's: the position is computed through function variables and the
+// plane helper's parameters, which every output shares, and a primitive's culling tests read it too. Decorations go into A (the annotations); ids that already
+// carry NoContraction or FPFastMathMode (which may not be combined with it) are left as they are
+static int float_type(const mod_t *m, uint32_t t) {
+    uint32_t op = T_op(m, t);
+    if (op == 24) { t = T_w(m, t)[2]; op = T_op(m, t); }   // (OpTypeMatrix: its column type)
+    if (op == OpTypeVector) { t = T_w(m, t)[2]; op = T_op(m, t); }
+    return op == OpTypeFloat;
+}
+static int float_arith(uint32_t op) {   // OpFNegate, OpFAdd, OpFSub, OpFMul, OpFDiv, OpFRem, OpFMod, OpVectorTimesScalar ... OpDot
+    return op == 127 || op == 129 || op == 131 || op == 133 || op == 136 || op == 140 || op == 141 || (op >= 142 && op <= 148);
+}
+static int exact_float(const mod_t *m, sb_t *A) {
+    uint8_t *skip = calloc(m->bound, 1), *glsl = calloc(m->bound, 1); int n = 0;
+    if (!skip || !glsl) { free(skip); free(glsl); return -1; }
+    for (size_t i = 5; i < m->first_fn;) {
+        uint32_t op = m->w[i] & 0xffff, len = m->w[i] >> 16;
+        if (op == OpExtInstImport && len >= 3 && m->w[i + 1] < m->bound && !strcmp((const char *)(m->w + i + 2), "GLSL.std.450")) glsl[m->w[i + 1]] = 1;
+        if (op == OpDecorate && len >= 3 && m->w[i + 1] < m->bound && (m->w[i + 2] == DecNoContraction || m->w[i + 2] == DecFPFastMathMode)) skip[m->w[i + 1]] = 1;
+        i += len;
+    }
+    for (size_t i = m->first_fn; i < m->n;) {
+        uint32_t op = m->w[i] & 0xffff, len = m->w[i] >> 16;
+        if (len >= 4 && (float_arith(op) || (op == OpExtInst && len >= 5 && m->w[i + 3] < m->bound && glsl[m->w[i + 3]]))) {
+            uint32_t id = m->w[i + 2];
+            if (id < m->bound && !skip[id] && float_type(m, m->w[i + 1])) { INS(A, OpDecorate, id, DecNoContraction); skip[id] = 1; n++; }
+        }
+        i += len;
+    }
+    free(skip); free(glsl);
+    return n;
+}
+
 // ---------- Task / mesh as compute ----------
 typedef struct { uint32_t var; uint32_t idx[6]; int n; } chain_t;
 uint32_t *vka_memu_cs(const uint32_t *w, size_t nw, size_t *out_nw, char *err, size_t errn) {
@@ -575,6 +617,7 @@ uint32_t *vka_memu_cs(const uint32_t *w, size_t nw, size_t *out_nw, char *err, s
     ch = calloc(m.bound, sizeof *ch); oid = calloc(m.bound, 4); wgch = calloc(m.bound, 1);
     if (!ch || !oid || !wgch) FAIL("out of memory");
     for (int i = 0; i < nov; i++) oid[ov[i].id] = (uint32_t)i + 1;
+    if (exact_float(&m, &A) < 0) FAIL("out of memory");   // (above: the float arithmetic exact, as a vertex stage's Invariant position)
     // New declarations: the arena and the records (storage buffers of words), the push constant, the dispatch's workgroup ID and counts, the private values
     uint32_t sbw = words_block(&B, &A, 0), p_sbw = ptr(&B, SCStorageBuffer, sbw), p_sb_u32 = ptr(&B, SCStorageBuffer, B.t_u32);
     uint32_t arena = gvar(&B, p_sbw, SCStorageBuffer), recs = gvar(&B, p_sbw, SCStorageBuffer);

@@ -19,7 +19,7 @@ import android.widget.TextView;
  * The in-game panel: slides in from the right over the running game, which goes on behind it. It holds the frame rate cap (Native.fpsCapSet), frame generation
  * (Lsfg.rows, Native.frameGenSet), FSR 1 upscaling (Fsr.rows), the overlay's items (Overlay.rows), the on-screen controls' rows (TouchControls.controlRows), the intro skip (Native.skipSet, where it is armed and in the test app) and Stop. Every change applies at once,
  * without going back to the launcher, and is kept for the next start. Opened by Back (the phone's button or its edge swipe), a long press on the on-screen controls'
- * show / hide button, or a gamepad's Home / guide button (KEYCODE_BUTTON_MODE); closed the same ways, by a tap beside it, or by B on a gamepad, whose D-pad and A move
+ * show / hide button, a gamepad's Home / guide button (KEYCODE_BUTTON_MODE) or, when its checkbox here is on, both stick buttons together (PadMenu); closed the same ways, by a tap beside it, or by B on a gamepad, whose D-pad and A move
  * through it meanwhile (GameActivity.dispatchKeyEvent).
  */
 final class SidePanel extends FrameLayout {
@@ -172,11 +172,18 @@ final class SidePanel extends FrameLayout {
         ret.setChecked(Prefs.pauseOnReturn(act, game()));
         ret.setOnCheckedChangeListener((b, on) -> Prefs.pauseOnReturn(act, game(), on));
         box.addView(ret);
+        android.widget.CheckBox sticks = new android.widget.CheckBox(act);   // for a controller whose Home key never reaches the app (PadMenu); all games
+        sticks.setText(act.getString(R.string.game_panel_stick_menu));
+        sticks.setChecked(Prefs.stickMenu(act));
+        sticks.setOnCheckedChangeListener((b, on) -> Prefs.stickMenu(act, on));
+        box.addView(sticks);
         Button stop = new Button(act);
         stop.setText(act.getString(R.string.game_panel_stop));
         stop.setOnClickListener(v -> new AlertDialog.Builder(act).setTitle(act.getString(R.string.game_panel_stop_title)).setMessage(act.getString(R.string.game_panel_stop_message, HomeLabels.shareLog().text()))
                 .setPositiveButton(act.getString(R.string.game_panel_stop_confirm), (d, w) -> { Native.note("stopped by the user"); PrepareGate.afterGame(act); if (act instanceof GameActivity) ((GameActivity) act).backToFrontend(); android.os.Process.killProcess(android.os.Process.myPid()); })
-                .setNegativeButton(act.getString(R.string.game_panel_keep_running), null).show());
+                .setNegativeButton(act.getString(R.string.game_panel_keep_running), null)
+                // Home / guide over the question: Keep running. Unhandled, the dialog's window would let Generic.kcm's fallback turn it into HOME (PadMenu): the home screen
+                .setOnKeyListener((d, k, ev) -> { if (k != KeyEvent.KEYCODE_BUTTON_MODE) return false; if (ev.getAction() == KeyEvent.ACTION_UP) d.dismiss(); return true; }).show());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = Math.round(24 * getResources().getDisplayMetrics().density);
         box.addView(stop, lp);

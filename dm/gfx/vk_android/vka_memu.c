@@ -15,13 +15,14 @@
 #include "vka.h"
 #include "vka_memu.h"
 #include "vka_memu_abi.h"
+#include "vka_memu_rule.h"
 #include "vka_memu_helpers_spv.h"
 #include "vka_spvpatch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-uint64_t vka_memu_n_batches, vka_memu_n_draws, vka_memu_n_splits, vka_memu_n_skip, vka_memu_n_wait;
+uint64_t vka_memu_n_batches, vka_memu_n_draws, vka_memu_n_splits, vka_memu_n_skip, vka_memu_n_wait, vka_memu_n_hold;
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static const char *stage_name(int st) { return st == DMSH_VK_STAGE_TS ? "task" : "mesh"; }
 
@@ -126,11 +127,20 @@ int vka_memu_vs_feeds(vka_shader *vs, vka_shader *fs) {
 
 // ---------- The arena ----------
 // One per submission in flight: taken at the submission's first emulated batch (its counter cleared in the command buffer), given the submission's fence at its commit
-// (vka_memu_retire), free again once that fence is done. Its control words are host-visible: before reuse, the most the last submission asked for is read, and an arena
-// that was too small is made again larger (to DM_VK_MESH_EMU_MB, default 256 MiB; it starts at 16 MiB)
+// (vka_memu_retire), free again once that fence is done. Each batch of the submission (the mesh draws of one render pass) hands it out from its start again
+// (vka_memu_draw.inc MEMU_SETUP clears the counter; vka_memu_rule.h rule 2), so its control words, read once the submission is done, hold the most one batch asked for.
+// A batch whose arena had less room draws none of its mesh draws past it (memu_common.glsl alloc: their output is not placed): one pass draws an object and another
+// does not. Until 2026-11-15 the whole submission shared the room, so the draws past it were the submission's later passes', the shading after a depth prepass among
+// them, and the sky showed through objects the prepass had drawn (16, 32, 64 and 128 MiB steps in Ocarina of Time's first seconds, a submission asking up to 67.6 MiB).
+// The size is the whole game's, not each arena's own: every arena taken is made at least as large as the most any batch has asked for (g_peak, doubled from
+// VKA_MEMU_ARENA_FIRST_MB up to DM_VK_MESH_EMU_MB, default 256 MiB). Each arena learning only from its own last submission left the second and later ones (taken only
+// while the first is still on the GPU, so rarely) at 16 or 32 MiB long after the first had grown. What is left: the first batch that asks for more than any before it
+// and more than the first size still loses its last mesh draws, once
 enum { NARENA = 6 };
-typedef struct { VkBuffer buf, ctl; VkDeviceMemory mem, cmem; volatile uint32_t *cp; uint32_t words; uint64_t fence, last; int used; } arena;
-static arena g_ar[NARENA]; static int g_cur = -1; static uint64_t g_acq;   // (last: g_acq when the arena was last taken)
+typedef struct { VkBuffer buf, ctl; VkDeviceMemory mem, cmem; volatile uint32_t *cp; uint32_t words; uint64_t fence, last, seen; int used; } arena;
+static arena g_ar[NARENA]; static int g_cur = -1; static uint64_t g_acq;   // (last: g_acq when the arena was last taken; seen: the fence whose control words were read)
+static uint32_t g_peak;   // the most arena words a batch has asked for
+static uint64_t g_short;   // submissions with a batch whose arena had too little room (mesh draws not drawn)
 static void arena_free(arena *a) {
     if (a->buf) { vk.vkDestroyBuffer(V.dev, a->buf, NULL); vk.vkFreeMemory(V.dev, a->mem, NULL); }
     a->buf = VK_NULL_HANDLE; a->mem = VK_NULL_HANDLE; a->words = 0;
@@ -159,17 +169,32 @@ static int arena_make(arena *a, uint32_t words) {
 int vka_memu_arena(VkCommandBuffer cb, VkBuffer *buf, VkBuffer *ctl, uint32_t *cap) {
     if (g_cur < 0) {
         uint64_t done = vka_done(); int k = -1;
+        int mb = VKA_ENV("DM_VK_MESH_EMU_MB", 256);   // (words below: 2^18 a MiB, so 16383 MiB at most in 32 bits)
+        if (mb < 1 || mb > 16383) { VRED_ONCE("mesh draws through compute: DM_VK_MESH_EMU_MB=%d is not 1-16383: 256 taken", mb); mb = 256; }
+        uint32_t maxw = (uint32_t)mb << 18;
+        uint32_t rng = V.props.limits.maxStorageBufferRange / 4; if (rng && maxw > rng) maxw = rng;   // (bound whole as a storage buffer)
+        // What the batches of the submissions done since the last look asked for (each read once: its arena's control words stay until the arena is taken again)
+        for (int i = 0; i < NARENA; i++) {
+            arena *o = &g_ar[i];
+            if (!o->cp || o->used || !o->fence || o->fence > done || o->seen == o->fence) continue;
+            o->seen = o->fence;
+            uint32_t asked = o->cp[VKA_MEMU_CTL_ASKED];
+            if (asked > o->words) {
+                g_short++;
+                // Red: draws were lost, the frame was drawn wrong (the first 16; every one is counted in the statistics line)
+                static _Atomic int ns; if (atomic_fetch_add(&ns, 1) < 16) VRED("mesh draws through compute: a batch of a submission asked for %.1f MiB of arena, it had %.1f: its mesh draws past that were not drawn (the most a batch asked for so far %.1f MiB)",
+                                                                              asked / 262144.0, o->words / 262144.0, (asked > g_peak ? asked : g_peak) / 262144.0);
+                if (asked > maxw) VRED_ONCE("mesh draws through compute: a batch asked for %.1f MiB of arena, more than DM_VK_MESH_EMU_MB=%u: some mesh workgroups are not drawn", asked / 262144.0, maxw >> 18);
+            }
+            if (asked > g_peak) g_peak = asked;
+        }
+        uint32_t want = vka_memu_arena_want(g_peak, maxw);   // (VKA_MEMU_ARENA_FIRST_MB to start, doubled until it holds the most a batch asked for)
         for (int i = 0; i < NARENA && k < 0; i++) if (g_ar[i].buf && !g_ar[i].used && g_ar[i].fence <= done) k = i;
         for (int i = 0; i < NARENA && k < 0; i++) if (!g_ar[i].buf) k = i;
         if (k < 0) { VRED_ONCE("mesh draws through compute: more than %d submissions in flight with them; the draws of this one are skipped", NARENA); return 0; }
         arena *a = &g_ar[k];
-        int mb = VKA_ENV("DM_VK_MESH_EMU_MB", 256);   // (words below: 2^18 a MiB, so 16383 MiB at most in 32 bits)
-        if (mb < 1 || mb > 16383) { VRED_ONCE("mesh draws through compute: DM_VK_MESH_EMU_MB=%d is not 1-16383: 256 taken", mb); mb = 256; }
-        uint32_t maxw = (uint32_t)mb << 18, want = 4u << 20;   // (words: 16 MiB to start)
-        uint32_t rng = V.props.limits.maxStorageBufferRange / 4; if (rng && maxw > rng) maxw = rng;   // (bound whole as a storage buffer)
-        if (maxw < want) want = maxw;
         // Arenas never shrink while used, but one left idle (not taken for ARENA_IDLE submissions: it was for a burst of submissions in flight) gives its memory back;
-        // made again, an arena starts at the size of the largest one there, so a game that needed that much does not lose workgroups to a small new one
+        // made again, it is made at the size above
         enum { ARENA_IDLE = 1024 };
         g_acq++; a->last = g_acq;
         for (int i = 0; i < NARENA; i++) {
@@ -178,14 +203,11 @@ int vka_memu_arena(VkCommandBuffer cb, VkBuffer *buf, VkBuffer *ctl, uint32_t *c
             static _Atomic int nl; if (atomic_fetch_add(&nl, 1) < 4) VLOG("mesh draws through compute: arena %d not used for %d submissions: its %.0f MiB freed", i, ARENA_IDLE, o->words / 262144.0);
             arena_free(o);
         }
-        if (!a->buf) for (int i = 0; i < NARENA; i++) if (g_ar[i].buf && g_ar[i].words > want) want = g_ar[i].words < maxw ? g_ar[i].words : maxw;
-        if (a->buf && a->cp && a->cp[VKA_MEMU_CTL_ASKED] > a->words && a->words < maxw) {   // the last submission asked for more: larger, up to the limit
-            uint64_t asked = a->cp[VKA_MEMU_CTL_ASKED], w = a->words; while (w < asked && w < maxw) w *= 2; if (w > maxw) w = maxw;
-            VLOG("mesh draws through compute: a submission asked for %.1f MiB of arena, it had %.1f: now %.1f MiB (DM_VK_MESH_EMU_MB=%u at most)", asked / 262144.0, a->words / 262144.0, w / 262144.0, maxw >> 18);
-            arena_free(a); want = (uint32_t)w;
-        } else if (a->buf && a->cp && a->cp[VKA_MEMU_CTL_ASKED] > a->words) VRED_ONCE("mesh draws through compute: a submission asked for %.1f MiB of arena, more than DM_VK_MESH_EMU_MB=%u: some mesh workgroups were not drawn",
-                                                                                    a->cp[VKA_MEMU_CTL_ASKED] / 262144.0, maxw >> 18);
-        else if (a->buf) want = a->words;
+        if (a->buf && a->words < want) {
+            static _Atomic int ng; if (atomic_fetch_add(&ng, 1) < 16) VLOG("mesh draws through compute: arena %d made again larger, %.1f MiB to %.1f MiB (a batch asked for %.1f; DM_VK_MESH_EMU_MB=%u at most)",
+                                                                          k, a->words / 262144.0, want / 262144.0, g_peak / 262144.0, maxw >> 18);
+            arena_free(a);
+        }
         if (!a->buf && !arena_make(a, want)) { VRED_ONCE("mesh draws through compute: no arena of %.0f MiB; the mesh draws are skipped", want / 262144.0); return 0; }
         a->used = 1; g_cur = k;
         vk.vkCmdFillBuffer(cb, a->ctl, 0, 64, 0);   // (outside a pass; the batch's barrier after it)
@@ -219,14 +241,15 @@ int vka_memu_helpers(VkPipeline *setup, VkPipeline *dist, VkPipelineLayout *layo
     *setup = ps; *dist = pd; *layout = pl; return 1;
 }
 void vka_memu_stats(char *b, size_t n) {
-    static uint64_t b0, d0, s0, k0, w0;
-    uint64_t nb = vka_memu_n_batches - b0, nd = vka_memu_n_draws - d0, ns = vka_memu_n_splits - s0, nk = vka_memu_n_skip - k0, nw = vka_memu_n_wait - w0;
-    b0 = vka_memu_n_batches; d0 = vka_memu_n_draws; s0 = vka_memu_n_splits; k0 = vka_memu_n_skip; w0 = vka_memu_n_wait;
+    static uint64_t b0, d0, s0, k0, w0, q0, h0;
+    uint64_t nb = vka_memu_n_batches - b0, nd = vka_memu_n_draws - d0, ns = vka_memu_n_splits - s0, nk = vka_memu_n_skip - k0, nw = vka_memu_n_wait - w0, nq = g_short - q0, nh = vka_memu_n_hold - h0;
+    b0 = vka_memu_n_batches; d0 = vka_memu_n_draws; s0 = vka_memu_n_splits; k0 = vka_memu_n_skip; w0 = vka_memu_n_wait; q0 = g_short; h0 = vka_memu_n_hold;
     if (!nb && !nd) { if (n) b[0] = 0; return; }
     char pl[240]; vka_memu_pso_line(pl, sizeof pl);
     uint64_t aw = 0; int na = 0; for (int i = 0; i < NARENA; i++) if (g_ar[i].buf) { aw += g_ar[i].words; na++; }   // (read without the replay's lock: a statistic)
-    snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared, %llu skipped waiting for their compute pipelines; "
-             "arenas %d, %.0f MiB of device memory%s",
-             (unsigned long long)nd, (unsigned long long)nb, nb ? (double)nd / (double)nb : 0.0, (unsigned long long)ns, (unsigned long long)nk, (unsigned long long)nw, na, aw / 262144.0, pl);
+    snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared, %llu skipped waiting for their compute pipelines, "
+             "%llu held in frames that began with one being made; arenas %d, %.0f MiB of device memory (the most a batch asked for %.1f MiB), %llu submissions short of room (their last mesh draws not drawn)%s",
+             (unsigned long long)nd, (unsigned long long)nb, nb ? (double)nd / (double)nb : 0.0, (unsigned long long)ns, (unsigned long long)nk, (unsigned long long)nw, (unsigned long long)nh,
+             na, aw / 262144.0, g_peak / 262144.0, (unsigned long long)nq, pl);
 }
 #endif

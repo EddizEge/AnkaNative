@@ -73,6 +73,8 @@ run: $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_touch $(B)/t_gesture 
 	$(B)/t_drs_level
 	$(B)/t_android_aspick
 	$(B)/t_android_memu
+	$(B)/t_android_pcguard
+	$(B)/t_android_memurule
 run: $(B)/t_nro
 run: $(B)/t_symbols
 $(B)/t_symbols: t_symbols.c ../hle.c ../loader.c ../hle.h ../dm.h $(GAME_H) | $(B)
@@ -351,7 +353,7 @@ coverage:
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
 # The Android host's pure parts (dm/host/android): resampler, channel map, SPS size, MediaCodec picture layouts; gamepad / touch / sensor mapping
-run: $(B)/t_android_av $(B)/t_android_input $(B)/t_android_shlib $(B)/t_android_spvpatch $(B)/t_android_imgmem $(B)/t_android_zshare $(B)/t_android_rtalias $(B)/t_android_memfoot $(B)/t_android_place $(B)/t_android_aspick $(B)/t_android_memu
+run: $(B)/t_android_av $(B)/t_android_input $(B)/t_android_shlib $(B)/t_android_spvpatch $(B)/t_android_imgmem $(B)/t_android_zshare $(B)/t_android_rtalias $(B)/t_android_memfoot $(B)/t_android_place $(B)/t_android_aspick $(B)/t_android_memu $(B)/t_android_pcguard $(B)/t_android_memurule
 $(B)/t_android_av: t_android_av.c ../android/av_android.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_av.c
 $(B)/t_android_input: t_android_input.c ../android/input_map.c ../android/input_map.h ../motion_fusion.h ../dm_input.h | $(B)
@@ -368,6 +370,12 @@ $(B)/t_android_imgmem: t_android_imgmem.c $(VKA)/vka_extents.h | $(B)
 # The asynchronous pipeline queue's pick (vka_aspick.h; vka_pso.c as_run, DM_VK_PSO_CHEAP)
 $(B)/t_android_aspick: t_android_aspick.c $(VKA)/vka_aspick.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_aspick.c
+# What a run keeps in the pipeline cache file and the prewarm list (vka_pcguard.h; vka_pso.c pc_nokeep, pc_drop_ndve)
+$(B)/t_android_pcguard: t_android_pcguard.c $(VKA)/vka_pcguard.h | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_pcguard.c
+# Mesh draws through compute: the frame's rule and the arena's size (vka_memu_rule.h; vka_memu_draw.inc, vka_memu.c)
+$(B)/t_android_memurule: t_android_memurule.c $(VKA)/vka_memu_rule.h | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_memurule.c
 # Zero-shared image memory's bookkeeping (vka_zshare.h; vka_imgmem.c vka_imem_bind_zero, vka_tex.c img_own)
 $(B)/t_android_zshare: t_android_zshare.c $(VKA)/vka_zshare.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_zshare.c

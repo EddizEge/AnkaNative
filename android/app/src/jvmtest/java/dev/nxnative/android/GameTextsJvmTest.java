@@ -131,10 +131,10 @@ public final class GameTextsJvmTest {
         same("Size " + (40 + 60) + "%", "game_controls_size", 40 + 60);
         same("Reset the controls", "game_controls_reset_all");
         // Overlay
-        String[] items = {"Frame rate and frame time", "Throttle dot (green / yellow / red)", "GPU time a frame", "CPU clock caps", "Battery temperature and level",
-                "Memory: the game's and the phone's"};
-        String[] itemKeys = {"game_overlay_item_fps", "game_overlay_item_throttle", "game_overlay_item_gpu", "game_overlay_item_cpu", "game_overlay_item_battery",
-                "game_overlay_item_memory"};
+        String[] items = {"Frame rate and frame time", "Throttle dot (green / yellow / red)", "GPU time a frame", "3D render resolution (and the picture's size)", "CPU clock caps",
+                "Battery temperature and level", "Memory: the game's and the phone's"};
+        String[] itemKeys = {"game_overlay_item_fps", "game_overlay_item_throttle", "game_overlay_item_gpu", "game_overlay_item_resolution", "game_overlay_item_cpu",
+                "game_overlay_item_battery", "game_overlay_item_memory"};
         for (int i = 0; i < items.length; i++) same(items[i], itemKeys[i]);
         same("Show the overlay over the game", "game_overlay_master");
         double cap = 2500000 / 1e6, top = 3628800 / 1e6;
@@ -151,6 +151,8 @@ public final class GameTextsJvmTest {
         same(String.format(Locale.ROOT, "%.1f ms", rate[2]), "game_overlay_frame_ms", rate[2]);
         same("no LSFG", "game_overlay_no_lsfg");
         same(String.format(Locale.ROOT, "GPU %.1f ms", rate[5]), "game_overlay_gpu_ms", rate[5]);
+        same("3D 683×384", "game_overlay_resolution", 683, 384);
+        same("→ 2048×1152", "game_overlay_resolution_output", 2048, 1152);
         float batTemp = 36.7f;
         int batLevel = 84;
         for (boolean charging : new boolean[] {false, true}) {

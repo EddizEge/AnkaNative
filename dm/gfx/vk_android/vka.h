@@ -439,6 +439,7 @@ VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);
 VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw);   // a mesh draw through compute's compute form: made in the background (pending: not yet); draw: a draw waits for it (made before the prewarm list's)
 void vka_memu_pso_line(char *out, size_t n);
+int vka_memu_forms_waited(void);   // compute forms of mesh draws through compute that a draw asked for and that are not made yet (0 when they are made on the frame path)
 void vka_pso_save(int force);         // the VkPipelineCache and the prewarm list to the app's files (DM_TEMP): due DM_VK_PCACHE_SAVE_S after the last save, on the saver thread; force = now, on the caller's
 void vka_pso_waits(uint64_t *save_ns, uint64_t *pw_wait_ns);   // cumulative: time saving the cache (saver thread), the frame path's waits for a prewarm thread making the same pipeline
 double vka_gpu_span_ms(uint64_t f);   // frame f's submissions from first part's start to last part's end (vka_exec.c); -1 = not in yet
@@ -542,6 +543,12 @@ void vka_present_init(void);
 // The overlay's counts (vka_fps.c): each image the present thread handed to the swapchain (shown), the game's own or a generated one; frame generation's state
 void vka_fps_note(int shown, int generated);
 void vka_fps_fg(int state, int mult);
+// The overlay's 3D scene size (vka_fps.c): a draw that tests depth and writes colour, its viewport's size (the draw thread); the replay's present ends a frame; the size
+// of the picture the game presents (the present thread). vka_fps_scene_want: whether the overlay has asked for it (nothing is counted before)
+int vka_fps_scene_want(void);
+void vka_fps_scene_draw(uint32_t w, uint32_t h);
+void vka_fps_frame_end(void);
+void vka_fps_output(uint32_t w, uint32_t h);
 // Frame generation (vka_framegen.c; LSFG in lsfg/, GPL-3.0-or-later): for the game frame about to be presented (its window texture, crop, period and timeline value), the images
 // to present before it (gen, at most VKA_FG_MAX, the present takes its own references), how long each image of this frame should stay (hold, seconds; 0 = the game's period)
 // and the output period for the window's frame rate (0 = frame generation off). Present thread only
