@@ -137,6 +137,13 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   frontend back. Play itself now refuses a pack of another title with its pack dialog. A file that is not on Home still asks "Add this game?"
   (android/FRONTENDS.md). Checked on a POCO F8 Pro with iiSU's request sent by adb (no question, a second request ignored, a non-game file
   refused); iiSU itself started the game on an earlier build that still asked, and not yet on this one.
+- **Starting a game from a frontend: setups for iiSU, LaunchBox and Cocoon, and a request starts only a game that is on Home** (android/FRONTENDS.md).
+  iiSU gets Anka Native as a Nintendo Switch 2 console of its own through iiSU's `emuladores.json` (Settings › Updates › Import emuladores.json), with the
+  file's path in the extra `game`; tested on a POCO F8 Pro with iiSU 0.1.6.1 and the test app. The play intent also takes Pegasus's own provider URI and a URI
+  given as a string in the extra `game`. A request starts only a card that is on Home, with the card's own files; a file that is not on Home asks
+  "Add this game?" first, where 0.2.2 added a new file whose pack lay beside it and started it at once; a path another app names must be on shared
+  storage (not `Android/data`). These are checked by tests, not on a phone. Daijisho started the game on an earlier version; ES-DE, Pegasus, LaunchBox,
+  Beacon and Cocoon were never tried on a phone.
 - **The zstd-compressed code of newer games (ZBIC, Ocarina of Time's) is read with the `libzbicdec` decoder** (`dm/third_party/zstd-zbic`:
   Zstandard's decoder, BSD, with an MIT reader of ZBIC's tables), in place of the zbic package (GPLv2), which the on-phone packer carried up to 0.2.2 and
   whose license did not fit the GPL-3.0-or-later translator in the same process. On Ocarina of Time it gives the same bytes: its code modules, the rewrite and
