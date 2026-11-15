@@ -400,7 +400,7 @@ run: $(B)/t_drs_level
 .PHONY: drs_level
 drs_level: $(B)/t_drs_level
 	$(B)/t_drs_level
-# Game settings › Plants and effects (dm/host/detail.h), any machine: the rows, the BYML and SARC editors, the zstd frame of raw blocks and the overlay build, with
+# Game settings › Ground plants and stones (dm/host/detail.h), any machine: the rows, the BYML and SARC editors, the zstd frame of raw blocks and the overlay build, with
 # zstd's decoder and this GAME's profile rows (a header of its own, generated here: the host's gen/ is the Mac build's)
 .PHONY: detail
 detail: $(B)/t_detail

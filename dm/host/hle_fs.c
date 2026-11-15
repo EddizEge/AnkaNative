@@ -105,6 +105,12 @@ static int save_txn_from_path(const char *hp) {
 __attribute__((weak)) void front_save_failed(int err) { LOG("front_save_failed(errno=%d): no front end attached (default weak implementation)", err); }
 // DM_FSLOG=<file>: each ReadFile logs one TSV line "seconds since boot\tguest path\toffset\tlength\tguest buffer address" (which bytes boot read, for offline reverse lookup against the manifest)
 static FILE *g_fslog; static char *g_fdpath[4096]; static pthread_mutex_t g_fslog_lock = PTHREAD_MUTEX_INITIALIZER;
+// The guest path of each open for DM_FSLOG's lines: a host file by its descriptor (g_fdpath), an entry of a RomFS image or NUP package by its handle (g_fsimg: the
+// handle names the mount and the entry, so every open of one file shares a slot; open addressing, filled only while DM_FSLOG runs)
+#define FSLOG_IMG_SLOTS 65536
+static struct { uint64_t h; char *p; } *g_fsimg;
+static void fslog_name(uint64_t h, const char *path);
+static void fslog_read(uint64_t h, int64_t off, size_t got, const void *buf);
 static void fslog_init(void) { static int done; if (done) return; done = 1; const char *e = getenv("DM_FSLOG"); if (e && !(g_fslog = fopen(e, "w"))) die("cannot open DM_FSLOG %s", e); if (g_fslog) setvbuf(g_fslog, NULL, _IOLBF, 0); }   // line-buffered: runs end at the time-limit alarm or a crash, which never flush stdio
 
 static const char *envdir(const char *var, const char *rel, char *buf, size_t n) {
@@ -191,7 +197,8 @@ static int img_path(const char *p, int *mi, int64_t *k) {
     }
     return 0;
 }
-static Result mount_ex(const char *name, const char *dir, int ro, int txn) {
+// overlay: the RomFS overlay folders read before dir (DM_ROMFS_OVERLAY, h_fs_MountRom), set before the mount line logs them; NULL for every other mount
+static Result mount_ex(const char *name, const char *dir, int ro, int txn, const char *overlay) {
     pthread_once(&g_txn_lock_once, txn_locks_init);
     PATH_LOCK(); pthread_mutex_lock(&g_lock);
     for (int i = 0; i < g_nmnt; i++)
@@ -202,8 +209,7 @@ static Result mount_ex(const char *name, const char *dir, int ro, int txn) {
     g_mnt[g_nmnt].txn_root = -1;
     atomic_store(&g_mnt[g_nmnt].poison, 0);
     atomic_store(&g_mnt[g_nmnt].first_write_ns, 0);
-    if (!strcmp(name, "rom") && getenv("DM_ROMFS_OVERLAY"))
-        strlcpy(g_mnt[g_nmnt].overlay, getenv("DM_ROMFS_OVERLAY"), sizeof g_mnt[0].overlay);
+    if (overlay && *overlay) strlcpy(g_mnt[g_nmnt].overlay, overlay, sizeof g_mnt[0].overlay);
     // The transaction directory cannot be set up (leftovers cannot be cleared / clone failed, which really happens on a full disk): do not exit; mount the committed directory read-only -- saves still read, every write fails, commits are no-ops, the committed version is untouched, and the front end is told
     // (each of these three failures used to call die: with the phone's storage full the game exited as soon as it mounted its saves)
     int txn_err = 0, k = 0;
@@ -246,7 +252,7 @@ static Result mount_ex(const char *name, const char *dir, int ro, int txn) {
     LOG("fs mount %s: → %s%s%s", name, txn ? g_mnt[g_nmnt - 1].dir : dir, ro || txn_err ? " (read-only)" : txn ? " (transactional save: work directory, swapped in atomically on Commit)" : "", g_mnt[g_nmnt - 1].overlay[0] ? " (overlay first)" : "");
     return RES_OK;
 }
-static Result mount(const char *name, const char *dir, int ro) { return mount_ex(name, dir, ro, 0); }
+static Result mount(const char *name, const char *dir, int ro) { return mount_ex(name, dir, ro, 0, NULL); }
 
 // APFS is case-insensitive by default, Horizon paths are case-sensitive: every component is looked up exactly by guest name.
 // Ordinary host names are unchanged; only when a name collides on the host is a separate physical name chosen, with the guest name stored in an xattr.
@@ -443,14 +449,8 @@ static Result err_res(const char *op, const char *path) {
 HLE_FORCE("_ZN2nn2fs22QueryMountRomCacheSizeEPm", "fsp-srv; rom reads the host directory directly, the cache gets only the minimum size", Result, h_fs_QueryRomCache, size_t *out) { *out = 0x1000; return RES_OK; }
 HLE_FORCE("_ZN2nn2fs8MountRomEPKcPvm", "fsp-srv; rom → host RomFS directory", Result, h_fs_MountRom, const char *name, void *cache, size_t sz) {
     (void)cache; (void)sz; char b[1024];
-    Result r = mount(name, envdir("DM_ROMFS", "romfs", b, sizeof b), 1);
-    if (r == RES_OK && getenv("DM_ROMFS_OVERLAY")) {
-        PATH_LOCK();
-        for (int i = 0; i < g_nmnt; i++) if (!strcmp(g_mnt[i].name, name)) {
-            strlcpy(g_mnt[i].overlay, getenv("DM_ROMFS_OVERLAY"), sizeof g_mnt[i].overlay); break;
-        }
-    }
-    return r;
+    // The overlay goes in with the mount, under its name (Ocarina of Time mounts its RomFS as content:), so the mount line says "(overlay first)"
+    return mount_ex(name, envdir("DM_ROMFS", "romfs", b, sizeof b), 1, 0, getenv("DM_ROMFS_OVERLAY"));
 }
 // Add-on content (DLC) RomFS: DM_AOC_DIR/<index>/, extracted from the player's DLC NSPs by the packing script; mounted read-only, using the directory index like rom.
 // The owned index list is reported by the aoc calls in hle_misc.c from the same directory; the game only mounts indices it was given, and a missing directory answers "target not found" (fs 2-1002, as on hardware without that DLC)
@@ -615,7 +615,7 @@ HLE_FORCE("_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE", "fsp-srv; save data 
     if (!d) die("DM_SAVE is not set: point it at a writable copy of a save directory");
     char dd[1024]; strlcpy(dd, d, sizeof dd); size_t L = strlen(dd); while (L > 1 && dd[L - 1] == '/') dd[--L] = 0;   // strip trailing slashes (.work / .new are appended at the same level)
     save_sync_mount(dd, DM_GAME_ID);   // DM_SAVE_SYNC: the cloud's save comes in before the work directory is cloned from the committed one (save_sync.h)
-    return mount_ex(name, dd, 0, 1);
+    return mount_ex(name, dd, 0, 1, NULL);
 }
 // Device save data: one save for the console instead of one per user. Animal Crossing: New Horizons keeps its island there (3.0.3's main mounts no account save data at all); the host
 // has one player, so it is the host save directory with its transaction, as the account save. Its size and extension follow the account save's.
@@ -629,7 +629,7 @@ HLE_FORCE("_ZN2nn2fs19MountDeviceSaveDataEPKc", "fsp-srv; device save data → t
     char dd[1024]; strlcpy(dd, d, sizeof dd); size_t L = strlen(dd); while (L > 1 && dd[L - 1] == '/') dd[--L] = 0;
     save_sync_mount(dd, DM_GAME_ID);   // the cloud's save holds both, so it comes in at whichever of the two mounts first
     strlcat(dd, "_device", sizeof dd);
-    return mount_ex(name, dd, 0, 1);
+    return mount_ex(name, dd, 0, 1, NULL);
 }
 HLE_FORCE("_ZN2nn2fs21GetDeviceSaveDataSizeEPlS1_", "fsp-srv; device save data size: 256 MB data + 256 MB journal", Result, h_fs_DeviceSaveSize, int64_t *size, int64_t *journal) { return h_fs_SaveSize(size, journal, NULL); }
 HLE_FORCE("_ZN2nn2fs20ExtendDeviceSaveDataEll", "fsp-srv; extend device save data: the host directory has no size limit", Result, h_fs_ExtendDeviceSave, int64_t size, int64_t journal) { return h_fs_ExtendSave(NULL, size, journal); }
@@ -753,6 +753,31 @@ static void fs_stat_note(int read, uint64_t t0, uint64_t bytes) {
 void dm_fs_time(uint64_t *open_ns, uint64_t *read_ns, uint64_t *read_bytes) {
     if (open_ns) *open_ns = atomic_load(&g_fst_open_ns); if (read_ns) *read_ns = atomic_load(&g_fst_read_ns); if (read_bytes) *read_bytes = atomic_load(&g_fst_read_b);
 }
+static void fslog_name(uint64_t h, const char *path) {   // under g_fslog_lock
+    if (!IMG_H(h)) { if (h < 4096) { free(g_fdpath[h]); g_fdpath[h] = strdup(path); } return; }
+    if (!g_fsimg && !(g_fsimg = calloc(FSLOG_IMG_SLOTS, sizeof *g_fsimg))) return;
+    for (uint64_t i = (h * 0x9E3779B97F4A7C15ull) >> 48, n = 0; n < FSLOG_IMG_SLOTS; i = (i + 1) % FSLOG_IMG_SLOTS, n++) {
+        if (g_fsimg[i].h == h) return;   // this entry's path is known
+        if (!g_fsimg[i].h) { g_fsimg[i].h = h; g_fsimg[i].p = strdup(path); return; }
+    }
+    static int full; if (!full++) fprintf(g_fslog, "# DM_FSLOG: more than %d files of the game image were opened; the others are logged as ?\n", FSLOG_IMG_SLOTS);
+}
+static const char *fslog_path(uint64_t h) {   // under g_fslog_lock
+    if (!IMG_H(h)) return h < 4096 && g_fdpath[h] ? g_fdpath[h] : "?";
+    if (g_fsimg) for (uint64_t i = (h * 0x9E3779B97F4A7C15ull) >> 48, n = 0; n < FSLOG_IMG_SLOTS && g_fsimg[i].h; i = (i + 1) % FSLOG_IMG_SLOTS, n++)
+        if (g_fsimg[i].h == h) return g_fsimg[i].p ? g_fsimg[i].p : "?";
+    return "?";
+}
+// One DM_FSLOG line for a read of a host file or of an image entry (raw or a compressed NUP file)
+static void fslog_read(uint64_t h, int64_t off, size_t got, const void *buf) {
+    if (!g_fslog) return;
+    pthread_mutex_lock(&g_fslog_lock);
+    static int hash_on = -1; if (hash_on < 0) hash_on = getenv("DM_FSLOG_HASH") != NULL;   // DM_FSLOG_HASH=1: append a column with the FNV-1a 64 of the content read (to compare whether the bytes read from two resource packs match)
+    uint64_t fh = 0xcbf29ce484222325ull; if (hash_on) for (size_t i = 0; i < got; i++) fh = (fh ^ ((const uint8_t *)buf)[i]) * 0x100000001b3ull;
+    if (hash_on) fprintf(g_fslog, "%.4f\t%s\t%lld\t%zu\t%p\t%016llx\n", (now_ns() - g_t0_ns) / 1e9, fslog_path(h), (long long)off, got, buf, (unsigned long long)fh);
+    else fprintf(g_fslog, "%.4f\t%s\t%lld\t%zu\t%p\n", (now_ns() - g_t0_ns) / 1e9, fslog_path(h), (long long)off, got, buf);
+    pthread_mutex_unlock(&g_fslog_lock);
+}
 HLE_FORCE("_ZN2nn2fs8OpenFileEPNS0_10FileHandleEPKci", "fsp-srv → open(2)", Result, h_fs_OpenFile, uint64_t *out, const char *path, int mode) {
     int mi; int64_t k; uint64_t fst0 = now_ns();
     if (img_path(path, &mi, &k)) {
@@ -767,6 +792,8 @@ HLE_FORCE("_ZN2nn2fs8OpenFileEPNS0_10FileHandleEPKci", "fsp-srv → open(2)", Re
             if (!nup_z_get(g_mnt[mi].img, ent->a, why, sizeof why)) { LOG("[RED] fs %s: cannot decompress it from %s: %s", path, ((nup_aux *)g_mnt[mi].img->aux)->what, why); return RES_FAIL; }
         }
         *out = FH_OUT(IMG_HANDLE(mi, k));
+        fslog_init();
+        if (g_fslog) { pthread_mutex_lock(&g_fslog_lock); fslog_name(IMG_HANDLE(mi, k), path); pthread_mutex_unlock(&g_fslog_lock); }
         if (g_flag.fs) LOG("fs open [%.2fs] %s mode=%d → image entry %lld", (now_ns() - g_t0_ns) / 1e9, path, mode, (long long)k);
         return RES_OK;
     }
@@ -782,7 +809,7 @@ HLE_FORCE("_ZN2nn2fs8OpenFileEPNS0_10FileHandleEPKci", "fsp-srv → open(2)", Re
       for (int i = 0; c && i < g_nmnt; i++) if (strlen(g_mnt[i].name) == ln && !strncmp(g_mnt[i].name, path, ln) && g_mnt[i].txn_root >= 0) { token = (uint16_t)(g_mnt[i].txn_root + 1); break; }
       atomic_store(&g_ftxn[fd], token); }
     fslog_init();
-    if (g_fslog && fd < 4096) { pthread_mutex_lock(&g_fslog_lock); free(g_fdpath[fd]); g_fdpath[fd] = strdup(path); pthread_mutex_unlock(&g_fslog_lock); }
+    if (g_fslog) { pthread_mutex_lock(&g_fslog_lock); fslog_name((uint64_t)fd, path); pthread_mutex_unlock(&g_fslog_lock); }
     fs_stat_note(0, fst0, 0);
     if (g_flag.fs) LOG("fs open [%.2fs] %s mode=%d → fd %d", (now_ns() - g_t0_ns) / 1e9, path, mode, fd);
     return RES_OK;
@@ -802,6 +829,7 @@ HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm", "fsp-srv → pread(2)", 
             memcpy(buf, src + off, sz);
             nup_z_put(m, x->a);
             *out = sz; fs_stat_note(1, f0, sz);
+            fslog_read(h, off, sz, buf);
             return RES_OK;
         }
     }
@@ -827,12 +855,7 @@ HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm", "fsp-srv → pread(2)", 
     }
     *out = got;
     fs_stat_note(1, fst0, got);
-    if (g_fslog) { pthread_mutex_lock(&g_fslog_lock);
-        static int hash_on = -1; if (hash_on < 0) hash_on = getenv("DM_FSLOG_HASH") != NULL;   // DM_FSLOG_HASH=1: append a column with the FNV-1a 64 of the content read (to compare whether the bytes read from two resource packs match)
-        uint64_t fh = 0xcbf29ce484222325ull; if (hash_on) for (size_t i = 0; i < got; i++) fh = (fh ^ ((uint8_t *)buf)[i]) * 0x100000001b3ull;
-        if (hash_on) fprintf(g_fslog, "%.4f\t%s\t%lld\t%zu\t%p\t%016llx\n", (now_ns() - g_t0_ns) / 1e9, !IMG_H(h) && (int)h < 4096 && g_fdpath[(int)h] ? g_fdpath[(int)h] : "?", (long long)off, got, buf, (unsigned long long)fh);
-        else fprintf(g_fslog, "%.4f\t%s\t%lld\t%zu\t%p\n", (now_ns() - g_t0_ns) / 1e9, !IMG_H(h) && (int)h < 4096 && g_fdpath[(int)h] ? g_fdpath[(int)h] : "?", (long long)off, got, buf);
-        pthread_mutex_unlock(&g_fslog_lock); }
+    fslog_read(h, off, got, buf);
     if (g_flag.fs) {   // Read metering: print a line every 64 MiB accumulated or every 1000 reads
         static uint64_t n, bytes, next_b = 64 << 20; static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
         pthread_mutex_lock(&m); n++; bytes += got;
@@ -1106,7 +1129,7 @@ HLE_FORCE("_ZN2nn2fs26SetPriorityOnCurrentThreadENS0_8PriorityE", "fsp-srv; file
 HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEj", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLogMask, unsigned mask) { (void)mask; return 0; }
 HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEv", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLog, void) { return 0; }
 
-// ---------- Game settings › Plants and effects (DM_DETAIL; detail.h): the overlay of edited parameter files, made before the game mounts its RomFS ----------
+// ---------- Game settings › Ground plants and stones (DM_DETAIL; detail.h): the overlay of edited parameter files, made before the game mounts its RomFS ----------
 // The player's files are read from DM_ROMFS as the rom mount reads them (a folder, a RomFS image or a NUP package, whose compressed files nup_z_get decodes);
 // pack members are decoded with zstd's decoder and the dictionary their frame names (DM_NUP_ZSTD: the Android host and the unit tests; the Mac and iOS hosts have
 // no decoder, so their pack rows are red lines and only loose files are edited)
@@ -1169,7 +1192,7 @@ static uint8_t *detail_rom_zdecode(void *c, const uint8_t *src, size_t n, const 
     snprintf(why, wn, "this host is built without a zstd decompressor (DM_NUP_ZSTD)"); return NULL;
 #endif
 }
-// DM_DETAIL=<level>[+<level>…] (Game settings › Plants and effects, or a line of env.txt, which wins): the levels' overlay is built or found and put after the
+// DM_DETAIL=<level>[+<level>…] (Game settings › Ground plants and stones, or a line of env.txt, which wins): the levels' overlay is built or found and put after the
 // overlay folders DM_ROMFS_OVERLAY already names (a hand-made one wins), and the levels' detail_env switches are set unless the environment sets them. Unset or
 // empty (the setting's Full, its default) does nothing at all: not a line, not a file. Called once at start, before the game mounts its RomFS (main.c)
 void dm_detail_start(void) {

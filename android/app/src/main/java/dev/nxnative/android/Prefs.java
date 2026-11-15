@@ -144,7 +144,7 @@ final class Prefs {
     static void resLevel(Context c, String titleId, String value) { put(c, gameKey("res_level", titleId), value); }
 
     /**
-     * Plants and effects (Game settings, games whose profile has detail_level rows): a level id of the profile ("reduced", "lowest") whose overlay of the game's own
+     * Ground plants and stones (Game settings, games whose profile has detail_level rows): a level id of the profile ("reduced", "lowest") whose overlay of the game's own
      * parameter files the host builds at start (DM_DETAIL; dm/host/detail.h), null for the first level, as the game draws it (the default, which sends nothing).
      * A DM_DETAIL line in env.txt or the game's own lines wins
      */

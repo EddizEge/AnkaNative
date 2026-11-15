@@ -1,4 +1,4 @@
-// Game settings › Plants and effects (dm/host/detail.h): the rows' parser, the in-place BYML editor, the SARC reader, the zstd frame of raw blocks and the whole
+// Game settings › Ground plants and stones (dm/host/detail.h): the rows' parser, the in-place BYML editor, the SARC reader, the zstd frame of raw blocks and the whole
 // overlay build over a RomFS folder, with hand-made files built here (a small BYML in both byte orders, a small SARC wrapped in a zstd frame). Expected values are
 // written by hand from the formats, not computed by the code under test. zstd's own decoder (dm/third_party/zstd/zstddeclib.c, the host's) decodes every frame
 // the builder writes. Any machine: make -C dm/host/tests GAME=<title ID> detail. Also every profile's detail rows (this GAME's) must read without a red line.

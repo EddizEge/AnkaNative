@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A game's own settings (its Manage sheet › Game settings…): resolution, 3D resolution, plants and effects, frame rate cap, GPU driver, GPU timing and extra environment lines, stored per title ID (Prefs.gameKey,
+ * A game's own settings (its Manage sheet › Game settings…): resolution, 3D resolution, ground plants and stones, frame rate cap, GPU driver, GPU timing and extra environment lines, stored per title ID (Prefs.gameKey,
  * GpuDriver.choice). Each starts as "Default", which follows the main screen's Settings (global); a value set here wins for this game only. The in-game panel's frame
  * rate cap is this game's too. GameActivity reads them at start.
  */
@@ -167,7 +167,7 @@ final class GameSettings {
     }
 
     /**
-     * Plants and effects: as the game draws it (the first level, the default, which sends nothing), or a level that lowers the game's own plant and effect
+     * Ground plants and stones: as the game draws it (the first level, the default, which sends nothing), or a level that lowers the game's own plant and effect
      * parameters (DM_DETAIL; the host builds an overlay of the player's own files at start, dm/host/detail.h). The levels are the profile's detail_level rows
      */
     private static void detail(MainActivity a, Game g, Runnable done) {

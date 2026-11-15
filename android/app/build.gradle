@@ -99,9 +99,10 @@ def resChoicesOf = { String game -> tsvRows(game, 'res_choice').findAll { it.siz
 // The phone's shader split of the game in minutes (game.tsv android_split_minutes <lo> <hi> [<update lo> <update hi>]: "lo-hi", or "lo-hi,ulo-uhi" with the split of a
 // shader update, which reads only the files of the shaders it translates; empty without the row: ShaderLibs.minutes' 4-8)
 def splitOf = { String game -> tsvRows(game, 'android_split_minutes').with { rs -> rs.isEmpty() || rs[0].size() < 3 ? '' : ("${rs[0][1].trim()}-${rs[0][2].trim()}" + (rs[0].size() >= 5 ? ",${rs[0][3].trim()}-${rs[0][4].trim()}" : '')).toString() } }
-// game.tsv detail_level rows (Game settings › Plants and effects, DM_DETAIL; the host reads all the detail rows, dm/host/detail.h): "<id>|<shown or hidden>|<label>",
+// game.tsv detail_level rows (Game settings › Ground plants and stones, DM_DETAIL; the host reads all the detail rows, dm/host/detail.h): "<id>|<shown or hidden>|<label>",
 // ';' between them, "" without rows (the launcher then offers no such setting)
-def detailOf = { String game -> tsvRows(game, 'detail_level').findAll { it.size() >= 4 }.collect { c -> [c[1].trim(), c[2].trim(), c[3].trim().replaceAll(/[|;\\"]/, ' ')].join('|') }.join(';') }
+// A "detail_setting hidden" row keeps the setting out (the column empty: no row in Game settings, a stored level sends nothing) while its levels wait for a phone check
+def detailOf = { String game -> tsvRows(game, 'detail_setting').any { it.size() >= 2 && it[1].trim() == 'hidden' } ? '' : tsvRows(game, 'detail_level').findAll { it.size() >= 4 }.collect { c -> [c[1].trim(), c[2].trim(), c[3].trim().replaceAll(/[|;\\"]/, ' ')].join('|') }.join(';') }
 def nxProfiles = nxGames.collect { g -> [g, nameOf(g).replaceAll(/[\t\n\\"]/, ' '), shaderTotalOf(g), shaderInputsOf(g), buildsOf(g), reqsOf(g), statusOf(g), deltaOf(g), stampOf(g), resolutionOf(g), romfsChecksOf(g), gpuTsOf(g), windowOf(g), resChoicesOf(g), splitOf(g), detailOf(g)].join('\\t') }.join('\\n')
 def lockOf = { String key -> def f = new File(repo, 'dm/gfx/tools/dmsh_chain.lock'); f.isFile() ? (f.readLines().find { it.startsWith(key + '\t') }?.split('\t')?.getAt(1) ?: 'unknown') : 'unknown' }
 

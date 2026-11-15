@@ -195,9 +195,11 @@ def header(g):
                 sys.exit(f'{g.id}: graphics_scale takes <WxH | original> <scale 0|1|2> <console | handheld>, one row per choice: {r}')
             seen.add(r[0])
         if wfn: sys.exit(f'{g.id}: graphics_scale and window_fn are two levers for one setting: keep one')
-    # Game settings › Plants and effects (DM_DETAIL; dm/host/detail.h, hle_fs.c dm_detail_start): the detail_level / detail_param / detail_env / detail_zsdic rows,
+    # Game settings › Ground plants and stones (DM_DETAIL; dm/host/detail.h, hle_fs.c dm_detail_start): the detail_level / detail_param / detail_env / detail_zsdic rows,
     # passed to the host as written; the host checks them when a level is chosen (a malformed row is a red line and left out; dm/host/tests/t_detail.c checks
     # that every profile's rows read without one). Only characters a C string or the launcher's table cannot carry are refused here
+    # detail_setting <shown | hidden> (the launcher's only: build.gradle detailOf): hidden keeps the Game settings row out while its levels wait for a phone check
+    if [v for k, v in g.rows if k == 'detail_setting'] not in ([], [['shown']], [['hidden']]): sys.exit(f'{g.id}: detail_setting takes one row, shown or hidden')
     det = ['\t'.join([k, *v]) for k, v in g.rows if k in ('detail_level', 'detail_param', 'detail_env', 'detail_zsdic')]
     detc = [q(r).replace('\t', '\\t') for r in det]   # C strings, the tabs written as \t
     if any(c in r for r in det for c in '"\\\n'): sys.exit(f'{g.id}: detail_* rows take no quotes or backslashes: {[r for r in det if any(c in r for c in chr(34) + chr(92))]}')

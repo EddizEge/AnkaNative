@@ -1,4 +1,4 @@
-"""Game settings › Plants and effects (dm/host/detail.h): the overlay the host builds at start, checked with tools other than the host's own. dm/host/tests/t_detail.c
+"""Game settings › Ground plants and stones (dm/host/detail.h): the overlay the host builds at start, checked with tools other than the host's own. dm/host/tests/t_detail.c
 (built here with zstd's decoder, as the Android host is) builds it over a RomFS folder made here: hand-made BYML files, loose and in a SARC compressed with a
 zstd dictionary trained here, and the dictionary in a pack of dictionaries as the game keeps them (Pack/ZsDic.pack.zs). Python's own zstd decoder and a BYML
 reader written here then read the overlay: only the values the rows name have changed, as the rows say; sizes and the other members are as they were; the

@@ -1,4 +1,4 @@
-// Game settings › Plants and effects (DM_DETAIL; profile rows detail_level / detail_param / detail_env / detail_zsdic, dm/games/README.md): a RomFS overlay made at
+// Game settings › Ground plants and stones (DM_DETAIL; profile rows detail_level / detail_param / detail_env / detail_zsdic, dm/games/README.md): a RomFS overlay made at
 // start from the player's own files, with values of the game's own parameter files edited in place, handed to the game through DM_ROMFS_OVERLAY. Header only,
 // so that dm/host/tests/t_detail.c runs the parser, the BYML and SARC editors, the zstd frame writer and the whole build on any machine; hle_fs.c dm_detail_start
 // gives it the RomFS reader (a folder, a RomFS image or a NUP package) and zstd's decoder.
