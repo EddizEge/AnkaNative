@@ -316,7 +316,7 @@ class Launcher(unittest.TestCase):
 
 class BuildOlderLibraries(unittest.TestCase):
     """vk_android_build.py older_libraries on the PC (DMSH_VK_DELTA_FROM unset: the output's cache folder): the output's own library, left by a build of other
-    profile inputs (0.2.2's Ocarina of Time library, 4610dec2c950, under the same version folder as 0.2.3's a6b20a286c27), is a delta source; one of these
+    profile inputs (0.2.2's Ocarina of Time library, 4610dec2c950, under the same version folder as 0.3.0's a6b20a286c27), is a delta source; one of these
     inputs is not (its entries are results already). The function runs from the tool's source, with the globals it reads."""
     @classmethod
     def setUpClass(cls):
