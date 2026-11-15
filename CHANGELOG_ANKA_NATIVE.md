@@ -5,14 +5,68 @@ Changes in Anka Native, grouped by topic. Most of the new behaviour is behind `D
 ([dm/games/0400486024DEC000/game.tsv](dm/games/0400486024DEC000/game.tsv)), so other games keep their old behaviour unless a switch is set.
 The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 
-## Unreleased
+## Anka Native 0.3.0
 
+- **Mesh-drawn content is drawn** ([#6](https://github.com/EddizEge/AnkaNative/issues/6)). Ocarina of Time draws part of its world with NVN2 task
+  and mesh shaders: in Kokiri Forest the tree canopies, grass, ferns, flowers and the arch by Link's door, in the Deku Tree's upper floor the floor
+  itself. 0.2.2 skipped those draws on every Turnip driver, and the indirect ones on every driver (Kokiri Forest 23 of 1,784 a frame, Deku Tree 2F 34 of 665), and its library had almost
+  none of their shaders. Where the driver has no task shaders (Turnip) they now run through compute (`DM_VK_MESH_EMU`); where it has
+  `VK_EXT_mesh_shader` (Qualcomm's driver) the indirect mesh draw is implemented too. The shader split reads the mesh and task programs, and the
+  profile gains 491 mesh and 17 task shaders; the library version stays `v-0dd4341ae6ce`, and a pack made on the phone gets them by the automatic
+  shader update below. The content costs GPU time: on the Kokiri Forest balcony about 26 ms a frame (42.5 ms without it, 69-70 ms with it). Checked
+  on a POCO F8 Pro (Adreno 830, Anka Turnip): no mesh draw skipped in Kokiri Forest or Deku Tree 2F. Not run on an Adreno 7xx, and the indirect
+  mesh draw not on any phone.
+- **The white patch on the arch beside Link's door and the white specks along mesh-drawn edges are gone:** the compute form's float maths is now exact. Checked on a POCO
+  F8 Pro (the arch's white pixels 2,911 -> 0, the trunk's specks 99 / 68 -> 0); the cost was not measurable (balcony 68 against 69.8 ms).
+- **A mesh-drawn object is drawn in every pass of a frame or in none**, so no white outlines show while its forms compile; the compute arenas are
+  sized to the largest submission, and a short arena is a `[RED]` log line. Checked on a POCO F8 Pro. At a first start on an empty pipeline cache
+  a white glow still shows for about 10 s and the mesh content comes after about 45 s.
+- **Game settings › 3D resolution** (`DM_RES_LEVEL`), for games whose profile has `res_choice` rows (Ocarina of Time): Dynamic (the default), Max,
+  High, Medium, Low, Lowest, and Dynamic never above High or Medium. The upscaler stand-in now covers every resolution level's network, where the
+  levels above the floor took 61-75 ms of GPU time and now take 27-32 ms. In Deku Tree 2F on a POCO F8 Pro, on a build without the mesh content,
+  every choice ran at full game speed, 20-31 fps, GPU 24.5-31.8 ms (before: the fixed levels above the floor 13-16 fps, 61-75 ms). With the mesh
+  content only Dynamic was measured: 21-24 fps, GPU 32.7-35.5 ms (Anka Turnip 1.0.0). Other scenes were not measured.
+- **The overlay shows the size the game renders its 3D scene at** ("3D 683×384", and "→ 2048×1152" when the presented picture differs), and the
+  presented fps value is right again. Checked on a POCO F8 Pro.
+- **A gamepad's Home / guide key opens the in-game panel** before anything else takes it; the panel's **Both stick buttons… open and close this
+  panel** (off by default) is for a pad whose Home Android takes for itself; a pad's Back is no longer logged as an unused key. Checked on a POCO
+  F8 Pro with a Razer Kishi V2 and a DualShock 4; L3 + R3 not tried with a pad.
+- **Adreno 840 GPU hang** ([#5](https://github.com/EddizEge/AnkaNative/issues/5)): a depth / stencil target's first content now goes into the frame's
+  own submission at its render pass, not the upload batch (`DM_VK_DS_FIRST_HERE`, on by default; `=0` goes back). Test switches
+  `DM_VK_BIGDEPTH_LOG`, `_NOCOMP`, `_CLEAR`, `_BAND`, `_SYNC` and `_MB` are listed in docs/env_switches.tsv. Not verified on an Adreno 840 (we
+  have none); on the Adreno 830 no run showed a change.
+- **Driver variables in Extra environment (`TU_*`, `FD_*`, `IR3_*`, `MESA_*`) reach the driver:** 0.2.2 set them after the readiness check had
+  loaded it, so `TU_DEBUG` never took effect. The host also makes the Vulkan device after the run's environment is set. Checked on a POCO F8 Pro
+  (the driver's log shows `TU_DEBUG`, and `TU_DEBUG` changed the GPU time).
+- **After a lost device the log has the driver's fault report** (`VK_EXT_device_fault`, on where the device offers it; `DM_VK_DEVICE_FAULT=0`
+  leaves it off). Not run: no device loss on the test phone.
+- **The movie library's NDVE network pipelines are kept out of the pipeline cache:** a pipeline cache file that held them took about 1.35 GB of
+  GPU memory at every start (POCO F8 Pro, Anka Turnip 1.0.0; the file came from a diagnostic run, `DM_VK_DISPATCH_SKIP=0`, in the test app).
+  They are now made outside the cache and never prewarmed, so such files are no longer written, and old files holding them are removed.
+  The fix was measured on a computer (drm-shim: 1,536 MiB of private memory with that file, 192 MiB without the network); not checked on a phone.
+- Small ports: NVN variable-rate-shading calls are no-ops (about 15,000 fewer `[RED]` lines), SDK 22's `IsOunceVibrationDeviceMounted` is answered,
+  and the game asks for audio focus again after losing it for good. Default-off switches `DM_VK_PSO_CHEAP`,
+  `DM_VK_TEXFB_SET`, `DM_VK_BLEND_ZERO`, `DM_NVN_TS_HZ`; and `DM_VK_PREWARM_OVERLAP=0` (new: one prewarm build at a time; the default stays 1).
+- **The launcher speaks Turkish, Brazilian Portuguese and Latin American Spanish** ([#2](https://github.com/EddizEge/AnkaNative/issues/2)),
+  chosen by the phone's language or **Settings › Language** (System default, English, Türkçe, Português (Brasil), Español (Latinoamérica)). Turkish
+  was used on a POCO F8 Pro throughout; the others were seen there only on the game card and the notification; no native speaker has read them yet.
+- **Android 12 and 12L** (minSdk 31): the app installs there, takes a Vulkan 1.1 loader with a 1.3 device, and the readiness check warns. In
+  practice a custom Vulkan 1.3 driver such as Anka Turnip is needed. Built and linted only; not run on Android 12.
+- **"Don't show this again" remembers the readiness fact, not its text**, so a changed fact shows its warning again. Checked on the JVM.
+- **Packer failures are shown as an error code and a text in the user's language**, and Forget names the translated shaders it keeps. Checked on
+  the JVM.
+- **A pack made on the phone with 0.2.2 gets an automatic shader update** for the new mesh and task shaders: 584 translated, 42,270 kept, a
+  targeted split of 35 files, about 2-5 minutes on a POCO F8 Pro, library byte for byte the full build's. The game can be played meanwhile (it
+  pauses the update, without the new content until it is done); nobody prepares again. A pack made on a computer with the 0.2.2 library shows
+  "Shaders out of date" and starts without the new shaders until `scripts/pack_android.py` is run again or the game is added from its dump. Tried on
+  copies of an old pack; a real update of an installed 0.2.2 not yet on a phone.
 - **An unfinished Prepare for another pack folder no longer stops a game card's shader update.** A paused Prepare beside the game that writes
   another pack folder (a test, or a pack you prepared elsewhere) kept the card's automatic shader update from ever running, and the card's "Prepare
   again" could only show that other job, which Home then resumed by itself. The card's update and Prepare again now run in a job folder of the card's
   own pack beside it; the other job is left as it is and is still found by Add game, which no longer takes it over a job of the pack it found or
   is stopped by it when you add a new update. A new job beside it is checked for free space again. A job you only ask to see is no longer started
-  by itself, and its line says to tap Resume. Checked on the JVM and in an APK build; not yet on a phone.
+  by itself, and its line says to tap Resume. Checked on a POCO F8 Pro (the card's update ran beside another pack's paused job, which was left
+  byte for byte as it was); Add game's Resume question for a paused job and the low-free-space refusal were not tried on a phone.
 - **Prepare's notification and card after a Pause, a kill and Prepare again.** After a quick Pause the notification could stay "Pausing" with no
   button though the Prepare was paused: it now says paused with Resume as soon as the work in hand has stopped, and at once when nothing was running.
   A Prepare killed while Home was open was taken for one you ended with Force stop (Resume offered, not resumed) when you had used Force stop on it
@@ -20,7 +74,8 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   card to another pack folder it finds beside the game, and a job you forgot comes back only if you resume it or ask to see it. A Resume tapped
   while a Prepare is still pausing now goes on once the pause has stopped (it did nothing before), and a game started right after a Pause waits until
   the paused work has stopped. The app no longer logs a Prepare's end
-  after each clean stop. Checked on the JVM and in a build; not yet on a phone.
+  after each clean stop. Checked on a POCO F8 Pro; a Resume tapped while a Prepare is still pausing cannot be reached from the screen there and
+  was checked on the JVM only.
 - **Pause stops a Prepare within seconds, and the notification says paused.** Pausing while the shaders were being translated did not stop the
   translation: it went on until the app ended its own process 20 s later, and the notification it left said "Waiting" for the battery or the heat, with a
   Pause button and no Resume, for the whole pause (that notification was already wrong in 0.2.2, after Android's daily limit too). For those 20 s the card
@@ -29,7 +84,8 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   compression, about 3 s, where it waited up to 11.5 s for the whole shader), every finished shader is kept for the resume, and the library is the same.
   A Pause can no longer leave the split or the translation waiting for good (the split hung in 2 of 15 Pauses early in its scan on a computer), and a
   Pause in the code rewrite no longer writes a red error line in the log. While it stops, the card and the notification say "Pausing" with no time left; then the job is paused with Resume, also when
-  the app had to end its process. Measured on a computer in the phone's form; not yet on a phone.
+  the app had to end its process. On a POCO F8 Pro a Pause stopped the work in 0.05-3.3 s, and the notification said paused with Resume within a
+  second after that.
 - **A game no longer runs beside a Prepare or shader update, and they no longer run the phone out of memory.** Starting a game while a Prepare or the
   automatic shader update ran (from a frontend, or Play during the update) ran a 12 GB phone out of memory: about 30 s after the game was in, Android
   ended the Prepare and the phone's own background apps (WhatsApp, the camera, the home screen), and the Prepare stood still until it was resumed by hand.
@@ -38,7 +94,7 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   say "a game is running: it goes on when the game ends". A Prepare you paused yourself stays paused (also when you tap Pause while it is stopping for the game), one you ended with Force stop
   is not brought back by a game, and the game can always be started. The game card
   says "Ready · updating shaders" only while its update runs (not for an update made by "Prepare again" that waits for Start); otherwise it says that the update is paused, paused while a game runs, or that the shaders
-  are older. Checked on the JVM and in a build; not yet on a phone.
+  are older. On a POCO F8 Pro the Prepare stopped 0.6-2.4 s after a game was started and went on after the game.
 - **A Prepare that Android ends comes back by itself, or says it stopped.** When the phone ended a Prepare's process (for memory, or a kill), Android
   was to start it again, but HyperOS never did: the notification went and the Prepare stood still until the app was opened and Resume tapped. Now the
   app starts it again itself where Android lets it: while the app's own process lives (Android allows this while the app is on screen or was just
@@ -46,13 +102,15 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   app's other processes too, a check a few minutes later (an alarm the Prepare keeps moving on while it works) starts it again or posts the notification
   below. A Pause tapped on the card just as the app opens on such a Prepare now pauses it, where it was dropped and the Prepare resumed by itself. Where Android does not let it, a
   notification says "Interrupted: …, Prepare stopped. Tap to go on", and a tap opens the app and goes on. A Prepare you paused stays paused. Allowing
-  the app's Autostart in HyperOS's app settings may let the phone restart it too (not tried). Checked on the JVM and in a build; not yet on a phone.
+  the app's Autostart in HyperOS's app settings may let the phone restart it too (not tried). Checked on a POCO F8 Pro: a killed Prepare came back, or said it was interrupted with a tap to go on. HyperOS limits how often
+  the check's alarm fires (about once an hour for an app in its rare group; there the first came after 4 min 51 s, the second after 23 min 42 s).
 - **Prepare's numbers read right.** The collapsed notification shows what it does and the time left ("Preparing · 45 min"), where Android shows a
   notification with a progress bar on one line with no text under it (on HyperOS it showed only "45 min left ·…"); every notification's title starts with
   what it says (Paused, Waiting, Ready to play, …), so a narrow screen cuts the game's name, not that. After a resume the time left comes back at once from the speed measured
   before, instead of nothing for over 2 minutes. A shader update's card no longer says "shader 0 / 42,854" at its start: the shader count shows once
   the update says how many it translates (584 for a 0.2.2 pack). A paused shader scan that resumes no longer drops the bar (it fell from 17 % to 6 % for
-  the 39 s the scan's start took again). English writes the percent sign as "32%". Checked on the JVM; not yet on a phone.
+  the 39 s the scan's start took again). English writes the percent sign as "32%". On a POCO F8 Pro the collapsed form showed the state and the time left once an estimate existed
+  (about 2 minutes in); a short update's collapsed notification on HyperOS still shows its long title cut with "…". The rest checked on the JVM.
 - **Preparing a game on a computer has a terminal interface:** `python scripts/prepare.py` (with the Python of the environment in android/README.md, nothing
   else to install) checks what the packer needs and says how to fix what is missing on this system, and how to get Homebrew, micromamba or curl first
   when a fix needs one the computer lacks (it builds and loads the ZBIC decoder below, so a computer without a C compiler is told so before anything
@@ -68,7 +126,8 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   follows the last minutes' speed, so it keeps up when a hot phone slows down, counts only the time the job runs (not a pause or a wait for the battery or
   the heat), and stays quiet when it has nothing to go on: during the dump check, the code rewrite and the start of the shader scan, while paused, and when
   progress stops. Replayed on three full Ocarina of Time Prepares measured on a POCO F8 Pro, it was about 7-16 % off on average, at times up to about 30 %
-  (more in the last few minutes). Not yet seen on a phone.
+  (more in the last few minutes). On a POCO F8 Pro the card and the notification agreed in every sample, about 11 % off on average and up to
+  41 % in the last 2 minutes.
 - **A game started from a frontend no longer asks "Start …?"** (found with iiSU 0.1.6.1). The play intent had its own copy of Play's checks, stricter
   than Play: a pack whose shader library was this version's but made from older shader inputs, which Play starts while the automatic update runs, was
   "not ready", so Home asked first and the game started only from Home's Play, without bringing the frontend back when it stopped. Play and the
@@ -76,19 +135,21 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   dump's pack, as Play, when Home is running and no Prepare job is; else when Home next shows the card), and a game that needs a pack, Prepare or shaders gets Play's own
   dialog with no question in front; its buttons ignore taps through another app's overlay, and a game it starts ("Start anyway") also brings the
   frontend back. Play itself now refuses a pack of another title with its pack dialog. A file that is not on Home still asks "Add this game?"
-  (android/FRONTENDS.md). Checked on the JVM and in a build, not yet on a phone.
-- **The zstd-compressed code of newer games (ZBIC, Ocarina of Time's) is read with Banana Native's decoder, `libzbicdec`** (`dm/third_party/zstd-zbic`:
+  (android/FRONTENDS.md). Checked on a POCO F8 Pro with iiSU's request sent by adb (no question, a second request ignored, a non-game file
+  refused); iiSU itself started the game on an earlier build that still asked, and not yet on this one.
+- **The zstd-compressed code of newer games (ZBIC, Ocarina of Time's) is read with the `libzbicdec` decoder** (`dm/third_party/zstd-zbic`:
   Zstandard's decoder, BSD, with an MIT reader of ZBIC's tables), in place of the zbic package (GPLv2), which the on-phone packer carried up to 0.2.2 and
   whose license did not fit the GPL-3.0-or-later translator in the same process. On Ocarina of Time it gives the same bytes: its code modules, the rewrite and
   the shader split's outputs are identical, so finished packs stay valid and are not rewritten. The APK carries `libzbicdec.so` (about 100 KB instead of the
   590 KB extension). Preparing on a computer no longer installs zbic but needs a C compiler for these games: the decoder is built once, the first time one is
-  read (android/README.md).
-- **Faster shader preparation on the phone, not yet tried on one.** The shader translation and the shader scan of the dump run their Python on several
+  read (android/README.md). A full Prepare on a POCO F8 Pro wrote the same library bytes.
+- **Faster shader preparation on the phone.** The shader translation and the shader scan of the dump run their Python on several
   cores (Python 3.14 subinterpreters, 4 workers on an 8 GB phone, 6 on 12 GB and more); on a PC in the phone's form the translation was about 3.4 times
-  faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB, where 8 GB phones stopped
-  ([#13](https://github.com/EddizEge/AnkaNative/issues/13)). The libraries are the same bytes (version `v-0dd4341ae6ce`): finished packs stay valid. Where
-  subinterpreters do not work, each step says so in its log and runs as before; `ondevice/env.txt` with `DMSH_VK_INTERPS=1` and `DM_SPLIT_INTERPS=1`
-  turns them off (android/SHADERS.md).
+  faster and the scan about twice. The end of the translation needs 1.2 GB instead of 4.1 GB (measured on a computer), where an 8 GB phone
+  most likely stopped ([#13](https://github.com/EddizEge/AnkaNative/issues/13)). The libraries are the same bytes (version `v-0dd4341ae6ce`): finished packs stay valid. Where
+  subinterpreters do not work, each step says so in its log and runs as before; for tests, `ondevice/env.txt` in the
+  work folder with `DMSH_VK_INTERPS=1` and `DM_SPLIT_INTERPS=1` turns them off (a test switch, android/SHADERS.md). A full Ocarina of Time Prepare took 57-77 minutes on a POCO F8 Pro (12 GB, 6 workers; 56 min 45 s at best),
+  where 0.2.0's was projected at about 3 hours, and its packer's peak was 1.95 GiB. Not tried on an 8 GB phone (4 workers).
 - **Prepare keeps its translated shaders in the app's own storage**, not beside the dump on shared storage, where each of about 42,000 files went
   through Android's FUSE layer (Ocarina of Time: about 2 minutes only to delete them at the end). The shaders step checks that the phone's internal storage has
   room for them (about 1 GB).
@@ -96,9 +157,10 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   work after the translator per shader went down by about a fifth. The library stays the same bytes (`v-0dd4341ae6ce`).
 - **The shader scan starts its workers sooner:** it no longer opens the dump file again for each of its 186,583 files, walks the game files once
   instead of twice, and reads the files' first bytes on several threads (on a PC about 70 seconds became 36, measured old and new in turn). Its outputs are the same bytes.
-- **A Prepare in progress translates its shaders again after this update:** the shaders already translated are stamped with the tools that made them, so
-  a job in the middle of the shaders step when the APK is updated starts that step over (hours on a phone). Finish a running Prepare first, or let it
-  start over. Finished packs are not affected.
+- **A Prepare that 0.2.2 left unfinished goes on after this update** and keeps its finished work: shaders already translated are stamped with the
+  tools that made them, and every one whose library entry has the manifest's hash is kept (on a computer: 42,270 kept, 584 translated, the library
+  byte for byte the same); a job 0.2.2 paused after its split re-splits and re-translates only what the new tables need. A job stopped in the middle
+  of the shader scan starts the scan again. Checked on the JVM and on a computer; not on a phone. Finished packs are not affected.
 
 ## Anka Native 0.2.2
 
