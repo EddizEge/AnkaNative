@@ -39,7 +39,7 @@ class InProcess(unittest.TestCase):
             script, log = Path(d) / 'tool.py', Path(d) / 'tool.log'
             script.write_text(body)
             argv, out, err, env = list(sys.argv), sys.stdout, sys.stderr, dict(os.environ)
-            try: return pack_android.run_in_process(script, ['a'], {'DM_TEST_IN_PROCESS': '1'}, log), log.read_text()
+            try: return pack_android.run_in_process(script, ['a'], {'in_process_test_var': '1'}, log), log.read_text()
             finally:
                 self.assertEqual((sys.argv, sys.stdout, sys.stderr), (argv, out, err))
                 self.assertEqual(dict(os.environ), env)
@@ -53,7 +53,7 @@ class InProcess(unittest.TestCase):
 
     def test_interrupt_goes_on(self):
         with self.assertRaises(KeyboardInterrupt):
-            self.run_script('import os; assert os.environ["DM_TEST_IN_PROCESS"] == "1"; raise KeyboardInterrupt\n')
+            self.run_script('import os; assert os.environ["in_process_test_var"] == "1"; raise KeyboardInterrupt\n')
 
 
 if __name__ == '__main__':
