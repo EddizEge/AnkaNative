@@ -54,7 +54,7 @@ class Service(unittest.TestCase):
         p = body(self.s, 'private void pauseDead() {')
         self.assertIn('if (!pausable(j)) return;', p)
         self.assertLess(p.index('j.state("paused", "user", null);'), p.index('j.save();'))
-        self.assertIn('nm.notify(NOTE, note(j, -1, false));', p)
+        self.assertIn('postNote(j, -1, false);', p)
 
     def test_alarm(self):
         """The job alarm (JobAlarm): set when a worker starts, moved on by the tick while it runs, cancelled when it ends cleanly; the receiver is declared"""

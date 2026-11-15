@@ -15,7 +15,7 @@ final class JobForm {
     enum Form {
         /** the worker runs the job: its step and progress, the time left, Pause */
         RUNNING,
-        /** a pause was asked for and the worker has not ended yet (the tool stops at the shader or file in hand): no time left, no action */
+        /** a pause was asked for and the worker's tool has not stopped yet (it stops at the shader or file in hand): no time left, no action */
         STOPPING,
         /** paused by the service's own policy (battery, heat, a game that runs): the worker waits and goes on by itself; ongoing, Pause */
         WAITING,
@@ -33,12 +33,19 @@ final class JobForm {
 
     /**
      * state, reason: job.json's; worker: the service's worker runs this job and goes on (false when the service is about to end its process, or has none);
-     * stopping: a pause was asked for and the worker has not ended yet
+     * stopAsked: a pause was asked for (user, timeout); toolRuns: the worker is inside a tool (PackService.inTool), which is what a pause waits for.
+     * <p>
+     * STOPPING only while both hold: a pause asked for while no tool runs (the worker waits for a game, the battery or the heat, or is between two steps) is
+     * paused at once, and once the tool has stopped the job is paused although the worker still lives for a moment (its last job.json write, then
+     * PackService.finished). The phone test of 2026-11-15 (rc1): STOPPING was decided from "the worker has not ended yet", so the worker's last write, made
+     * after the tool had exited, posted "Pausing" again a few milliseconds before finished() posted "Paused", and the shade kept "Pausing" (ongoing, no
+     * button) until the job was resumed or forgotten: 8 ms after the split's exit 130, and after a Pause of a job that waited for a game with no tool running.
      */
-    static Form of(String state, String reason, boolean worker, boolean stopping) {
+    static Form of(String state, String reason, boolean worker, boolean stopAsked, boolean toolRuns) {
         if ("done".equals(state)) return Form.DONE;
         if ("failed".equals(state)) return Form.FAILED;
-        if (worker && stopping) return Form.STOPPING;
+        if (worker && stopAsked && toolRuns) return Form.STOPPING;
+        if (stopAsked) return Form.PAUSED;   // nothing left to stop: the worker ends with the job paused
         if (worker && "running".equals(state)) return Form.RUNNING;
         if (worker && "paused".equals(state) && waitsByItself(reason)) return Form.WAITING;
         return Form.PAUSED;

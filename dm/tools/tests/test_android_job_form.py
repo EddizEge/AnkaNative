@@ -48,14 +48,14 @@ class Wiring(unittest.TestCase):
         self.assertNotIn('nm.notify(NOTE, note(j));', fb)
         leave = body(self.s, 'private void leaveNote(Job j)', '\n    }\n')
         self.assertIn('noteLeft = true;', leave)
-        self.assertIn('nm.notify(NOTE, note(j, -1, false));', leave)
+        self.assertIn('postNote(j, -1, false);', leave)
         self.assertIn('leaveNote(j);', body(self.s, 'public void onTimeout(', '\n    }\n'))
         pub = body(self.s, 'private void publish(Job j, boolean force)', '\n    }\n')
         self.assertIn('if (worker != null && !noteLeft && (force || now - lastNote >= 1000))', pub)
 
     def test_note_by_form(self):
         note = body(self.s, 'private Notification note(Job j, int etaMin, boolean live)', 'private String simulated(')
-        self.assertIn('JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null);', note)
+        self.assertIn('JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null, inTool);', note)
         self.assertNotRegex(note, r'state\.equals\("paused"\) && worker != null')   # the old wait rule
         self.assertIn('R.string.prepare_note_pausing', note)
 
@@ -63,18 +63,45 @@ class Wiring(unittest.TestCase):
         pub = body(self.s, 'private void publish(Job j, boolean force)', '\n    }\n')
         self.assertIn('boolean stopping = worker != null && stopReason != null;', pub)
         self.assertRegex(pub, r'int etaMin = est != null && worker != null && !stopping && "running"\.equals\(j\.state\(\)\)')
-        self.assertIn('b.putBoolean("stopping", stopping);', pub)
+        self.assertIn('b.putBoolean("stop_asked", stopping);', pub)
+        self.assertIn('b.putBoolean("in_tool", inTool);', pub)
 
     def test_card_says_pausing(self):
         o = (ONDEVICE / 'Ondevice.java').read_text(encoding='utf-8')
-        self.assertIn('jobStopping = d.getBoolean("stopping");', o)
+        self.assertIn('jobStopping = d.getBoolean("stop_asked");', o)
+        self.assertIn('jobInTool = d.getBoolean("in_tool");', o)
         show = body(o, '        void show() {', '\n        }\n')
-        self.assertIn('JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping) == JobForm.Form.STOPPING', show)
+        self.assertIn('JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping, jobInTool) == JobForm.Form.STOPPING', show)
         self.assertIn('status.setText(job.statusMsg(alive, stopping).text());', show)
         self.assertIn('&& !stopping);', show)   # Resume waits for the tool to stop
         j = (ONDEVICE / 'Job.java').read_text(encoding='utf-8')
         self.assertIn('new Msg("prepare_status_pausing", stepMsg())', j)
-        self.assertTrue(re.search(r'onServiceDisconnected\(ComponentName n\) \{[^}]*jobAlive = jobStopping = false;', o))
+        self.assertTrue(re.search(r'onServiceDisconnected\(ComponentName n\) \{[^}]*jobAlive = jobStopping = jobInTool = false;', o))
+
+
+class OnePlace(unittest.TestCase):
+    """The phone test of 2026-11-15 (rc1): "Pausing" stayed in the shade after the stop had finished (posted 8 ms after the split's exit 130, and after a Pause
+    of a job that waited for a game), because the worker's last job.json write posted the stopping form (decided from "the worker has not ended yet") a few ms
+    before finished() posted the paused one. Now one method decides and posts the notification under noteLock, which the tool's end also takes, and the form
+    says pausing only while the tool runs"""
+    s = (ONDEVICE / 'PackService.java').read_text(encoding='utf-8')
+
+    def test_one_place_posts(self):
+        code = re.sub(r'/\*.*?\*/|//[^\n]*', '', self.s, flags=re.S)
+        self.assertEqual(code.count('nm.notify('), 1)   # postNote only
+        post = body(self.s, 'private void postNote(Job j, int etaMin, boolean live)', '\n    }\n')
+        self.assertIn('synchronized (noteLock) { nm.notify(NOTE, note(j, etaMin, live)); }', post)
+        self.assertIn('synchronized (noteLock) { startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); }', self.s)
+        fin = body(self.s, 'private void finished()', '\n    }\n')
+        self.assertIn('postNote(j, -1, false);', fin)
+
+    def test_tool_end_under_the_lock(self):
+        st = body(self.s, 'private String step(Job j, int i)', '\n    }\n')
+        self.assertIn('synchronized (noteLock) { inTool = true; }', st)
+        self.assertIn('synchronized (noteLock) { inTool = false; }', st)
+        self.assertLess(st.index('synchronized (noteLock) { inTool = false; }'), st.index('tail.finish();'))
+        code = re.sub(r'/\*.*?\*/|//[^\n]*', '', self.s, flags=re.S)
+        self.assertEqual(len(re.findall(r'inTool = (true|false);', code)), 2)   # nowhere else
 
 
 if __name__ == '__main__':

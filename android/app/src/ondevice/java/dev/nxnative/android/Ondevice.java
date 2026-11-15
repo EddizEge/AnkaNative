@@ -190,7 +190,8 @@ final class Ondevice {
         long resumedAt;
         Job job;
         boolean jobAlive;   // the service said its worker runs this job
-        boolean jobStopping;   // the service said a pause was asked for and its worker is stopping (PackService "stopping", JobForm STOPPING)
+        boolean jobStopping;   // the service said a pause was asked for (PackService "stop_asked")
+        boolean jobInTool;     // …and its tool has not stopped yet (PackService "in_tool"): JobForm STOPPING only with both
         /** The minutes the running job has left, as the service last sent them (PackService "eta_min", Eta), -1 for none: an older service sends none */
         int etaMin = -1;
 
@@ -260,7 +261,7 @@ final class Ondevice {
                 a.unbindService(this);
                 bound = false;
                 service = null;
-                jobAlive = jobStopping = false;
+                jobAlive = jobStopping = jobInTool = false;
             }
         }
 
@@ -291,14 +292,14 @@ final class Ondevice {
 
         @Override public void onServiceDisconnected(ComponentName n) {   // the :pack process died
             service = null;
-            jobAlive = jobStopping = false;
+            jobAlive = jobStopping = jobInTool = false;
             etaMin = -1;
             show();
         }
 
         @Override public void onBindingDied(ComponentName n) {
             service = null;
-            jobAlive = jobStopping = false;
+            jobAlive = jobStopping = jobInTool = false;
             if (bound) { a.unbindService(this); bound = false; }
             if (resumed) bound = a.bindService(new Intent(a, PackService.class), this, 0);
         }
@@ -309,7 +310,8 @@ final class Ondevice {
             Job j = d.containsKey("job") ? Job.of(new File(d.getString("file", "")), d.getString("job", "{}")) : null;   // none: a service with no job
             if (j != null) job = j;
             jobAlive = d.getBoolean("alive");
-            jobStopping = d.getBoolean("stopping");
+            jobStopping = d.getBoolean("stop_asked");
+            jobInTool = d.getBoolean("in_tool");
             etaMin = d.getInt("eta_min", -1);
             show();
             return true;
@@ -374,7 +376,7 @@ final class Ondevice {
             String update = a.getString(R.string.prepare_card_update, String.valueOf(job.version()));
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
             // a pause asked for while the tool stops: said so, with no time left and Resume not yet tappable (the service would not take it while its worker runs)
-            boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping) == JobForm.Form.STOPPING;
+            boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping, jobInTool) == JobForm.Form.STOPPING;
             status.setText(job.statusMsg(alive, stopping).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
             // the shader count once the shaders step's tool has said how many it translates (an update's few hundred), only the percentage before

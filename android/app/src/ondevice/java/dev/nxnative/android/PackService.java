@@ -98,7 +98,15 @@ public final class PackService extends Service {
     private volatile boolean waiting;
     /** The heat wait holds until thermal MODERATE or better */
     private boolean hot;
+    /** The worker is inside a tool (engine.run): what a pause waits for. Changed only under noteLock, which the notification's every post takes */
     private volatile boolean inTool;
+    /**
+     * Taken by the one place that decides the job's notification and posts it (postNote, and startForeground) and by the tool's start and end (step): a form
+     * decided while the tool ran cannot be posted after its end. The phone test of 2026-11-15 (rc1): the worker's last job.json write, made after the tool
+     * had exited, posted "Pausing" (decided from "the worker has not ended yet") a few milliseconds before finished() posted "Paused", and the shade kept
+     * "Pausing" with no button until the job was resumed or forgotten
+     */
+    private final Object noteLock = new Object();
     /** The notification left for after this service (leaveNote: the 20-s fallback, onTimeout): the worker's updates no longer replace it */
     private volatile boolean noteLeft;
     private int batteryPct = 100, thermal;
@@ -320,7 +328,7 @@ public final class PackService extends Service {
 
     private boolean startForeground(Job j) {
         try {
-            startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            synchronized (noteLock) { startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); }
             noteLeft = false;
             return true;
         } catch (RuntimeException e) {   // ForegroundServiceStartNotAllowedException, or the type's time limit used up
@@ -405,7 +413,7 @@ public final class PackService extends Service {
             Log.e(TAG, "job.json: " + e);
             return;
         }
-        nm.notify(NOTE, note(j, -1, false));
+        postNote(j, -1, false);
     }
 
     /** A job a pause applies to: running, or waiting for the battery or the heat (not one already done, failed or paused for good) */
@@ -417,7 +425,7 @@ public final class PackService extends Service {
     private void leaveNote(Job j) {
         noteLeft = true;
         stopForeground(STOP_FOREGROUND_DETACH);
-        nm.notify(NOTE, note(j, -1, false));
+        postNote(j, -1, false);
     }
 
     // ---- Battery and heat ----
@@ -605,7 +613,7 @@ public final class PackService extends Service {
         JobAlarm.cancel(this);   // the worker ended with the job done, failed or paused: nothing to check (a process that dies before this keeps its alarm)
         publish(j, true);
         stopForeground(STOP_FOREGROUND_DETACH);
-        if (j != null) nm.notify(NOTE, note(j));
+        if (j != null) postNote(j, -1, false);   // worker is null: paused (Resume), failed (Retry) or done (Play)
         stopSelf();
         if (gameAsked && PackNative.ranTool()) {   // a game starts (a Pause was in hand, or the job ended meanwhile): what the tools left goes with this process
             Log.i(TAG, "a game starts: ending this process, which keeps what the tools left");
@@ -783,12 +791,12 @@ public final class PackService extends Service {
         Tail tail = new Tail(j, s, log);
         tail.start();
         int code;
-        inTool = true;
+        synchronized (noteLock) { inTool = true; }
         try {
             if (autoReason != null || stopReason != null) return "interrupted";
             code = engine.run(tool, argv, log.getPath());
         } finally {
-            inTool = false;
+            synchronized (noteLock) { inTool = false; }   // from here every post of the notification says paused, not pausing (noteLock)
             tail.finish();
         }
         Log.i(TAG, s + ": exit " + code);
@@ -1012,7 +1020,7 @@ public final class PackService extends Service {
         long now = SystemClock.elapsedRealtime();
         // the time left, asked once here for both (it smooths and rounds as it is asked); none unless the worker runs the job and no pause was asked for
         Eta est = eta;
-        boolean stopping = worker != null && stopReason != null;
+        boolean stopping = worker != null && stopReason != null;   // a pause was asked for: no time left (the form says pausing only while the tool stops)
         int etaMin = est != null && worker != null && !stopping && "running".equals(j.state()) ? est.minutes(now) : -1;
         if (force || now - lastSend >= 250) {
             lastSend = now;
@@ -1022,7 +1030,8 @@ public final class PackService extends Service {
             b.putString("file", j.file.getPath());
             b.putBoolean("alive", worker != null);
             b.putInt("pid", Process.myPid());   // JobWatch: the exit record of this process when it ends
-            b.putBoolean("stopping", stopping);   // a pause was asked for and the tool is stopping (JobForm STOPPING)
+            b.putBoolean("stop_asked", stopping);   // a pause was asked for (JobForm stopAsked)
+            b.putBoolean("in_tool", inTool);        // and the tool has not stopped yet (JobForm toolRuns): the card says pausing only then
             b.putInt("eta_min", etaMin);
             // a game about to start may (PrepareGate): no worker, or one that waits for the game in a process that has run no tool
             b.putBoolean("game_ready", GameGate.ready(worker != null, waiting && GameGate.REASON.equals(autoReason), PackNative.ranTool()));
@@ -1037,8 +1046,16 @@ public final class PackService extends Service {
         }
         if (worker != null && !noteLeft && (force || now - lastNote >= 1000)) {
             lastNote = now;
-            nm.notify(NOTE, note(j, etaMin, true));
+            postNote(j, etaMin, true);
         }
+    }
+
+    /**
+     * Posts the job's notification: the only place that does (with startForeground), deciding its form (note, JobForm) and posting it under noteLock, which
+     * the tool's end also takes. live: the worker runs the job and goes on (false: the service is ending, or has no worker)
+     */
+    private void postNote(Job j, int etaMin, boolean live) {
+        synchronized (noteLock) { nm.notify(NOTE, note(j, etaMin, live)); }
     }
 
     private boolean handle(Message m) {
@@ -1073,7 +1090,7 @@ public final class PackService extends Service {
         int i = j.current();
         if (state.equals("done")) return b.setContentTitle(simulated(getString(R.string.prepare_note_done, name), sim))
                 .setContentText(getString(R.string.prepare_note_done_text, getString(R.string.prepare_button_play))).setAutoCancel(true).build();
-        JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null);
+        JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null, inTool);   // inTool under noteLock (postNote)
         boolean running = form == JobForm.Form.RUNNING, stopping = form == JobForm.Form.STOPPING;
         boolean waiting = form == JobForm.Form.WAITING;   // the policy's pause: it goes on by itself
         b.setContentTitle(simulated(getString(running ? R.string.prepare_note_running : stopping ? R.string.prepare_note_pausing : waiting ? R.string.prepare_note_waiting
