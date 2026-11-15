@@ -12,7 +12,9 @@ package dev.nxnative.android;
  *     Android 12+ refuses a foreground service's start (ForegroundServiceStartNotAllowedException) unless an exemption holds, and then the app posts a
  *     notification that says Prepare stopped, which opens the app and resumes it;</li>
  * <li>Home, when it opens and finds the job's service gone (Ondevice.Panel.afterDeath), starts it again: its activity is in front, which Android allows;</li>
- * <li>a game that ends while the job waits for it starts it again (PrepareGate.afterGame), its activity still in front.</li>
+ * <li>a game that ends while the job waits for it starts it again (PrepareGate.afterGame), its activity still in front;</li>
+ * <li>when no process of the app is left (lmkd ends the cached main process before :pack), an alarm the service keeps moving on while it works fires some
+ *     minutes later and does what JobWatch would (JobAlarm).</li>
  * </ul>
  * A job the user paused (or Android's daily limit, or a start Android refused) stays paused, and a process ended at the user's request (ApplicationExitInfo's
  * REASON_USER_REQUESTED: Force stop, or removing the app from Recents where the phone ends it then) is offered on Home's card as before, not resumed by itself.
@@ -47,6 +49,14 @@ final class JobDeath {
         if (GameGate.REASON.equals(reason) && !GameGate.resumeAfterGame(state, reason, false, gameRuns)) return Act.NOTHING;
         if (exit == EXIT_USER_REQUESTED) return Act.OFFER;
         return Act.RESUME;
+    }
+
+    /**
+     * Whether the job is to be looked at again later (JobAlarm) although nothing is to be done now: it waits for a game that still runs and no worker waits
+     * with it (its process died during the game). The game's own end starts it (PrepareGate.afterGame), but a game that crashes or is killed never gets there
+     */
+    static boolean checkAgain(String state, String reason, boolean worker, boolean gameRuns) {
+        return !worker && gameRuns && "paused".equals(state) && GameGate.REASON.equals(reason);
     }
 
     /**

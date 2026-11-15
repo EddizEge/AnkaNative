@@ -15,5 +15,9 @@
             android:exported="false"
             android:process=":pack"
             android:foregroundServiceType="dataSync" />
+        <!-- A check of the job some minutes after its process was last seen working (JobAlarm): only this app's AlarmManager intent reaches it -->
+        <receiver
+            android:name=".JobAlarm"
+            android:exported="false" />
     </application>
 </manifest>

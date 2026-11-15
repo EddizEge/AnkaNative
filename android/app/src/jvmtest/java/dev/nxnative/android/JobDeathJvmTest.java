@@ -31,6 +31,11 @@ public final class JobDeathJvmTest {
         check(JobDeath.after("paused", "game", false, LMK, true) == N, "waiting for a game that still runs: the game's end starts it");
         check(JobDeath.after("paused", "game", false, LMK, false) == R, "waiting for a game that has ended: resumed");
         check(JobDeath.after("running", "", false, LMK, true) == R, "running beside a game (its new process waits for the game)");
+        // the job alarm (JobAlarm): looked at again only while it waits for a game that still runs and nothing waits with it
+        check(JobDeath.checkAgain("paused", "game", false, true), "waiting for a game, its process died, the game runs: checked again (the game may end without its own end)");
+        check(!JobDeath.checkAgain("paused", "game", false, false) && JobDeath.after("paused", "game", false, LMK, false) == R, "the game has gone: resumed now, no later check");
+        check(!JobDeath.checkAgain("paused", "game", true, true), "a worker waits with it: the service moves the alarm on itself");
+        check(!JobDeath.checkAgain("running", "", false, true) && !JobDeath.checkAgain("paused", "user", false, true), "anything else: decided now");
         // the automatic start's check, some seconds later
         check(JobDeath.notBack("running", "", false), "still running in job.json, no worker: told");
         check(JobDeath.notBack("paused", "refused", false), "Android refused the service the foreground: told");

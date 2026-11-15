@@ -29,8 +29,8 @@ import java.util.List;
  * while the app has a visible activity (or one of its exemptions holds). When Android refuses (the app in the background: ForegroundServiceStartNotAllowedException
  * on Android 12+), or the service is not back with its worker within VERIFY_MS, it posts a notification in place of the job's: "Interrupted: …", which opens the
  * app and resumes the job (Ondevice "ondevice_resume"), with a Resume action of its own. So the job never just vanishes with its notification, as it did on
- * HyperOS, which refuses the service's sticky restart (JobDeath). Nothing here can help when no process of the app lives: Home then resumes it when it opens
- * (Ondevice.Panel.afterDeath).
+ * HyperOS, which refuses the service's sticky restart (JobDeath). Nothing here can help when no process of the app lives: the service's alarm (JobAlarm) then
+ * starts this process for a check some minutes later, and Home resumes it when it opens (Ondevice.Panel.afterDeath).
  */
 final class JobWatch implements ServiceConnection {
     private static final String TAG = "nxpack";
@@ -104,6 +104,7 @@ final class JobWatch implements ServiceConnection {
         Log.i(TAG, "the job's process " + (p > 0 ? p + " " : "") + "ended" + (worker ? " while its worker ran" : "") + " (" + describe(exit) + "), the job "
                 + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()) + ": " + act);
         if (act == JobDeath.Act.RESUME) restart(c, j, "its process ended");   // i18n-keep: the log's reason
+        else if (JobDeath.checkAgain(j.state(), j.reason(), false, PrepareGate.gameRunning(c))) JobAlarm.arm(c, true);   // a game that ends without its own end
     }
 
     /**

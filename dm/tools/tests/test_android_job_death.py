@@ -56,6 +56,27 @@ class Service(unittest.TestCase):
         self.assertLess(p.index('j.state("paused", "user", null);'), p.index('j.save();'))
         self.assertIn('nm.notify(NOTE, note(j, -1, false));', p)
 
+    def test_alarm(self):
+        """The job alarm (JobAlarm): set when a worker starts, moved on by the tick while it runs, cancelled when it ends cleanly; the receiver is declared"""
+        self.assertIn('JobAlarm.arm(this, true);', body(self.s, 'private int begin(Job j, boolean user, int startId) {'))
+        self.assertIn('JobAlarm.arm(PackService.this, false);', body(self.s, 'private final Runnable tick = new Runnable() {', '\n    };\n'))
+        self.assertIn('JobAlarm.cancel(this);', body(self.s, 'private void finished() {'))
+        for f in ('private void endForGame(Job j) {', 'private void gamePause() {', 'private void requestStop(String reason) {'):
+            self.assertNotIn('JobAlarm.cancel', body(self.s, f), f)   # a process that ends itself keeps its alarm
+        m = code(REPO / 'android/app/src/ondevice/AndroidManifest.xml')
+        self.assertRegex(m, r'<receiver\s+android:name="\.JobAlarm"\s+android:exported="false"')
+        a = code(ONDEVICE / 'JobAlarm.java')
+        self.assertIn('public final class JobAlarm extends BroadcastReceiver', a)
+        self.assertIn('public JobAlarm() {}', a)
+        r = body(a, '    @Override public void onReceive(Context c, Intent i) {')
+        self.assertIn('JobDeath.after(j.state(), j.reason(), pack, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), game)', r)
+        self.assertIn('if (act == JobDeath.Act.RESUME) JobWatch.restart(c, j,', r)
+        self.assertIn('if (again) arm(c, true);', r)
+        self.assertIn('set(AlarmManager.ELAPSED_REALTIME,', a)   # inexact and not waking: no permission
+        self.assertNotIn('setExact', a)
+        self.assertIn('else if (JobDeath.checkAgain(j.state(), j.reason(), false, PrepareGate.gameRunning(c))) JobAlarm.arm(c, true);',
+                      body(code(ONDEVICE / 'JobWatch.java'), 'private void died(int p, boolean worker)'))
+
     def test_pid(self):
         """MSG_STATE carries the service's pid, for the watch's exit record"""
         pub = body(self.s, 'private void publish(Job j, boolean force)')

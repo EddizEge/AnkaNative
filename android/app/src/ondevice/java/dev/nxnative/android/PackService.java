@@ -114,6 +114,7 @@ public final class PackService extends Service {
             if (worker == null) return;
             Job j = job;
             if (j != null && "running".equals(j.state())) publish(j, false);   // a wait for the battery or the heat has no time left to show: its notification stands
+            JobAlarm.arm(PackService.this, false);   // a check of the job some minutes on, should this process die with no other of the app left (JobAlarm)
             main.postDelayed(this, TICK_MS);
         }
     };
@@ -229,6 +230,7 @@ public final class PackService extends Service {
         policy();
         worker = new Thread(this::work, "nxpack-job");
         worker.start();
+        JobAlarm.arm(this, true);
         main.removeCallbacks(tick);
         main.postDelayed(tick, TICK_MS);
         main.removeCallbacks(gameWatch);
@@ -600,6 +602,7 @@ public final class PackService extends Service {
     private void finished() {
         Job j = job;
         worker = null;
+        JobAlarm.cancel(this);   // the worker ended with the job done, failed or paused: nothing to check (a process that dies before this keeps its alarm)
         publish(j, true);
         stopForeground(STOP_FOREGROUND_DETACH);
         if (j != null) nm.notify(NOTE, note(j));
