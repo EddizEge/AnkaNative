@@ -31,7 +31,7 @@ final class Native {
     /** Starts nxhost_main(args) on a thread with an 8 MB stack after setting env (KEY=VALUE) and sending stdout / stderr to logPath. 0 = started. */
     static native int start(String[] args, String[] env, String logPath, String cwd);
 
-    /** A launcher line in the host's log. */
+    /** A launcher line in the host's log: nxlaunch.c writes it as "[nxlaunch] &lt;line&gt;", so the line itself never starts with that tag ("[RED] ..." for a red one) */
     static native void note(String line);
 
     /** The game screen's surface for the host (nxhost_set_window), null when it goes. */

@@ -125,9 +125,19 @@ public final class LauncherJvmTest {
             check(Profile.detailOn(List.of("DM_DETAIL=reduced")) && !Profile.detailOn(List.of()) && !Profile.detailOn(List.of("DM_DETAIL=reduced", "DM_DETAIL=")) && Profile.detailOn(List.of("DM_DETAIL=", "DM_DETAIL=lowest")), "the last DM_DETAIL line wins");
             check(Profile.dropDetail(temp, List.of("DM_TEMP=" + temp, "DM_DETAIL=reduced")) == null && over.isDirectory(), "a level: the overlay is kept (the host reuses it), no line");
             String gone = Profile.dropDetail(temp, List.of("DM_TEMP=" + temp, "DM_DETAIL=reduced", "DM_DETAIL="));
-            check(gone != null && gone.startsWith("[nxlaunch] Full") && gone.contains(Profile.detailDir(temp).getPath()) && gone.endsWith("was removed") && !Profile.detailDir(temp).exists() && temp.isDirectory(),
+            // the exact line, without the "[nxlaunch] " tag Native.note's nxlaunch.c writes before it (test_android_saves checks that side)
+            check(("Full (as the game draws it): the earlier start's overlay " + Profile.detailDir(temp) + " was removed").equals(gone) && !Profile.detailDir(temp).exists() && temp.isDirectory(),
                     "Full (env.txt's empty line wins): the overlay is gone, the game's temp kept, one line says so: " + gone);
             check(Profile.dropDetail(temp, List.of()) == null, "Full with no overlay: nothing to do, no line");
+            // an overlay that cannot be removed entirely (a file in a folder that is not writable): a [RED] line, "[RED] " first so the log has "[nxlaunch] [RED] ..."
+            File stuck = new File(Profile.detailDir(temp), "detail-reduced-0123456789abcdef/romfs");
+            check(stuck.mkdirs() && java.nio.file.Files.write(new File(stuck, "A.bgyml").toPath(), new byte[] {1}) != null && stuck.setWritable(false), "fixture: a folder that is not writable");
+            String red = Profile.dropDetail(temp, List.of("DM_TEMP=" + temp));
+            check(stuck.setWritable(true), "fixture: writable again");
+            check(("[RED] [detail] the earlier overlay " + Profile.detailDir(temp) + " could not be removed entirely (the game does not read it: it is not in its temporary storage)").equals(red)
+                    && new File(stuck, "A.bgyml").isFile(), "an overlay that stays: the [RED] line: " + red);
+            check(("Full (as the game draws it): the earlier start's overlay " + Profile.detailDir(temp) + " was removed").equals(Profile.dropDetail(temp, List.of())) && !Profile.detailDir(temp).exists(),
+                    "the next start with Full removes the rest");
             temp.delete(); new File(base, "temp").delete(); base.delete();
         }
         check(Profile.versionName(0).equals("the base game") && Profile.versionName(458752).equals("update 458752"), "versionName");

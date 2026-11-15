@@ -53,7 +53,7 @@ class Game(unittest.TestCase):
         hold = body(self.g, 'private boolean prepareHold(String name) {')
         self.assertIn('PrepareGate.hold(this, () -> { if (!isFinishing() && !isDestroyed()) start(); })', hold)
         self.assertIn('R.string.game_prepare_pausing', hold)
-        self.assertIn('Native.note("[nxlaunch] Prepare: " + PrepareGate.outcome)', self.g)
+        self.assertIn('Native.note("Prepare: " + PrepareGate.outcome)', self.g)
 
     def test_the_gate(self):
         """ACTION_GAME from the game's process (an activity in front may start the service), a binding that only follows the service, game_ready, a new

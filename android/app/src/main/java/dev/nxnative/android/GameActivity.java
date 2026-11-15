@@ -540,9 +540,9 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             ui.postDelayed(this::noteOwnRate, 30000);
             hostRunning = true;
             if (readinessLine != null) Native.note(readinessLine + (triedAnyway ? "; the player chose Try anyway" : ""));   // the readiness check (readinessHold)
-            if (PrepareGate.outcome != null) Native.note("[nxlaunch] Prepare: " + PrepareGate.outcome);   // i18n-keep: the game's log (prepareHold)
-            Native.note("[nxlaunch] game: " + game + (Nup.isNup(game) ? " (.nup)" : " (folder)") + ", DM_ROMFS " + romfs + ", pack " + packDir);
-            Native.note("[nxlaunch] save: " + save + " (" + saveHow + ")" + (saveNote != null ? "; " + saveNote : ""));
+            if (PrepareGate.outcome != null) Native.note("Prepare: " + PrepareGate.outcome);   // i18n-keep: the game's log (prepareHold)
+            Native.note("game: " + game + (Nup.isNup(game) ? " (.nup)" : " (folder)") + ", DM_ROMFS " + romfs + ", pack " + packDir);
+            Native.note("save: " + save + " (" + saveHow + ")" + (saveNote != null ? "; " + saveNote : ""));
             Native.note("Anka Native " + BuildConfig.VERSION_NAME + " (" + BuildConfig.NX_COMMIT + "), host libnxhost_" + id + ".so; " + name + " " + id + " version " + pack.version);
             Native.note("device " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + "), " + Build.SUPPORTED_ABIS[0]
                     + "; game " + game + "; pack " + packDir);
@@ -556,7 +556,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
                 Native.note("[RED] env: " + msg);
                 android.widget.Toast.makeText(this, getString(testApp() ? R.string.game_env_refused_test : R.string.game_env_refused, String.join(", ", shown)), android.widget.Toast.LENGTH_LONG).show();
             }
-            if (testSave != null) Native.note("[nxlaunch] test app: DM_SAVE from env-" + id + ".txt: " + testSave);
+            if (testSave != null) Native.note("test app: DM_SAVE from env-" + id + ".txt: " + testSave);
             Native.note("frame generation: " + (Lsfg.on(this) ? "on" : "off") + "; " + Lsfg.note);
             Native.note(gpuNote + " (picked in the launcher; a DM_VK_DRIVER line in env.txt wins, the host's [vk] driver line says which ran)");
             input = Native.hasInput();

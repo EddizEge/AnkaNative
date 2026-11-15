@@ -166,12 +166,12 @@ final class Profile {
      * At a start with Full (no DM_DETAIL, or an empty one): the overlay an earlier start built is removed, so no file of an earlier level stays on the phone. Here, in
      * the launcher, so that the host sends and logs nothing for Full. Only at a start: the game this start replaces has ended, and no running game reads it.
      * Returns the game log's line about it: null when there was nothing to do (a level, or no folder), else whether the folder was removed (a [RED] line when
-     * some of it stays)
+     * some of it stays). Without the "[nxlaunch] " tag, as every Native.note line: nxlaunch.c's note writes it before the line
      */
     static String dropDetail(java.io.File temp, List<String> env) {
         java.io.File d = detailDir(temp);
         if (detailOn(env) || (!d.exists() && !isLink(d))) return null;
-        return deleteTree(d) ? "[nxlaunch] Full (as the game draws it): the earlier start's overlay " + d + " was removed"   // i18n-keep: log
+        return deleteTree(d) ? "Full (as the game draws it): the earlier start's overlay " + d + " was removed"   // i18n-keep: log
                 : "[RED] [detail] the earlier overlay " + d + " could not be removed entirely (the game does not read it: it is not in its temporary storage)";   // i18n-keep: log
     }
 

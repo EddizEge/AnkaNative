@@ -105,6 +105,22 @@ def scenarios(root):
             'legacy_old': legacy_old, 'both_markers': both_markers, 'emptied_copy': emptied_copy}
 
 
+class LaunchLogTag(unittest.TestCase):
+    """The game log's launcher lines: nxlaunch.c's Native.note writes "[nxlaunch] " before each line, so no line the launcher hands it carries the tag again (the
+    phone's log had "[nxlaunch] [nxlaunch] Full (as the game draws it): ..."); with LauncherJvmTest's exact dropDetail lines this pins the logged line"""
+
+    def test_the_tag_is_written_once(self):
+        c = (REPO / 'android/app/src/main/cpp/nxlaunch.c').read_text()
+        note = c[c.index('Java_dev_nxnative_android_Native_note('):]
+        self.assertIn('fprintf(stderr, "[nxlaunch] %s\\n", s);', note[:note.index('\n}')])
+        for f in sorted((REPO / 'android/app/src').rglob('*.java')):
+            with self.subTest(f.name):
+                self.assertNotRegex(f.read_text(), r'Native\.note\(\s*(String\.format\([^,]*,\s*)?"\[nxlaunch\]', 'the tag is nxlaunch.c\'s')
+        body = (SRC / 'Profile.java').read_text()
+        body = body[body.index('static String dropDetail('):]
+        self.assertNotIn('[nxlaunch]', body[:body.index('\n    }')])
+
+
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
 class LauncherJvm(unittest.TestCase):
     @classmethod
