@@ -134,6 +134,9 @@ On-screen controls have a layout editor; gamepads work. Every switch the host re
 - **Textures** may pop in while walking (textures released under memory pressure are made again) and **shimmer**.
 - **The first start of 0.3.0, and the first with another GPU driver, shows a white glow** for about 10 s, and the trees and plants drawn
   with mesh shaders come after about 45 s, while their shaders compile.
+- **Adreno 840 with Anka Turnip: the game may still lose the GPU device when gameplay starts**
+  ([#5](https://github.com/EddizEge/AnkaNative/issues/5)). 0.3.0 has a change for it, but it is untested: we have no Adreno 840.
+- With Qualcomm's own driver on the Adreno 840, the world is black or wrong-coloured.
 - **Short stalls while walking** come from pipelines built late and from memory pressure.
 - **Anti-aliasing** is not visible yet: the game's SMAA pass runs, but its blend weights are all zero.
 - Donkey Kong Bananza and Mario Kart World were **not tested** with Anka Native's changes. Only one phone was tried.
