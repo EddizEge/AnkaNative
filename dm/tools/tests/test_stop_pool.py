@@ -123,5 +123,22 @@ class Stop(unittest.TestCase):
             self.assertNotRegex(s, r'cf\.wait\(|as_completed\(', f'{name}: a wait an interrupt can hang (stop_pool.Ends)')
 
 
+    def test_in_the_tools_digest(self):
+        """Pool and Ends run what a build reuses and the library's check (vk_android_build.py, vk_android_delta.py): stop_pool.py is one of the files the tools
+        digest (DMSH_VK_CHAIN) hashes, so a change to it needs a new library version or a vk_android_same.tsv row"""
+        s = (TOOLS / 'vk_android_build.py').read_text(encoding='utf-8')
+        self.assertRegex(s, r"(?m)^VK_FILES = \[[^\]]*'tools/stop_pool\.py'")
+
+
+class Outputs(unittest.TestCase):
+    def test_index_written_whole(self):
+        """A build stopped while it writes index.json or _vk_build.json (the library stage) leaves no cut-off file: each goes to a temporary name and is renamed"""
+        s = (TOOLS / 'vk_android_build.py').read_text(encoding='utf-8')
+        for name in ('index.json', '_vk_build.json'):
+            self.assertIn(f"open(os.path.join(out, '{name}.tmp'), 'w')", s, name)
+            self.assertIn(f"os.replace(os.path.join(out, '{name}.tmp'), os.path.join(out, '{name}'))", s, name)
+            self.assertNotIn(f"open(os.path.join(out, '{name}'), 'w')", s, name)
+
+
 if __name__ == '__main__':
     unittest.main()

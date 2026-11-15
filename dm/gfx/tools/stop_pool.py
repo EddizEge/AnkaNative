@@ -5,6 +5,7 @@
 # while ex.map was still submitting (its result iterator, which cancels the jobs not started, did not exist yet) waited for the whole map. On a phone that is the
 # split's look at the first bytes of every RomFS file (about 30 s of its 39-s start) or the hashing of a library's 42,854 entries. Ends: how those tools wait
 # for their futures where an interrupt can reach the waiting thread, without cf.wait (whose locks an interrupt could leave taken: a stop that never ended).
+# This file is one of DMSH_VK_CHAIN's files (vk_android_build.py VK_FILES): vk_android_build.py and vk_android_delta.py run what a build reuses and checks through it.
 import concurrent.futures as cf
 import queue
 

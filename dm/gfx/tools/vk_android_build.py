@@ -57,7 +57,7 @@ except ImportError:
     try: from backports import zstd   # pyright: ignore[reportMissingImports]
     except ImportError: zstd = None
 ABI_VK = os.path.join(GFX, 'nvn', 'dmsh_abi_vk.h'); HEADER_VK = os.path.join(GFX, 'nvn', 'dmsh_chain_vk.h')
-VK_FILES = ['tools/vk_android_build.py', 'tools/vk_android_spv.py', 'tools/vk_android_delta.py', 'nvn/dmsh_abi_vk.h']
+VK_FILES = ['tools/vk_android_build.py', 'tools/vk_android_spv.py', 'tools/vk_android_delta.py', 'tools/stop_pool.py', 'nvn/dmsh_abi_vk.h']   # stop_pool.py: its Pool and Ends run the library's check and what a build reuses
 SAME_TSV = os.path.join(HERE, 'vk_android_same.tsv')
 vk_values = delta.vk_values
 
@@ -93,7 +93,7 @@ def vk_version():
 
 def header_text(v, a):
     return ('// Generated file (dm/gfx/tools/vk_android_build.py --header): the Android Vulkan shader library version this source tree expects. It covers DMSH_CHAIN\n'
-            '// (the translator front half), vk_android_build.py, vk_android_spv.py, vk_android_delta.py and dmsh_abi_vk.h; the replay loads <library dir>/v-<V>/dmsh_vk.lib.\n'
+            '// (the translator front half), vk_android_build.py, vk_android_spv.py, vk_android_delta.py, stop_pool.py and dmsh_abi_vk.h; the replay loads <library dir>/v-<V>/dmsh_vk.lib.\n'
             '// DMSH_VK_ABI: what the replay reads of a library (vk_android_delta.py abi_digest); a library of another version with this ABI is played while its update runs\n'
             f'#define DMSH_VK_CHAIN "{v}"\n'
             f'#define DMSH_VK_ABI "{a}"\n')
@@ -1378,9 +1378,10 @@ def summary_part(refl):
 
 def write_index(results):
     """index.json (each built shader's reflection; a shader kept from an older library has its stage and that library's version, not its whole reflection), written
-    as each result's head is read: the text json.dump gives the whole dict. → results with each built shader's summary part (summary_part) and module records"""
+    as each result's head is read: the text json.dump gives the whole dict; to a temporary name and renamed, so a build stopped while it writes leaves no cut-off
+    index.json. → results with each built shader's summary part (summary_part) and module records"""
     out_r = []
-    with open(os.path.join(out, 'index.json'), 'w') as f:
+    with open(os.path.join(out, 'index.json.tmp'), 'w') as f:
         f.write(json.dumps({'chain': CHAIN, 'vk_chain': VKV, 'game': GAME.id, 'inputs': INPUTS}, separators=(',', ':'))[:-1] + ',"shaders":{')
         first = True
         for k, st, err, _ in results:
@@ -1390,11 +1391,13 @@ def write_index(results):
             f.write(('' if first else ',') + json.dumps(k) + ':' + json.dumps(refl, separators=(',', ':'))); first = False
             out_r.append((k, st, err, (summary_part(refl), [(variant, size, None, codec, None) for variant, size, _, codec in h['modules']])))
         f.write('}}')
+    os.replace(os.path.join(out, 'index.json.tmp'), os.path.join(out, 'index.json'))
     return out_r
 
 
 results = write_index(results)
-json.dump([{'key': k, 'st': st, 'err': e} for k, st, e, _ in results], open(os.path.join(out, '_vk_build.json'), 'w'))
+with open(os.path.join(out, '_vk_build.json.tmp'), 'w') as _f: json.dump([{'key': k, 'st': st, 'err': e} for k, st, e, _ in results], _f)
+os.replace(os.path.join(out, '_vk_build.json.tmp'), os.path.join(out, '_vk_build.json'))
 # The new library read back and every entry hashed: vk_delta.tsv beside it (what a Mac build gives the profile: vk_android_build.py --publish-delta), and with a manifest of this
 # version, each entry checked against it: a mismatch or a shader the manifest has and the library lacks is a [RED] line naming the key (the library is kept: it is what this
 # machine's tools made). A full build with a manifest checks the same, so a phone's full build is compared with the Mac's too
