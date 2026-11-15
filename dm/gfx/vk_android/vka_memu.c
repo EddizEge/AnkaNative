@@ -128,7 +128,7 @@ int vka_memu_vs_feeds(vka_shader *vs, vka_shader *fs) {
 // One per submission in flight: taken at the submission's first emulated batch (its counter cleared in the command buffer), given the submission's fence at its commit
 // (vka_memu_retire), free again once that fence is done. Its control words are host-visible: once a submission is done, the most it asked for is read. A submission
 // whose arena had less room draws none of the mesh draws past it (memu_common.glsl alloc: their output is not placed), and those are its later passes' draws, the
-// shading after a depth prepass among them: the pixels keep the sky. So the size is the whole game's, not each arena's own: every arena taken is made at least as
+// shading after a depth prepass among them: their pixels keep what was drawn before. So the size is the whole game's, not each arena's own: every arena taken is made at least as
 // large as the most any submission has asked for (g_peak, doubled from 16 MiB up to DM_VK_MESH_EMU_MB, default 256 MiB). Each arena learning only from its own last
 // submission left the second and later ones (taken only while the first is still on the GPU, so rarely) at 16 or 32 MiB long after the first had grown, and each
 // of their submissions lost its last mesh draws. What is left: the first submission that asks for more than any before it still loses its last mesh draws, once
@@ -177,7 +177,8 @@ int vka_memu_arena(VkCommandBuffer cb, VkBuffer *buf, VkBuffer *ctl, uint32_t *c
             uint32_t asked = o->cp[VKA_MEMU_CTL_ASKED];
             if (asked > o->words) {
                 g_short++;
-                static _Atomic int ns; if (atomic_fetch_add(&ns, 1) < 16) VLOG("mesh draws through compute: a submission asked for %.1f MiB of arena, it had %.1f: its mesh draws past that were not drawn (the most asked for so far %.1f MiB)",
+                // Red: draws were lost, the frame was drawn wrong (the first 16; every one is counted in the statistics line)
+                static _Atomic int ns; if (atomic_fetch_add(&ns, 1) < 16) VRED("mesh draws through compute: a submission asked for %.1f MiB of arena, it had %.1f: its mesh draws past that were not drawn (the most asked for so far %.1f MiB)",
                                                                               asked / 262144.0, o->words / 262144.0, (asked > g_peak ? asked : g_peak) / 262144.0);
                 if (asked > maxw) VRED_ONCE("mesh draws through compute: a submission asked for %.1f MiB of arena, more than DM_VK_MESH_EMU_MB=%u: some mesh workgroups are not drawn", asked / 262144.0, maxw >> 18);
             }
