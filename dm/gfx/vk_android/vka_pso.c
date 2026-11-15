@@ -1381,7 +1381,8 @@ typedef struct mj { struct mj *next; gval *g; vka_shader *cs; vka_layout lay; ui
 static mj *g_mjd_head, **g_mjd_tail = &g_mjd_head, *g_mjp_head, **g_mjp_tail = &g_mjp_head;   // drawn first; then the prewarm list's
 static pthread_mutex_t g_mj_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_mj_cv = PTHREAD_COND_INITIALIZER;
 static _Atomic uint64_t g_mj_queued, g_mj_made, g_mj_ns, g_mj_lat_max_ns, g_mj_moved, g_mj_t_first; static _Atomic int g_mj_depth;
-static _Atomic int g_mj_drawn;   // forms a draw waits for, not made yet (in the drawn queue or being made from it): the launcher's note (nxhost_mesh_status), not the prewarm list's
+static _Atomic int g_mj_drawn;   // forms a draw waits for, not made yet (in the drawn queue or being made): the launcher's note (nxhost_mesh_status) and the frame rule (vka_memu_forms_waited), not the prewarm list's
+static mj *g_mj_cur;             // the job being made (under g_mj_mu): a draw that asks for a form the prewarm list's job is making now counts it as waited for
 static void mj_push(mj *j, int drawn) {   // (under g_mj_mu)
     j->next = NULL; j->drawn = drawn;
     if (drawn) { atomic_fetch_add(&g_mj_drawn, 1); *g_mjd_tail = j; g_mjd_tail = &j->next; } else { *g_mjp_tail = j; g_mjp_tail = &j->next; }
@@ -1400,6 +1401,7 @@ static void mj_move_ahead(gval *g) {   // (under g_mj_mu) a form the prewarm lis
         mj_push(j, 1); atomic_fetch_add(&g_mj_moved, 1);
         return;
     }
+    if (g_mj_cur && g_mj_cur->g == g && !g_mj_cur->drawn) { g_mj_cur->drawn = 1; atomic_fetch_add(&g_mj_drawn, 1); }   // (being made from the prewarm list's queue)
 }
 static void *mj_main(void *a) {
     (void)a; pthread_setname_np(pthread_self(), "vk-memupso");
@@ -1408,6 +1410,7 @@ static void *mj_main(void *a) {
         pthread_mutex_lock(&g_mj_mu);
         mj *j;
         while (!(j = mj_pop())) pthread_cond_wait(&g_mj_cv, &g_mj_mu);
+        g_mj_cur = j;
         pthread_mutex_unlock(&g_mj_mu);
         pause_point();
         uint64_t t1 = now_ns();
@@ -1415,7 +1418,8 @@ static void *mj_main(void *a) {
         uint64_t t2 = now_ns(), lat = t2 - j->t0, cur = atomic_load(&g_mj_lat_max_ns);
         while (lat > cur && !atomic_compare_exchange_weak(&g_mj_lat_max_ns, &cur, lat)) {}
         atomic_fetch_add(&g_mj_ns, t2 - t1); atomic_fetch_add(&g_mj_made, 1);
-        if (j->drawn) atomic_fetch_sub(&g_mj_drawn, 1);
+        pthread_mutex_lock(&g_mj_mu); g_mj_cur = NULL; int drawn = j->drawn; pthread_mutex_unlock(&g_mj_mu);
+        if (drawn) atomic_fetch_sub(&g_mj_drawn, 1);
         if (atomic_fetch_sub(&g_mj_depth, 1) == 1) {   // the queue ran empty: every mesh draw met so far can be drawn (the launcher's note goes, GameActivity)
             static _Atomic int n; uint64_t f0 = atomic_exchange(&g_mj_t_first, 0);
             if (atomic_fetch_add(&n, 1) < 8) VLOG("mesh draws through compute: background queue empty, %llu compute pipelines made in all (%.1f s since the first of this batch was queued, "
@@ -1454,6 +1458,7 @@ VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending
     *pending = 1;
     return VK_NULL_HANDLE;
 }
+int vka_memu_forms_waited(void) { return g_mj_up ? atomic_load(&g_mj_drawn) : 0; }
 void vka_memu_pso_line(char *out, size_t n) {
     if (!atomic_load(&g_mj_queued)) { if (n) out[0] = 0; return; }
     snprintf(out, n, "; their compute pipelines in the background: %llu queued, %llu made (%.0f ms compiling, longest wait from the first draw %.0f ms), %d waiting, %llu moved ahead for a draw",

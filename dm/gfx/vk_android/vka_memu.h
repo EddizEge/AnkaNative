@@ -39,4 +39,4 @@ int vka_memu_arena(VkCommandBuffer cb, VkBuffer *buf, VkBuffer *ctl, uint32_t *c
 void vka_memu_retire(uint64_t fence);                            // the arena used since the last call belongs to the submission of fence
 int vka_memu_helpers(VkPipeline *setup, VkPipeline *dist, VkPipelineLayout *layout);   // the setup and distribution pipelines, their layout (push descriptors: records, control, arena)
 void vka_memu_stats(char *b, size_t n);                          // the replay's statistics line part
-extern uint64_t vka_memu_n_batches, vka_memu_n_draws, vka_memu_n_splits, vka_memu_n_skip, vka_memu_n_wait;
+extern uint64_t vka_memu_n_batches, vka_memu_n_draws, vka_memu_n_splits, vka_memu_n_skip, vka_memu_n_wait, vka_memu_n_hold;
