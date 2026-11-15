@@ -1,0 +1,88 @@
+name: Translation problem
+description: A text in Anka Native is wrong, unclear, cut off or left in English in Turkish, Portuguese (Brazil) or Spanish (Latin America)
+labels: [translation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping with the translations. One report per text is easiest to act on; several texts of the same screen can go in one report.
+        For a problem that is not about wording (a crash, wrong graphics, a game that will not start), use the Android bug report instead.
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Türkçe
+        - Português (Brasil)
+        - Español (Latinoamérica)
+        - English (the original text is the problem)
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong
+      options:
+        - Wrong meaning
+        - Unnatural or unclear wording
+        - Spelling or grammar
+        - Cut off or does not fit on the screen
+        - Left in English
+        - Wrong plural, number or unit
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where it is
+      description: The screen and how to get there.
+      placeholder: "Settings › Game settings › the second switch from the top"
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: The text as it is now
+      description: Type it as the app shows it, or attach a screenshot.
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: What it should say
+      description: Your suggestion, and why if it is not obvious. Leave empty if you are not sure.
+  - type: dropdown
+    id: fluency
+    attributes:
+      label: How well you know this language
+      options:
+        - Native speaker
+        - Fluent
+        - Learning it
+    validations:
+      required: true
+  - type: input
+    id: release
+    attributes:
+      label: Anka Native release
+      description: Settings › About shows the build tag.
+      placeholder: "v0.3.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: picked
+    attributes:
+      label: How the app got this language
+      description: Settings › Language.
+      options:
+        - System default (the phone's language)
+        - Picked in the app
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      description: Only needed when a text is cut off or does not fit.
+      placeholder: "POCO F8 Pro, Android 16"
