@@ -111,7 +111,22 @@ final class PrepareGate implements ServiceConnection {
         ask();
     }
 
-    @Override public void onBindingDied(ComponentName n) { finish("the binding to the job's service died: the game starts"); }   // i18n-keep: the game's log
+    /**
+     * Android took the job's service down: its process ended (to make room for this game, GameGate STOP_AND_END, where HyperOS refuses the sticky restart and
+     * the service's record goes at once) or the service stopped itself (its worker had ended). Android first told this binding onServiceDisconnected, which
+     * asked for the new process that waits (ask), and the binding never connects again. Nothing of the old process runs beside the game, so the game starts
+     * without waiting for the new process's "waits" (it takes little memory and decides by itself, PackService.game). The rc1 phone check: every one of the
+     * four starts that stopped a tool ended here, 0.1 s before the new :pack said WAIT; the old log line ("the binding to the job's service died") said
+     * none of that
+     */
+    @Override public void onBindingDied(ComponentName n) {
+        Job j = job(a);
+        String now = j == null ? "no job" : j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason());   // i18n-keep: the game's log
+        double s = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+        String ended = "the job's process ended to make room and Android took its service down, so no tool runs beside the game; a new process was asked to wait for it";   // i18n-keep: the game's log
+        String stopped = "the job's service stopped and Android took it down, so nothing of it runs beside the game";   // i18n-keep: the game's log
+        finish(String.format(Locale.ROOT, "%s (the job %s; asked %d time(s), %.1f s)", asks > 1 ? ended : stopped, now, asks, s));   // i18n-keep: the game's log
+    }
 
     private boolean onMessage(Message m) {
         if (m.what != PackService.MSG_STATE) return false;
