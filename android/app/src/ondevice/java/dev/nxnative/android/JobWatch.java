@@ -79,6 +79,8 @@ final class JobWatch implements ServiceConnection {
         final IBinder b;
         int pid = -1;
         boolean worker;
+        /** When the link was made (wall clock, ms): its process lived then, so its exit record is not older (a pid used again later is another process) */
+        final long since = System.currentTimeMillis();
 
         Death(IBinder b) { this.b = b; }
 
@@ -137,15 +139,21 @@ final class JobWatch implements ServiceConnection {
     /** The job's process really ended (binderDied of the service's binder): what job.json says decides, a moment later (the exit's record) */
     private void ended(Death d) {
         if (link == d) link = null;
-        deciding = d.pid;
-        h.postDelayed(() -> died(d.pid, d.worker), 500);
+        // the process the decision is about: as the service said, else (it died before its first MSG_STATE) the one job.json names, so Home leaves it to
+        // this watch (decides) instead of deciding about the same death too
+        Job j = d.pid > 0 ? null : remembered(c);
+        int p = d.pid > 0 ? d.pid : j != null ? j.pid() : -1;
+        deciding = p;
+        h.postDelayed(() -> died(p, d.pid > 0, d.since, d.worker), 500);
     }
 
-    private void died(int p, boolean worker) {
+    /** p: the process that ended (-1: unknown); said: the service said it (else job.json's); since: when the link to it was made */
+    private void died(int p, boolean said, long since, boolean worker) {
         if (deciding == p) deciding = -1;
         Job j = remembered(c);
         if (j == null) return;
-        ApplicationExitInfo exit = p > 0 ? exitOf(c, p) : exitOf(c, j);   // no pid: the service died before it said its pid; the job's last process
+        // the service's own pid: its record not older than the link; else the job's last process (JobDeath.fits with job.json's pid and start)
+        ApplicationExitInfo exit = said ? exitOf(c, p, since) : exitOf(c, j);
         JobDeath.Act act = JobDeath.after(j.state(), j.reason(), false, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(c));
         Log.i(TAG, "the job's process " + (p > 0 ? p + " " : "") + "ended" + (worker ? " while its worker ran" : "") + " (" + describe(exit) + "), the job "
                 + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()) + ": " + act);
@@ -223,9 +231,13 @@ final class JobWatch implements ServiceConnection {
         }
     }
 
-    /** The exit record of the process pid (one this watch saw end: its binder died), null when Android has none (yet) */
-    static ApplicationExitInfo exitOf(Context c, int pid) {
-        for (ApplicationExitInfo i : c.getSystemService(ActivityManager.class).getHistoricalProcessExitReasons(c.getPackageName(), pid, 1)) if (i.getPid() == pid) return i;
+    /**
+     * The exit record of the process pid (one this watch saw end: its binder died), not older than since (when the watch linked to it: a pid used again later
+     * is another process, whose own record may not be written yet), null when Android has none (yet)
+     */
+    static ApplicationExitInfo exitOf(Context c, int pid, long since) {
+        for (ApplicationExitInfo i : c.getSystemService(ActivityManager.class).getHistoricalProcessExitReasons(c.getPackageName(), pid, 1))
+            if (JobDeath.fits(i.getPid(), i.getTimestamp(), pid, since, 0)) return i;
         return null;
     }
 

@@ -82,7 +82,7 @@ class Service(unittest.TestCase):
         self.assertIn('set(AlarmManager.ELAPSED_REALTIME,', a)   # inexact and not waking: no permission
         self.assertNotIn('setExact', a)
         self.assertIn('else if (JobDeath.checkAgain(j.state(), j.reason(), false, PrepareGate.gameRunning(c))) JobAlarm.arm(c, true);',
-                      body(code(ONDEVICE / 'JobWatch.java'), 'private void died(int p, boolean worker)'))
+                      body(code(ONDEVICE / 'JobWatch.java'), 'private void died(int p, boolean said, long since, boolean worker)'))
 
     def test_pid(self):
         """MSG_STATE carries the service's pid, for the watch's exit record"""
@@ -98,7 +98,7 @@ class Watch(unittest.TestCase):
         self.assertIn('JobWatch.start(a);', code(ONDEVICE / 'Ondevice.java'))
 
     def test_death_decides_by_job_and_exit(self):
-        died = body(self.w, 'private void died(int p, boolean worker)')
+        died = body(self.w, 'private void died(int p, boolean said, long since, boolean worker)')
         self.assertIn('JobDeath.after(j.state(), j.reason(), false, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(c))', died)
         self.assertIn('restart(c, j, "its process ended")', died)
 
@@ -114,7 +114,7 @@ class Watch(unittest.TestCase):
         self.assertIn('link.b.unlinkToDeath(link, 0);', con)
         self.assertIn('h.post(() -> ended(d));', con)   # already dead when linked
         self.assertIn('@Override public void binderDied() { h.post(() -> ended(this)); }', self.w)
-        self.assertIn('h.postDelayed(() -> died(d.pid, d.worker), 500);', body(self.w, 'private void ended(Death d)'))
+        self.assertIn('h.postDelayed(() -> died(p, d.pid > 0, d.since, d.worker), 500);', body(self.w, 'private void ended(Death d)'))
         import re
         self.assertEqual(len(re.findall(r'\bdied\(', re.sub(r'/\*.*?\*/|//[^\n]*', '', self.w, flags=re.S))), 2)   # the method and its one call, from ended
 
@@ -136,8 +136,19 @@ class Watch(unittest.TestCase):
         self.assertNotIn('exitOf(a, 0)', o)
         d = body(self.w, 'static boolean decides(int pid)')
         self.assertIn('w.link != null && w.link.pid == pid || w.deciding == pid', d)
-        self.assertIn('deciding = d.pid;', body(self.w, 'private void ended(Death d)'))
-        self.assertIn('if (deciding == p) deciding = -1;', body(self.w, 'private void died(int p, boolean worker)'))
+        en = body(self.w, 'private void ended(Death d)')
+        self.assertIn('int p = d.pid > 0 ? d.pid : j != null ? j.pid() : -1;', en)   # the review: a process that died before its first MSG_STATE
+        self.assertIn('deciding = p;', en)
+        self.assertIn('if (deciding == p) deciding = -1;', body(self.w, 'private void died(int p, boolean said, long since, boolean worker)'))
+
+    def test_watch_record_not_older_than_its_link(self):
+        """The review of work/rc1-fixes: the watch's own lookup matched the pid only, so a pid used again could take an older process's record while the new
+        one's is not written yet. It now takes only a record not older than the link to that process (JobDeath.fits)"""
+        died = body(self.w, 'private void died(int p, boolean said, long since, boolean worker)')
+        self.assertIn('ApplicationExitInfo exit = said ? exitOf(c, p, since) : exitOf(c, j);', died)
+        ex = body(self.w, 'static ApplicationExitInfo exitOf(Context c, int pid, long since)')
+        self.assertIn('if (JobDeath.fits(i.getPid(), i.getTimestamp(), pid, since, 0)) return i;', ex)
+        self.assertIn('final long since = System.currentTimeMillis();', self.w)
         j = code(ONDEVICE / 'Job.java')
         self.assertIn('o.put("pid", pid).put("pid_start", start);', j)
 
