@@ -33,7 +33,7 @@ class Decide(unittest.TestCase):
     def test_decisions(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
-            r = subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(d / 'classes'), str(MAIN / 'GameGate.java'), str(ONDEVICE / 'JobForm.java'), str(TEST)],
+            r = subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(d / 'classes'), str(MAIN / 'GameGate.java'), str(ONDEVICE / 'JobForm.java'), str(ONDEVICE / 'JobDeath.java'), str(TEST)],
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             r = subprocess.run(['java', '-cp', str(d / 'classes'), 'dev.nxnative.android.GameGateJvmTest'], capture_output=True, text=True)
@@ -83,6 +83,9 @@ class Service(unittest.TestCase):
         self.assertIn('if (ACTION_GAME.equals(action)) return game(startId);', self.s)
         g = body(self.s, 'private int game(int startId) {')
         self.assertIn('GameGate.onGame(alive, PackNative.ranTool(), stopReason != null,', g)
+        # a dead running job: its last process's exit record decides (a Force stop is not resumed by a game's start)
+        self.assertIn('!alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, 0) : null', g)
+        self.assertIn('exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());', g)
         self.assertIn('startForeground(job);', g)   # startForegroundService's answer
         self.assertIn('return begin(j, false, startId);', g)
 
@@ -106,6 +109,7 @@ class Service(unittest.TestCase):
         self.assertLess(end.index('leaveNote(j);'), end.index('Process.killProcess(Process.myPid());'))
         pause = body(self.s, 'private void gamePause() {')
         self.assertLess(pause.index('j.state("paused", GameGate.REASON, null);'), pause.index('policy();'))
+        self.assertIn('jj.state("paused", GameGate.fallbackReason(stopReason), null);', pause)   # a user's Pause in hand stays the user's
 
     def test_publish_says_ready(self):
         pub = body(self.s, 'private void publish(Job j, boolean force) {')

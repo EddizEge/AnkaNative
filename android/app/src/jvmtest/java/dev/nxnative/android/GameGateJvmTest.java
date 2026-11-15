@@ -12,7 +12,9 @@ public final class GameGateJvmTest {
         System.out.println("ok " + what);
     }
 
-    private static <T> void same(T got, T want, String what) { check(got == want, what + " (" + got + ", want " + want + ")"); }
+    private static <T> void same(T got, T want, String what) { check(got == want || got != null && got.equals(want), what + " (" + got + ", want " + want + ")"); }
+
+    private static final int U = JobDeath.EXIT_UNKNOWN;
 
     public static void main(String[] a) {
         // Before the game starts: whether it asks the job to pause first
@@ -25,14 +27,24 @@ public final class GameGateJvmTest {
         check(JobForm.waitsByItself("game"), "a wait for a game goes on by itself, as the battery and heat waits do");
 
         // The service, asked by the game (ACTION_GAME)
-        same(GameGate.onGame(true, true, false, "running", ""), GameGate.Act.STOP_AND_END, "the translation runs: its tool stops and the process ends (it keeps ~0.55 GB)");
-        same(GameGate.onGame(true, true, false, "paused", "battery"), GameGate.Act.STOP_AND_END, "a worker waiting for the battery after a tool ran: the process ends too");
-        same(GameGate.onGame(true, false, false, "running", ""), GameGate.Act.WAIT, "a worker that has run no tool here (a new process): it waits as it is");
-        same(GameGate.onGame(true, true, true, "paused", "user"), GameGate.Act.NOTHING, "a Pause in hand stays a pause: the worker ends by itself");
-        same(GameGate.onGame(false, false, false, "running", ""), GameGate.Act.WAIT, "a running job whose process died (no worker): a new worker waits for the game, then resumes it");
-        same(GameGate.onGame(false, false, false, "paused", "game"), GameGate.Act.WAIT, "the process ended for the game, the game starts the service again: it waits");
-        same(GameGate.onGame(false, false, false, "paused", "user"), GameGate.Act.NOTHING, "a job the user paused stays paused");
-        same(GameGate.onGame(false, false, false, "", ""), GameGate.Act.NOTHING, "no job");
+        same(GameGate.onGame(true, true, false, "running", "", U), GameGate.Act.STOP_AND_END, "the translation runs: its tool stops and the process ends (it keeps ~0.55 GB)");
+        same(GameGate.onGame(true, true, false, "paused", "battery", U), GameGate.Act.STOP_AND_END, "a worker waiting for the battery after a tool ran: the process ends too");
+        same(GameGate.onGame(true, false, false, "running", "", U), GameGate.Act.WAIT, "a worker that has run no tool here (a new process): it waits as it is");
+        same(GameGate.onGame(true, true, true, "paused", "user", U), GameGate.Act.NOTHING, "a Pause in hand stays a pause: the worker ends by itself");
+        same(GameGate.onGame(false, false, false, "running", "", U), GameGate.Act.WAIT, "a running job whose process died (no worker): a new worker waits for the game, then resumes it");
+        same(GameGate.onGame(false, false, false, "running", "", 3), GameGate.Act.WAIT, "a running job a low-memory kill ended: resumed after the game, as Home would");
+        same(GameGate.onGame(false, false, false, "running", "", JobDeath.EXIT_USER_REQUESTED), GameGate.Act.NOTHING,
+                "a running job the user ended (Force stop, a swipe from Recents recorded as such): a game's start does not bring it back (the review's finding)");
+        same(GameGate.onGame(false, false, false, "paused", "battery", JobDeath.EXIT_USER_REQUESTED), GameGate.Act.WAIT, "a job the service left waiting for the battery waits again");
+        same(GameGate.onGame(true, true, false, "running", "", JobDeath.EXIT_USER_REQUESTED), GameGate.Act.STOP_AND_END, "with a worker the exit record is not read");
+
+        // The 20-s fallback of a game's pause: a user's Pause in hand stays the user's
+        same(GameGate.fallbackReason(null), "game", "no Pause in hand: the job waits for the game");
+        check("user".equals(GameGate.fallbackReason("user")) && "timeout".equals(GameGate.fallbackReason("timeout")),
+                "a Pause (or the daily limit) tapped while the tool stopped for the game stays: the fallback no longer writes \"game\" over it");
+        same(GameGate.onGame(false, false, false, "paused", "game", U), GameGate.Act.WAIT, "the process ended for the game, the game starts the service again: it waits");
+        same(GameGate.onGame(false, false, false, "paused", "user", U), GameGate.Act.NOTHING, "a job the user paused stays paused");
+        same(GameGate.onGame(false, false, false, "", "", U), GameGate.Act.NOTHING, "no job");
 
         // When the game may start
         check(GameGate.ready(false, false, true), "no worker: the game starts");

@@ -36,13 +36,28 @@ final class GameGate {
 
     /**
      * worker: the service's worker runs a job; ranTool: a tool has run in this process; stopping: a pause the user asked for (or Android's daily limit) is in
-     * hand, which stays a pause: the worker ends and the service with it. state, reason: the job's (the worker's, else the remembered job.json's)
+     * hand, which stays a pause: the worker ends and the service with it. state, reason: the job's (the worker's, else the remembered job.json's); exit: with
+     * no worker, the ApplicationExitInfo reason of the job's last process (JobDeath.EXIT_UNKNOWN when none).
+     * <p>
+     * With no worker, a job that says running is one whose process died. The game's start resumes it (a new worker waits for the game, then goes on) only
+     * where Home's open would (JobDeath.after): not after a stop the user asked for (Force stop, or a swipe from Recents the phone records as such), which
+     * leaves it for the user's Resume. A job waiting by itself (the battery, the heat, a game) was written so by the service and waits again
      */
-    static Act onGame(boolean worker, boolean ranTool, boolean stopping, String state, String reason) {
-        if (!worker) return pauseFirst(state, reason) ? Act.WAIT : Act.NOTHING;
+    static Act onGame(boolean worker, boolean ranTool, boolean stopping, String state, String reason, int exit) {
+        if (!worker) {
+            if ("running".equals(state)) return JobDeath.after(state, reason, false, exit, false) == JobDeath.Act.RESUME ? Act.WAIT : Act.NOTHING;
+            return pauseFirst(state, reason) ? Act.WAIT : Act.NOTHING;
+        }
         if (stopping) return Act.NOTHING;
         return ranTool ? Act.STOP_AND_END : Act.WAIT;
     }
+
+    /**
+     * The reason a job is written paused with when its tool did not stop within 20 s for a game (PackService.gamePause's fallback ends the process): a pause the
+     * user asked for meanwhile (stopReason: user, timeout) stays that pause, else the job waits for the game. That fallback was posted before the Pause's own,
+     * so it fires first, and it wrote "game" over the user's Pause: the job then went on by itself after the game
+     */
+    static String fallbackReason(String stopReason) { return stopReason != null ? stopReason : REASON; }
 
     /**
      * Whether the game may start now (the service's "game_ready"): no worker, or one that waits for the game in a process that has run no tool. worker: the

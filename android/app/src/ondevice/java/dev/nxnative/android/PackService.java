@@ -250,9 +250,12 @@ public final class PackService extends Service {
                 Log.w(TAG, "a game starts: the job: " + e.getMessage());
             }
         }
-        GameGate.Act act = GameGate.onGame(alive, PackNative.ranTool(), stopReason != null, j == null ? "" : j.state(), j == null ? "" : j.reason());
+        // with no worker, a job that says running died with its process: how it ended decides (a stop the user asked for is not resumed by a game's start)
+        android.app.ApplicationExitInfo exit = !alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, 0) : null;
+        GameGate.Act act = GameGate.onGame(alive, PackNative.ranTool(), stopReason != null, j == null ? "" : j.state(), j == null ? "" : j.reason(),
+                exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());
         Log.i(TAG, "a game starts: " + act + (j == null ? ", no job" : ", the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()))
-                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : ""));
+                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : "") + (exit != null ? ", its process ended (" + JobWatch.describe(exit) + ")" : ""));
         gameAsked = true;   // also a Pause in hand: once its worker ends, this process ends too (finished)
         if (alive) {
             startForeground(job);   // startForegroundService's answer
@@ -291,7 +294,7 @@ public final class PackService extends Service {
                 Log.w(TAG, "the tool did not stop within 20 s for the game: ending the process");
                 Job jj = job;
                 if (jj != null) {
-                    jj.state("paused", GameGate.REASON, null);
+                    jj.state("paused", GameGate.fallbackReason(stopReason), null);   // a Pause tapped meanwhile stays the user's
                     save(jj, true);
                     leaveNote(jj);
                 }
