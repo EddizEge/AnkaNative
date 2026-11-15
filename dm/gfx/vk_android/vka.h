@@ -447,6 +447,7 @@ VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);
 VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw);   // a mesh draw through compute's compute form: made in the background (pending: not yet); draw: a draw waits for it (made before the prewarm list's)
 void vka_memu_pso_line(char *out, size_t n);
 int vka_memu_forms_waited(void);   // compute forms of mesh draws through compute that a draw asked for and that are not made yet (0 when they are made on the frame path)
+int vka_memu_ahead_wanted(void);   // the forms made ahead still take program notes (DM_VK_MEMU_AHEAD on, the queue not ended)
 void vka_memu_ahead_note(uint64_t key, int stage);   // a shader key of a program the game set up (stage -2: not known yet): its mesh form made ahead first (vka_pso.c)
 void vka_pso_save(int force);         // the VkPipelineCache and the prewarm list to the app's files (DM_TEMP): due DM_VK_PCACHE_SAVE_S after the last save, on the saver thread; force = now, on the caller's
 void vka_pso_waits(uint64_t *save_ns, uint64_t *pw_wait_ns);   // cumulative: time saving the cache (saver thread), the frame path's waits for a prewarm thread making the same pipeline

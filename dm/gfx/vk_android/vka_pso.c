@@ -21,6 +21,8 @@
 #include <errno.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <limits.h>
+#include <sched.h>
 uint64_t vka_frame(void);   // (vka_exec.c: the frame being recorded; a skipped draw stamps its pipeline's need)
 
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -380,7 +382,7 @@ void vka_pso_waits(uint64_t *save_ns, uint64_t *pw_wait_ns) { if (save_ns) *save
 // ---------- Graphics pipelines ----------
 // The map's value: the pipeline (VK_NULL_HANDLE = failed, its draws skipped), whether it is a fast-linked one, and whether a thread is still making it (busy: the frame path
 // waits for that thread instead of making it a second time). p and linked change in place when the optimized pipeline replaces the linked one
-typedef struct gval { VkPipeline p; uint8_t linked, busy, pw; pid_t tid; uint32_t need; } gval;   // pw, tid: a prewarm thread is making it (busy), that thread (busy_wait); need: the frame of the last draw skipped waiting for it (DM_VK_PSO_ASYNC)
+typedef struct gval { VkPipeline p; uint8_t linked, busy, pw, ahead; pid_t tid; uint32_t need; } gval;   // pw, tid: a prewarm thread is making it (busy), that thread (busy_wait); need: the frame of the last draw skipped waiting for it (DM_VK_PSO_ASYNC); ahead: a mesh form made ahead no draw has asked for yet (its prewarm list record then)
 typedef struct { vka_shader *sh[VKA_NSTAGE]; VkPipelineLayout layout; vka_gkey k; } gkey_full;   // (sh[5], compute, stays NULL)
 static kmap g_gfx = {.klen = sizeof(gkey_full)};
 static pthread_cond_t g_busy_cv = PTHREAD_COND_INITIALIZER;
@@ -1330,6 +1332,7 @@ VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *
 typedef struct { vka_shader *cs; VkPipelineLayout layout; } ckey;
 static kmap g_cs = {.klen = sizeof(ckey)};
 static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg);
+static int ah_floor_env(void);
 // The process's memory for a slow compile's line: its resident set now and its peak so far (/proc/self/status VmRSS, VmHWM), the driver's compiler included
 static const char *vka_rss_note(void) {
     static _Thread_local char b[64]; b[0] = 0;
@@ -1390,7 +1393,8 @@ static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm,
     } else { int bs = build_begin("compute pipeline", cs->key, 0); r = vk.vkCreateComputePipelines(V.dev, pc, 1, &ci, NULL, &p); build_end(bs); }
     // A task / mesh shader's compute form (vka_memu.c) is made into one pipeline only (its entry here, by form and layout, is made once, made or not), so its module goes
     // now: 235 KB of SPIR-V on average (Ocarina of Time's 515 forms: 121 MB, the largest 2.2 MB), which the driver keeps a copy of while the module lives
-    if (cs->memu == 1 && ci.stage.module) { vk.vkDestroyShaderModule(V.dev, ci.stage.module, NULL); cs->mods[DMSH_VK_MOD_BASE] = VK_NULL_HANDLE; }
+    // (with DM_VK_MEMU_AHEAD on only: =0 is the build before the forms made ahead, module for module)
+    if (cs->memu == 1 && ci.stage.module && ah_floor_env() > 0) { vk.vkDestroyShaderModule(V.dev, ci.stage.module, NULL); cs->mods[DMSH_VK_MOD_BASE] = VK_NULL_HANDLE; }
     pthread_mutex_lock(&g_mu);
     if (over) { p = VK_NULL_HANDLE; g_ncs_over++; } else if (r) { p = VK_NULL_HANDLE; g_nfail++; } else { g_ncs++; g_made++; if (!prewarm && !bg) g_frame_made++; }
     int hit = !over && !r && fb_hit(&cfb);
@@ -1420,7 +1424,10 @@ static _Atomic uint64_t g_mj_queued, g_mj_made, g_mj_ns, g_mj_lat_max_ns, g_mj_m
 static _Atomic int g_mj_drawn;   // forms a draw waits for, not made yet (in the drawn queue or being made): the launcher's note (nxhost_mesh_status) and the frame rule (vka_memu_forms_waited), not the prewarm list's
 static mj *g_mj_cur;             // the job being made (under g_mj_mu): a draw that asks for a form the prewarm list's job is making now counts it as waited for
 // The forms made ahead (vka_memu_ahead.h): on this thread, when neither queue has a job; the state under g_mj_mu
-static vka_ahead g_ah; static int g_ah_on, g_ah_floor, g_ah_ended; static uint32_t g_ah_lib_n, g_ah_cand;
+static vka_ahead g_ah; static int g_ah_on, g_ah_floor, g_ah_ended, g_ah_gl; static uint32_t g_ah_lib_n, g_ah_cand;
+static pthread_cond_t g_ah_cv = PTHREAD_COND_INITIALIZER;   // (with g_mj_mu) the ahead thread waits on it: mj_main idle again, the asynchronous queue empty, the app resumed, memory
+typedef struct { gval *g; int drawn; } ah_job;
+static ah_job *g_ah_cur;         // (under g_mj_mu) the form being made ahead: a draw that asks for it counts it as waited for (mj_move_ahead), as g_mj_cur
 static _Atomic int g_ah_mem_wait;   // the thread waits for MemAvailable (ah_poke looks again)
 static _Atomic uint64_t g_ah_made, g_ah_hit, g_ah_had, g_ah_fail, g_ah_big, g_ah_prog, g_ah_libn, g_ah_ns, g_ah_t0, g_ah_drawn, g_ah_memw, g_ah_poke_t;
 
@@ -1443,33 +1450,34 @@ static void mj_move_ahead(gval *g) {   // (under g_mj_mu) a form the prewarm lis
         return;
     }
     if (g_mj_cur && g_mj_cur->g == g && !g_mj_cur->drawn) { g_mj_cur->drawn = 1; atomic_fetch_add(&g_mj_drawn, 1); }   // (being made from the prewarm list's queue)
+    else if (g_ah_cur && g_ah_cur->g == g && !g_ah_cur->drawn) { g_ah_cur->drawn = 1; atomic_fetch_add(&g_mj_drawn, 1); }   // (being made ahead: the frame rule counts it until made)
 }
 // ---------- Mesh forms made ahead (vka_memu_ahead.h) ----------
 // DM_VK_MEMU_AHEAD (restart; default 2048): the MemAvailable floor in MiB under which no form is started ahead; 0 = none made ahead (each at its first draw, as before).
-// On the thread above, one at a time, when neither queue has a job, no graphics pipeline a draw waits for is being made (DM_VK_PSO_ASYNC) and the app is in front:
-// what the game waits for never waits behind them but for the one form being compiled (the longest seen on the phone 5.7 s, 013826b0bf7e1ee2). Not in the prewarm list (it keeps what the
-// game drew, in that order); in the pipeline cache as every pipeline (PC_AHEAD: saved by the timer and at suspend). A later start makes them again from the cache
+// On a thread of its own (ah_main, nice 10 as this one), one at a time, only while this thread is idle (neither queue has a job, none being made), no graphics pipeline a
+// draw waits for is being made (DM_VK_PSO_ASYNC), the app is in front and the device is not lost. A form a draw asks for meanwhile is made here at once, beside the one
+// being made ahead (two compiles at most: the floor leaves the draw's compile what play has, 0.85-1.4 GB), so it never waits behind one; a draw that asks for the form
+// being made ahead waits for that one (mj_move_ahead), as for a prewarm list job. Not in the prewarm list until a draw asks for it (pw_note then: the list keeps what the
+// game drew); in the pipeline cache as every pipeline (PC_AHEAD: saved by the timer and at suspend). A later start makes them again from the cache
 static uint64_t *g_ah_keys;          // the library's task / mesh shaders, in its order (ah_begin)
 static _Atomic int g_ah_req;         // 1: the cache is open, the queue starts at the next submission (ah_poke); 2: started or not to be
+static int ah_floor_env(void) {      // the switch, read once (a restart switch: vka_ctl.c g_restart)
+    static _Atomic int v = -1; int x = atomic_load(&v);
+    if (x < 0) { int y = VKA_ENV("DM_VK_MEMU_AHEAD", 2048); x = y > 0 ? y : 0; int m = -1; if (!atomic_compare_exchange_strong(&v, &m, x)) x = m; }
+    return x;
+}
 static int ah_stage(void *c, uint64_t key) { (void)c; return vka_shader_lib_stage(key); }
 static uint64_t ah_lib_key(void *c, uint32_t i) { (void)c; return i < g_ah_lib_n ? g_ah_keys[i] : 0; }
-static long ah_avail_mib(void) {   // MemAvailable, -1 = not read
+static long ah_avail_mib(void) {   // MemAvailable, -1 = not read (never under g_mj_mu: the game's thread and the replay thread take it)
     FILE *f = fopen("/proc/meminfo", "re"); if (!f) return -1;
     char ln[128]; long kb = -1; while (fgets(ln, sizeof ln, f)) if (sscanf(ln, "MemAvailable: %ld kB", &kb) == 1) break;
     fclose(f); return kb < 0 ? -1 : kb / 1024;
 }
-static void ah_wake(void) { pthread_mutex_lock(&g_mj_mu); pthread_cond_broadcast(&g_mj_cv); pthread_mutex_unlock(&g_mj_mu); }
-// (under g_mj_mu) whether a form may be started ahead now (*why: vka_ahead_turn's answer); MemAvailable is read only when nothing else stops it
-static int ah_ready(int *why) {
-    if (!g_ah_on) { *why = VKA_AHEAD_STOPPED; return 0; }
-    int jobs = g_mjd_head || g_mjp_head, as = atomic_load(&g_as_depth), pz = atomic_load(&g_pso_paused);
-    *why = vka_ahead_turn(&g_ah, jobs, as, pz, g_ah_floor, g_ah_floor);
-    if (*why == VKA_AHEAD_GO) {
-        long av = ah_avail_mib();
-        if (av < 0) VRED_ONCE("mesh draws through compute: /proc/meminfo has no MemAvailable: no form is made ahead (DM_VK_MEMU_AHEAD needs it)");
-        *why = vka_ahead_turn(&g_ah, jobs, as, pz, av, g_ah_floor);
-    }
-    return *why == VKA_AHEAD_GO;
+static void ah_wake(void) { pthread_mutex_lock(&g_mj_mu); pthread_cond_broadcast(&g_ah_cv); pthread_mutex_unlock(&g_mj_mu); }
+// (under g_mj_mu) why no form may be started ahead now, VKA_AHEAD_GO when one may (memory not looked at here: avail_mib is the caller's reading, made without the lock)
+static int ah_turn(long avail_mib) {
+    if (!g_ah_on) return VKA_AHEAD_STOPPED;
+    return vka_ahead_turn(&g_ah, vka_hung(), g_mjd_head || g_mjp_head || g_mj_cur, atomic_load(&g_as_depth), atomic_load(&g_pso_paused), avail_mib, g_ah_floor);
 }
 static void ah_counts(char *b, size_t n) {
     snprintf(b, n, "%llu made, %llu from the pipeline cache, %llu already made or being made (a draw's or the prewarm list's), %llu failed (each a [RED] line), "
@@ -1480,13 +1488,14 @@ static void ah_counts(char *b, size_t n) {
              (unsigned long long)atomic_load(&g_ah_libn), atomic_load(&g_ah_t0) ? (now_ns() - atomic_load(&g_ah_t0)) / 1e9 : 0.0, atomic_load(&g_ah_ns) / 1e9,
              (unsigned long long)atomic_load(&g_ah_memw));
 }
-static void ah_end(const char *why) {   // (under g_mj_mu) the queue ends: its line, its memory
+static void ah_end(const char *why, int red) {   // (under g_mj_mu) the queue ends: its line, its memory; the thread returns
     if (g_ah_ended) return;
-    g_ah_ended = 1; g_ah_on = 0;
+    __atomic_store_n(&g_ah_ended, 1, __ATOMIC_RELAXED); g_ah_on = 0;
     char b[600]; ah_counts(b, sizeof b);
-    VLOG("mesh draws through compute: forms made ahead ended (%s): %llu of the library's %u task / mesh forms: %s", why,
-         (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)), g_ah_cand, b);
+    if (red) VRED("mesh draws through compute: forms made ahead ended (%s): %llu of the library's %u task / mesh forms: %s", why, (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)), g_ah_cand, b);
+    else VLOG("mesh draws through compute: forms made ahead ended (%s): %llu of the library's %u task / mesh forms: %s", why, (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)), g_ah_cand, b);
     vka_ahead_free(&g_ah); g_ah.stop = 1;
+    free(g_ah_keys); g_ah_keys = NULL; g_ah_lib_n = 0;
 }
 // Make one form ahead: the same derived shader, layout and compute map entry a draw of it takes (vka_memu_draw.inc MEMU_ADD, vka_memu_pipeline), so a draw finds it made
 // (or being made, then waited for as a prewarm list job is); nothing is made where that entry exists
@@ -1506,8 +1515,9 @@ static void ah_make(uint64_t key, int src) {
                                                                           st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key, (unsigned long long)pv, VKA_AHEAD_PRIVATE_MAX);
             return;
         }
-        // A mesh shader's form at the device's depth mode, a task shader's at 0, as MEMU_ADD asks (vka_memu_cs_of keeps the GL depth only for a module that has the constant)
-        cs = vka_memu_cs_of(s, s->e->stage == DMSH_VK_STAGE_MS ? !vka_depth_zero() : 0);
+        // A mesh shader's form at the device's depth mode as the queue began (ah_main ends the queue if it changed since), a task shader's at 0, as MEMU_ADD asks
+        // (vka_memu_cs_of keeps the GL depth only for a module that has the constant)
+        cs = vka_memu_cs_of(s, s->e->stage == DMSH_VK_STAGE_MS ? g_ah_gl : 0);
         vka_shader *c5[VKA_NSTAGE] = {0}; c5[5] = cs;
         if (!cs) why = "no compute form (its line above)";
         else if (!vka_layout_of(c5, 1, &lay)) why = "no pipeline layout (its line above)";
@@ -1515,36 +1525,66 @@ static void ah_make(uint64_t key, int src) {
     if (why) { atomic_fetch_add(&g_ah_fail, 1); VRED("mesh draws through compute: %s shader %016llx not made ahead: %s; its draws are skipped as before", st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key, why); return; }
     ckey k; memset(&k, 0, sizeof k); k.cs = cs; k.layout = lay.layout;
     uint64_t h = fnv(&k, sizeof k, 1469598103934665603ull);
+    // The job is this thread's current one before its entry is in the map, so a draw that finds the entry busy always finds the job too (mj_move_ahead): no frame passes
+    // with the form being made and not counted by the frame rule
+    gval *g = calloc(1, sizeof *g); ah_job job = {g, 0};
+    if (!g) { atomic_fetch_add(&g_ah_fail, 1); VRED("mesh draws through compute: shader %016llx not made ahead: no memory", (unsigned long long)key); return; }
+    g->busy = 1; g->ahead = 1;
+    pthread_mutex_lock(&g_mj_mu); g_ah_cur = &job; pthread_mutex_unlock(&g_mj_mu);
     pthread_mutex_lock(&g_mu);
-    gval *g = km_get(&g_cs, &k, h);
-    if (g) { pthread_mutex_unlock(&g_mu); atomic_fetch_add(&g_ah_had, 1); return; }
-    g = calloc(1, sizeof *g); g->busy = 1; km_put(&g_cs, &k, h, g);
+    gval *had = km_get(&g_cs, &k, h);
+    if (!had) km_put(&g_cs, &k, h, g);
     pthread_mutex_unlock(&g_mu);
-    mj job; memset(&job, 0, sizeof job); job.g = g; job.cs = cs; job.lay = lay; job.t0 = now_ns();
-    pthread_mutex_lock(&g_mj_mu); g_mj_cur = &job; pthread_mutex_unlock(&g_mj_mu);   // (a draw asking for it meanwhile waits for it: mj_move_ahead)
+    if (had) { pthread_mutex_lock(&g_mj_mu); g_ah_cur = NULL; pthread_mutex_unlock(&g_mj_mu); free(g); atomic_fetch_add(&g_ah_had, 1); return; }
     uint64_t t1 = now_ns(); int r = cs_build(g, cs, &lay, 0, 2); atomic_fetch_add(&g_ah_ns, now_ns() - t1);
-    pthread_mutex_lock(&g_mj_mu); g_mj_cur = NULL; int drawn = job.drawn; pthread_mutex_unlock(&g_mj_mu);
+    pthread_mutex_lock(&g_mj_mu); g_ah_cur = NULL; int drawn = job.drawn; pthread_mutex_unlock(&g_mj_mu);
     if (drawn) { atomic_fetch_sub(&g_mj_drawn, 1); atomic_fetch_add(&g_ah_drawn, 1); }
     if (!r) { atomic_fetch_add(&g_ah_fail, 1); VRED("mesh draws through compute: %s shader %016llx: its compute form's pipeline made ahead failed (its line above); its draws are skipped as before", st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key); }
     else atomic_fetch_add(r == 2 ? &g_ah_hit : &g_ah_made, 1);
+    if (r && drawn) {   // a draw asked for it while it was made: into the prewarm list now, as the draw's own would be
+        pthread_mutex_lock(&g_mu); int note = g->ahead; g->ahead = 0; pthread_mutex_unlock(&g_mu);
+        if (note) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }
+    }
+}
+static void ah_begin(void);
+static void *ah_main(void *a) {
+    (void)a; pthread_setname_np(pthread_self(), "vk-memuahead");
+    setpriority(PRIO_PROCESS, 0, 10);   // (under the game's threads, as vk-memupso)
+    ah_begin();
+    for (;;) {
+        pthread_mutex_lock(&g_mj_mu);
+        uint64_t ak = 0; int asrc = 0, why; long av = LONG_MAX;   // MemAvailable: LONG_MAX = not read yet for this form (read without g_mj_mu, then the turn again)
+        for (;;) {
+            why = ah_turn(av);
+            if (why == VKA_AHEAD_STOPPED) { pthread_mutex_unlock(&g_mj_mu); return NULL; }
+            if (why == VKA_AHEAD_LOST) { ah_end("the device is lost: nothing made after it could be drawn", 1); continue; }
+            if (why == VKA_AHEAD_MEMORY) {   // under the floor: ah_poke reads it again at most once a second at submissions and wakes this thread above it
+                atomic_fetch_add(&g_ah_memw, 1); atomic_store(&g_ah_mem_wait, 1);
+                pthread_cond_wait(&g_ah_cv, &g_mj_mu); atomic_store(&g_ah_mem_wait, 0); av = LONG_MAX; continue;
+            }
+            if (why != VKA_AHEAD_GO) { pthread_cond_wait(&g_ah_cv, &g_mj_mu); av = LONG_MAX; continue; }
+            if (av == LONG_MAX) {
+                pthread_mutex_unlock(&g_mj_mu); av = ah_avail_mib(); pthread_mutex_lock(&g_mj_mu);
+                if (av < 0) { ah_end("/proc/meminfo has no MemAvailable, which DM_VK_MEMU_AHEAD needs", 1); continue; }
+                continue;   // (the turn again, with it: the game may have queued a job meanwhile)
+            }
+            if ((!vka_depth_zero()) != g_ah_gl) { ah_end("the device's depth mode changed after the queue began: the forms of the other mode are made at their draws", 0); continue; }
+            ak = vka_ahead_next(&g_ah, NULL, ah_stage, g_ah_lib_n, ah_lib_key, 256, &asrc);
+            if (ak) break;
+            if (asrc == VKA_AHEAD_MORE) { pthread_mutex_unlock(&g_mj_mu); sched_yield(); pthread_mutex_lock(&g_mj_mu); continue; }   // (the lock let go between batches of noted keys)
+            ah_end("every form made or tried", 0);
+        }
+        pthread_mutex_unlock(&g_mj_mu);
+        ah_make(ak, asrc);
+    }
 }
 static void *mj_main(void *a) {
     (void)a; pthread_setname_np(pthread_self(), "vk-memupso");
     setpriority(PRIO_PROCESS, 0, 10);   // (under the game's threads, as the prewarm threads)
     for (;;) {
         pthread_mutex_lock(&g_mj_mu);
-        mj *j; uint64_t ak = 0; int asrc = 0, why = 0;
-        // The game's own first (a form a draw waits for, then the prewarm list's), then a form made ahead when vka_ahead_turn allows one (else wait: a new job, the
-        // DM_VK_PSO_ASYNC queue running empty, the app resumed or MemAvailable seen above the floor at a submission wake this thread)
-        while (!(j = mj_pop())) {
-            if (ah_ready(&why) && (ak = vka_ahead_next(&g_ah, NULL, ah_stage, g_ah_lib_n, ah_lib_key, &asrc))) break;
-            if (g_ah_on && why == VKA_AHEAD_GO) ah_end("every form made or tried");   // (ready, and nothing left)
-            atomic_store(&g_ah_mem_wait, why == VKA_AHEAD_MEMORY);
-            if (why == VKA_AHEAD_MEMORY) atomic_fetch_add(&g_ah_memw, 1);
-            pthread_cond_wait(&g_mj_cv, &g_mj_mu);
-        }
-        atomic_store(&g_ah_mem_wait, 0);
-        if (!j) { pthread_mutex_unlock(&g_mj_mu); pause_point(); ah_make(ak, asrc); continue; }
+        mj *j;
+        while (!(j = mj_pop())) pthread_cond_wait(&g_mj_cv, &g_mj_mu);
         g_mj_cur = j;
         pthread_mutex_unlock(&g_mj_mu);
         pause_point();
@@ -1553,7 +1593,9 @@ static void *mj_main(void *a) {
         uint64_t t2 = now_ns(), lat = t2 - j->t0, cur = atomic_load(&g_mj_lat_max_ns);
         while (lat > cur && !atomic_compare_exchange_weak(&g_mj_lat_max_ns, &cur, lat)) {}
         atomic_fetch_add(&g_mj_ns, t2 - t1); atomic_fetch_add(&g_mj_made, 1);
-        pthread_mutex_lock(&g_mj_mu); g_mj_cur = NULL; int drawn = j->drawn; pthread_mutex_unlock(&g_mj_mu);
+        pthread_mutex_lock(&g_mj_mu); g_mj_cur = NULL; int drawn = j->drawn;
+        if (!g_mjd_head && !g_mjp_head) pthread_cond_broadcast(&g_ah_cv);   // (idle: the forms made ahead may go on)
+        pthread_mutex_unlock(&g_mj_mu);
         if (drawn) atomic_fetch_sub(&g_mj_drawn, 1);
         if (atomic_fetch_sub(&g_mj_depth, 1) == 1) {   // the queue ran empty: every mesh draw met so far can be drawn (the launcher's note goes, GameActivity)
             static _Atomic int n; uint64_t f0 = atomic_exchange(&g_mj_t_first, 0);
@@ -1571,29 +1613,40 @@ static void mj_start(void) {
     VLOG("mesh draws through compute: compute pipelines %s (DM_VK_MEMU_ASYNC)", g_mj_up ? "made on one background thread, one at a time; their draws skipped until made" : "made on the frame path");
 }
 static int mj_up(void) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthread_once(&once, mj_start); return g_mj_up; }
-// The queue of forms made ahead: asked for when the pipeline cache is opened (pc_open_once, ah_start), begun at the next submission on the replay thread (ah_poke): by
-// then the frame's textures were prepared (vka_tex_prepare), so the pool set's layout, which every compute form's pipeline layout takes, is there
+// The queue of forms made ahead: asked for when the pipeline cache is opened (pc_open_once, ah_start), its thread started at the next submission on the replay thread
+// (ah_poke): by then the frame's textures were prepared (vka_tex_prepare), so the pool set's layout, which every compute form's pipeline layout takes, is there. The
+// library's walk for its task / mesh shaders (42,774 entries for Ocarina of Time) runs on that thread (ah_begin), not on the replay thread
 static void ah_start(void) { int z = 0; atomic_compare_exchange_strong(&g_ah_req, &z, 1); }
+static void ah_off(const char *why) {   // the queue is not to be: notes stop, nothing kept
+    pthread_mutex_lock(&g_mj_mu); vka_ahead_free(&g_ah); g_ah.stop = 1; __atomic_store_n(&g_ah_ended, 1, __ATOMIC_RELAXED); pthread_mutex_unlock(&g_mj_mu);
+    if (why && *why) VLOG("mesh draws through compute: no compute forms made ahead (%s): each is made at its first draw", why);
+}
 static void ah_begin(void) {
-    int v = VKA_ENV("DM_VK_MEMU_AHEAD", 2048);
+    int v = ah_floor_env();
     const char *off = !V.memu ? "" : v <= 0 ? "DM_VK_MEMU_AHEAD=0" : !mj_up() ? "DM_VK_MEMU_ASYNC=0: the forms are made on the frame path" : !vka_bindless_layout() ? "no pool set" : NULL;
     uint32_t n = off ? 0 : vka_shader_lib_count(), nt = 0, nm = 0; uint64_t *keys = n ? malloc(n * sizeof *keys) : NULL; uint32_t nk = 0;
     for (uint32_t i = 0; keys && i < n; i++) { int st; uint64_t k = vka_shader_lib_entry(i, &st); if (vka_ahead_candidate(st, k)) { keys[nk++] = k; if (st == DMSH_VK_STAGE_TS) nt++; else nm++; } }
     if (!off && !nk) off = "no task or mesh shader in the library";
+    if (off) { free(keys); ah_off(off); return; }
+    int gl = !vka_depth_zero();
     pthread_mutex_lock(&g_mj_mu);
     uint32_t noted = g_ah.n;
-    if (off) { vka_ahead_free(&g_ah); g_ah.stop = 1; g_ah_ended = 1; free(keys); keys = NULL; }
-    else { g_ah_keys = keys; g_ah_lib_n = nk; g_ah_cand = nk; g_ah_floor = v; g_ah_on = 1; atomic_store(&g_ah_t0, now_ns()); pthread_cond_broadcast(&g_mj_cv); }
+    g_ah_keys = keys; g_ah_lib_n = nk; g_ah_cand = nk; g_ah_floor = v; g_ah_gl = gl; g_ah_on = 1; atomic_store(&g_ah_t0, now_ns());
     pthread_mutex_unlock(&g_mj_mu);
-    if (off && *off) VLOG("mesh draws through compute: no compute forms made ahead (%s): each is made at its first draw", off);
-    else if (!off) VLOG("mesh draws through compute: the compute forms of the library's %u task / mesh shaders (%u task, %u mesh) are made ahead on the mesh pipeline thread, one at "
-                        "a time, behind every form a draw or the prewarm list waits for: first the shaders of programs the game has set up (%u keys noted so far), then the "
-                        "library's order; none is started while a graphics pipeline a draw waits for is being made, while the app is in the background, or under "
-                        "MemAvailable %d MiB (DM_VK_MEMU_AHEAD; 0 none); not in the prewarm list, in the pipeline cache", nk, nt, nm, noted, v);
+    VLOG("mesh draws through compute: the compute forms of the library's %u task / mesh shaders (%u task, %u mesh) are made ahead on their own thread, one at a time, only "
+         "while no form a draw or the prewarm list waits for is queued or being made: first the shaders of programs the game has set up (%u keys noted so far), then the "
+         "library's order; none is started while a graphics pipeline a draw waits for is being made, while the app is in the background, after a device loss, or under "
+         "MemAvailable %d MiB (DM_VK_MEMU_AHEAD; 0 none); mesh forms at %s depth; in the prewarm list once drawn, in the pipeline cache", nk, nt, nm, noted, v, gl ? "GL" : "zero-to-one");
 }
 static void ah_poke(uint64_t t) {
     int one = 1;
-    if (atomic_load(&g_ah_req) == 1 && atomic_compare_exchange_strong(&g_ah_req, &one, 2)) ah_begin();
+    if (atomic_load(&g_ah_req) == 1 && atomic_compare_exchange_strong(&g_ah_req, &one, 2)) {
+        if (ah_floor_env() > 0 && V.memu) {
+            pthread_t th;
+            if (!pthread_create(&th, NULL, ah_main, NULL)) pthread_detach(th);
+            else { VRED("mesh draws through compute: the thread of the forms made ahead not started: each is made at its first draw"); ah_off(NULL); }
+        } else ah_begin();   // (its line: why none is made ahead)
+    }
     if (!atomic_load(&g_ah_mem_wait)) return;
     uint64_t last = atomic_load(&g_ah_poke_t);   // (MemAvailable read at most once a second while the queue waits for it)
     if (t - last < 1000000000ull || !atomic_compare_exchange_strong(&g_ah_poke_t, &last, t)) return;
@@ -1601,7 +1654,7 @@ static void ah_poke(uint64_t t) {
     if (av >= g_ah_floor) ah_wake();
 }
 // The app to the background (mtl_drain: Stop, Home, the screen off; Android may end the process after it) or back: the thread starts no form ahead while paused
-// (ah_ready), finishing only the one in the compiler; the forms made so far are in the forced save that follows
+// (ah_turn), finishing only the one in the compiler; the forms made so far are in the forced save that follows
 static void ah_paused(int on) {
     if (!on) { if (g_ah_on) ah_wake(); return; }
     pthread_mutex_lock(&g_mj_mu); int live = g_ah_on && !g_ah_ended; pthread_mutex_unlock(&g_mj_mu);
@@ -1611,10 +1664,11 @@ static void ah_paused(int on) {
     VLOG("mesh draws through compute: forms made ahead paused (the app in the background, or the run ending) after %llu of %u: %s",
          (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)), g_ah_cand, b);
 }
+int vka_memu_ahead_wanted(void) { return ah_floor_env() > 0 && !__atomic_load_n(&g_ah_ended, __ATOMIC_RELAXED); }
 void vka_memu_ahead_note(uint64_t key, int stage) {
-    if (!VKA_ENV("DM_VK_MEMU_AHEAD", 2048)) return;
+    if (!vka_memu_ahead_wanted()) return;
     pthread_mutex_lock(&g_mj_mu);
-    if (vka_ahead_note(&g_ah, key, stage) && g_ah_on) pthread_cond_signal(&g_mj_cv);
+    if (vka_ahead_note(&g_ah, key, stage) && g_ah_on) pthread_cond_signal(&g_ah_cv);
     pthread_mutex_unlock(&g_mj_mu);
 }
 VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw) {
@@ -1625,8 +1679,11 @@ VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending
     pthread_mutex_lock(&g_mu);
     gval *g = km_get(&g_cs, &k, h);
     if (g) {
-        int busy = g->busy; VkPipeline p = g->p; pthread_mutex_unlock(&g_mu); *pending = busy;
-        if (busy && draw) { pthread_mutex_lock(&g_mj_mu); mj_move_ahead(g); pthread_mutex_unlock(&g_mj_mu); }   // queued by the prewarm list: this draw's first
+        int busy = g->busy; VkPipeline p = g->p; int note = !busy && draw && g->ahead && p; if (note) g->ahead = 0;
+        pthread_mutex_unlock(&g_mu); *pending = busy;
+        if (busy && draw) { pthread_mutex_lock(&g_mj_mu); mj_move_ahead(g); pthread_mutex_unlock(&g_mj_mu); }   // queued by the prewarm list or being made ahead: this draw's first
+        // A form made ahead, drawn for the first time: into the prewarm list now (cs_build kept it out), so the list keeps every form the game drew, in its order
+        if (note) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }
         return busy ? VK_NULL_HANDLE : p;
     }
     // (a prewarm thread or the frame path that meets this entry while it is busy waits for it or passes it over, as for any other: cs_obtain)

@@ -22,6 +22,7 @@
 #include <time.h>
 
 static vka_shlib g_lib; static int g_lib_state;   // 0 not tried, 1 loaded, -1 none
+static _Atomic int g_lib_pub;                    // g_lib_state once lib_load has ended (read without g_mu: vka_shader_lib_stage_loaded, the game's thread)
 static char g_lib_path[1024];                       // the library loaded (vka_shader_lib_path)
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 
@@ -106,8 +107,12 @@ static void tfb_count(const vka_shlib *L) {
                                              fb, L->h->entry_count, fbpool, pool, fb && fbpool < pool ? ": draws of the others keep the scan's images, dispatches that read no pool texture are not gated" : "");
 }
 
-static int lib_load(void) {
+static int lib_load_(void);
+static int lib_load(void) {   // (under g_mu)
     if (g_lib_state) return g_lib_state > 0;
+    int r = lib_load_(); atomic_store_explicit(&g_lib_pub, g_lib_state, memory_order_release); return r;
+}
+static int lib_load_(void) {
     g_lib_state = -1;
     char path[1024], err[256]; const char *e = getenv("DM_VK_SHLIB"); const char *dir = dm_module_dir(); dir = dir && *dir ? dir : ".";
     if (e && *e) snprintf(path, sizeof path, "%s", e);
@@ -505,7 +510,7 @@ int vka_shader_lib_stage(uint64_t key) {
     return e ? e->stage : -1;
 }
 int vka_shader_lib_stage_loaded(uint64_t key) {
-    pthread_mutex_lock(&g_mu); int st = g_lib_state; pthread_mutex_unlock(&g_mu);
+    int st = atomic_load_explicit(&g_lib_pub, memory_order_acquire);   // (no lock: the game's thread must not wait for a library being opened)
     if (st == 0) return -2;
     const dmsh_vk_entry *e = st > 0 ? vka_shlib_find(&g_lib, key) : NULL;   // (the library is not changed once loaded)
     return e ? e->stage : -1;
@@ -579,7 +584,7 @@ void mtl_prog_release(prog_t *p) {
 // A program the game has set up (nvnProgramSetShaders, the game's thread): modules are made at its first draw (vka_prog_shaders); its stage keys go to the queue of mesh
 // forms made ahead (vka_pso.c vka_memu_ahead_note), which takes the task and mesh shaders among them first, in the order the game set them up
 void mtl_prog_prefetch(const prog_t *p) {
-    if (!p) return;
+    if (!p || !vka_memu_ahead_wanted()) return;   // (DM_VK_MEMU_AHEAD=0 or the queue ended: no lookup at all, as before it)
     for (unsigned i = 0; i < p->nstage && i < 6; i++) { uint8_t md[8]; if (prog_key(p, i, md)) { uint64_t k = vka_shlib_key(md); vka_memu_ahead_note(k, vka_shader_lib_stage_loaded(k)); } }
 }
 

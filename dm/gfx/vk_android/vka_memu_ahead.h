@@ -1,5 +1,5 @@
-// Mesh draws through compute (vka_memu.c, vka_pso.c): the compute forms of the library's task and mesh shaders made ahead of their first draw, on the one thread that
-// makes them (vka_pso.c mj_main), as pure functions so t_android_memuahead.c can run them. Plain C, no Vulkan.
+// Mesh draws through compute (vka_memu.c, vka_pso.c): the compute forms of the library's task and mesh shaders made ahead of their first draw, on a thread of their own
+// (vka_pso.c ah_main) that starts one only while the thread making the forms draws wait for (mj_main) is idle, as pure functions so t_android_memuahead.c can run them. Plain C, no Vulkan.
 //
 // A start with an empty pipeline cache (the first after an install or a driver change) met Ocarina of Time's Kokiri Forest with none of its 52 forms made: 31.8 s of
 // compiling on the phone, every mesh-drawn object (foliage, canopies, Link's door) held by the frame rule (vka_memu_rule.h) for 30-45 s. A form's pipeline depends only on
@@ -17,7 +17,7 @@
 #include "vka_pcguard.h"
 
 enum { VKA_AHEAD_TS = 6, VKA_AHEAD_MS = 7 };   // DMSH_VK_STAGE_TS / _MS (vka_pso.c checks they are the same)
-enum { VKA_AHEAD_NONE, VKA_AHEAD_PROGRAM, VKA_AHEAD_LIBRARY };   // where a key came from
+enum { VKA_AHEAD_NONE, VKA_AHEAD_PROGRAM, VKA_AHEAD_LIBRARY, VKA_AHEAD_MORE };   // where a key came from (MORE: none yet, vka_ahead_next's budget spent)
 enum { VKA_AHEAD_STAGE_UNKNOWN = -2 };   // a key's stage when the library is not loaded yet (-1: not in the library)
 enum { VKA_AHEAD_FIFO_MAX = 1 << 16 };   // program keys waiting (deduplicated: the library has fewer shaders than this); past it they are counted, and the library walk takes them
 
@@ -65,29 +65,35 @@ static inline int vka_ahead_note(vka_ahead *a, uint64_t key, int stage) {
     return 1;
 }
 // The next key to make ahead, 0 = none left (or stopped). stage_of: a key's library stage, -1 not in the library; lib_n / lib_key: the library's entries in its order.
-// *src: VKA_AHEAD_PROGRAM or VKA_AHEAD_LIBRARY
+// *src: VKA_AHEAD_PROGRAM or VKA_AHEAD_LIBRARY; VKA_AHEAD_MORE (with 0) when budget keys were looked at and none was taken: call again (the caller holds a lock the
+// game's thread takes at every nvnProgramSetShaders, and up to VKA_AHEAD_FIFO_MAX keys noted before the library was loaded may wait here)
 typedef int (*vka_ahead_stage_fn)(void *ctx, uint64_t key);
 typedef uint64_t (*vka_ahead_lib_fn)(void *ctx, uint32_t i);
-static inline uint64_t vka_ahead_next(vka_ahead *a, void *ctx, vka_ahead_stage_fn stage_of, uint32_t lib_n, vka_ahead_lib_fn lib_key, int *src) {
+static inline uint64_t vka_ahead_next(vka_ahead *a, void *ctx, vka_ahead_stage_fn stage_of, uint32_t lib_n, vka_ahead_lib_fn lib_key, uint32_t budget, int *src) {
     *src = VKA_AHEAD_NONE;
     if (a->stop) return 0;
-    while (a->n) {
+    for (; a->n; budget--) {
+        if (!budget) { *src = VKA_AHEAD_MORE; return 0; }
         uint64_t k = a->fifo[a->head]; a->head = (a->head + 1) % a->cap; a->n--;
         if (vka_ahead_candidate(stage_of(ctx, k), k)) { *src = VKA_AHEAD_PROGRAM; return k; }
     }
-    while (a->lib_next < lib_n) {
+    for (; a->lib_next < lib_n; budget--) {
+        if (!budget) { *src = VKA_AHEAD_MORE; return 0; }
         uint64_t k = lib_key(ctx, a->lib_next++);
         if (vka_ahead_candidate(stage_of(ctx, k), k) && vka_ahead_seen_add(a, k)) { *src = VKA_AHEAD_LIBRARY; return k; }
     }
     return 0;
 }
-// Whether the thread may start a form ahead now; VKA_AHEAD_GO when it may, else why not. The game's own requests first: a form a draw waits for or one the prewarm list
-// queued (jobs: either queue not empty), a graphics pipeline whose draws are skipped until it is made (async_depth: DM_VK_PSO_ASYNC's queue). Then the app in the
-// background (paused) and memory: a form's compile took up to 776 MB on the PC (Turnip on drm-shim, Ocarina of Time's heaviest), so none starts while MemAvailable
-// (avail_mib; -1 = not read) is under floor_mib
-enum { VKA_AHEAD_GO, VKA_AHEAD_STOPPED, VKA_AHEAD_JOBS, VKA_AHEAD_ASYNC, VKA_AHEAD_PAUSED, VKA_AHEAD_MEMORY };
-static inline int vka_ahead_turn(const vka_ahead *a, int jobs, int async_depth, int paused, long avail_mib, int floor_mib) {
+// Whether the thread may start a form ahead now; VKA_AHEAD_GO when it may, else why not. The queue ends for good when the device is lost (lost: vka_hung; nothing made
+// after it is of use, and every try would fail). The game's own requests first: a form a draw waits for or one the prewarm list queued (jobs: either queue not empty, or
+// the mesh pipeline thread making one: the forms made ahead have their own thread, so a draw never waits behind one, and none is started beside the game's), a graphics
+// pipeline whose draws are skipped until it is made (async_depth: DM_VK_PSO_ASYNC's queue). Then the app in the background (paused) and memory: a form's compile took
+// up to 842 MB on the PC (Turnip on drm-shim, Ocarina of Time's heaviest with the raw global memory merge), so none starts while MemAvailable (avail_mib; -1 = not read)
+// is under floor_mib
+enum { VKA_AHEAD_GO, VKA_AHEAD_STOPPED, VKA_AHEAD_JOBS, VKA_AHEAD_ASYNC, VKA_AHEAD_PAUSED, VKA_AHEAD_MEMORY, VKA_AHEAD_LOST };
+static inline int vka_ahead_turn(const vka_ahead *a, int lost, int jobs, int async_depth, int paused, long avail_mib, int floor_mib) {
     if (a->stop) return VKA_AHEAD_STOPPED;
+    if (lost) return VKA_AHEAD_LOST;
     if (jobs) return VKA_AHEAD_JOBS;
     if (async_depth > 0) return VKA_AHEAD_ASYNC;
     if (paused) return VKA_AHEAD_PAUSED;
@@ -98,7 +104,10 @@ static inline int vka_ahead_turn(const vka_ahead *a, int jobs, int async_depth, 
 // readable. The translator keeps a shader's local memory in such an array, and Turnip puts an array indexed at run time in private memory (scratch): one buffer for the
 // whole device, per fiber the largest program's need rounded up to a power of two, times 4,096 fibers and 6 SPs on the Adreno 830, never shrunk, and made again at every
 // start for each program the pipeline cache file holds (vka_pcguard.h). Of Ocarina of Time's 515 forms the 10 with such an array (7,472-9,264 bytes) take a 384 MiB
-// buffer; the other 505 (their largest variable 12 bytes) take at most 96 MiB (their spills), the 52 of Kokiri Forest 96 MiB (Anka Turnip on drm-shim, 2026-11-15)
+// buffer; the other 505 (their largest variable 12 bytes) take at most 96 MiB (their spills), the 52 of Kokiri Forest 96 MiB (Anka Turnip on drm-shim, 2026-11-15).
+// This reads arrays only, not register spills: with the raw global memory merge (vka_gmem.c, on by default) one of the 505, 626fbf48041cb82b, spills 8 KiB a fiber and
+// takes a 192 MiB buffer. That form is one Ocarina of Time draws (perf-gmem: among the 81 forms a long play uses), so a cache of a long play holds it anyway; made
+// ahead it is there from the first start on (192 MiB of private memory at every start, accepted: docs/reference/shaders.md)
 static inline uint64_t vka_ahead_private_bytes(const uint32_t *w, size_t n) {
     if (!w || n < 5 || w[0] != 0x07230203u || w[3] > (1u << 22)) return 0;
     uint32_t bound = w[3]; uint64_t *sz = (uint64_t *)calloc(bound, sizeof *sz); uint32_t *ptr = (uint32_t *)calloc(bound, sizeof *ptr), *cst = (uint32_t *)calloc(bound, sizeof *cst);

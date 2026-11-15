@@ -31,7 +31,7 @@ static int stage_of(void *c, uint64_t key) {
 static uint64_t lib_key(void *c, uint32_t i) { (void)c; return i < NLIB ? LIB[i].key : 0; }
 static int drain(vka_ahead *a, uint64_t *out, int *src, int max) {
     int n = 0, s; uint64_t k;
-    while (n < max && (k = vka_ahead_next(a, NULL, stage_of, NLIB, lib_key, &s))) { out[n] = k; src[n] = s; n++; }
+    while (n < max && (k = vka_ahead_next(a, NULL, stage_of, NLIB, lib_key, 1u << 30, &s))) { out[n] = k; src[n] = s; n++; }
     return n;
 }
 
@@ -54,9 +54,9 @@ int main(void) {
             CHECK(out[2] == 0x1001 && src[2] == VKA_AHEAD_LIBRARY, "then the library's order");
             CHECK(out[3] == 0x1005 && src[3] == VKA_AHEAD_LIBRARY, "the library's last mesh shader; 0x1003 and 0x1004 not again");
         }
-        CHECK(vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, &src[0]) == 0 && src[0] == VKA_AHEAD_NONE, "nothing left");
+        CHECK(vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, 1u << 30, &src[0]) == 0 && src[0] == VKA_AHEAD_NONE, "nothing left");
         CHECK(vka_ahead_note(&a, 0x1001, DMSH_VK_STAGE_MS) == 0, "a key handed out by the library walk is not noted again");
-        CHECK(vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, &src[0]) == 0, "still nothing");
+        CHECK(vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, 1u << 30, &src[0]) == 0, "still nothing");
         vka_ahead_free(&a);
     }
     // The guard: the NDVE network is never handed out, whether noted by a program, met in the library or reported as a mesh shader by the lookup
@@ -79,23 +79,60 @@ int main(void) {
         vka_ahead a = {0};
         vka_ahead_note(&a, 0x1001, DMSH_VK_STAGE_MS);
         a.stop = 1;
-        CHECK(vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, &src[0]) == 0, "stopped: none handed out");
+        CHECK(vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, 1u << 30, &src[0]) == 0, "stopped: none handed out");
         CHECK(vka_ahead_note(&a, 0x1004, DMSH_VK_STAGE_MS) == 0, "stopped: none noted");
-        CHECK(vka_ahead_turn(&a, 0, 0, 0, 8000, 2048) == VKA_AHEAD_STOPPED, "stopped: no turn");
+        CHECK(vka_ahead_turn(&a, 0, 0, 0, 0, 8000, 2048) == VKA_AHEAD_STOPPED, "stopped: no turn");
         vka_ahead_free(&a);
         CHECK(a.fifo == NULL && a.seen == NULL && a.n == 0, "freed");
     }
     // Priority: the game's own requests first (a form a draw or the prewarm list waits for, a graphics pipeline a draw waits for), then the app in front, then memory
     {
         vka_ahead a = {0};
-        CHECK(vka_ahead_turn(&a, 1, 0, 0, 8000, 2048) == VKA_AHEAD_JOBS, "a job waiting: it goes first");
-        CHECK(vka_ahead_turn(&a, 1, 5, 1, 10, 2048) == VKA_AHEAD_JOBS, "jobs before anything else");
-        CHECK(vka_ahead_turn(&a, 0, 3, 0, 8000, 2048) == VKA_AHEAD_ASYNC, "a graphics pipeline a draw waits for: none ahead");
-        CHECK(vka_ahead_turn(&a, 0, 0, 1, 8000, 2048) == VKA_AHEAD_PAUSED, "the app in the background: none");
-        CHECK(vka_ahead_turn(&a, 0, 0, 0, 2047, 2048) == VKA_AHEAD_MEMORY, "under the floor: none");
-        CHECK(vka_ahead_turn(&a, 0, 0, 0, -1, 2048) == VKA_AHEAD_MEMORY, "MemAvailable not read: none");
-        CHECK(vka_ahead_turn(&a, 0, 0, 0, 2048, 2048) == VKA_AHEAD_GO, "at the floor: one may start");
-        CHECK(vka_ahead_turn(&a, 0, 0, 0, 900, 1) == VKA_AHEAD_GO, "a floor of 1 MiB lets it run at 900");
+        CHECK(vka_ahead_turn(&a, 0, 1, 0, 0, 8000, 2048) == VKA_AHEAD_JOBS, "a job waiting: it goes first");
+        CHECK(vka_ahead_turn(&a, 0, 1, 5, 1, 10, 2048) == VKA_AHEAD_JOBS, "jobs before anything else");
+        CHECK(vka_ahead_turn(&a, 0, 0, 3, 0, 8000, 2048) == VKA_AHEAD_ASYNC, "a graphics pipeline a draw waits for: none ahead");
+        CHECK(vka_ahead_turn(&a, 0, 0, 0, 1, 8000, 2048) == VKA_AHEAD_PAUSED, "the app in the background: none");
+        CHECK(vka_ahead_turn(&a, 0, 0, 0, 0, 2047, 2048) == VKA_AHEAD_MEMORY, "under the floor: none");
+        CHECK(vka_ahead_turn(&a, 0, 0, 0, 0, -1, 2048) == VKA_AHEAD_MEMORY, "MemAvailable not read: none");
+        CHECK(vka_ahead_turn(&a, 0, 0, 0, 0, 2048, 2048) == VKA_AHEAD_GO, "at the floor: one may start");
+        CHECK(vka_ahead_turn(&a, 0, 0, 0, 0, 900, 1) == VKA_AHEAD_GO, "a floor of 1 MiB lets it run at 900");
+    }
+    // The device lost (vka_hung): the queue ends, before anything else is looked at (review 2026-11-15: it went on compiling and failing for minutes)
+    {
+        vka_ahead a = {0};
+        CHECK(vka_ahead_turn(&a, 1, 0, 0, 0, 8000, 2048) == VKA_AHEAD_LOST, "a lost device: no turn, the queue ends");
+        CHECK(vka_ahead_turn(&a, 1, 1, 3, 1, 10, 2048) == VKA_AHEAD_LOST, "lost before jobs, the asynchronous queue, a pause or memory");
+        a.stop = 1; CHECK(vka_ahead_turn(&a, 1, 0, 0, 0, 8000, 2048) == VKA_AHEAD_STOPPED, "ended: stopped, not lost again (one line)");
+    }
+    // The budget: the thread holds a lock the game's thread takes at every nvnProgramSetShaders, so one call looks at no more than budget keys (review 2026-11-15:
+    // up to 65,536 keys noted before the library loaded were drained in one go under it); the order and the once-only rule are the same as with no budget
+    {
+        vka_ahead a = {0}; uint32_t q = 0;
+        for (uint64_t k = 1; k <= 1000; k++) q += (uint32_t)vka_ahead_note(&a, 0x200000 + k, VKA_AHEAD_STAGE_UNKNOWN);   // (none in the library: dropped when taken)
+        vka_ahead_note(&a, 0x1003, VKA_AHEAD_STAGE_UNKNOWN);
+        CHECK(q == 1000, "1,000 unknown keys noted (%u)", q);
+        int s, more = 0; uint64_t k, got[8]; int ng = 0;
+        for (;;) {
+            k = vka_ahead_next(&a, NULL, stage_of, NLIB, lib_key, 64, &s);
+            if (k) { if (ng < 8) got[ng++] = k; continue; }
+            if (s == VKA_AHEAD_MORE) { more++; continue; }
+            break;
+        }
+        CHECK(more >= 1000 / 64, "the 1,001 noted keys took batches of 64 (%d calls said MORE)", more);
+        CHECK(ng == 4 && got[0] == 0x1003 && got[1] == 0x1001 && got[2] == 0x1004 && got[3] == 0x1005, "the program's task shader first, then the library's three others, once each (got %d)", ng);
+        CHECK(s == VKA_AHEAD_NONE, "then none left");
+        vka_ahead a2 = {0};
+        CHECK(vka_ahead_next(&a2, NULL, stage_of, NLIB, lib_key, 0, &s) == 0 && s == VKA_AHEAD_MORE, "a budget of 0 takes nothing and says MORE");
+        CHECK(vka_ahead_next(&a2, NULL, stage_of, NLIB, lib_key, 1, &s) == 0 && s == VKA_AHEAD_MORE, "a budget of 1: the library's vertex shader looked at, none taken");
+        CHECK(vka_ahead_next(&a2, NULL, stage_of, NLIB, lib_key, 1, &s) == 0x1001 && s == VKA_AHEAD_LIBRARY, "the next call goes on where it stopped: 0x1001");
+        vka_ahead_free(&a); vka_ahead_free(&a2);
+    }
+    // The game's own jobs include the one the mesh pipeline thread is making (mj_main's current job): a form made ahead never starts beside it, and a form a draw asks for
+    // while one is made ahead is made on the other thread at once (review 2026-11-15: it waited behind the ahead compile, up to a whole one, 5-10 s on the phone)
+    {
+        vka_ahead a = {0};
+        int busy_queue_empty = 1;   // (ah_turn passes g_mjd_head || g_mjp_head || g_mj_cur)
+        CHECK(vka_ahead_turn(&a, 0, busy_queue_empty, 0, 0, 8000, 2048) == VKA_AHEAD_JOBS, "the mesh pipeline thread busy with a job: none started ahead");
     }
     // A long list of program keys: deduplicated, the ring grows, past VKA_AHEAD_FIFO_MAX they are counted and left to the library walk
     {
