@@ -46,6 +46,16 @@ class Service(unittest.TestCase):
         self.assertIn('JobDeath.go(intent != null, auto, j.state(), j.reason(), j.apkChanged())', start)
         self.assertIn('return begin(j, intent != null && !auto, startId);', start)
 
+    def test_pause_without_worker(self):
+        """A Pause that finds no worker (Home's card in its first 2.5 s on a job whose process died) pauses the remembered job instead of being dropped, so Home's
+        automatic resume (afterDeath) and the app's own starts leave it alone"""
+        start = body(self.s, 'public int onStartCommand(')
+        self.assertLess(start.index('pauseDead();'), start.index('if (ACTION_GAME.equals(action))'))
+        p = body(self.s, 'private void pauseDead() {')
+        self.assertIn('if (!pausable(j)) return;', p)
+        self.assertLess(p.index('j.state("paused", "user", null);'), p.index('j.save();'))
+        self.assertIn('nm.notify(NOTE, note(j, -1, false));', p)
+
     def test_pid(self):
         """MSG_STATE carries the service's pid, for the watch's exit record"""
         pub = body(self.s, 'private void publish(Job j, boolean force)')

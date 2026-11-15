@@ -180,7 +180,10 @@ public final class PackService extends Service {
             boolean running = worker != null && worker.isAlive();
             logPause(job, (from != null ? from : "an intent without \"from\"") + (running ? "" : ", nothing running"));   // i18n-keep: a log line
             if (running) requestStop("user");
-            else if (worker == null) stopSelf(startId);   // a stale notification: nothing runs here
+            else if (worker == null) {   // nothing runs here: a stale notification, or the card's Pause on a job whose process died
+                pauseDead();
+                stopSelf(startId);
+            }
             return START_STICKY;
         }
         if (ACTION_GAME.equals(action)) return game(startId);
@@ -375,6 +378,32 @@ public final class PackService extends Service {
                 Process.killProcess(Process.myPid());
             }
         }, 20_000);
+    }
+
+    /**
+     * A Pause with no worker here: the remembered job, when it says it works (running, or waiting by itself) while its process is gone, is written paused by the
+     * user, with its paused notification. Home's card offers Pause for 2.5 s after it opens on such a job (it cannot know yet that the service is gone), and the
+     * Pause used to be dropped here, after which Home resumed the job by itself (Ondevice.Panel.afterDeath); now nothing resumes it but the user
+     */
+    private void pauseDead() {
+        File f = Job.remembered(this);
+        Job j;
+        try {
+            j = f != null && f.isFile() ? Job.read(f) : null;
+        } catch (IOException e) {
+            Log.w(TAG, "pause: the job: " + e.getMessage());
+            return;
+        }
+        if (!pausable(j)) return;
+        Log.i(TAG, "pause: the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()) + " has no worker (its process ended): paused by the user");
+        j.state("paused", "user", null);
+        try {
+            j.save();
+        } catch (IOException e) {
+            Log.e(TAG, "job.json: " + e);
+            return;
+        }
+        nm.notify(NOTE, note(j, -1, false));
     }
 
     /** A job a pause applies to: running, or waiting for the battery or the heat (not one already done, failed or paused for good) */
