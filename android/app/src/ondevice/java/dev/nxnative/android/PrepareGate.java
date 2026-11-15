@@ -124,8 +124,8 @@ final class PrepareGate implements ServiceConnection {
         Job j = job(a);
         String now = j == null ? "no job" : j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason());   // i18n-keep: the game's log
         double s = (SystemClock.elapsedRealtime() - t0) / 1000.0;
-        finish(String.format(Locale.ROOT, "Android took the job's service down (its process ended or the service stopped): the game starts (the job %s; asked %d time(s), %.1f s)",
-                now, asks, s));   // i18n-keep: the game's log
+        String what = "Android took the job's service down (its process ended or the service stopped): the game starts (the job %s; asked %d time(s), %.1f s)";   // i18n-keep: the game's log
+        finish(String.format(Locale.ROOT, what, now, asks, s));
     }
 
     private boolean onMessage(Message m) {

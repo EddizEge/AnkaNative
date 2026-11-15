@@ -90,7 +90,8 @@ class Game(unittest.TestCase):
         bd = body(raw, '    @Override public void onBindingDied(ComponentName n) {')
         self.assertNotIn('the binding to the job', bd)
         self.assertNotIn('asks > 1', bd)
-        self.assertIn('"Android took the job\'s service down (its process ended or the service stopped): the game starts (the job %s; asked %d time(s), %.1f s)"', bd)
+        self.assertIn('"Android took the job\'s service down (its process ended or the service stopped): the game starts (the job %s; asked %d time(s), %.1f s)";   // i18n-keep', bd)
+        self.assertIn('finish(String.format(Locale.ROOT, what, now, asks, s));', bd)
         dis = body(self.gate, 'public void onServiceDisconnected(')
         self.assertIn('ask();', dis)   # the new process is asked for before the binding is declared dead
 
