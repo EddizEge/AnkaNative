@@ -195,6 +195,12 @@ def header(g):
                 sys.exit(f'{g.id}: graphics_scale takes <WxH | original> <scale 0|1|2> <console | handheld>, one row per choice: {r}')
             seen.add(r[0])
         if wfn: sys.exit(f'{g.id}: graphics_scale and window_fn are two levers for one setting: keep one')
+    # Game settings › Plants and effects (DM_DETAIL; dm/host/detail.h, hle_fs.c dm_detail_start): the detail_level / detail_param / detail_env / detail_zsdic rows,
+    # passed to the host as written; the host checks them when a level is chosen (a malformed row is a red line and left out; dm/host/tests/t_detail.c checks
+    # that every profile's rows read without one). Only characters a C string or the launcher's table cannot carry are refused here
+    det = ['\t'.join([k, *v]) for k, v in g.rows if k in ('detail_level', 'detail_param', 'detail_env', 'detail_zsdic')]
+    detc = [q(r).replace('\t', '\\t') for r in det]   # C strings, the tabs written as \t
+    if any(c in r for r in det for c in '"\\\n'): sys.exit(f'{g.id}: detail_* rows take no quotes or backslashes: {[r for r in det if any(c in r for c in chr(34) + chr(92))]}')
     he = g.words('host_env', '')   # host switches this game starts with (main.c env_defaults; a switch the environment or env.txt sets wins): KEY=VALUE, separated by spaces
     hek = [w.partition('=')[0] for w in he]
     if any(not re.fullmatch(r'DM_[A-Z0-9_]+=[^\s"\\]+', w) for w in he) or len(set(hek)) != len(hek) or 'DM_FASTBOOT' in hek:
@@ -246,6 +252,7 @@ def header(g):
          f'#define DM_GAME_GPU_TS_SEGMENT {int(gts == "segment")}',
          f'#define DM_GAME_VCONV_RANGE {int(vcr == "on")}',
          f'#define DM_GAME_WINDOW_FN {{{", ".join(wfn) or "{\"\", 0, 0, 0, 0}"}}}', f'#define DM_GAME_NWINDOW_FN {len(wfn)}',
+         f'#define DM_GAME_DETAIL {{{", ".join(detc) or chr(34) + chr(34)}}}', f'#define DM_GAME_NDETAIL {len(det)}',
          f'#define DM_GAME_DRS_LEVEL {{{", ".join(drs) or "{\"\", 0, 0, 0, 0, 0, {0}, {0}, 0}"}}}', f'#define DM_GAME_NDRS_LEVEL {len(drs)}',
          *([f'#define DM_GAME_NVN_API_MAJOR {api.split(".")[0]}', f'#define DM_GAME_NVN_API_MINOR {api.split(".")[1]}'] if g.get('device_api', '') else []),   # without the key: by the SDK version (hle_nvn.c nvn_api)
          '']
