@@ -356,6 +356,7 @@ final class Ondevice {
                     || !JobDeath.shouldWork(job.state(), job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
             String key = job.file.getPath() + "@" + job.updated();
             if (key.equals(afterDeathKey)) return;
+            if (Job.onlyShown(a, job)) return;   // the user asked only to see it (Show the job): its card offers Resume, nothing starts it by itself
             if (JobWatch.decides(job.pid())) return;   // the watch saw that process (bound to it, or its binder died just now): its decision, with its exact record
             android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, job);
             JobDeath.Act act = JobDeath.after(job.state(), job.reason(), jobAlive, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(a));
@@ -388,7 +389,7 @@ final class Ondevice {
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
             // a pause asked for while the tool stops: said so, with no time left and Resume not yet tappable (the service would not take it while its worker runs)
             boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping, jobInTool) == JobForm.Form.STOPPING;
-            status.setText(job.statusMsg(alive, stopping).text());
+            status.setText(job.statusMsg(alive, stopping, Job.onlyShown(a, job)).text());   // a job only shown: only Resume starts it
             bar.setProgress((int) Math.round(job.overall() * 1000));
             // the shader count once the shaders step's tool has said how many it translates (an update's few hundred), only the percentage before
             long shaders = job.shadersTotal();
@@ -440,7 +441,8 @@ final class Ondevice {
         /** What a background check found beside a picked dump */
         static final class Found {
             DumpCheck.Result r;
-            File existing;   // a job.json beside the dump
+            JobPick.Place place;   // the pick's job (TAKE), one in its way (OTHER_FOLDER), or where its new job goes (NEW); null when the check failed
+            final java.util.Map<File, Job> jobs = new java.util.HashMap<>();   // the job.json files place read
             File packDir;    // the pack Folders.packFor finds for it (null: none)
             Pack pack;       // that pack, when it reads as this game's pack
             Msg build;       // PackCheck.blockingMsg: why its code cannot run with this dump (unfinished, another game build), null when it fits
@@ -463,14 +465,7 @@ final class Ondevice {
             android.widget.Toast.makeText(a, a.getString(R.string.prepare_checking, dump), android.widget.Toast.LENGTH_SHORT).show();
             new Thread(() -> {
                 Found f = new Found();
-                try {
-                    String id = Nup.isNup(dump) ? Pack.titleIdOf(dump) : Pack.programId(new File(dump, "base/exefs/main.npdm"));
-                    File jf = Job.fileOf(DumpCheck.workOf(dump, id));
-                    if (jf.isFile()) f.existing = jf;
-                } catch (IOException e) {
-                    // DumpCheck says what is wrong
-                }
-                f.r = DumpCheck.check(dump, f.existing == null);
+                f.r = DumpCheck.check(dump);   // the free space is checked below, once the pick's job is known (a new one needs it)
                 // the pack to check: a card's own (its automatic update, its Prepare again), else the one Folders finds for the dump; an adb test's
                 // ondevice_pack is a folder for a new job, never checked (a pack there is not adopted)
                 JobPick.Pack which = JobPick.packToCheck(card, again, packOverride != null);
@@ -487,6 +482,21 @@ final class Ondevice {
                         // no usable pack: the whole job
                     }
                 }
+                if (f.r.ok()) {
+                    // The pick's job and its folder (JobPick.place): a job belongs to the pack folder it writes. A pick that names its pack (packOverride: a
+                    // card's update or Prepare again, adb's ondevice_pack) takes only that pack's job, and an unfinished job of another pack folder in the
+                    // default folder never stands in its way: its job goes into the pack's own folder beside it, and the other job is left as it is
+                    File jobPack = packOverride != null ? packOverride : f.pack != null ? f.packDir : new File(AppStorage.packs(a), f.r.titleId);
+                    f.place = JobPick.place(f.r.work, f.r.dump, f.r.version, jobPack, packOverride != null, jf -> {
+                        Job j = Job.read(jf);
+                        f.jobs.put(jf, j);
+                        return new JobPick.Seen(j.dump(), j.version(), j.pack(), j.state());
+                    });
+                    // a new job writes its working files from nothing in the folder place named; a job taken (resumed) has most of them already. The review of
+                    // work/job-other-folder: the check went by whether any job.json was in the pick's folders, so the card's new job beside another pack
+                    // folder's job skipped it
+                    if (JobPick.needsFree(f.place)) DumpCheck.requireFree(f.r);
+                }
                 h.post(() -> checked(f, start, packOverride, again, card));
             }, "nxpack-check").start();
         }
@@ -494,41 +504,41 @@ final class Ondevice {
         void checked(Found f, boolean start, File packOverride, boolean again, boolean card) {
             DumpCheck.Result r = f.r;
             if (!r.ok()) { if (!card) { a.error(r.errorText()); show(); } else a.refresh(); return; }   // a card's update that did not start: its line says so
-            // A job in progress for this dump is resumed
-            if (f.existing != null) {
-                try {
-                    Job j = Job.read(f.existing);
-                    boolean same = JobPick.samePlace(j.dump(), r.dump) && j.version() == r.version && (packOverride == null || JobPick.samePlace(packOverride, j.pack()));
-                    JobPick.Found found = JobPick.existing(same, j.state());
-                    if (found == JobPick.Found.TAKE) {
-                        // remembered (Home's card shows it again) only once the user takes it: a job forgotten (Manage › Forget) and found again by a new pick,
-                        // as Forget says, stays forgotten when the question is cancelled (the rc1 phone check: Cancel brought the forgotten job back)
-                        Runnable take = () -> {
-                            Job.remember(a, f.existing);
-                            job = j;
-                            show();
-                            startService(j);
-                        };
-                        if (start) take.run();
-                        else confirm(a.getString(R.string.prepare_resume_title), a.getString(R.string.prepare_resume_body, j.statusMsg(false).text()),
-                                a.getString(R.string.prepare_button_resume), take);
-                        return;
-                    }
-                    if (found == JobPick.Found.OTHER_FOLDER) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
-                        if (card) { a.refresh(); return; }   // an automatic update leaves it to the user
-                        // shown on Home (its card: Resume, Delete working files) only when the user asks: a job forgotten (Manage › Forget) stays forgotten
-                        Runnable showIt = () -> {
-                            Job.remember(a, f.existing);
-                            job = j;
-                            show();
-                        };
-                        confirm(a.getString(R.string.prepare_other_folder_title), a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(),
-                                a.getString(R.string.prepare_label_delete_work)), a.getString(R.string.prepare_button_show_job), showIt);
-                        return;
-                    }
-                } catch (IOException e) {
-                    // a damaged job.json or one of another format: a new job replaces it
-                }
+            // The pick's own job in progress is resumed (JobPick.place: of its pack folder when the pick names one, of the same dump and version)
+            JobPick.Place place = f.place;
+            Job j = f.jobs.get(place.file);
+            if (place.found == JobPick.Found.TAKE) {
+                // remembered (Home's card shows it again) only once the user takes it: a job forgotten (Manage › Forget) and found again by a new pick,
+                // as Forget says, stays forgotten when the question is cancelled (the rc1 phone check: Cancel brought the forgotten job back)
+                Runnable take = () -> {
+                    Job.remember(a, place.file);
+                    job = j;
+                    show();
+                    startService(j);
+                };
+                if (start) take.run();
+                else confirm(a.getString(R.string.prepare_resume_title), a.getString(R.string.prepare_resume_body, j.statusMsg(false).text()),
+                        a.getString(R.string.prepare_button_resume), take);
+                return;
+            }
+            if (place.found == JobPick.Found.OTHER_FOLDER) {   // an unfinished job of another dump or version where the pick's job would go: never written over
+                if (card) { a.refresh(); return; }   // an automatic update leaves it to the user
+                // shown on Home (its card: Resume, Delete working files) only when the user asks: a job forgotten (Manage › Forget) stays forgotten. Shown
+                // is not started: the app does not start it by itself until the user does (Job.shown)
+                Runnable showIt = () -> {
+                    Job.remember(a, place.file);
+                    Job.shown(a, j);
+                    job = j;
+                    show();
+                };
+                confirm(a.getString(R.string.prepare_other_folder_title), a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(),
+                        a.getString(R.string.prepare_label_delete_work)), a.getString(R.string.prepare_button_show_job), showIt);
+                return;
+            }
+            if (place.kept != null) {
+                Job other = f.jobs.get(place.kept);
+                android.util.Log.i("nxpack", "a job for " + (packOverride != null ? packOverride : f.pack != null ? f.packDir : "the app's pack") + " has its job folder "
+                        + place.file.getParent() + ": " + place.kept + " is an unfinished job (" + other.state() + ") for another pack folder, " + other.pack() + ", kept as it is");
             }
             // One job at a time: the service runs only the job it has, so a new one is not written or remembered while it runs
             if (alive() && job != null && !"done".equals(job.state())) {
@@ -542,8 +552,8 @@ final class Ondevice {
                 Msg lpm = PackCheck.shadersMsg(pd, r.titleId);
                 String lp = lpm == null ? null : lpm.text();
                 boolean code = f.build != null || again && !Boolean.TRUE.equals(f.code), shaders = lp != null;
-                if (!code && !shaders) { adopt(r, pd, false, false); return; }
-                Runnable redo = () -> adopt(r, pd, code, shaders);
+                if (!code && !shaders) { adopt(r, pd, false, false, place.file); return; }
+                Runnable redo = () -> adopt(r, pd, code, shaders, place.file);
                 if (start) { redo.run(); return; }
                 int delta = shaders ? deltaShaders(pd, r.titleId) : -1;
                 String what = code && shaders ? (delta >= 0 ? a.getString(R.string.prepare_redo_code_update, shadersText(pd, r.titleId))
@@ -572,13 +582,13 @@ final class Ondevice {
                     packOverride != null ? packOverride : AppStorage.pack(a, r.titleId));   // where the job writes the pack (go, below)
             Runnable go = () -> {
                 try {
-                    Job j = Job.create(r, AppStorage.pack(a, r.titleId));
-                    if (packOverride != null) j.pack(packOverride);
-                    j.save();
-                    Job.remember(a, j.file);
-                    job = j;
+                    Job nj = Job.create(r, AppStorage.pack(a, r.titleId), place.file);
+                    if (packOverride != null) nj.pack(packOverride);
+                    nj.save();
+                    Job.remember(a, nj.file);
+                    job = nj;
                     show();
-                    startService(j);
+                    startService(nj);
                 } catch (Exception e) {
                     a.error(a.getString(R.string.prepare_cannot_start, e.getLocalizedMessage()));
                 }
@@ -604,10 +614,11 @@ final class Ondevice {
                     .setNegativeButton(android.R.string.cancel, null).show();
         }
 
-        /** A pack that is already there (PackCheck): ready (a done job pointing at it, the game added to the list), or a job that redoes its code, its shaders or both */
-        void adopt(DumpCheck.Result r, File packDir, boolean code, boolean shaders) {
+        /** A pack that is already there (PackCheck): ready (a done job pointing at it, the game added to the list), or a job that redoes its code, its shaders or both;
+         *  jobFile: its job.json (JobPick.place) */
+        void adopt(DumpCheck.Result r, File packDir, boolean code, boolean shaders, File jobFile) {
             try {
-                Job j = Job.adopt(r, packDir, code, shaders);
+                Job j = Job.adopt(r, packDir, code, shaders, jobFile);
                 j.save();
                 Job.remember(a, j.file);
                 job = j;
@@ -695,7 +706,7 @@ final class Ondevice {
             boolean running = alive() && ("running".equals(j.state()) || "paused".equals(j.state()) && !"user".equals(j.reason()) && !"timeout".equals(j.reason()));
             LinearLayout box = new LinearLayout(a);
             box.setOrientation(LinearLayout.VERTICAL);
-            TextView info = Ui.small(a, a.getString(R.string.prepare_manage_info, j.statusMsg(alive()).text(), j.dump(), j.dir(), j.pack(), new File(j.dir(), "logs")));
+            TextView info = Ui.small(a, a.getString(R.string.prepare_manage_info, j.statusMsg(alive(), false, Job.onlyShown(a, j)).text(), j.dump(), j.dir(), j.pack(), new File(j.dir(), "logs")));
             info.setTextIsSelectable(true);
             box.addView(info);
             android.app.AlertDialog[] d = new android.app.AlertDialog[1];

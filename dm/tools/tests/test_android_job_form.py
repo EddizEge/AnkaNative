@@ -72,7 +72,7 @@ class Wiring(unittest.TestCase):
         self.assertIn('jobInTool = d.getBoolean("in_tool");', o)
         show = body(o, '        void show() {', '\n        }\n')
         self.assertIn('JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping, jobInTool) == JobForm.Form.STOPPING', show)
-        self.assertIn('status.setText(job.statusMsg(alive, stopping).text());', show)
+        self.assertIn('status.setText(job.statusMsg(alive, stopping, Job.onlyShown(a, job)).text());', show)   # a shown job: test_android_prepare_again
         self.assertIn('&& !stopping);', show)   # Resume waits for the tool to stop
         j = (ONDEVICE / 'Job.java').read_text(encoding='utf-8')
         self.assertIn('new Msg("prepare_status_pausing", stepMsg())', j)

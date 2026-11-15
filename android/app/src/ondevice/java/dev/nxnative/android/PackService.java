@@ -212,6 +212,10 @@ public final class PackService extends Service {
         // running or waiting by itself (the battery, the heat, a game: it waits again as long as that holds); a start resumes one that is not done
         boolean auto = intent != null && intent.getBooleanExtra(EXTRA_AUTO, false);
         boolean go = j != null && JobDeath.go(intent != null, auto, j.state(), j.reason(), j.apkChanged());
+        if (go && (intent == null || auto) && Job.onlyShown(this, j)) {   // a job the user asked only to see (Show the job) is started by the user alone
+            Log.i(TAG, "a" + (auto ? "n automatic" : " sticky") + " start of a job the user asked only to see (Show the job): not started");
+            go = false;
+        }
         if (!go && (worker == null || !worker.isAlive())) {
             // startForegroundService must be answered by startForeground even when there is nothing to do
             if (intent != null) startForeground(j);
@@ -699,7 +703,7 @@ public final class PackService extends Service {
     private String step(Job j, int i) throws IOException {
         String s = Job.STEPS[i];
         if (s.equals("identify")) {
-            DumpCheck.Result r = DumpCheck.check(j.dump(), false);
+            DumpCheck.Result r = DumpCheck.check(j.dump());
             if (!r.ok()) { failCode = r.code; return r.error; }   // DumpCheck's own refusals have a code; DumpLayout's stay English (job.json's error)
             if (!r.titleId.equals(j.titleId()) || r.version != j.version()) return failed("dump_changed", r.titleId, String.valueOf(r.version));
             j.stepProgress(s, 1, 1, "identify");
@@ -812,9 +816,11 @@ public final class PackService extends Service {
         PackEngine.setenv("DOTNET_GCgen0size", ShaderWorkers.gen0());
         // (asked for: the tool says whether they run, in a "subinterpreters: " line that Tail copies here; where none can be set up the step runs as before)
         Log.i(TAG, s + ": " + workers + " workers, " + interps + " subinterpreters asked (" + String.format(Locale.ROOT, "%.1f", totalGib) + " GiB)");
-        // Tests: ondevice/env.txt, KEY=VALUE lines, overrides any of the above for the tools (e.g. DMSH_VK_XLATE_J=6 to compare the translator's threads)
-        File envFile = new File(od, "env.txt");
-        if (envFile.isFile()) for (String l : Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8)) {
+        // Tests: ondevice/env.txt, KEY=VALUE lines, overrides any of the above for the tools (e.g. DMSH_VK_XLATE_J=6 to compare the translator's threads): the
+        // dump's default job folder's, then (a job in a pack's own job folder, JobPick.place) its own folder's, whose lines win
+        File defaultOd = JobPick.defaultFolder(j.work());
+        File[] envFiles = JobPick.samePlace(defaultOd, od) ? new File[] {new File(od, "env.txt")} : new File[] {new File(defaultOd, "env.txt"), new File(od, "env.txt")};
+        for (File envFile : envFiles) if (envFile.isFile()) for (String l : Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8)) {
             int eq = l.indexOf('=');
             if (eq > 0 && !l.startsWith("#")) { PackEngine.setenv(l.substring(0, eq).trim(), l.substring(eq + 1).trim()); Files.write(log.toPath(), ("[env.txt] " + l.trim() + "\n").getBytes(StandardCharsets.UTF_8), java.nio.file.StandardOpenOption.APPEND); }   // i18n-keep: the step log
         }

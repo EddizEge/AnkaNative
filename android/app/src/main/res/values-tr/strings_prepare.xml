@@ -130,6 +130,7 @@
     <string name="prepare_status_pausing">Eldeki iş bitince duraklatılıyor. %1$s.</string>
     <string name="prepare_status_running">%1$s (adım %2$d / %3$d).</string>
     <string name="prepare_status_interrupted">Yarıda kesildi: %1$s. Devam etmek için %2$s düğmesine dokun.</string>
+    <string name="prepare_status_paused_shown">Duraklatıldı: %1$s. Yalnızca %2$s düğmesine dokunduğunda devam eder.</string>
     <string name="prepare_notice_inputs_changed">Bu uygulama sürümü oyunun shader\'larından daha fazlasını biliyor, bu yüzden önce dökümünde yeniden aranıyorlar.</string>
     <string name="prepare_notice_split_full">Dökümünün hızlı okunması bu güncellemenin gerektirdiği bir shader\'ı kaçırdı, bu yüzden şimdi dökümün bütün shader\'ları okunuyor.</string>
     <!-- Job.reasonMsg -->

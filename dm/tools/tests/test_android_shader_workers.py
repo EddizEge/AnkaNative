@@ -57,7 +57,7 @@ class Service(unittest.TestCase):
         """PackService gives the shaders and split steps their workers, and the translator's generation, before env.txt (which may override them); the tools'
         own 'subinterpreters: ' lines (how many run, or that none can here) go to logcat"""
         s = SERVICE.read_text(encoding='utf-8')
-        i, g, e = s.find('"DMSH_VK_INTERPS"'), s.find('"DOTNET_GCgen0size"'), s.find('File envFile = new File(od, "env.txt")')
+        i, g, e = s.find('"DMSH_VK_INTERPS"'), s.find('"DOTNET_GCgen0size"'), s.find('for (File envFile : envFiles)')
         self.assertTrue(0 < i < e and 0 < g < e, 'set before env.txt is read')
         self.assertRegex(s, r'ShaderWorkers\.interps\(')
         self.assertRegex(s, r'ShaderWorkers\.gen0\(\)')

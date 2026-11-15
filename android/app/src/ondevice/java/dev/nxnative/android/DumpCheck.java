@@ -54,8 +54,11 @@ final class DumpCheck {
         return new File(parent != null ? parent : dump, titleId + "-work");
     }
 
-    /** needFree: check the free space too (a fresh job; a resumed one has written most of what it needs already) */
-    static Result check(File dump, boolean needFree) {
+    /**
+     * The dump, its work folder and the free space there (r.free). The free space is not checked here: whether the pick needs it depends on the job it takes
+     * (JobPick.needsFree, then requireFree), which needs this result's work folder and version first
+     */
+    static Result check(File dump) {
         Result r = new Result();
         r.dump = dump;
         DumpLayout.Found f = DumpLayout.find(dump);
@@ -69,18 +72,30 @@ final class DumpCheck {
         r.build = f.build;
         for (Map.Entry<String, String> e : f.buildIds.entrySet()) r.buildIds.put(e.getKey(), e.getValue());
         r.dlc = f.dlc;
-        r.code = space(r, needFree);
-        r.errorMsg = PrepareErrors.message(r.code);
-        r.error = r.errorMsg == null ? null : r.errorMsg.english();
+        coded(r, space(r));
         return r;
     }
 
     /**
-     * The work folder beside the dump, its free space and its ondevice/ folder (a folder dump and a .nup alike); null when they fit, else why not (PrepareErrors'
-     * {code, argument...}). The dump's
-     * layout and builds were checked before (DumpLayout.find: the base, an update, or both; the version whose modules are a profile build)
+     * A new job's free-space check (JobPick.needsFree): NEED_BYTES free in the work folder, else r is refused (dump_space). A job that is resumed has written
+     * most of what it needs already and is not held to it
      */
-    private static String[] space(Result r, boolean needFree) {
+    static void requireFree(Result r) {
+        if (r.ok() && r.free < NEED_BYTES) coded(r, PrepareErrors.coded("dump_space", NEED_BYTES / 1073741824.0, r.work, r.free / 1073741824.0));
+    }
+
+    private static void coded(Result r, String[] code) {
+        r.code = code;
+        r.errorMsg = PrepareErrors.message(r.code);
+        r.error = r.errorMsg == null ? null : r.errorMsg.english();
+    }
+
+    /**
+     * The work folder beside the dump, its free space (r.free; checked by requireFree, for a new job) and its ondevice/ folder (a folder dump and a .nup
+     * alike); null when they fit, else why not (PrepareErrors' {code, argument...}). The dump's layout and builds were checked before (DumpLayout.find: the
+     * base, an update, or both; the version whose modules are a profile build)
+     */
+    private static String[] space(Result r) {
         File dump = r.dump;
         r.work = workOf(dump, r.titleId);
         File probe = r.work.isDirectory() ? r.work : r.work.getParentFile();
@@ -89,8 +104,6 @@ final class DumpCheck {
         } catch (IllegalArgumentException e) {
             return PrepareErrors.coded("dump_free_unknown", probe);
         }
-        if (needFree && r.free < NEED_BYTES)
-            return PrepareErrors.coded("dump_space", NEED_BYTES / 1073741824.0, probe, r.free / 1073741824.0);
         File od = new File(r.work, "ondevice");
         if (!od.isDirectory() && !od.mkdirs()) return PrepareErrors.coded("dump_not_writable", od);
         return null;
