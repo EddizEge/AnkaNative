@@ -11,7 +11,9 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   button though the Prepare was paused: it now says paused with Resume as soon as the work in hand has stopped, and at once when nothing was running.
   A Prepare killed while Home was open was taken for one you ended with Force stop (Resume offered, not resumed) when you had used Force stop on it
   earlier: only how the Prepare's own last process ended counts now. A game card's "Prepare again" checks that card's own pack; it no longer moves the
-  card to another pack folder it finds beside the game, and a job you forgot comes back only if you resume it. The app no longer logs a Prepare's end
+  card to another pack folder it finds beside the game, and a job you forgot comes back only if you resume it or ask to see it. A Resume tapped
+  while a Prepare is still pausing now goes on once the pause has stopped (it did nothing before), and a game started right after a Pause waits until
+  the paused work has stopped. The app no longer logs a Prepare's end
   after each clean stop. Checked on the JVM and in a build; not yet on a phone.
 - **Pause stops a Prepare within seconds, and the notification says paused.** Pausing while the shaders were being translated did not stop the
   translation: it went on until the app ended its own process 20 s later, and the notification it left said "Waiting" for the battery or the heat, with a
