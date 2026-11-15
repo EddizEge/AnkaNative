@@ -38,8 +38,8 @@ with these changes.
 
 - From the save it loads into Kokiri Forest and Link's house; it stayed in the forest for 18 minutes without being closed, and saving
   from the pause menu (System > Save) worked.
-- Frame rate at the start of the game: 12.7-16.2 fps (it was 4.8-5.4 before the shader page index). GPU time at Link's house 59.1 ms a
-  frame (from 121.6 ms). Not 30 fps: the forest's terrain shaders are still the main cost.
+- Frame rate in Kokiri Forest: about 14 fps (it was 4.8-5.4 before the shader page index), with the trees, plants and the arch that are
+  drawn with mesh shaders. 20 fps is not reached.
 - At a low frame rate the game now runs at about 0.8-1.0 of its normal speed (it was about a quarter at 15 fps).
 - Memory is the limit on 12 GB: about 10 of the phone's 10.9 GiB were in use while it played, and Android closed background apps. With
   the RAM saver on, total RAM use was 9.6 GB.
@@ -78,7 +78,7 @@ This is an experimental build with no warranty ([LICENSE](LICENSE)).
 
 **On the phone** (new in 0.2.0, experimental): copy the dump (or the `.nup`) to the phone, install the APK, open **Anka Native**, allow
 **All files access**, tap **Add game**, pick the dump and tap **Prepare**. The app rewrites the game's code and translates its shaders in
-the background, with a notification (keep the phone charging: it takes a long time, over an hour for Ocarina of Time). When it is done,
+the background, with a notification (keep the phone charging: it takes a long time, about an hour for Ocarina of Time). When it is done,
 the game's card says Ready; tap **Play**. If anything fails, the card says why and keeps its log; preparing on a computer still works.
 
 **On a computer** (Windows, Linux or Mac):
@@ -116,21 +116,24 @@ The gear on the main screen holds the app's settings; a game's ⋯ menu > **Game
 | **RAM saver (uses storage)** (Game settings) | Off by default; **turn it on if your phone has less than 16 GB of RAM**. The game's large textures live in a file in the app's cache folder instead of in RAM, so Android can drop and reload them instead of closing the game. For phones short of RAM with free storage; it writes about 2 GB to storage per area load in Ocarina of Time |
 | Frame-rate cap | the game's own, 60, 30, 20 or 15 fps |
 | Game resolution | the phone's 1080p or the game's own |
+| 3D resolution (Game settings) | the size the game renders its 3D scene at: the game's own choice (Dynamic, the default), a fixed level, or Dynamic with a top level |
 | GPU driver | the Vulkan driver the game runs on (the system's, or an installed Turnip zip) |
 | Frame generation | Lossless Scaling's frame generation (2x, 3x, 4x or a target frame rate); needs your own `Lossless.dll` |
 | Performance overlay | fps, GPU time, 3D render resolution, throttling and battery over the game |
 | Readiness check | what the phone is missing for a game, with a button to fix most items |
+| Language | the app's language: the phone's, English, Türkçe, Português (Brasil) or Español (Latinoamérica) |
 
 On-screen controls have a layout editor; gamepads work. Every switch the host reads is listed in
 [docs/env_switches.tsv](docs/env_switches.tsv); a game's tested settings are in its profile.
 
 ## Known issues
 
-- **Ocarina of Time is slow**: about 12-16 fps at the start, lower in open areas. The forest's terrain shaders are the main cost.
+- **Ocarina of Time is slow**: about 14 fps in Kokiri Forest, lower in open areas.
 - **Memory on 12 GB phones**: Android may close the game after a long session or in a heavy area; it closes background apps while the
   game runs. Turn the RAM saver on (recommended below 16 GB of RAM). Back up your saves often.
-- **Textures** may pop in while walking (textures released under memory pressure are made again) and **shimmer**; some foliage is
-  **black** (mesh shaders).
+- **Textures** may pop in while walking (textures released under memory pressure are made again) and **shimmer**.
+- **The first start of 0.3.0, and the first with another GPU driver, shows a white glow** for about 10 s, and the trees and plants drawn
+  with mesh shaders come after about 45 s, while their shaders compile.
 - **Short stalls while walking** come from pipelines built late and from memory pressure.
 - **Anti-aliasing** is not visible yet: the game's SMAA pass runs, but its blend weights are all zero.
 - Donkey Kong Bananza and Mario Kart World were **not tested** with Anka Native's changes. Only one phone was tried.
@@ -146,7 +149,7 @@ newest log. Never post game files, keys or packs.
 ## Building
 
 How to set up the environment, prepare a game and build the APK: [android/README.md](android/README.md) (and
-[android/TESTING.md](android/TESTING.md) for testing on a phone). This release's APK was built with:
+[android/TESTING.md](android/TESTING.md) for testing on a phone). A test APK without the on-phone packer is built with:
 
 ```sh
 cd android/app
