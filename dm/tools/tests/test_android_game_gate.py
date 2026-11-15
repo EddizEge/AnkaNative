@@ -83,14 +83,14 @@ class Game(unittest.TestCase):
 
     def test_binding_death_says_what_happened(self):
         """The rc1 phone check: all four starts that stopped a tool ended through onBindingDied ("the binding to the job's service died: the game starts"),
-        never through "asked N time(s)". Android takes the service down when its process ends (HyperOS refuses the restart) and tells the binding
-        onServiceDisconnected (which asks for the new process) and then onBindingDied: the path is sound (the old process is gone), and the log now says so,
-        with the job's state, the asks and the time"""
+        never through "asked N time(s)". Android takes the service down when its process ends (HyperOS refuses the restart) or the service stops, and tells
+        the binding onServiceDisconnected (which asks for the new process) and then onBindingDied. The log says what is known, without guessing which of the
+        two it was (the review of work/rc1-fixes: "asks > 1" did not tell them apart), with the job's state, the asks and the time"""
         raw = (ONDEVICE / 'PrepareGate.java').read_text(encoding='utf-8')
         bd = body(raw, '    @Override public void onBindingDied(ComponentName n) {')
         self.assertNotIn('the binding to the job', bd)
-        self.assertIn('"the job\'s process ended to make room and Android took its service down, so no tool runs beside the game; a new process was asked to wait for it"', bd)
-        self.assertIn('"%s (the job %s; asked %d time(s), %.1f s)", asks > 1 ? ended : stopped, now, asks, s)', bd)
+        self.assertNotIn('asks > 1', bd)
+        self.assertIn('"Android took the job\'s service down (its process ended or the service stopped): the game starts (the job %s; asked %d time(s), %.1f s)"', bd)
         dis = body(self.gate, 'public void onServiceDisconnected(')
         self.assertIn('ask();', dis)   # the new process is asked for before the binding is declared dead
 
