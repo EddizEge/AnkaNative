@@ -116,8 +116,20 @@ class OtherFolder(unittest.TestCase):
         p = body(self.o, 'void picked(File dump, boolean start, File packOverride, boolean again, boolean card)', '\n        }\n')
         self.assertIn('File jobPack = packOverride != null ? packOverride : f.pack != null ? f.packDir : new File(AppStorage.packs(a), f.r.titleId);', p)
         self.assertIn('f.place = JobPick.place(f.r.work, f.r.dump, f.r.version, jobPack, packOverride != null, jf -> {', p)
-        self.assertIn('JobPick.candidates(DumpCheck.workOf(dump, id), packOverride)', p)
         self.assertNotIn('Job.fileOf(', p)
+
+    def test_free_space_by_the_pick_s_job(self):
+        """The review of work/job-other-folder: the free-space check went by whether any job.json was in the pick's folders, so the card's new job beside
+        another pack folder's job skipped it. It is now asked once place is known, for a new job only (JobPick.needsFree, JobPickJvmTest)"""
+        p = body(self.o, 'void picked(File dump, boolean start, File packOverride, boolean again, boolean card)', '\n        }\n')
+        self.assertIn('f.r = DumpCheck.check(dump);', p)
+        self.assertIn('if (JobPick.needsFree(f.place)) DumpCheck.requireFree(f.r);', p)
+        self.assertLess(p.index('f.place = JobPick.place('), p.index('JobPick.needsFree(f.place)'))
+        self.assertLess(p.index('JobPick.needsFree(f.place)'), p.index('h.post(() -> checked('))
+        self.assertNotIn('candidates(', p)
+        dc = code(ONDEVICE / 'DumpCheck.java')
+        self.assertNotIn('needFree', dc)
+        self.assertIn('if (r.ok() && r.free < NEED_BYTES) coded(r, PrepareErrors.coded("dump_space"', body(dc, 'static void requireFree(Result r)'))
 
     def test_new_jobs_go_where_place_says(self):
         c = body(self.o, 'void checked(Found f, boolean start, File packOverride, boolean again, boolean card)', '\n        }\n')
@@ -155,7 +167,21 @@ class OtherFolder(unittest.TestCase):
         self.assertIn('if (Job.onlyShown(c, j))', body(code(ONDEVICE / 'JobWatch.java'), 'static void restart(Context c, Job j, String why)'))
         self.assertIn('if (go && (intent == null || auto) && Job.onlyShown(this, j)) {', code(ONDEVICE / 'PackService.java'))
         j = code(ONDEVICE / 'Job.java')
-        self.assertIn('JobPick.shownKey(j.file, j.updated())', body(j, 'static boolean onlyShown(Context c, Job j)'))
+        self.assertIn('JobPick.markShown(marks(c), j.file, j.updated());', j)
+        self.assertIn('return JobPick.onlyShown(marks(c), j.file, j.updated());', j)
+        self.assertNotIn('"shown"', j)   # the key is JobPick.SHOWN's alone (JobPickJvmTest: written and read under one key)
+        self.assertIn('Prefs.open(c, "ondevice")', body(j, 'private static JobPick.Marks marks(Context c)'))
+
+    def test_shown_status_line(self):
+        """The review of work/job-other-folder: a shown job paused for the battery still said "plug in the charger to go on", which no longer happens by
+        itself. The card's line and the Manage sheet say that only Resume starts it (JobPick.resumeOnly, JobPickJvmTest)"""
+        self.assertIn('status.setText(job.statusMsg(alive, stopping, Job.onlyShown(a, job)).text());', self.o)
+        self.assertIn('j.statusMsg(alive(), false, Job.onlyShown(a, j)).text()', self.o)
+        j = code(ONDEVICE / 'Job.java')
+        self.assertIn('JobPick.resumeOnly(onlyShown, state(), reason()) ? new Msg("prepare_status_paused_shown", stepMsg(), new Msg("prepare_button_resume"))', j)
+        for d in ('values', 'values-tr', 'values-pt-rBR', 'values-b+es+419'):
+            t = (RES / d / 'strings_prepare.xml').read_text(encoding='utf-8')
+            self.assertRegex(t, r'name="prepare_status_paused_shown">[^<]*%1\$s[^<]*%2\$s', d)
 
 
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
@@ -163,7 +189,7 @@ class Decide(unittest.TestCase):
     def test_decisions(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
-            r = subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(d / 'classes'), str(ONDEVICE / 'JobPick.java'), str(TEST)], capture_output=True, text=True)
+            r = subprocess.run(['javac', '-Xlint:all', '-Werror', '-d', str(d / 'classes'), str(ONDEVICE / 'JobPick.java'), str(ONDEVICE / 'JobForm.java'), str(TEST)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             r = subprocess.run(['java', '-cp', str(d / 'classes'), 'dev.nxnative.android.JobPickJvmTest', str(d)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

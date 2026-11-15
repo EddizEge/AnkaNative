@@ -127,6 +127,7 @@
     <string name="prepare_status_pausing">Pausando después del trabajo en curso. %1$s.</string>
     <string name="prepare_status_running">%1$s (paso %2$d de %3$d).</string>
     <string name="prepare_status_interrupted">Se interrumpió (%1$s). Toca %2$s para continuar.</string>
+    <string name="prepare_status_paused_shown">En pausa: %1$s. Solo continúa cuando tocas %2$s.</string>
     <string name="prepare_notice_inputs_changed">Esta versión de la app conoce más shaders del juego, así que primero se vuelven a buscar en tu volcado.</string>
     <string name="prepare_notice_split_full">La lectura rápida de tu volcado no encontró un shader que necesita esta actualización, así que ahora se leen todos los shaders del volcado.</string>
     <string name="prepare_reason_user">la pausaste tú</string>

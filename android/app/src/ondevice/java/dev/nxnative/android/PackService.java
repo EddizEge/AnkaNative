@@ -703,7 +703,7 @@ public final class PackService extends Service {
     private String step(Job j, int i) throws IOException {
         String s = Job.STEPS[i];
         if (s.equals("identify")) {
-            DumpCheck.Result r = DumpCheck.check(j.dump(), false);
+            DumpCheck.Result r = DumpCheck.check(j.dump());
             if (!r.ok()) { failCode = r.code; return r.error; }   // DumpCheck's own refusals have a code; DumpLayout's stay English (job.json's error)
             if (!r.titleId.equals(j.titleId()) || r.version != j.version()) return failed("dump_changed", r.titleId, String.valueOf(r.version));
             j.stepProgress(s, 1, 1, "identify");

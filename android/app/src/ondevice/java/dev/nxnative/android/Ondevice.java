@@ -389,7 +389,7 @@ final class Ondevice {
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
             // a pause asked for while the tool stops: said so, with no time left and Resume not yet tappable (the service would not take it while its worker runs)
             boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping, jobInTool) == JobForm.Form.STOPPING;
-            status.setText(job.statusMsg(alive, stopping).text());
+            status.setText(job.statusMsg(alive, stopping, Job.onlyShown(a, job)).text());   // a job only shown: only Resume starts it
             bar.setProgress((int) Math.round(job.overall() * 1000));
             // the shader count once the shaders step's tool has said how many it translates (an update's few hundred), only the percentage before
             long shaders = job.shadersTotal();
@@ -465,14 +465,7 @@ final class Ondevice {
             android.widget.Toast.makeText(a, a.getString(R.string.prepare_checking, dump), android.widget.Toast.LENGTH_SHORT).show();
             new Thread(() -> {
                 Found f = new Found();
-                boolean resumes = false;   // a job.json is there: a job that is resumed has written most of what it needs (no free-space check)
-                try {
-                    String id = Nup.isNup(dump) ? Pack.titleIdOf(dump) : Pack.programId(new File(dump, "base/exefs/main.npdm"));
-                    for (File jf : JobPick.candidates(DumpCheck.workOf(dump, id), packOverride)) resumes |= jf.isFile();
-                } catch (IOException e) {
-                    // DumpCheck says what is wrong
-                }
-                f.r = DumpCheck.check(dump, !resumes);
+                f.r = DumpCheck.check(dump);   // the free space is checked below, once the pick's job is known (a new one needs it)
                 // the pack to check: a card's own (its automatic update, its Prepare again), else the one Folders finds for the dump; an adb test's
                 // ondevice_pack is a folder for a new job, never checked (a pack there is not adopted)
                 JobPick.Pack which = JobPick.packToCheck(card, again, packOverride != null);
@@ -499,6 +492,10 @@ final class Ondevice {
                         f.jobs.put(jf, j);
                         return new JobPick.Seen(j.dump(), j.version(), j.pack(), j.state());
                     });
+                    // a new job writes its working files from nothing in the folder place named; a job taken (resumed) has most of them already. The review of
+                    // work/job-other-folder: the check went by whether any job.json was in the pick's folders, so the card's new job beside another pack
+                    // folder's job skipped it
+                    if (JobPick.needsFree(f.place)) DumpCheck.requireFree(f.r);
                 }
                 h.post(() -> checked(f, start, packOverride, again, card));
             }, "nxpack-check").start();
@@ -709,7 +706,7 @@ final class Ondevice {
             boolean running = alive() && ("running".equals(j.state()) || "paused".equals(j.state()) && !"user".equals(j.reason()) && !"timeout".equals(j.reason()));
             LinearLayout box = new LinearLayout(a);
             box.setOrientation(LinearLayout.VERTICAL);
-            TextView info = Ui.small(a, a.getString(R.string.prepare_manage_info, j.statusMsg(alive()).text(), j.dump(), j.dir(), j.pack(), new File(j.dir(), "logs")));
+            TextView info = Ui.small(a, a.getString(R.string.prepare_manage_info, j.statusMsg(alive(), false, Job.onlyShown(a, j)).text(), j.dump(), j.dir(), j.pack(), new File(j.dir(), "logs")));
             info.setTextIsSelectable(true);
             box.addView(info);
             android.app.AlertDialog[] d = new android.app.AlertDialog[1];

@@ -13,7 +13,8 @@ import java.util.regex.Pattern;
  * JobPick on the JVM: which pack a picked dump's check reads, which job.json it takes and where its new job goes, and how folders are compared. The cases of
  * the rc1 phone check (a card's Prepare again moved to another pack folder; a forgotten job came back), of the review of work/rc1-fixes (a forgotten job of
  * another pack folder came back without asking; /sdcard and /storage/emulated/0), and of the rc2 phone check (an unfinished job of another pack folder in the
- * dump's job folder blocked the card's automatic shader update for good). Prints "ok" lines, exits 1 on the first failed check. Run by
+ * dump's job folder blocked the card's automatic shader update for good), and of the review of work/job-other-folder (Add game still took or was blocked by
+ * that job; the free-space check of a new job beside it; the "Show the job" mark). Prints "ok" lines, exits 1 on the first failed check. Run by
  * dm/tools/tests/test_android_prepare_again.py with a scratch folder as its argument.
  */
 public final class JobPickJvmTest {
@@ -97,6 +98,11 @@ public final class JobPickJvmTest {
         check(p.file.equals(JobPick.jobFile(own)) && !JobPick.samePlace(p.file, foreign), "its job goes into pack A's own job folder " + own.getName() + ", beside the other job");
         check(own.getParentFile().equals(work) && own.getName().startsWith("ondevice-android-pack-"), "that folder is in the dump's work folder, named after pack A");
         check(JobPick.samePlace(p.kept, foreign), "the other job is named as kept (for the log)");
+        // the review of work/job-other-folder: the free-space check went by whether a job.json was in the pick's folders (the other job's was), so this new
+        // job, which writes its split and library from nothing, skipped it
+        boolean anyJobFile = false;
+        for (File jf : JobPick.candidates(work, packA)) anyJobFile |= jf.isFile();
+        check(anyJobFile && JobPick.needsFree(p), "the card's new job beside the other job is held to the free-space check (ef27c8d: skipped, a job.json was there)");
         check(Arrays.equals(before, Files.readAllBytes(foreign.toPath())) && foreign.lastModified() == beforeTime, "the other job's job.json is unchanged");
         check(JobPick.place(work, dump, V, viaLink(link, d, packA), true, READ).file.equals(p.file), "pack A written /sdcard/… finds the same folder");
 
@@ -107,6 +113,7 @@ public final class JobPickJvmTest {
         job(p.file, dump, V, packA, "paused", "battery", 1794170000000L);
         JobPick.Place back = JobPick.place(work, dump, V, packA, true, READ);
         check(back.found == JobPick.Found.TAKE && back.file.equals(p.file), "the card finds its own paused update in its own folder: " + back.found + " " + back.file);
+        check(!JobPick.needsFree(back), "a job taken (resumed) is not held to the free-space check");
         check(Arrays.equals(before, Files.readAllBytes(foreign.toPath())), "the other job's job.json is still unchanged");
 
         // pack B's own card (or adb's ondevice_pack test-pack) still takes pack B's job: it stays reachable where it belongs
@@ -115,6 +122,19 @@ public final class JobPickJvmTest {
         // Add game on the dump (no pack named): the default folder's job of this dump, as before
         JobPick.Place add = JobPick.place(work, dump, V, new File(d.toFile(), "data/files/packs/0400486024DEC000"), false, READ);
         check(add.found == JobPick.Found.TAKE && JobPick.samePlace(add.file, foreign), "Add game finds the default folder's job of the dump and asks Resume");
+        // the review of work/job-other-folder, G3: Add game whose found pack (Folders.packFor: <work>/android-pack) is the card's takes the card's paused job in
+        // that pack's own folder, not the other pack folder's job (ef27c8d: the default folder's job, whatever pack it writes)
+        JobPick.Place addA = JobPick.place(work, dump, V, packA, false, READ);
+        check(addA.found == JobPick.Found.TAKE && addA.file.equals(p.file), "Add game with pack A found: pack A's own paused job, in its own folder: " + addA.found + " " + addA.file);
+        // G1: a new game update dump beside the old one (the same work folder): Add game is not blocked by the other pack folder's job of the old version
+        // (ef27c8d: OTHER_FOLDER, and its "Show the job" remembered that job); its job goes into its pack's own folder, the other job kept
+        File newDump = games.resolve("The Legend of Zelda Ocarina of Time [0400486024DEC000][v196608].nup").toFile();
+        Files.write(newDump.toPath(), new byte[] {'N', 'U', 'P'});
+        File appPack = new File(d.toFile(), "data/files/packs/0400486024DEC000");
+        JobPick.Place up = JobPick.place(work, newDump, 196608, appPack, false, READ);
+        check(up.found == JobPick.Found.NEW && up.file.equals(JobPick.jobFile(JobPick.packFolder(work, appPack))) && JobPick.samePlace(up.kept, foreign),
+                "Add game of a new update dump: a new job in its pack's own folder, the other job of the old version kept: " + up.found + " " + up.file);
+        check(Arrays.equals(before, Files.readAllBytes(foreign.toPath())), "the other job's job.json is still unchanged");
 
         // the card's update ends: done, then a later update reuses its folder; once the other job's folder is gone, the default folder is free again
         job(p.file, dump, V, packA, "done", "", 1794171000000L);
@@ -123,6 +143,10 @@ public final class JobPickJvmTest {
         Files.move(foreign.getParentFile().toPath(), work.toPath().resolve("ondevice.old-1108"));
         JobPick.Place free = JobPick.place(work, dump, V, packA, true, READ);
         check(free.found == JobPick.Found.NEW && free.file.equals(p.file) && free.kept == null, "with the other job moved aside, pack A's own job folder is still its job's");
+        job(p.file, dump, V, packA, "paused", "battery", 1794172000000L);
+        JobPick.Place g4b = JobPick.place(work, dump, V, packA, false, READ);
+        check(g4b.found == JobPick.Found.TAKE && g4b.file.equals(p.file) && !JobPick.needsFree(g4b),
+                "Add game with pack A found takes its paused job in its own folder, not held to the free-space check (ef27c8d: held, a resume refused for space)");
         Files.delete(p.file.toPath());
         JobPick.Place none = JobPick.place(work, dump, V, packA, true, READ);
         check(none.found == JobPick.Found.NEW && none.file.equals(JobPick.jobFile(JobPick.defaultFolder(work))) && none.kept == null,
@@ -149,7 +173,26 @@ public final class JobPickJvmTest {
         check(!JobPick.packFolder(work, packs1).equals(JobPick.packFolder(work, packs2)), "packs/<id> of two apps: two job folders");
         check(JobPick.packFolder(work, new File(d.toFile(), "a b:c")).getName().matches("ondevice-a_b_c-[0-9a-f]{8}"), "a pack name with spaces is made safe");
 
-        check(!JobPick.shownKey(foreign, 1).equals(JobPick.shownKey(foreign, 2)), "a job shown only is shown only while its job.json is unchanged");
+        // "Show the job": the mark Job.shown writes is the one Job.onlyShown reads (one key, JobPick.SHOWN), and holds only while job.json is unchanged
+        java.util.Map<String, String> prefs = new java.util.HashMap<>();
+        JobPick.Marks marks = new JobPick.Marks() {
+            @Override
+            public String get(String key) { return prefs.get(key); }
+
+            @Override
+            public void put(String key, String value) { prefs.put(key, value); }
+        };
+        check(!JobPick.onlyShown(marks, foreign, 1), "no mark: a job is not only shown");
+        JobPick.markShown(marks, foreign, 1);
+        check(JobPick.onlyShown(marks, foreign, 1), "a job marked shown is only shown (nothing starts it by itself)");
+        check(!JobPick.onlyShown(marks, foreign, 2), "once its job.json changed (the user's Resume saved it) it is not");
+        check(!JobPick.onlyShown(marks, p.file, 1), "another job is not");
+        check(prefs.size() == 1 && prefs.containsKey(JobPick.SHOWN), "the mark is one key");
+        // its status line: a pause it would go on from by itself says only Resume starts it, not "plug in the charger to go on"
+        for (String r : new String[] {"battery", "thermal", "game"}) check(JobPick.resumeOnly(true, "paused", r), "shown, paused for " + r + ": only Resume starts it");
+        check(!JobPick.resumeOnly(false, "paused", "battery"), "not shown: the battery line as before");
+        check(!JobPick.resumeOnly(true, "paused", "user") && !JobPick.resumeOnly(true, "running", "") && !JobPick.resumeOnly(true, "failed", ""),
+                "shown, paused by the user, interrupted or failed: their own lines already say to tap a button");
         System.out.println("all ok");
     }
 

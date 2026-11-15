@@ -156,6 +156,9 @@
     <string name="prepare_status_running">%1$s (step %2$d of %3$d).</string>
     <!-- %1$s in paused, running and interrupted: the step's line as the card shows it (Job.stepMsg: "Translating shaders: 1,234 of 5,000"), not a noun phrase -->
     <string name="prepare_status_interrupted">Interrupted (%1$s). Tap %2$s to go on.</string>
+    <!-- Job.statusMsg: a job the user chose only to see ("Show the job") while it is paused for the battery, the heat or a game: the app does not start it by
+         itself, so only Resume does; %1$s the step's line, as in paused; %2$s: the button's label -->
+    <string name="prepare_status_paused_shown">Paused: %1$s. It goes on only when you tap %2$s.</string>
     <!-- a state or reason this app version does not know, as job.json has it -->
     <string name="prepare_status_raw">%1$s</string>
     <!-- Job.statusMsg: the status line (%1$s, one of the prepare_status_* sentences) with the job's notice after it (%2$s, prepare_notice_*: why a step runs again) -->

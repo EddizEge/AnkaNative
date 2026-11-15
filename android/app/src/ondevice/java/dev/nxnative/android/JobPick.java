@@ -4,8 +4,8 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * What a picked dump's check (Ondevice.Panel.picked, checked) does with the pack folders and with a job.json it finds beside the dump. No Android classes: the JVM
- * test (android/app/src/jvmtest JobPickJvmTest, dm/tools/tests/test_android_prepare_again.py) runs it.
+ * What a picked dump's check (Ondevice.Panel.picked, checked) does with the pack folders and with a job.json it finds beside the dump. No Android classes (nor
+ * has JobForm, which it uses): the JVM test (android/app/src/jvmtest JobPickJvmTest, dm/tools/tests/test_android_prepare_again.py) runs it.
  * <p>
  * The rc1 phone check (2026-11-15): a game card's Prepare again went through Folders.packFor, which with several pack folders in the work folder picked another
  * one, found it ready and moved the card to it; and a job the user had forgotten (Manage › Forget) came back onto Home before the user said anything. The review
@@ -123,15 +123,21 @@ final class JobPick {
     }
 
     /**
-     * Which job a pick of dump (at version) finds, and where its new job goes. pack: the pack folder the pick's job writes (null: not known). strict: the pick
-     * names that pack (a card's automatic update or Prepare again, adb's ondevice_pack): only a job writing that pack folder is its own. Not strict (Add game,
-     * the Preparing card's Prepare): the default folder's job is the dump's whatever pack it writes, as before.
+     * Which job a pick of dump (at version) finds, and where its new job goes. pack: the pack folder the pick's job writes (a card's or adb's pack, else the
+     * pack Folders.packFor found, else the app's packs/&lt;id&gt;; null: not known). A job is the pick's own when it writes that pack folder, in whichever of
+     * the two folders it is. strict: the pick names its pack (a card's automatic update or Prepare again, adb's ondevice_pack); not strict (Add game, the
+     * Preparing card's Prepare): the default folder's unfinished job of the same dump and version is also taken, whatever pack it writes, so a job is still
+     * found by picking its dump again (Manage › Forget says so), but only after a job of the pick's own pack.
      * <ul>
-     * <li>TAKE: the pick's own job of the same dump and version, unfinished (the default folder first);</li>
-     * <li>OTHER_FOLDER: the pick's own folder holds an unfinished job of another dump or version (never written over: said, shown only when asked);</li>
+     * <li>TAKE: the pick's own unfinished job of the same dump and version (the default folder first); not strict, then the default folder's of the same dump
+     *     and version;</li>
+     * <li>OTHER_FOLDER: the pick's own unfinished job of another dump or version (never written over: said, shown only when asked);</li>
      * <li>NEW: a folder for the new job: the one with the pick's own finished job, else the default folder when it holds no unfinished job, else the pack's own
-     *     folder (the default one holds another pack folder's unfinished job, which is kept as it is).</li>
+     *     folder (the default one holds another pack folder's unfinished job, which is kept as it is: kept).</li>
      * </ul>
+     * The review of work/job-other-folder: Add game (not strict) took the default folder's job as its own whatever pack it wrote, so an unfinished job of
+     * another pack folder still blocked it (a new update dump beside the old one: OTHER_FOLDER) or was resumed instead of the job of the pack it had found,
+     * lying beside it in that pack's own folder.
      */
     static Place place(File work, File dump, long version, File pack, boolean strict, Reader read) {
         File[] files = candidates(work, pack);
@@ -144,10 +150,13 @@ final class JobPick {
                 seen[k] = null;   // damaged, or of another format: replaced by a new job, as before
             }
         }
-        boolean[] own = new boolean[files.length];
-        for (int k = 0; k < files.length; k++) own[k] = seen[k] != null && (!strict && k == 0 || pack != null && samePlace(seen[k].pack, pack));
-        for (int k = 0; k < files.length; k++)
-            if (own[k] && open(seen[k].state) && samePlace(seen[k].dump, dump) && seen[k].version == version) return new Place(Found.TAKE, files[k], null);
+        boolean[] own = new boolean[files.length], same = new boolean[files.length];
+        for (int k = 0; k < files.length; k++) {
+            own[k] = seen[k] != null && pack != null && samePlace(seen[k].pack, pack);
+            same[k] = seen[k] != null && open(seen[k].state) && samePlace(seen[k].dump, dump) && seen[k].version == version;
+        }
+        for (int k = 0; k < files.length; k++) if (own[k] && same[k]) return new Place(Found.TAKE, files[k], null);
+        if (!strict && same[0]) return new Place(Found.TAKE, files[0], null);
         for (int k = 0; k < files.length; k++) if (own[k] && open(seen[k].state)) return new Place(Found.OTHER_FOLDER, files[k], null);
         for (int k = 0; k < files.length; k++) if (own[k]) return new Place(Found.NEW, files[k], null);
         File kept = null;
@@ -155,9 +164,18 @@ final class JobPick {
             if (seen[k] == null || !open(seen[k].state)) return new Place(Found.NEW, files[k], kept);
             if (k == 0) kept = files[k];
         }
-        // the pack's own folder holds an unfinished job of another pack (a folder renamed by hand): never written over
+        // the default folder holds an unfinished job not of this pack (no pack known), or the pack's own folder holds one of another pack (a folder renamed
+        // by hand): never written over
         return new Place(Found.OTHER_FOLDER, files[files.length - 1], null);
     }
+
+    /**
+     * Whether a pick needs DumpCheck's free-space check (DumpCheck.NEED_BYTES) before it goes on: only a new job, which writes its working files from nothing
+     * in the folder place named. The review of work/job-other-folder: the check was skipped whenever any job.json was in the pick's folders, also when that was
+     * another pack folder's job and the pick's new job went into an empty folder of its pack's own beside it (the owner's case); and a resumed job of the
+     * pack's own folder was held to it
+     */
+    static boolean needsFree(Place p) { return p.found == Found.NEW; }
 
     /**
      * The mark of a job the user chose only to see (the other-folder dialog's "Show the job", never Resume): its job.json as it was then. While job.json is
@@ -165,6 +183,29 @@ final class JobPick {
      * working would be: the job may be paused for the battery, which counts as working, and the user did not ask for it to run
      */
     static String shownKey(File jobFile, long updated) { return jobFile.getPath() + "@" + updated; }
+
+    /** Where the mark is kept: the "ondevice" preferences on the phone (Job.shown, Job.onlyShown), a map in JobPickJvmTest */
+    interface Marks {
+        String get(String key);
+
+        void put(String key, String value);
+    }
+
+    /** The one key of the mark: Job.shown writes it and Job.onlyShown reads it through markShown and onlyShown, never by its own name */
+    static final String SHOWN = "shown";
+
+    static void markShown(Marks m, File jobFile, long updated) { m.put(SHOWN, shownKey(jobFile, updated)); }
+
+    /** Whether job.json (as updated now) is the one the user chose only to see: another job, or the same one changed since (the user's Resume saves it), is not */
+    static boolean onlyShown(Marks m, File jobFile, long updated) { return shownKey(jobFile, updated).equals(m.get(SHOWN)); }
+
+    /**
+     * Whether a job's status line says that only the user's Resume starts it: a job only shown (onlyShown) that is paused for a reason it would go on from by
+     * itself (the battery, the heat, a game: JobForm.waitsByItself), whose own line ("plug in the charger to go on") would no longer be true
+     */
+    static boolean resumeOnly(boolean onlyShown, String state, String reason) {
+        return onlyShown && "paused".equals(state) && JobForm.waitsByItself(reason);
+    }
 
     /**
      * Whether two paths name the same folder or file: compared by their canonical paths (links resolved: /sdcard is a link to the shared storage that is also
