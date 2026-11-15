@@ -66,7 +66,7 @@ import base64, collections, concurrent.futures as cf, hashlib, json, os, pickle,
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../tools'))
 from romfs import os, open, is_image
 import nup
-from stop_pool import Pool   # the thread pools an interrupt does not wait out (stop_pool.py)
+from stop_pool import Pool, Ends   # the thread pools an interrupt does not wait out, and a wait for futures it cannot hang (stop_pool.py)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../games')); import game as _game
 from profile_guess import glsl_sources
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import uepak, split_delta
@@ -3114,28 +3114,25 @@ def pooled(ex, jobs, total, start=0, chunk=1, cache=None):
     done, shown = start + sum(len(r) for r in kept.values()), 0.0
     if kept: print(f'progress: {done}/{total}', flush=True); shown = time.monotonic()
     todo = [(first, b) for first, b in batches if first not in kept]
-    futures, added = {}, set()
+    futures, added, ends = {}, set(), Ends()
     try:
         if isinstance(ex, InProcess):
             for first, b in todo:
                 kept[first] = r = scan_batch(b); cache.add(first, r); done += len(b)
                 if done == start + len(jobs) or time.monotonic() - shown >= 0.5: print(f'progress: {done}/{total}', flush=True); shown = time.monotonic()
         else:
-            futures = {ex.submit(scan_batch, b): first for first, b in todo}
-            pending = set(futures)
-            while pending:   # a timed wait, not as_completed: the count is shown every half second even while one slow range is all that is left
-                finished, pending = cf.wait(pending, timeout=0.5, return_when=cf.FIRST_COMPLETED)
-                for f in finished:   # each result into the cache as it comes
+            for first, b in todo: futures[ends.add(ex.submit(scan_batch, b))] = first
+            while ends.left():   # a timed wait (Ends, not cf.wait or as_completed): the count is shown every half second even while one slow range is all that is left
+                for f in ends.wait(0.5):   # each result into the cache as it comes
                     kept[futures[f]] = r = f.result(); cache.add(futures[f], r); added.add(futures[f]); done += len(r)
-                if not pending or time.monotonic() - shown >= 0.5: print(f'progress: {done}/{total}', flush=True); shown = time.monotonic()
+                if not ends.left() or time.monotonic() - shown >= 0.5: print(f'progress: {done}/{total}', flush=True); shown = time.monotonic()
     except BaseException:
         if isinstance(ex, InterpPool):   # an interrupt (Pause): the batches in hand end at their next file, those not started are dropped, and every batch
             # that finished (meanwhile, or before the interrupt reached its result) goes into the cache before it is flushed
             ex.stop()
-            for f in futures: f.cancel()
-            cf.wait(futures)
+            ends.stop()
             for f, first in futures.items():
-                if first not in added and not f.cancelled() and f.exception() is None: cache.add(first, f.result())
+                if first not in added and f.done() and not f.cancelled() and f.exception() is None: cache.add(first, f.result())
         raise
     finally:
         cache.flush()   # also on an interrupt (KeyboardInterrupt): what finished is kept

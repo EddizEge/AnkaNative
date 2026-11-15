@@ -12,7 +12,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 TOOLS = REPO / 'dm/gfx/tools'
 sys.path.insert(0, str(TOOLS))
-from stop_pool import Pool   # noqa: E402
+from stop_pool import Pool, Ends   # noqa: E402
+import ctypes   # noqa: E402
+import random   # noqa: E402
 
 
 def run(pool_class, n=200):
@@ -61,6 +63,55 @@ class Stop(unittest.TestCase):
             with Pool(2) as ex: list(ex.map(job, range(500)))
         self.assertLess(len(ran), 50)
 
+    def test_ends_order_and_stop(self):
+        ends = Ends()
+        with Pool(3) as ex:
+            for i in range(50): ends.add(ex.submit(lambda i=i: time.sleep(0.002) or i))
+            got = []
+            while ends.left(): got += [f.result() for f in ends.wait(0.5)]
+        self.assertEqual(sorted(got), list(range(50)))
+        self.assertEqual(ends.wait(0.01), [])
+        gate = threading.Event()
+        ends = Ends()
+        with Pool(2) as ex:
+            fs = [ends.add(ex.submit(gate.wait, 5)) for _ in range(20)]
+            time.sleep(0.05)
+            threading.Timer(0.2, gate.set).start()
+            ends.stop()   # the 2 in hand end, the 18 not started are cancelled
+            self.assertTrue(all(f.done() for f in fs))
+        self.assertEqual(sum(f.cancelled() for f in fs), 18)
+        self.assertEqual(ends.left(), 0)
+
+    def test_interrupt_in_the_wait(self):
+        """The phone's Pause raises KeyboardInterrupt in the waiting thread (PyThreadState_SetAsyncExc, android/ondevice/dm_pack.c) at any bytecode. Over many
+        futures cf.wait spent most of its time in the Python loops that take and give back every future's lock, and an interrupt landing there left locks taken: a
+        worker finishing a future waited for its lock for good (the split hung in 2 of 15 early stops on a computer). With Ends, every trial ends, and no future's
+        lock is left taken"""
+        rnd = random.Random(7)
+        for trial in range(12):
+            ends, out = Ends(), []
+            ex = cf.ThreadPoolExecutor(6)
+
+            def run():
+                try:
+                    for _ in range(20000): ends.add(ex.submit(time.sleep, rnd.uniform(0.0, 0.0006)))
+                    while ends.left(): [f.result() for f in ends.wait(0.5)]
+                    out.append('done')
+                except KeyboardInterrupt:
+                    ends.stop(); out.append('interrupted')
+
+            th = threading.Thread(target=run, daemon=True)
+            th.start()
+            time.sleep(rnd.uniform(0.05, 1.5))
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(th.ident), ctypes.py_object(KeyboardInterrupt))
+            th.join(10)
+            self.assertFalse(th.is_alive(), f'trial {trial}: the wait did not end within 10 s of the interrupt')
+            ex.shutdown(wait=True)
+            self.assertTrue(out, f'trial {trial}')
+            for f in ends.fs:
+                self.assertTrue(f._condition.acquire(blocking=False), f'trial {trial}: a future\'s lock left taken')
+                f._condition.release()
+
     def test_tools_use_it(self):
         """Every thread pool of the tools Prepare runs on the phone (shader_split.py, split_delta.py, vk_android_build.py, vk_android_delta.py) is a Pool, or
         stops its workers itself (vk_android_build.py collect, shader_split.py InterpPool)"""
@@ -69,6 +120,7 @@ class Stop(unittest.TestCase):
             plain = [l for l in s.splitlines() if re.search(r'with cf\.ThreadPoolExecutor\(', l) and 'collect(' not in l]
             self.assertEqual(plain, [], name)
             self.assertIn('from stop_pool import Pool', s, name)
+            self.assertNotRegex(s, r'cf\.wait\(|as_completed\(', f'{name}: a wait an interrupt can hang (stop_pool.Ends)')
 
 
 if __name__ == '__main__':

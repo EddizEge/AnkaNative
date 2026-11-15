@@ -49,7 +49,7 @@ import ast, collections, concurrent.futures as cf, ctypes, hashlib, json, mmap, 
 HERE = os.path.dirname(os.path.abspath(__file__)); GFX = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import dmsh_chain, dmsh_abi as abi, dmsh_ampere, tool_lock, vk_android_spv as spv, vk_android_delta as delta
-from stop_pool import Pool   # the thread pools an interrupt does not wait out (stop_pool.py)
+from stop_pool import Pool, Ends   # the thread pools an interrupt does not wait out, and a wait for futures it cannot hang (stop_pool.py)
 
 try: from compression import zstd   # Python 3.14; before it, pip install backports.zstd (shader_split.py needs it too)
 except ImportError:
@@ -1092,19 +1092,16 @@ def run_batches(batches):
 def collect(submit, fn, batches, stop):
     """Runs fn on each batch through submit(fn, batch) (an executor's), counting the progress of each as it ends. On any exception here (an interrupt, a batch that
     failed) the workers are stopped (stop(): what check_stop reads), the batches not started are cancelled, and this waits for those in hand before it raises: they
-    end at their next shader (Stopped)"""
-    fs = []
+    end at their next shader or pass (Stopped). The waits are stop_pool.Ends', not cf.wait's, whose locks an interrupt could leave taken"""
+    ends = Ends()
     try:
-        fs = [submit(fn, b) for b in batches]
-        pending = set(fs)
-        while pending:   # a timed wait, not as_completed (see run_batches)
-            done, pending = cf.wait(pending, timeout=0.5, return_when=cf.FIRST_COMPLETED)
-            for f in done:
+        for b in batches: ends.add(submit(fn, b))
+        while ends.left():   # a timed wait, not as_completed (see run_batches)
+            for f in ends.wait(0.5):
                 n, c = f.result(); STATS.update(c); progress('translate', n)
     except BaseException:
         stop()
-        for f in fs: f.cancel()
-        cf.wait(fs)
+        ends.stop()
         raise
 
 
