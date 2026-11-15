@@ -67,6 +67,18 @@ final class JobDeath {
         return !worker && (shouldWork(state, reason) || "paused".equals(state) && "refused".equals(reason));
     }
 
+    /**
+     * Whether an exit record (ApplicationExitInfo: its process id and time, ms) is the end of the job's last process: of that process (jobPid, written by
+     * PackService.begin) and not older than its start (jobStart: a pid used again later is another process); for a job.json without one (an older build), a
+     * record not older than its last write (jobUpdated: the process that wrote it lived then). The phone check of rc1 (2026-11-15): Home took the latest
+     * record of any :pack process, 0.5 s after a kill -9 whose own record was not written yet, and logged an older process's Force stop ("exit reason 10
+     * [FORCE STOP] …: the user ended the app, Resume is offered") for a job that was to be resumed
+     */
+    static boolean fits(int recPid, long recTime, int jobPid, long jobStart, long jobUpdated) {
+        if (jobPid > 0) return recPid == jobPid && recTime >= jobStart;
+        return jobUpdated > 0 && recTime >= jobUpdated;
+    }
+
     /** An automatic start (the main process's watch, Home's open, a game's end) may follow another only after this long: one at a time, never a loop */
     static final long MIN_GAP_MS = 10_000;
 

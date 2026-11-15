@@ -84,7 +84,7 @@ class Service(unittest.TestCase):
         g = body(self.s, 'private int game(int startId) {')
         self.assertIn('GameGate.onGame(alive, PackNative.ranTool(), stopReason != null,', g)
         # a dead running job: its last process's exit record decides (a Force stop is not resumed by a game's start)
-        self.assertIn('!alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, 0) : null', g)
+        self.assertIn('!alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, j) : null', g)
         self.assertIn('exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());', g)
         self.assertIn('startForeground(job);', g)   # startForegroundService's answer
         self.assertIn('return begin(j, false, startId);', g)

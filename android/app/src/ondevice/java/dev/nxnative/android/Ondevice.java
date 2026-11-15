@@ -346,7 +346,8 @@ final class Ondevice {
                     || !JobDeath.shouldWork(job.state(), job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
             String key = job.file.getPath() + "@" + job.updated();
             if (key.equals(afterDeathKey)) return;
-            android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, 0);
+            if (JobWatch.decides(job.pid())) return;   // the watch saw that process (bound to it, or its binder died just now): its decision, with its exact record
+            android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, job);
             JobDeath.Act act = JobDeath.after(job.state(), job.reason(), jobAlive, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(a));
             if (act == JobDeath.Act.NOTHING) return;   // a game still runs: its end starts it (PrepareGate.afterGame), or Home once it is gone
             afterDeathKey = key;

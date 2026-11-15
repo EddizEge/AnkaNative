@@ -108,7 +108,31 @@ class Watch(unittest.TestCase):
         self.assertIn('h.post(() -> ended(d));', con)   # already dead when linked
         self.assertIn('@Override public void binderDied() { h.post(() -> ended(this)); }', self.w)
         self.assertIn('h.postDelayed(() -> died(d.pid, d.worker), 500);', body(self.w, 'private void ended(Death d)'))
-        self.assertEqual(self.w.count('died('), 2)   # the method and its one call, from ended
+        import re
+        self.assertEqual(len(re.findall(r'\bdied\(', re.sub(r'/\*.*?\*/|//[^\n]*', '', self.w, flags=re.S))), 2)   # the method and its one call, from ended
+
+    def test_exit_record_of_the_jobs_process(self):
+        """The phone check of rc1: Home took the latest :pack exit record of any process (an older Force stop) 0.5 s after a kill -9. The record must be the
+        job's last process's (PackService.begin writes its pid and start into job.json; JobDeath.fits), and an end the watch saw is the watch's to decide"""
+        s = code(ONDEVICE / 'PackService.java')
+        self.assertIn('j.process(Process.myPid(), System.currentTimeMillis());', body(s, 'private int begin(Job j, boolean user, int startId) {'))
+        self.assertIn('JobWatch.exitOf(this, j)', s)
+        self.assertNotIn('exitOf(this, 0)', s)
+        self.assertIn('JobWatch.exitOf(c, j)', code(ONDEVICE / 'JobAlarm.java'))
+        ex = body(self.w, 'static ApplicationExitInfo exitOf(Context c, Job j)')
+        self.assertIn('JobDeath.fits(i.getPid(), i.getTimestamp(), pid, j.pidStart(), j.updated())', ex)
+        o = code(ONDEVICE / 'Ondevice.java')
+        ad = body(o, '        void afterDeath() {', '\n        }\n')
+        self.assertIn('if (JobWatch.decides(job.pid())) return;', ad)
+        self.assertLess(ad.index('JobWatch.decides(job.pid())'), ad.index('afterDeathKey = key;'))
+        self.assertIn('JobWatch.exitOf(a, job)', ad)
+        self.assertNotIn('exitOf(a, 0)', o)
+        d = body(self.w, 'static boolean decides(int pid)')
+        self.assertIn('w.link != null && w.link.pid == pid || w.deciding == pid', d)
+        self.assertIn('deciding = d.pid;', body(self.w, 'private void ended(Death d)'))
+        self.assertIn('if (deciding == p) deciding = -1;', body(self.w, 'private void died(int p, boolean worker)'))
+        j = code(ONDEVICE / 'Job.java')
+        self.assertIn('o.put("pid", pid).put("pid_start", start);', j)
 
     def test_refused_start_tells_the_user(self):
         r = body(self.w, 'static void restart(Context c, Job j, String why)')

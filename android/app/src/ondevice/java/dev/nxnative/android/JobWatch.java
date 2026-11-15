@@ -57,6 +57,8 @@ final class JobWatch implements ServiceConnection {
      * process N ended (no exit record)" after all 23 Pauses and 3 finished jobs, 0.5 s after each stop, with the process still working afterwards
      */
     private Death link;
+    /** The process whose binder died and whose end died() decides in a moment (-1: none) */
+    private int deciding = -1;
     private final Runnable verify = this::verify;
 
     private JobWatch(Context c) { this.c = c; }
@@ -135,13 +137,15 @@ final class JobWatch implements ServiceConnection {
     /** The job's process really ended (binderDied of the service's binder): what job.json says decides, a moment later (the exit's record) */
     private void ended(Death d) {
         if (link == d) link = null;
+        deciding = d.pid;
         h.postDelayed(() -> died(d.pid, d.worker), 500);
     }
 
     private void died(int p, boolean worker) {
+        if (deciding == p) deciding = -1;
         Job j = remembered(c);
         if (j == null) return;
-        ApplicationExitInfo exit = exitOf(c, p);
+        ApplicationExitInfo exit = p > 0 ? exitOf(c, p) : exitOf(c, j);   // no pid: the service died before it said its pid; the job's last process
         JobDeath.Act act = JobDeath.after(j.state(), j.reason(), false, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(c));
         Log.i(TAG, "the job's process " + (p > 0 ? p + " " : "") + "ended" + (worker ? " while its worker ran" : "") + " (" + describe(exit) + "), the job "
                 + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()) + ": " + act);
@@ -219,12 +223,32 @@ final class JobWatch implements ServiceConnection {
         }
     }
 
-    /** The exit record of the job's process pid (pid ≤ 0: the latest of a :pack process), null when Android has none */
+    /** The exit record of the process pid (one this watch saw end: its binder died), null when Android has none (yet) */
     static ApplicationExitInfo exitOf(Context c, int pid) {
-        List<ApplicationExitInfo> l = c.getSystemService(ActivityManager.class).getHistoricalProcessExitReasons(c.getPackageName(), Math.max(0, pid), pid > 0 ? 1 : 16);
-        String pack = c.getPackageName() + ":pack";
-        for (ApplicationExitInfo i : l) if (pid > 0 ? i.getPid() == pid : pack.equals(i.getProcessName())) return i;
+        for (ApplicationExitInfo i : c.getSystemService(ActivityManager.class).getHistoricalProcessExitReasons(c.getPackageName(), pid, 1)) if (i.getPid() == pid) return i;
         return null;
+    }
+
+    /**
+     * The exit record of job j's last process (JobDeath.fits: its pid and not older than its start, or for an older job.json not older than its last write),
+     * null when Android has none: never an older process's (Home, the job alarm and a game's start, which did not see the process end)
+     */
+    static ApplicationExitInfo exitOf(Context c, Job j) {
+        int pid = j.pid();
+        String pack = c.getPackageName() + ":pack";
+        for (ApplicationExitInfo i : c.getSystemService(ActivityManager.class).getHistoricalProcessExitReasons(c.getPackageName(), Math.max(0, pid), pid > 0 ? 1 : 16))
+            if (pack.equals(i.getProcessName()) && JobDeath.fits(i.getPid(), i.getTimestamp(), pid, j.pidStart(), j.updated())) return i;
+        return null;
+    }
+
+    /**
+     * Whether this watch decides about the end of process pid (one that ran the job): it is bound to its service (the link's pid), or saw its binder die and
+     * decides in a moment (deciding). Then Home leaves that end to it (Ondevice.Panel.afterDeath): one decision for one death. Without that Home, 0.5 s after
+     * a kill -9, had no record of it yet and the watch would then have taken Home's start for a loop
+     */
+    static boolean decides(int pid) {
+        JobWatch w = watch;
+        return w != null && pid > 0 && (w.link != null && w.link.pid == pid || w.deciding == pid);
     }
 
     /** The exit for the log: its reason code, the system's description and the status (exit code or signal) */

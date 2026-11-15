@@ -232,6 +232,7 @@ public final class PackService extends Service {
             return START_NOT_STICKY;
         }
         stopReason = null;
+        j.process(Process.myPid(), System.currentTimeMillis());   // its exit record is the job's from now on (JobWatch.exitOf); job.json has it with the next write
         if (user) j.endedAll();   // only sticky restarts (and a game's start) add up
         Job.remember(this, j.file);
         game = game || PrepareGate.gameRunning(this);   // the worker's first wait (work) must know before it starts (game: a game's start asked just now)
@@ -264,7 +265,7 @@ public final class PackService extends Service {
             }
         }
         // with no worker, a job that says running died with its process: how it ended decides (a stop the user asked for is not resumed by a game's start)
-        android.app.ApplicationExitInfo exit = !alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, 0) : null;
+        android.app.ApplicationExitInfo exit = !alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, j) : null;
         GameGate.Act act = GameGate.onGame(alive, PackNative.ranTool(), stopReason != null, j == null ? "" : j.state(), j == null ? "" : j.reason(),
                 exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());
         Log.i(TAG, "a game starts: " + act + (j == null ? ", no job" : ", the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()))
