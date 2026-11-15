@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A game's own settings (its Manage sheet › Game settings…): resolution, 3D resolution, frame rate cap, GPU driver, GPU timing and extra environment lines, stored per title ID (Prefs.gameKey,
+ * A game's own settings (its Manage sheet › Game settings…): resolution, 3D resolution, plants and effects, frame rate cap, GPU driver, GPU timing and extra environment lines, stored per title ID (Prefs.gameKey,
  * GpuDriver.choice). Each starts as "Default", which follows the main screen's Settings (global); a value set here wins for this game only. The in-game panel's frame
  * rate cap is this game's too. GameActivity reads them at start.
  */
@@ -30,6 +30,8 @@ final class GameSettings {
             Ui.add(box, new Ui.Setting(a, "🖼️", a.getString(R.string.settings_game_resolution), v -> resolution(a, g, again)).value(windowLabel(a, id)).chevron(a).view, 8);
         if (prof != null && prof.hasResLevel())   // a profile with drs_level and res_choice rows (Ocarina of Time)
             Ui.add(box, new Ui.Setting(a, "🔍", a.getString(R.string.settings_game_res_level), v -> resLevel(a, g, again)).value(resLevelLabel(a, id)).chevron(a).view, 0);
+        if (prof != null && prof.hasDetail())   // a profile with detail_level rows (Ocarina of Time): right under 3D resolution, the same kind of choice
+            Ui.add(box, new Ui.Setting(a, "🌿", a.getString(R.string.settings_game_detail), v -> detail(a, g, again)).value(detailLabel(a, id)).chevron(a).view, 0);
         if (Prefs.ownRate(a, id)) {   // the host found no limiter it can hold for this game: choices would do nothing
             Ui.Setting fixed = new Ui.Setting(a, "⏱️", a.getString(R.string.settings_game_fps_cap), null).value(a.getString(R.string.settings_game_fps_own));
             fixed.view.setClickable(false);
@@ -156,6 +158,46 @@ final class GameSettings {
         });
         Ui.add(box, rg, 8);
         d[0] = Ui.sheet(a, a.getString(R.string.settings_game_res_level_title, g.name), box).setNegativeButton(android.R.string.cancel, stale ? (x, y) -> done.run() : null).show();
+    }
+
+    static String detailLabel(MainActivity a, String id) {
+        Profile p = Profile.of(id);
+        String v = Prefs.detailLevel(a, id), l = p == null ? null : p.detailLabel(v);
+        return l != null ? l : a.getString(R.string.settings_game_detail_gone, v);
+    }
+
+    /**
+     * Plants and effects: as the game draws it (the first level, the default, which sends nothing), or a level that lowers the game's own plant and effect
+     * parameters (DM_DETAIL; the host builds an overlay of the player's own files at start, dm/host/detail.h). The levels are the profile's detail_level rows
+     */
+    private static void detail(MainActivity a, Game g, Runnable done) {
+        Profile p = Profile.of(g.titleId);
+        List<String[]> ch = p.detailLevels();
+        String cur = Prefs.detailLevel(a, g.titleId);
+        // A stored level the profile no longer offers passes nothing (Profile.detailEnv): cleared, so the default, checked below, is what is stored too
+        boolean stale = cur != null && p.detailLabel(cur) == null;
+        if (stale) Prefs.detailLevel(a, g.titleId, null);
+        int checked = 0;
+        for (int k = 1; k < ch.size(); k++) if (ch.get(k)[0].equals(cur)) checked = k;
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        AlertDialog[] d = new AlertDialog[1];
+        box.addView(Ui.small(a, a.getString(R.string.settings_game_detail_about)));
+        android.widget.RadioGroup rg = new android.widget.RadioGroup(a);
+        for (int k = 0; k < ch.size(); k++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(a);
+            rb.setText(k == 0 ? p.detailLabel(null) : p.detailLabel(ch.get(k)[0]));
+            rb.setId(k + 1);
+            rg.addView(rb);
+        }
+        rg.check(checked + 1);
+        rg.setOnCheckedChangeListener((x, w) -> {
+            Prefs.detailLevel(a, g.titleId, w <= 1 ? null : ch.get(w - 1)[0]);
+            d[0].dismiss();
+            done.run();
+        });
+        Ui.add(box, rg, 8);
+        d[0] = Ui.sheet(a, a.getString(R.string.settings_game_detail_title, g.name), box).setNegativeButton(android.R.string.cancel, stale ? (x, y) -> done.run() : null).show();
     }
 
     private static void resolution(MainActivity a, Game g, Runnable done) {

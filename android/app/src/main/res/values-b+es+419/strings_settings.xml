@@ -47,6 +47,13 @@
     <string name="settings_game_res_level_gone">Dinámica (la propia del juego; el valor guardado %1$s ya no está disponible)</string>
     <string name="settings_game_res_level_about">El juego cambia por sí mismo la nitidez de su imagen 3D. Un nivel fijo la mantiene ahí: un nivel más bajo le da menos trabajo a la GPU y uno más alto se ve más nítido. Una opción que limita el nivel deja que el juego lo baje cuando hay mucha carga, pero no que lo suba más allá de ese nivel. A partir del próximo inicio; una línea DM_RES_LEVEL en env.txt tiene prioridad.</string>
     <string name="settings_game_res_level_title">Resolución 3D · %1$s</string>
+    <string name="settings_game_detail">Plantas y efectos</string>
+    <string name="settings_game_detail_full">Completo (como lo dibuja el juego)</string>
+    <string name="settings_game_detail_reduced">Reducido</string>
+    <string name="settings_game_detail_lowest">Mínimo</string>
+    <string name="settings_game_detail_about">Reducido: menos pasto, y plantas dibujadas hasta más cerca. Mínimo también apaga algunos efectos de pantalla. Para ganar velocidad; usa los ajustes del propio juego. Se aplica en el próximo inicio; una línea DM_DETAIL en env.txt tiene prioridad.</string>
+    <string name="settings_game_detail_title">Plantas y efectos · %1$s</string>
+    <string name="settings_game_detail_gone">Completo (como lo dibuja el juego; el valor guardado %1$s ya no está disponible)</string>
     <string name="settings_game_default_choice">Predeterminado (%1$s)</string>
     <string name="settings_game_resolution_title">Resolución del juego · %1$s</string>
     <string name="settings_game_fps_cap_default">Predeterminado (%2$s: %1$s)</string>

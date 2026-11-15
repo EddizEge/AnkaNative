@@ -79,9 +79,11 @@ static void fastboot_apply(void) {
 // For a setting the game needs on a platform where the host's own default does not hold (Ocarina of Time on Android: memory pools placed by 64 MiB parts and pipelines
 // made in the background, without which the low-memory killer ended its first scene load; dm/games/0400486024DEC000/README.md)
 static void host_env_apply(void) { if (*DM_GAME_HOST_ENV) env_defaults("host_env (game profile)", DM_GAME_HOST_ENV); }
+void dm_detail_start(void);   // hle_fs.c: Game settings › Plants and effects (DM_DETAIL), nothing at all when it is unset
 static void host_preload(int argc, char **argv) {
     g_t0_ns = proc_start_mono_ns();
     fastboot_apply();
+    dm_detail_start();   // its levels' switches before the profile's host_env (the player's choice comes first; the environment and env.txt win over both)
     host_env_apply();   // after DM_FASTBOOT's: a test run's switches come first
     flags_init();
     if (argc < 2) die("usage: dmhost <dir> [mod...] [-- game arguments...]");

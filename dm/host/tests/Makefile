@@ -400,6 +400,20 @@ run: $(B)/t_drs_level
 .PHONY: drs_level
 drs_level: $(B)/t_drs_level
 	$(B)/t_drs_level
+# Game settings › Plants and effects (dm/host/detail.h), any machine: the rows, the BYML and SARC editors, the zstd frame of raw blocks and the overlay build, with
+# zstd's decoder and this GAME's profile rows (a header of its own, generated here: the host's gen/ is the Mac build's)
+.PHONY: detail
+detail: $(B)/t_detail
+	TMPDIR="$(abspath $(B))" $(B)/t_detail
+# in `run` when GAME is set (its rows come from that profile); `make run` without GAME leaves it out
+ifneq ($(strip $(GAME)),)
+run: detail
+endif
+$(B)/gen-$(GAME)/game_profile.h: ../../games/$(GAME)/game.tsv ../../games/game.py | $(B)
+	$(if $(strip $(GAME)),,$(error GAME is not set: make GAME=<base game title ID>))
+	$(PYTHON) ../../games/game.py header $(GAME) $@
+$(B)/t_detail: t_detail.c ../detail.h $(B)/zstddec.o $(B)/gen-$(GAME)/game_profile.h | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -I$(B)/gen-$(GAME) -o $@ t_detail.c $(B)/zstddec.o -lm
 $(B)/t_drs_level: t_drs_level.c ../drs_level.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_drs_level.c
 # Linux only (mremap, O_TMPFILE, SEEK_DATA, fallocate; the file in TMPDIR, made and removed by the test): make fileback (in `run` on a Linux host)

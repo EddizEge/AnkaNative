@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * A game this APK runs: its profile (dm/games/&lt;title ID&gt;) was compiled into a host of its own, libnxhost_&lt;title ID&gt;.so (build.gradle nxGames,
  * src/main/cpp/CMakeLists.txt), and what the launcher needs of it comes from build.gradle as BuildConfig.NX_PROFILES: one line per game, tab-separated: title ID,
- * name, the shader count Prepare translates, the shader inputs digest, the builds (game.tsv build rows, "version module=build ID …", ';' between builds), and, when the APK has them, the readiness rows (the profile's readiness.tsv: "level|fact|min|what", ';' between rows: Readiness.parseReqs), its status row (playable or bring-up; dm/games/README.md "Readiness rows"), the shader delta rows (vk_delta.tsv's "from" rows: "version=count" or, for this version's library of older profile inputs, "version@inputs=count", ',' between them), its "stamp" rows ("version:old SHA-256:new SHA-256", ';' between them), what Game resolution sets (resolutionEnv), the RomFS checks (romfsChecks), the GPU timestamp mode (gpuTs), the default Game resolution (window) and the phone's split times (split: a whole split, and a shader update's).
+ * name, the shader count Prepare translates, the shader inputs digest, the builds (game.tsv build rows, "version module=build ID …", ';' between builds), and, when the APK has them, the readiness rows (the profile's readiness.tsv: "level|fact|min|what", ';' between rows: Readiness.parseReqs), its status row (playable or bring-up; dm/games/README.md "Readiness rows"), the shader delta rows (vk_delta.tsv's "from" rows: "version=count" or, for this version's library of older profile inputs, "version@inputs=count", ',' between them), its "stamp" rows ("version:old SHA-256:new SHA-256", ';' between them), what Game resolution sets (resolutionEnv), the RomFS checks (romfsChecks), the GPU timestamp mode (gpuTs), the default Game resolution (window), the phone's split times (split: a whole split, and a shader update's) and the Plants and effects levels (detail).
  * A game without a profile here cannot run in this APK (its host has no profile for it): the launcher says so instead of starting it.
  * No Android classes: the JVM test (android/app/src/jvmtest) runs it on the Mac.
  */
@@ -24,6 +24,7 @@ final class Profile {
     String window = "";   // game.tsv android_window (build.gradle windowOf): the default Game resolution when the player chose none (Prefs.gameWindow), "" for the main screen's
     String resChoices = "";   // game.tsv res_choice rows (build.gradle resChoicesOf): "<DM_RES_LEVEL value>=<label>", ';' between them; "" = no 3D resolution setting
     String split = "";   // game.tsv android_split_minutes (build.gradle splitOf): "lo-hi" or "lo-hi,ulo-uhi", the phone's shader split of this game and of a shader update in minutes, "" when not measured (split(), updateSplit())
+    String detail = "";   // game.tsv detail_level rows (build.gradle detailOf): "<id>|<shown|hidden>|<label>", ';' between them; "" = no Plants and effects setting
     String romfsChecks = "";   // game.tsv romfs_check rows (build.gradle romfsChecksOf): "<path>|<line>|<expected or main>", ';' between them (RomfsCheck)
 
     /** The phone's shader split of this game as {lo, hi} minutes (ShaderLibs.minutes), null when the profile has no android_split_minutes row */
@@ -100,6 +101,87 @@ final class Profile {
         return env;
     }
 
+    /**
+     * Plants and effects: the levels Game settings offers, in the profile's order, as [id, label]: its shown detail_level rows (a hidden one, a candidate, is
+     * chosen only by a DM_DETAIL line). The first is the default, as the game draws it. A malformed entry is skipped
+     */
+    List<String[]> detailLevels() {
+        List<String[]> out = new ArrayList<>();
+        if (detail.isEmpty()) return out;
+        for (String c : detail.split(";")) {
+            String[] f = c.split("\\|", -1);
+            if (f.length == 3 && f[0].matches("[a-z0-9_]{1,31}") && f[1].equals("shown") && !f[2].trim().isEmpty()) out.add(new String[] {f[0], f[2].trim()});
+        }
+        return out;
+    }
+
+    /** Whether Game settings › Plants and effects is offered: the profile has a default level and at least one other to choose */
+    boolean hasDetail() { return detailLevels().size() >= 2; }
+
+    /**
+     * The label of a stored level (Prefs.detailLevel): the default's for null, a shown level's, or null for a value this profile no longer offers. The levels
+     * the texts know (full, reduced, lowest) are in the player's language; another game's are its profile's label
+     */
+    String detailLabel(String value) {
+        List<String[]> ls = detailLevels();
+        if (ls.isEmpty()) return null;
+        for (int i = 0; i < ls.size(); i++) if (value == null ? i == 0 : ls.get(i)[0].equals(value)) return detailText(ls.get(i)[0], ls.get(i)[1]);
+        return null;
+    }
+
+    private static String detailText(String id, String label) {
+        switch (id) {
+            case "full": return Tr.s("settings_game_detail_full");
+            case "reduced": return Tr.s("settings_game_detail_reduced");
+            case "lowest": return Tr.s("settings_game_detail_lowest");
+            default: return label;
+        }
+    }
+
+    /**
+     * The host's environment line for a stored level: DM_DETAIL=&lt;id&gt; for a shown level other than the first; none for null, the first level (as the game draws
+     * it: Full sends nothing at all) or a value the profile no longer offers
+     */
+    List<String> detailEnv(String value) {
+        List<String> env = new ArrayList<>();
+        List<String[]> ls = detailLevels();
+        for (int i = 1; i < ls.size(); i++) if (ls.get(i)[0].equals(value)) env.add("DM_DETAIL=" + value);
+        return env;
+    }
+
+    /**
+     * The folder the host builds the Plants and effects overlay in: beside the game's temporary storage, "&lt;DM_TEMP&gt;_detail" (dm/host/hle_fs.c dm_detail_start;
+     * never inside DM_TEMP, which is the game's own temp: mount)
+     */
+    static java.io.File detailDir(java.io.File temp) { return new java.io.File(temp.getPath() + "_detail"); }
+
+    /** Whether the host gets a level other than Full: the last DM_DETAIL line of the start's environment (env.txt's come later and win) is not empty */
+    static boolean detailOn(List<String> env) {
+        String v = "";
+        for (String kv : env) if (kv.startsWith("DM_DETAIL=")) v = kv.substring(10).trim();
+        return !v.isEmpty();
+    }
+
+    /**
+     * At a start with Full (no DM_DETAIL, or an empty one): the overlay an earlier start built is removed, so no file of an earlier level stays on the phone. Here, in
+     * the launcher, so that the host sends and logs nothing for Full. Only at a start: the game this start replaces has ended, and no running game reads it.
+     * Returns whether the folder is gone (or never was)
+     */
+    static boolean dropDetail(java.io.File temp, List<String> env) {
+        if (detailOn(env)) return true;
+        return deleteTree(detailDir(temp));
+    }
+
+    private static boolean deleteTree(java.io.File f) {
+        if (!f.exists() && !isLink(f)) return true;
+        java.io.File[] in = isLink(f) ? null : f.listFiles();
+        boolean ok = true;
+        if (in != null) for (java.io.File c : in) ok &= deleteTree(c);
+        return f.delete() && ok;
+    }
+
+    private static boolean isLink(java.io.File f) { return java.nio.file.Files.isSymbolicLink(f.toPath()); }
+
     /** Whether any game of this APK has Game resolution (Settings shows its default only then) */
     static boolean anyResolution() { for (Profile p : all()) if (p.hasResolution()) return true; return false; }
 
@@ -130,6 +212,7 @@ final class Profile {
             p.window = c.length > 12 ? c[12] : "";
             p.resChoices = c.length > 13 ? c[13] : "";
             p.split = c.length > 14 ? c[14] : "";
+            p.detail = c.length > 15 ? c[15] : "";
             out.add(p);
         }
         return Collections.unmodifiableList(out);

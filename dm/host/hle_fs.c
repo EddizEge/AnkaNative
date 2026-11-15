@@ -1105,3 +1105,112 @@ HLE_FORCE("_ZN2nn2fs18IsSaveDataExistingERKNS_7account3UidE", "fsp-srv; save dat
 HLE_FORCE("_ZN2nn2fs26SetPriorityOnCurrentThreadENS0_8PriorityE", "fsp-srv; file read priority, ignored by the host", void, h_fs_SetPrio, int prio) { (void)prio; }
 HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEj", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLogMask, unsigned mask) { (void)mask; return 0; }
 HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEv", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLog, void) { return 0; }
+
+// ---------- Game settings › Plants and effects (DM_DETAIL; detail.h): the overlay of edited parameter files, made before the game mounts its RomFS ----------
+// The player's files are read from DM_ROMFS as the rom mount reads them (a folder, a RomFS image or a NUP package, whose compressed files nup_z_get decodes);
+// pack members are decoded with zstd's decoder and the dictionary their frame names (DM_NUP_ZSTD: the Android host and the unit tests; the Mac and iOS hosts have
+// no decoder, so their pack rows are red lines and only loose files are edited)
+#ifdef DM_NUP_ZSTD
+typedef struct ZSTD_DCtx_s ZSTD_DCtx;
+ZSTD_DCtx *ZSTD_createDCtx(void);
+size_t ZSTD_freeDCtx(ZSTD_DCtx *dctx);
+size_t ZSTD_decompress_usingDict(ZSTD_DCtx *dctx, void *dst, size_t cap, const void *src, size_t n, const void *dict, size_t dn);
+#endif
+#include "detail.h"
+typedef struct { const char *dir; romfs_img *img; } detail_rom;
+static void detail_log_line(void *c, const char *line) { (void)c; LOG("%s", line); }
+static uint8_t *detail_rom_read(void *c, const char *path, size_t *n, char *why, size_t wn) {
+    detail_rom *r = c; uint8_t *out = NULL;
+    if (r->img) {
+        int64_t k = img_find(r->img, path);
+        if (k < 0 || !r->img->e[k].type) { snprintf(why, wn, "not a file of the game"); return NULL; }
+        const img_ent *x = &r->img->e[k];
+        if (!(out = malloc(x->b ? (size_t)x->b : 1))) { snprintf(why, wn, "out of memory"); return NULL; }
+        if (x->flags & IMG_ENT_ZSTD) {
+            const uint8_t *z = nup_z_get(r->img, x->a, why, wn);
+            if (!z) { free(out); return NULL; }
+            memcpy(out, z, (size_t)x->b); nup_z_put(r->img, x->a);
+        } else if (!romfs_image_read(r->img->fd, out, (size_t)x->b, (off_t)x->a)) { snprintf(why, wn, "read error (errno %d)", errno); free(out); return NULL; }
+        *n = (size_t)x->b; return out;
+    }
+    char p[1300]; snprintf(p, sizeof p, "%s/%s", r->dir, path);
+    int fd = open(p, O_RDONLY); struct stat st;
+    if (fd < 0 || fstat(fd, &st) || !S_ISREG(st.st_mode)) { snprintf(why, wn, "cannot open %s (errno %d)", p, errno); if (fd >= 0) close(fd); return NULL; }
+    if (!(out = malloc(st.st_size ? (size_t)st.st_size : 1)) || (st.st_size && !romfs_image_read(fd, out, (size_t)st.st_size, 0))) { snprintf(why, wn, "cannot read %s (errno %d)", p, errno); free(out); close(fd); return NULL; }
+    close(fd); *n = (size_t)st.st_size; return out;
+}
+static int detail_rom_list(void *c, const char *dir, void (*cb)(void *u, const char *name), void *u) {
+    detail_rom *r = c;
+    if (r->img) {
+        int64_t k = img_find(r->img, dir);
+        if (k < 0 || r->img->e[k].type) return 0;
+        for (uint64_t j = r->img->e[k].a; j < r->img->e[k].a + r->img->e[k].b; j++) {
+            const img_ent *x = &r->img->e[j]; if (!x->type || x->nlen > 255) continue;
+            char name[256]; memcpy(name, r->img->names + x->name, x->nlen); name[x->nlen] = 0; cb(u, name);
+        }
+        return 1;
+    }
+    char p[1300]; snprintf(p, sizeof p, "%s/%s", r->dir, dir);
+    DIR *d = opendir(p); if (!d) return 0;
+    struct dirent *e;
+    while ((e = readdir(d))) { char f[1600]; struct stat st; snprintf(f, sizeof f, "%s/%s", p, e->d_name); if (!stat(f, &st) && S_ISREG(st.st_mode)) cb(u, e->d_name); }
+    closedir(d); return 1;
+}
+static uint8_t *detail_rom_zdecode(void *c, const uint8_t *src, size_t n, const uint8_t *dict, size_t dn, size_t cap, char *why, size_t wn) {
+    (void)c;
+#ifdef DM_NUP_ZSTD
+    uint8_t *out = malloc(cap ? cap : 1); ZSTD_DCtx *z = ZSTD_createDCtx();
+    if (!out || !z) { snprintf(why, wn, "out of memory"); free(out); if (z) ZSTD_freeDCtx(z); return NULL; }
+    size_t r = ZSTD_decompress_usingDict(z, out, cap, src, n, dict, dict ? dn : 0); ZSTD_freeDCtx(z);
+    if (ZSTD_isError(r) || r != cap) { snprintf(why, wn, "zstd: %s (%zu of %zu bytes)", ZSTD_isError(r) ? ZSTD_getErrorName(r) : "short frame", ZSTD_isError(r) ? (size_t)0 : r, cap); free(out); return NULL; }
+    return out;
+#else
+    (void)src; (void)n; (void)dict; (void)dn; (void)cap;
+    snprintf(why, wn, "this host is built without a zstd decompressor (DM_NUP_ZSTD)"); return NULL;
+#endif
+}
+// DM_DETAIL=<level>[+<level>…] (Game settings › Plants and effects, or a line of env.txt, which wins): the levels' overlay is built or found and put after the
+// overlay folders DM_ROMFS_OVERLAY already names (a hand-made one wins), and the levels' detail_env switches are set unless the environment sets them. Unset or
+// empty (the setting's Full, its default) does nothing at all: not a line, not a file. Called once at start, before the game mounts its RomFS (main.c)
+void dm_detail_start(void) {
+    const char *e = getenv("DM_DETAIL"); if (!e || !*e) return;
+    static const char *const rows[] = DM_GAME_DETAIL;
+    detail_profile *p = calloc(1, sizeof *p); char why[400] = "";
+    if (!p) { LOG("[RED] [detail] DM_DETAIL=%s: out of memory: the game starts as the game draws it (Full)", e); return; }
+    detail_parse(p, rows, DM_GAME_NDETAIL, detail_log_line, NULL);
+    int64_t m = detail_choose(p, e, why, sizeof why);
+    const char *cs = getenv("DM_DETAIL_COPY"), *ds = getenv("DM_DETAIL_PACK_DICTID");
+    int copy = !cs || !*cs || !strcmp(cs, "both") ? DETAIL_COPY_BOTH : !strcmp(cs, "loose") ? DETAIL_COPY_LOOSE : !strcmp(cs, "pack") ? DETAIL_COPY_PACK : -1;
+    int dict = !ds || !*ds || !strcmp(ds, "keep") ? DETAIL_DICTID_KEEP : !strcmp(ds, "none") ? DETAIL_DICTID_NONE : -1;
+    if (m < 0) { LOG("[RED] [detail] DM_DETAIL=%s: %s: the game starts as the game draws it (Full)", e, why); free(p); return; }
+    if (copy < 0 || dict < 0) { LOG("[RED] [detail] %s=%s is not %s: the game starts as the game draws it (Full)", copy < 0 ? "DM_DETAIL_COPY" : "DM_DETAIL_PACK_DICTID", copy < 0 ? cs : ds, copy < 0 ? "both, loose or pack" : "keep or none"); free(p); return; }
+    if (!m) { LOG("[detail] DM_DETAIL=%s: as the game draws it (Full): nothing changed", e); free(p); return; }
+    char name[400] = ""; for (int i = 1; i < p->nlv; i++) if (m >> i & 1) { size_t l = strlen(name); snprintf(name + l, sizeof name - l, "%s%s", l ? "+" : "", p->lv[i].id); }
+    uint64_t t0 = now_ns(); char b[1024], out[1300] = "";
+    detail_rom r = { envdir("DM_ROMFS", "romfs", b, sizeof b), NULL }; struct stat st;
+    if (nup_is_spec(r.dir) || (!stat(r.dir, &st) && S_ISREG(st.st_mode))) {
+        if (!(r.img = img_open(r.dir))) { LOG("[RED] [detail] %s: the game files %s cannot be read: the game starts as the game draws it (Full)", name, r.dir); free(p); return; }
+    }
+    detail_io io = { &r, detail_rom_read, detail_rom_list, detail_rom_zdecode, detail_log_line };
+    // beside the game's temporary storage, not in it (DM_TEMP is the game's temp: mount, h_fs_MountTemp): "<DM_TEMP>_detail", as <DM_TEMP>_sysdata
+    const char *gt = getenv("DM_TEMP"); char dt[1100] = "";
+    if (gt && *gt) { snprintf(dt, sizeof dt, "%s", gt); size_t l = strlen(dt); while (l > 1 && dt[l - 1] == '/') dt[--l] = 0; snprintf(dt + l, sizeof dt - l, "_detail"); }
+    int ok = detail_build(p, (uint32_t)m, name, copy, dict, *dt ? dt : NULL, &io, out, sizeof out, NULL);
+    if (r.img) romfs_image_close(r.img);
+    if (!ok) { free(p); return; }   // (its red line said why: as the game draws it)
+    for (int i = 0; i < p->nenv; i++) if (p->env[i].levels & (uint32_t)m) {
+        char kv[256]; snprintf(kv, sizeof kv, "%s", p->env[i].kv); char *eq = strchr(kv, '='); *eq = 0;
+        int had = getenv(kv) != NULL; if (!had) setenv(kv, eq + 1, 0);
+        LOG("[detail] %s: %s=%s%s", name, kv, had ? getenv(kv) : eq + 1, had ? " (set by the environment, kept)" : "");
+    }
+    if (*out) {
+        const char *was = getenv("DM_ROMFS_OVERLAY"); char ov[4096];
+        if (snprintf(ov, sizeof ov, "%s%s%s", was && *was ? was : "", was && *was ? ":" : "", out) >= (int)sizeof ov || strchr(out, ':')) {
+            LOG("[RED] [detail] %s: the overlay's path %s cannot go into DM_ROMFS_OVERLAY (too long, or it has a ':'): the game starts as the game draws it (Full)", name, out);
+            free(p); return;
+        }
+        setenv("DM_ROMFS_OVERLAY", ov, 1);
+        LOG("[detail] %s: the game reads %s first (DM_ROMFS_OVERLAY=%s), %.0f ms", name, out, ov, (now_ns() - t0) / 1e6);
+    }
+    free(p);
+}
