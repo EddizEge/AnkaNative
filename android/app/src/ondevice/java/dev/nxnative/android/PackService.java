@@ -1099,27 +1099,29 @@ public final class PackService extends Service {
         Notification.Action pauseAction = new Notification.Action.Builder(null, getString(R.string.prepare_button_pause),
                 PendingIntent.getService(this, 1, pause, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build();
         String step = j.stepMsg().text(), steps = getString(R.string.prepare_note_step, i + 1, Job.STEPS.length, pct);
+        // The ongoing forms have no subText and no time ("now"): collapsed, Android 12+ shows a notification as one row of title, subText and time (with a
+        // progress bar, no text under it), and on HyperOS (the phone check of rc1, 2026-11-15) the title kept 13 characters, "45 dk kaldı ·…", beside "Adım
+        // 4 / 5…" and "şimdi". So the row is the title's, which starts with the state; the step line goes into the expanded text
         if (waiting) {
             String reason = Job.reasonMsg(j.reason()).text();
             return b.setContentText(reason).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_progress_why, step, pct, reason)))
-                    .setSubText(steps).setOngoing(true).addAction(pauseAction).build();
+                    .setShowWhen(false).setOngoing(true).addAction(pauseAction).build();
         }
         if (running || stopping) {
             long d = j.stepDone(i), t = j.stepTotal(i);
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
-            if (stopping) return b.setContentText(step).setSubText(steps).setOngoing(true).build();   // no time left, no action: the tool stops at the shader in hand
+            b.setShowWhen(false).setOngoing(true);
+            if (stopping) return b.setContentText(step).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_step_big, steps, step)))
+                    .build();   // no time left, no action: the tool stops at the shader in hand
             if (etaMin >= 0) {
-                // Collapsed, Android 12+ shows a notification with a progress bar as one line, the title and then the subText, and no text under them (the phone
-                // test of 2026-11-14: "Preparing The…  • Step 4 of…  • now" and the bar): the time left goes first in the title, in short. Expanded, the title is
-                // the usual one and the text has the step and the time left in full
-                String left = Eta.text(etaMin).text();
-                b.setContentTitle(simulated(getString(R.string.prepare_note_running_left, Eta.shortText(etaMin).text(), name), sim))
-                        .setContentText(getString(R.string.prepare_note_running_eta, step, left))
+                // Collapsed: the state and the time left in short ("Hazırlanıyor · 45 dk"), and the game in the text (shown where a skin shows text beside a
+                // bar). Expanded: the usual title with the game, then the step line, the step and the time left in full
+                b.setContentTitle(simulated(getString(R.string.prepare_note_running_short, Eta.compactText(etaMin).text()), sim)).setContentText(name)
                         .setStyle(new Notification.BigTextStyle().setBigContentTitle(simulated(getString(R.string.prepare_note_running, name), sim))
-                                .bigText(getString(R.string.prepare_note_running_eta_big, step, left)));
-            } else b.setContentText(step);
-            b.setSubText(steps).setOngoing(true).addAction(pauseAction);
+                                .bigText(getString(R.string.prepare_note_running_eta_big, steps, step, Eta.text(etaMin).text())));
+            } else b.setContentText(step).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_step_big, steps, step)));
+            b.addAction(pauseAction);
         } else {
             // a failure: the text of the packer's error code when it has one, else the English error (job.json)
             String why = state.equals("failed") ? j.errorText() : Job.reasonMsg(j.reason()).text();

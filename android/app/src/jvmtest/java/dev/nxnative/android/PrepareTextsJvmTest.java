@@ -205,9 +205,9 @@ public final class PrepareTextsJvmTest {
         eq("Progress while the app prepares a game from your dump", "prepare_channel_description");
         eq("Preparing " + "a game", "prepare_note_none");
         eq("Preparing " + "a game" + " (simulated)", "prepare_note_simulated", new Msg("prepare_note_none"));
-        eq(name + " is ready to play" + " (simulated)", "prepare_note_simulated", new Msg("prepare_note_done", name));
+        eq("Ready to play: " + name + " (simulated)", "prepare_note_simulated", new Msg("prepare_note_done", name));
         eq("Starting…", "prepare_note_starting");
-        eq(name + " is ready to play", "prepare_note_done", name);
+        eq("Ready to play: " + name, "prepare_note_done", name);   // the state first, as every form's title (the phone check of rc1)
         eq("Open Anka Native and tap Play.", "prepare_note_done_text", new Msg("prepare_button_play"));
         eq("Preparing " + name, "prepare_note_running", name);
         eq("Waiting: " + name, "prepare_note_waiting", name);
@@ -217,13 +217,16 @@ public final class PrepareTextsJvmTest {
         eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + "%", "prepare_note_step", 3 + 1, 5, 57);
         eq(stepOld + " · " + 57 + "%", "prepare_note_progress", step, 57);
         eq(stepOld + " · " + 57 + "%\n" + "battery below 20%: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
-        eq("About 45 minutes left · " + stepOld, "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
-        eq(stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", step, Msg.plural("prepare_eta_minutes", 45, 45));
-        // the collapsed notification's title (Android 12+ shows no text under it beside a progress bar)
-        eq("45 min left · Preparing " + name, "prepare_note_running_left", Msg.plural("prepare_eta_short_minutes", 45, 45), name);
-        eq("<1 min left", "prepare_eta_short_less");
-        check("prepare_eta_short_hours", Msg.plural("prepare_eta_short_hours", 2, 2).english(), "2 h left");
-        check("prepare_eta_short_hours_minutes", Msg.plural("prepare_eta_short_hours_minutes", 1, 1, 15).english(), "1 h 15 min left");
+        // the expanded notification: the step line, the step, the time left (running) or the step line and the step (pausing, no time left)
+        eq("Step 4 of 5 · 57%\n" + stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", new Msg("prepare_note_step", 4, 5, 57), step,
+                Msg.plural("prepare_eta_minutes", 45, 45));
+        eq("Step 4 of 5 · 57%\n" + stepOld, "prepare_note_step_big", new Msg("prepare_note_step", 4, 5, 57), step);
+        // the collapsed notification's title: the state, then the time left in short (Android 12+ shows no text under it beside a progress bar, and on HyperOS
+        // the old "45 min left · Preparing <game>" kept only "45 dk kaldı ·…")
+        eq("Preparing · 45 min", "prepare_note_running_short", new Msg("prepare_eta_compact_minutes", 45));
+        eq("<1 min", "prepare_eta_compact_less");
+        eq("2 h", "prepare_eta_compact_hours", 2);
+        eq("1 h 15 min", "prepare_eta_compact_hours_minutes", 1, 15);
         // the notification in the job's place when its process ended and the app could not start it again (JobWatch)
         eq("Interrupted: " + name, "prepare_note_stopped", name);
         eq("Prepare stopped (" + stepOld + "). Tap to go on.", "prepare_note_stopped_text", step);

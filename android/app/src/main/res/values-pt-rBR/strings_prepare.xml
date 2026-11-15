@@ -166,30 +166,20 @@
     <string name="prepare_note_running">Preparando %1$s</string>
     <string name="prepare_note_waiting">Aguardando: %1$s</string>
     <string name="prepare_note_pausing">Pausando: %1$s</string>
-    <string name="prepare_note_failed">Não foi possível preparar %1$s</string>
+    <string name="prepare_note_failed">Falha ao preparar: %1$s</string>
     <string name="prepare_note_paused">Pausado: %1$s</string>
-    <string name="prepare_eta_short_less">Falta &lt;1 min</string>
-    <plurals name="prepare_eta_short_minutes">
-        <item quantity="one">Falta %1$d min</item>
-        <item quantity="many">Faltam %1$d min</item>
-        <item quantity="other">Faltam %1$d min</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours">
-        <item quantity="one">Falta %1$d h</item>
-        <item quantity="many">Faltam %1$d h</item>
-        <item quantity="other">Faltam %1$d h</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours_minutes">
-        <item quantity="one">Faltam %1$d h %2$d min</item>
-        <item quantity="many">Faltam %1$d h %2$d min</item>
-        <item quantity="other">Faltam %1$d h %2$d min</item>
-    </plurals>
-    <string name="prepare_note_running_left">%1$s · Preparando %2$s</string>
+    <string name="prepare_eta_compact_less">&lt;1 min</string>
+    <string name="prepare_eta_compact_minutes">%1$d min</string>
+    <string name="prepare_eta_compact_hours">%1$d h</string>
+    <string name="prepare_eta_compact_hours_minutes">%1$d h %2$d min</string>
+    <string name="prepare_note_running_short">Preparando · %1$s</string>
     <string name="prepare_note_stopped">Interrompido: %1$s</string>
     <string name="prepare_note_stopped_text">A preparação parou (%1$s). Toque para continuar.</string>
     <string name="prepare_note_step">Etapa %1$d de %2$d · %3$d%%</string>
     <string name="prepare_note_progress">%1$s · %2$d%%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d%%\n%3$s</string>
+    <string name="prepare_note_running_eta_big">%1$s\n%2$s\n%3$s</string>
+    <string name="prepare_note_step_big">%1$s\n%2$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors); %1$s: prepare_step_*_in_sentence (the object of "interrompeu"), %2$d: how many times (2 or more), %3$.1f: the step's memory in GB, tap %4$s: the button's label -->
     <string name="prepare_error_step_killed">o Android interrompeu %1$s %2$d vezes antes de terminar, provavelmente por falta de memória (precisa de até %3$.1f GB). Feche outros apps e toque em %4$s</string>

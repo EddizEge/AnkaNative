@@ -455,11 +455,14 @@ final class Eta {
         return m == 0 ? Msg.plural("prepare_eta_hours", h, h) : Msg.plural("prepare_eta_hours_minutes", h, h, m);
     }
 
-    /** The minutes in short, for the notification's title: "<1 min left", "45 min left", "1 h 15 min left" (the same rounding as text) */
-    static Msg shortText(int minutes) {
-        if (minutes <= 0) return new Msg("prepare_eta_short_less");
-        if (minutes < 60) return Msg.plural("prepare_eta_short_minutes", minutes, minutes);
+    /**
+     * The minutes in short, for the running notification's collapsed title after the state ("Preparing · 45 min"): "<1 min", "45 min", "1 h 15 min" (the
+     * same rounding as text). The phone check of rc1 (HyperOS, 2026-11-15) showed only "45 dk kaldı ·…" of "45 dk kaldı · Hazırlanıyor: <game>"
+     */
+    static Msg compactText(int minutes) {
+        if (minutes <= 0) return new Msg("prepare_eta_compact_less");
+        if (minutes < 60) return new Msg("prepare_eta_compact_minutes", minutes);
         int h = minutes / 60, m = minutes % 60;
-        return m == 0 ? Msg.plural("prepare_eta_short_hours", h, h) : Msg.plural("prepare_eta_short_hours_minutes", h, h, m);
+        return m == 0 ? new Msg("prepare_eta_compact_hours", h) : new Msg("prepare_eta_compact_hours_minutes", h, m);
     }
 }
