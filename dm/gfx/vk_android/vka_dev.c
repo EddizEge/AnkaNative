@@ -10,11 +10,11 @@
 #include <stdarg.h>
 #include <unistd.h>
 
-// This file's lines made before the run log opened. The launcher's surfaceCreated (GameActivity → Native.setSurface → nxhost_set_window) comes before Native.start
-// points stderr at the run log (nxlaunch.c log_open); until then stderr is the app process's /dev/null. nxhost_set_window made the device there until 2026-11-15, so its
-// setup lines (driver, extensions, the GPU clock floor's kernel context and DCVS mode) reached neither the run log nor logcat (pf1, play1), and its setup did not see the
-// run's environment either (env.txt's DM_VK_MESH_EMU=0 ignored); the host makes it now (vka_present.c). A device made while stderr is /dev/null all the same (another
-// caller) keeps its lines here as well, written once stderr is another file, at this file's next line or vka_init call after that. Lines of the other files are lost
+// This file's lines made before the run log opened. The launcher's surfaceCreated (GameActivity → Native.setSurface → nxhost_set_window → vka_init) comes before
+// Native.start points stderr at the run log (nxlaunch.c log_open); until then stderr is the app process's /dev/null, so the device's setup lines (driver, extensions,
+// the GPU clock floor's kernel context and DCVS mode) reached neither the run log nor logcat: pf1 and play1 had none of them, only the floor's first line, which the first
+// submission writes. While stderr is /dev/null the lines are kept here as well, and written once stderr is another file, at this file's next line or vka_init call after that
+// (the first submission). Lines of the other files made in that time (vka_driver.c, vka_present.c) are still lost
 static pthread_mutex_t g_early_mu = PTHREAD_MUTEX_INITIALIZER;
 static _Atomic int g_early_st;   // 0 not looked at yet, 1 stderr is /dev/null: the lines go into g_early as well, 2 written (or stderr was a file from the start)
 static char *g_early; static size_t g_early_n, g_early_cap;

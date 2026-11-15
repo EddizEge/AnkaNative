@@ -31,9 +31,7 @@ static void *selftest_main(void *arg);
 void nxhost_set_window(ANativeWindow *w) {
     static int first = 1;
     if (w) ANativeWindow_acquire(w);
-    // The device is not made here: the launcher's first surface comes before Native.start, which sets the run's environment (env.txt, the game's settings, TMPDIR) and
-    // opens the run log, so a device made here missed every switch its setup reads (DM_VK_MESH_EMU, DM_VK_GPL, DM_VK_MESH, ...) and logged into /dev/null. The window
-    // waits in g_win_new; the host makes the device at its first use (mtl_prepare), which starts the present thread, and that takes the window
+    vka_init();
     pthread_mutex_lock(&g_pmu);
     if (g_win_new) ANativeWindow_release(g_win_new);   // never taken by the present thread
     g_win_new = w; uint64_t gen = ++g_win_gen;
