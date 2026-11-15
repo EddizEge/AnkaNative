@@ -82,7 +82,8 @@ res_choice	cap:4	Dynamic, never above Medium
 # default FoliageDropParam gives hearts, magic and rupees) and which hold the leaves of climbable ivy: its about text says so. Never IsEnableTurf, the grass.
 # Measured on the phone with all four layers off (m_layers, 2026-11-15): balcony 78.8 -> 55 ms GPU, village -11 ms, no holes. Reduced alone is NOT measured.
 # detail_setting hidden: the Game settings row is not shown (a stored level sends nothing; env.txt's DM_DETAIL still works) until the phone has measured Reduced
-# and checked Lowest's drops and the ivy (session-2026-11-14/detail2.md). Showing it is this one line: shown.
+# and checked Lowest's drops and the ivy (session-2026-11-14/detail2.md). Showing it is this one line: shown (first clear detail_level on the test phones
+# that ran rc2, whose reduced and lowest were other rows: README "Ground plants and stones").
 detail_setting	hidden
 detail_level	full	shown	Full (as the game draws it)
 detail_level	reduced	shown	Reduced (no moss or stones)

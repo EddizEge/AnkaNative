@@ -1,8 +1,10 @@
 # dm/games/game.py's profile-key validation, on a synthetic profile: pso_gpu (the GPU architectures the app's offline pipeline archive is made for, beside pso_mtl4) takes, none and no others,
 # and a profile without the key generates its header unchanged; romfs_check (a RomFS file line that tells a version's data apart) takes <path> <line> <expected | main>;
-# host_env takes DM_<NAME>=<value> host switches, each once
+# host_env takes DM_<NAME>=<value> host switches, each once; detail_setting takes shown or hidden, and hidden empties the launcher's detail column (build.gradle detailOf, run by Groovy)
 from pathlib import Path
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,6 +68,49 @@ class HostEnv(unittest.TestCase):   # host_env: DM_<NAME>=<value> host switches 
             rc, out = header(rows)
             self.assertNotEqual(rc, 0, rows)
             self.assertIn(': host_env takes DM_<NAME>=<value> host switches', out, rows)
+
+
+def groovy():
+    """java and the Groovy jar of the Gradle the launcher builds with (its wrapper's version), or None"""
+    java = Path(os.environ['JAVA_HOME'], 'bin/java') if os.environ.get('JAVA_HOME') else shutil.which('java')
+    props = (REPO / 'android/app/gradle/wrapper/gradle-wrapper.properties').read_text(encoding='utf-8')
+    ver = re.search(r'gradle-([\d.]+)-bin\.zip', props).group(1)
+    home = Path(os.environ.get('GRADLE_USER_HOME') or Path.home() / '.gradle')
+    jars = sorted(home.glob(f'wrapper/dists/gradle-{ver}-bin/*/gradle-{ver}/lib/groovy-[0-9]*.jar'))
+    return (str(java), str(jars[0])) if java and Path(java).is_file() and jars else None
+
+
+DETAIL_ROWS = ('detail_level\tfull\tshown\tFull\ndetail_level\tless\tshown\tLess (made-up)\ndetail_level\tm_x\thidden\tMeasurement: x\n'
+               'detail_param\tless\ta/b.bgyml\tKey\t=false\n')
+
+
+class DetailSetting(unittest.TestCase):   # detail_setting <shown | hidden>: hidden empties the launcher's detail column (build.gradle detailOf), so no row and no level
+    def test_valid_rows(self):
+        for rows in ('', 'detail_setting\tshown\n', 'detail_setting\thidden\n'):
+            self.assertEqual(header(DETAIL_ROWS + rows), (0, ''), rows)
+
+    def test_rejected_rows(self):
+        for rows in ('detail_setting\tmaybe\n', 'detail_setting\n', 'detail_setting\tshown\ndetail_setting\thidden\n', 'detail_setting\thidden\tx\n'):
+            rc, out = header(DETAIL_ROWS + rows)
+            self.assertNotEqual(rc, 0, rows)
+            self.assertIn(': detail_setting takes one row, shown or hidden', out, rows)
+
+    def test_gradle_column(self):   # build.gradle's own tsvRows and detailOf, run by Gradle's Groovy on a made-up profile
+        g = groovy()
+        if not g: self.skipTest("no java or no Groovy jar of the Gradle wrapper's version")
+        src = (REPO / 'android/app/build.gradle').read_text(encoding='utf-8')
+        lines = [re.search(rf'(?m)^def {n} = .*$', src).group(0) for n in ('tsvRows', 'detailOf')]
+        script = 'def repo = new File(args[0])\n' + '\n'.join(lines) + '\nprint detailOf(args[1])\n'
+        want = 'full|shown|Full;less|shown|Less (made-up);m_x|hidden|Measurement: x'
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, 'col.groovy').write_text(script, encoding='utf-8')
+            for rows, col in (('', want), ('detail_setting\tshown\n', want), ('detail_setting\thidden\n', ''), ('', '')):
+                prof = Path(d, 'dm/games', ID)
+                prof.mkdir(parents=True, exist_ok=True)
+                (prof / 'game.tsv').write_text(TSV + (DETAIL_ROWS + rows if col or rows else ''), encoding='utf-8')
+                r = subprocess.run([g[0], '-cp', g[1], 'groovy.ui.GroovyMain', str(Path(d, 'col.groovy')), d, ID], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(r.stdout, col, rows)
 
 
 if __name__ == '__main__':

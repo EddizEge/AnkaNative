@@ -51,7 +51,7 @@
     <string name="settings_game_detail_full">Completo (como lo dibuja el juego)</string>
     <string name="settings_game_detail_reduced">Reducido (sin musgo ni piedras)</string>
     <string name="settings_game_detail_lowest">Mínimo (sin plantas pequeñas)</string>
-    <string name="settings_game_detail_about">Reducido: el musgo y las piedritas del suelo no se dibujan. Mínimo: las plantas pequeñas tampoco, ni las hojas de algunas paredes trepables; las plantas que se podían cortar con la espada desaparecen, y con ellas los corazones, rupias y magia que a veces sueltan. El pasto, los arbustos y los árboles quedan. Se aplica en el próximo inicio; la primera vez después de un cambio, el juego prepara algunos shaders durante 10–20 s y puede trabarse un poco. Una línea DM_DETAIL en env.txt tiene prioridad.</string>
+    <string name="settings_game_detail_about">Reducido: el musgo y las piedritas del suelo no se dibujan. Mínimo: las plantas pequeñas tampoco, ni las hojas de algunas paredes trepables; algunas de esas plantas pequeñas se podían cortar con la espada, y desaparecen junto con los objetos que podían soltar (corazones, rupias, magia…). El pasto, los arbustos y los árboles quedan. Se aplica en el próximo inicio; la primera vez después de un cambio, el juego prepara algunos shaders durante 10–20 s y puede trabarse un poco. Una línea DM_DETAIL en env.txt tiene prioridad.</string>
     <string name="settings_game_detail_title">Plantas y piedras del suelo · %1$s</string>
     <string name="settings_game_detail_gone">Completo (como lo dibuja el juego; el valor guardado %1$s ya no está disponible)</string>
     <string name="settings_game_default_choice">Predeterminado (%1$s)</string>
