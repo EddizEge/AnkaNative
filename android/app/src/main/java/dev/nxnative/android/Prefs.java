@@ -101,6 +101,10 @@ final class Prefs {
     static boolean pauseOnReturn(Context c, String titleId) { return of(c).getBoolean(gameKey("pause_return", titleId), true); }
     static void pauseOnReturn(Context c, String titleId, boolean on) { of(c).edit().putBoolean(gameKey("pause_return", titleId), on).commit(); }
 
+    /** Both stick buttons together open and close the in-game panel (all games, off by default; PadMenu): for a controller whose Home key the system takes */
+    static boolean stickMenu(Context c) { return of(c).getBoolean("stick_menu", false); }
+    static void stickMenu(Context c, boolean on) { of(c).edit().putBoolean("stick_menu", on).commit(); }
+
     /**
      * Intro skip (per game, a debug aid, off by default): DM_SKIP=1 for the host, so that holding Minus and Plus together for 1 s in the game skips its intro
      * (dm/host/hle_hid.c: presses A, ends movies, stops by itself at gameplay; android/TESTING.md "Intro skip"). A DM_SKIP line in env.txt or the game's own lines wins.

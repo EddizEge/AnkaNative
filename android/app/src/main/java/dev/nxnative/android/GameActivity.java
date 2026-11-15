@@ -850,23 +850,64 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     @Override public void onInputDeviceAdded(int id) {
         InputDevice d = InputDevice.getDevice(id);
         // Gamepads and joysticks only: a keyboard with arrow keys (SOURCE_DPAD) gets a player from its first pad key, if it ever sends one
-        if (d != null && !d.isVirtual() && (d.supportsSource(InputDevice.SOURCE_GAMEPAD) || d.supportsSource(InputDevice.SOURCE_JOYSTICK)) && controller(d)) {
+        boolean pad = d != null && !d.isVirtual() && (d.supportsSource(InputDevice.SOURCE_GAMEPAD) || d.supportsSource(InputDevice.SOURCE_JOYSTICK)) && controller(d);
+        if (d != null && !d.isVirtual()) noteDevice(d, pad);
+        if (pad) {
             Native.deviceAdded(id, d.getName(), false);
             padConnected(id);
         }
         deviceAxes.remove(id);
     }
+
+    /** "device 7 "Wireless Controller" (vendor 0x054c product 0x09cc, external, sources 0x1000511)": the log's name for an input device */
+    private static String deviceName(InputDevice d) {
+        return String.format(Locale.ROOT, "device %d \"%s\" (vendor 0x%04x product 0x%04x, %s, sources %#x)", d.getId(), d.getName(), d.getVendorId(), d.getProductId(),   // i18n-keep: log
+                d.isExternal() ? "external" : "built in", d.getSources());   // i18n-keep: log
+    }
+
+    // The log gets each real input device once it is seen, with what its key layout says of the Home keys (PadMenu): BUTTON_MODE reaches the app, HOME never does (the
+    // system takes it), and the axes it reports. With the next lines (a key that toggles the panel, a key nothing here uses) a log tells why a controller's Home key works or not
+    private void noteDevice(InputDevice d, boolean pad) {
+        boolean[] home = d.hasKeys(KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.KEYCODE_HOME);
+        StringBuilder ax = new StringBuilder();
+        for (InputDevice.MotionRange r : d.getMotionRanges()) if ((r.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) ax.append(' ').append(MotionEvent.axisToString(r.getAxis()));
+        Native.note("[input] " + deviceName(d) + ": " + (pad ? "a controller" : "not a controller") + "; its key layout has BUTTON_MODE (Home / guide, opens the in-game panel) "   // i18n-keep: log
+                + (home[0] ? "yes" : "no") + ", HOME (the system's, never sent to an app) " + (home[1] ? "yes" : "no") + "; joystick axes" + (ax.length() > 0 ? ax : " none"));   // i18n-keep: log
+    }
+
+    /** A key from a real external device that nothing here uses (not the panel's, not the game's), once per device, key code and scan code: what the controller sends */
+    private final HashSet<String> keysNoted = new HashSet<>();
+    private void noteUnusedKey(KeyEvent e) {
+        InputDevice d = e.getDevice();
+        if (d == null || d.isVirtual() || !d.isExternal() || !keysNoted.add(d.getDescriptor() + " " + e.getKeyCode() + " " + e.getScanCode())) return;
+        Native.note(String.format(Locale.ROOT, "[input] %s (%d), scan code %#x, from %s: not a game button nor the in-game panel's key; left to Android",   // i18n-keep: log
+                KeyEvent.keyCodeToString(e.getKeyCode()), e.getKeyCode(), e.getScanCode(), deviceName(d)));
+    }
+
     @Override public void onInputDeviceRemoved(int id) {
-        Native.deviceRemoved(id); deviceAxes.remove(id);
+        Native.deviceRemoved(id); deviceAxes.remove(id); padMenu.removed(id);
         if (pads.remove(id)) controls.setGamepad(!pads.isEmpty());
     }
     private void padConnected(int id) { if (pads.add(id)) controls.setGamepad(true); }
     @Override public void onInputDeviceChanged(int id) { deviceAxes.remove(id); }
 
+    private final PadMenu padMenu = new PadMenu();
+
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         if (panel == null) return super.dispatchKeyEvent(e);   // no host for this game (onCreate): only the message is shown
-        // A gamepad's Home / guide button opens and closes the in-game panel; while it is open the pad moves through it and the game gets no pad keys
-        if (e.getKeyCode() == KeyEvent.KEYCODE_BUTTON_MODE) { if (e.getAction() == KeyEvent.ACTION_UP) panel.toggle(); return true; }
+        // A gamepad's Home / guide button, or both stick buttons when that is on, opens and closes the in-game panel (PadMenu), before anything else sees the key; while
+        // the panel is open the pad moves through it and the game gets no pad keys
+        int act = e.getAction();
+        if ((act == KeyEvent.ACTION_DOWN || act == KeyEvent.ACTION_UP) && (gamepad(e.getSource()) || e.getKeyCode() == KeyEvent.KEYCODE_BUTTON_MODE)) {
+            int m = padMenu.key(e.getDeviceId(), e.getKeyCode(), act == KeyEvent.ACTION_DOWN, e.getRepeatCount(), Prefs.stickMenu(this));
+            if ((m & PadMenu.TOGGLE) != 0) {
+                if (padMenu.release != 0 && input) Native.key(e.getDeviceId(), padMenu.release, false);   // the first stick button reached the game: let it go there
+                Native.note(String.format(Locale.ROOT, "[input] the in-game panel %s: %s (%d), scan code %#x, from %s", panel.isOpen() ? "closes" : "opens",   // i18n-keep: log
+                        KeyEvent.keyCodeToString(e.getKeyCode()), e.getKeyCode(), e.getScanCode(), e.getDevice() != null ? deviceName(e.getDevice()) : "device " + e.getDeviceId()));   // i18n-keep: log
+                panel.toggle();
+            }
+            if ((m & PadMenu.CONSUME) != 0) return true;
+        }
         if (panel.isOpen() && gamepad(e.getSource())) return panel.padKey(e) || super.dispatchKeyEvent(e);
         if (paused && gamepad(e.getSource())) {   // paused: A or Start continues; no pad key reaches the game
             if (e.getAction() == KeyEvent.ACTION_UP && (e.getKeyCode() == KeyEvent.KEYCODE_BUTTON_A || e.getKeyCode() == KeyEvent.KEYCODE_BUTTON_START)) unpause();
@@ -876,6 +917,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         if (input && gamepad(e.getSource()) && e.getDevice() != null && !e.getDevice().isVirtual()
                 && (e.getAction() == KeyEvent.ACTION_DOWN || e.getAction() == KeyEvent.ACTION_UP)
                 && Native.key(e.getDeviceId(), e.getKeyCode(), e.getAction() == KeyEvent.ACTION_DOWN)) { padConnected(e.getDeviceId()); return true; }
+        if (act == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) noteUnusedKey(e);
         return super.dispatchKeyEvent(e);
     }
 

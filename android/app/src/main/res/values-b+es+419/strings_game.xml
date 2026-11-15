@@ -55,6 +55,7 @@
     <string name="game_panel_skip_now">Omitir la introducción ahora</string>
     <string name="game_panel_pause">Pausar el juego</string>
     <string name="game_panel_pause_on_return">Pausar cuando el juego vuelva del segundo plano</string>
+    <string name="game_panel_stick_menu">Presionar juntos los dos botones de las palancas abre y cierra este panel (para un control cuyo botón Home Android se reserva)</string>
     <string name="game_panel_stop">Detener el juego</string>
     <string name="game_panel_stop_title">¿Detener el juego?</string>
     <string name="game_panel_stop_message">El juego termina; se pierde el progreso no guardado. El registro queda disponible en %1$s.</string>

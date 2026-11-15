@@ -71,6 +71,7 @@
     <string name="game_panel_skip_now">Skip the intro now</string>
     <string name="game_panel_pause">Pause the game</string>
     <string name="game_panel_pause_on_return">Pause when the game comes back from the background</string>
+    <string name="game_panel_stick_menu">Both stick buttons pressed together open and close this panel (for a controller whose Home key Android keeps for itself)</string>
     <string name="game_panel_stop">Stop the game</string>
     <string name="game_panel_stop_title">Stop the game?</string>
     <!-- %1$s: Share log (home's Settings row) -->

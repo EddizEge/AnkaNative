@@ -57,6 +57,7 @@
     <string name="game_panel_skip_now">Girişi şimdi atla</string>
     <string name="game_panel_pause">Oyunu duraklat</string>
     <string name="game_panel_pause_on_return">Oyun arka plandan dönünce duraklat</string>
+    <string name="game_panel_stick_menu">İki analog çubuğun düğmesine birlikte basmak bu paneli açar ve kapatır (Home tuşunu Android\'in kendine ayırdığı kollar için)</string>
     <string name="game_panel_stop">Oyunu durdur</string>
     <string name="game_panel_stop_title">Oyun durdurulsun mu?</string>
     <string name="game_panel_stop_message">Oyun kapanır; kaydedilmemiş ilerleme kaybolur. Günlük saklanır; %1$s ile gönderebilirsin.</string>
