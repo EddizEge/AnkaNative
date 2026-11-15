@@ -41,6 +41,11 @@ import java.util.List;
  */
 final class Ondevice {
     static final int PICK_DUMP = 100, ASK_NOTIFY = 101;
+    /** The launcher's intent from the stopped notification (JobWatch.stopped): the job file to resume */
+    static final String EXTRA_RESUME = "ondevice_resume";
+    /** …and the token the notification was posted with (the "ondevice" prefs' "resume_token"): the launcher is exported, so another app's intent with
+     *  EXTRA_RESUME alone resumes nothing */
+    static final String EXTRA_TOKEN = "ondevice_resume_token";
     private static Panel panel;
 
     private Ondevice() {}
@@ -100,9 +105,20 @@ final class Ondevice {
      * (Pack.playableLibrary); otherwise Play waits for it as before. Only the card's own pack is updated (card = true): never the pack Folders.packFor would pick
      * (a game added with another pack, e.g. the play app's beside the dump), never a whole job, never a job for another pack folder
      */
-    static void autoUpdate(MainActivity a, File dump, File packDir, String titleId) {
-        if (!available() || panel == null || panel.a != a || panel.alive() || deltaShaders(packDir, titleId) < 0 || !autoTried.add(dump.getPath())) return;
+    static boolean autoUpdate(MainActivity a, File dump, File packDir, String titleId) {
+        if (!available() || panel == null || panel.a != a || panel.alive() || deltaShaders(packDir, titleId) < 0 || !autoTried.add(dump.getPath())) return false;
         panel.picked(dump, true, packDir, false, true);
+        return true;
+    }
+
+    /**
+     * The game card's state for a pack whose older library plays while the update makes this version's (GameGate.card): from the Prepare job when it is this
+     * pack's (job.json, and whether the service's worker runs it), else whether the card's check just started the update (queued). On the main thread
+     */
+    static GameGate.Line updateLine(File packDir, boolean queued) {
+        Job j = panel != null ? panel.job : null;
+        if (j == null || !GameList.samePath(j.pack().getPath(), packDir.getPath())) return GameGate.card(queued, null, null, false);
+        return GameGate.card(queued, j.state(), j.reason(), panel.alive());
     }
 
     /**
@@ -151,6 +167,8 @@ final class Ondevice {
         String pack = i.getStringExtra("ondevice_pack");
         if (dump != null && panel != null) panel.picked(new File(dump), i.getBooleanExtra("ondevice_start", false), pack == null ? null : new File(pack));
         if (i.getBooleanExtra("ondevice_pause", false) && panel != null) panel.pauseJob("adb");
+        String resume = i.getStringExtra(EXTRA_RESUME);
+        if (resume != null && panel != null) panel.resumeFromNote(resume, i.getStringExtra(EXTRA_TOKEN));
     }
 
     private static final class Panel implements ServiceConnection {
@@ -172,6 +190,7 @@ final class Ondevice {
         long resumedAt;
         Job job;
         boolean jobAlive;   // the service said its worker runs this job
+        boolean jobStopping;   // the service said a pause was asked for and its worker is stopping (PackService "stopping", JobForm STOPPING)
         /** The minutes the running job has left, as the service last sent them (PackService "eta_min", Eta), -1 for none: an older service sends none */
         int etaMin = -1;
 
@@ -213,6 +232,7 @@ final class Ondevice {
             Ui.add(card, Ui.pair(a, go, play), 16);
             load();
             show();
+            JobWatch.start(a);   // the main process watches the job's process for as long as it lives (JobDeath)
         }
 
         int dp(int v) { return Math.round(v * a.getResources().getDisplayMetrics().density); }
@@ -240,7 +260,7 @@ final class Ondevice {
                 a.unbindService(this);
                 bound = false;
                 service = null;
-                jobAlive = false;
+                jobAlive = jobStopping = false;
             }
         }
 
@@ -271,14 +291,14 @@ final class Ondevice {
 
         @Override public void onServiceDisconnected(ComponentName n) {   // the :pack process died
             service = null;
-            jobAlive = false;
+            jobAlive = jobStopping = false;
             etaMin = -1;
             show();
         }
 
         @Override public void onBindingDied(ComponentName n) {
             service = null;
-            jobAlive = false;
+            jobAlive = jobStopping = false;
             if (bound) { a.unbindService(this); bound = false; }
             if (resumed) bound = a.bindService(new Intent(a, PackService.class), this, 0);
         }
@@ -286,9 +306,10 @@ final class Ondevice {
         boolean onMessage(Message m) {
             if (m.what != PackService.MSG_STATE) return false;
             Bundle d = m.getData();
-            Job j = Job.of(new File(d.getString("file", "")), d.getString("job", "{}"));
+            Job j = d.containsKey("job") ? Job.of(new File(d.getString("file", "")), d.getString("job", "{}")) : null;   // none: a service with no job
             if (j != null) job = j;
             jobAlive = d.getBoolean("alive");
+            jobStopping = d.getBoolean("stopping");
             etaMin = d.getInt("eta_min", -1);
             show();
             return true;
@@ -306,8 +327,40 @@ final class Ondevice {
             return "running".equals(s) || "paused".equals(s) && !"user".equals(j.reason()) && !"timeout".equals(j.reason());
         }
 
+        /** The job's stored state Home last started again by itself (afterDeath): once each, so a start that does not take is not tried in a loop */
+        String afterDeathKey;
+        /** The game cards' line for the job as last shown (GameGate.card): Home's cards are made again when it changes */
+        String cardKey;
+
+        /**
+         * A job whose service is gone while it should be working (JobDeath: running, or waiting for the battery, the heat or a game that has ended): its process
+         * died (a low-memory kill, a kill, Android refusing the sticky restart as HyperOS does) and nothing started it again. Home, in front, resumes it by
+         * itself once its binding has found no service (2.5 s), unless the user ended the app (Force stop: Resume is offered as before); once for each state of
+         * job.json, and not within JobDeath.MIN_GAP_MS of another automatic start
+         */
+        void afterDeath() {
+            long now = SystemClock.elapsedRealtime();
+            if (job == null || !resumed || service != null || jobAlive || now - resumedAt < 2500 || !JobDeath.mayStart(now, JobWatch.lastAuto)
+                    || !JobDeath.shouldWork(job.state(), job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
+            String key = job.file.getPath() + "@" + job.updated();
+            if (key.equals(afterDeathKey)) return;
+            android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, 0);
+            JobDeath.Act act = JobDeath.after(job.state(), job.reason(), jobAlive, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(a));
+            if (act == JobDeath.Act.NOTHING) return;   // a game still runs: its end starts it (PrepareGate.afterGame), or Home once it is gone
+            afterDeathKey = key;
+            android.util.Log.i("nxpack", "Home finds the job " + job.state() + (job.reason().isEmpty() ? "" : "/" + job.reason()) + " with no service ("
+                    + JobWatch.describe(exit) + "): " + (act == JobDeath.Act.RESUME ? "Home resumes it" : "the user ended the app, Resume is offered"));
+            if (act != JobDeath.Act.RESUME) return;
+            JobWatch.lastAuto = now;
+            startService(job, true);
+        }
+
         void show() {
+            afterDeath();
             boolean alive = job != null && alive();
+            String key = job == null ? "" : job.pack().getPath() + " " + GameGate.card(false, job.state(), job.reason(), alive);
+            if (cardKey != null && !cardKey.equals(key)) a.refresh();   // a game card of this pack says how its update stands (MainActivity.check)
+            cardKey = key;
             boolean ready = job != null && ready(job);
             // A finished job: its game goes into the list with its pack (once), and the card goes: Play is on the game's card
             if (ready && !alive && !addedKey(job).equals(Prefs.open(a, "ondevice").getString("added", ""))) addGame(job);
@@ -320,9 +373,14 @@ final class Ondevice {
                     : R.string.prepare_head_running, job.name()));
             String update = a.getString(R.string.prepare_card_update, String.valueOf(job.version()));
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
-            status.setText(job.statusMsg(alive).text());
+            // a pause asked for while the tool stops: said so, with no time left and Resume not yet tappable (the service would not take it while its worker runs)
+            boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping) == JobForm.Form.STOPPING;
+            status.setText(job.statusMsg(alive, stopping).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
-            String progress = a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), job.shadersTotal());
+            // the shader count once the shaders step's tool has said how many it translates (an update's few hundred), only the percentage before
+            long shaders = job.shadersTotal();
+            String progress = shaders < 0 ? a.getString(R.string.prepare_card_percent, Math.round(job.overall() * 100))
+                    : a.getString(R.string.prepare_card_progress, Math.round(job.overall() * 100), job.shadersDone(), shaders);
             // the time left (Eta) under it, only while the service's worker runs the job and has an estimate: none while paused, waiting or stopped
             boolean left = jobAlive && service != null && "running".equals(st) && etaMin >= 0;
             detail.setText(left ? a.getString(R.string.prepare_card_progress_eta, progress, Eta.text(etaMin).text()) : progress);
@@ -330,7 +388,7 @@ final class Ondevice {
             goPauses = running;
             go.setText(running ? R.string.prepare_button_pause : "done".equals(st) && !job.apkChanged() ? R.string.prepare_button_prepare_again
                     : "failed".equals(st) ? R.string.prepare_button_retry : "pending".equals(st) ? R.string.prepare_button_start : R.string.prepare_button_resume);
-            go.setEnabled(!"done".equals(st) || job.apkChanged());
+            go.setEnabled((!"done".equals(st) || job.apkChanged()) && !stopping);
             play.setEnabled(ready && !running);
         }
 
@@ -419,7 +477,7 @@ final class Ondevice {
 
         void checked(Found f, boolean start, File packOverride, boolean again, boolean card) {
             DumpCheck.Result r = f.r;
-            if (!r.ok()) { if (!card) { a.error(r.errorText()); show(); } return; }
+            if (!r.ok()) { if (!card) { a.error(r.errorText()); show(); } else a.refresh(); return; }   // a card's update that did not start: its line says so
             // A job in progress for this dump is resumed
             if (f.existing != null) {
                 try {
@@ -436,7 +494,7 @@ final class Ondevice {
                         return;
                     }
                     if (!s.equals("done") && !s.isEmpty()) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
-                        if (card) return;   // an automatic update leaves it to the user
+                        if (card) { a.refresh(); return; }   // an automatic update leaves it to the user
                         a.error(a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(), a.getString(R.string.prepare_label_delete_work)));
                         Job.remember(a, f.existing);
                         job = j;
@@ -452,7 +510,7 @@ final class Ondevice {
                 a.error(a.getString(R.string.prepare_busy, job.name(), job.statusMsg(true).text()));
                 return;
             }
-            if (card && (f.pack == null || f.build != null)) return;   // an automatic update only updates the shaders of the card's own pack, when its code fits
+            if (card && (f.pack == null || f.build != null)) { a.refresh(); return; }   // an automatic update only updates the shaders of the card's own pack, when its code fits
             // A pack already there (the picked pack folder, else beside the dump): what fits is kept
             if (f.pack != null) {
                 File pd = f.packDir;
@@ -545,14 +603,35 @@ final class Ondevice {
             new AlertDialog.Builder(a).setTitle(t).setMessage(msg).setPositiveButton(yes, (d, w) -> r.run()).setNegativeButton(android.R.string.cancel, null).show();
         }
 
-        void startService(Job j) {
+        void startService(Job j) { startService(j, false); }
+
+        /** auto: the app's own start (afterDeath, the stopped notification's tap is the user's), which goes on only with a job that should be working */
+        void startService(Job j, boolean auto) {
             // Android 13+: the progress notification needs the user's yes; the job runs either way (without it the notification shows only in the task manager).
             // Android 12 has no such permission: notifications are allowed unless the user turns them off in the app's settings
             if (Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 a.requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, ASK_NOTIFY);
-            a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, j.file.getPath()));
+            a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, j.file.getPath())
+                    .putExtra(PackService.EXTRA_AUTO, auto));
             if (!bound) bound = a.bindService(new Intent(a, PackService.class), this, 0);
             resumedAt = SystemClock.elapsedRealtime();
+        }
+
+        /**
+         * The stopped notification's tap (JobWatch.stopped): the job it names, when it is still the remembered one and not done, is resumed as Resume does (the
+         * user's own start; a worker that runs it already takes it as nothing). Only with the token the notification carried, once
+         */
+        void resumeFromNote(String path, String token) {
+            android.content.SharedPreferences p = Prefs.open(a, "ondevice");
+            String want = p.getString("resume_token", null);
+            if (want == null || !want.equals(token)) { android.util.Log.w("nxpack", "a resume intent without the stopped notification's token: ignored"); return; }
+            p.edit().remove("resume_token").apply();
+            load();
+            show();
+            if (job == null || !job.file.getPath().equals(path) || "done".equals(job.state()) && !job.apkChanged() || jobAlive) return;
+            if (a.needAccess()) return;
+            android.util.Log.i("nxpack", "the stopped notification was tapped: resuming the job (" + job.state() + ")");
+            startService(job);
         }
 
         /** from: who asked (PackService.EXTRA_FROM: launcher or adb), for the logs */
@@ -618,9 +697,14 @@ final class Ondevice {
             Ui.confirmDanger(a, a.getString(R.string.prepare_forget_title), a.getString(R.string.prepare_forget_body, job.dir()), a.getString(R.string.prepare_button_forget), () -> {
                 Job.remember(a, null);
                 job = null;
+                dropNote();
                 show();
             });
         }
+
+        /** The job's notification left behind (paused, failed, or the stopped one: JobWatch) goes with a job forgotten or deleted; the job runs in no service then
+         *  (Manage waits while it runs) */
+        void dropNote() { a.getSystemService(android.app.NotificationManager.class).cancel(PackService.NOTE); }
 
         /** The pack folder this job made itself (the app's packs/<id>, an older job's <work>/android-pack, or the simulated engine's ondevice/fake-pack), else null: an adopted pack is the user's */
         File ownPack(Job j) {
@@ -664,6 +748,7 @@ final class Ondevice {
                         wait.dismiss();
                         Job.remember(a, null);
                         job = null;
+                        dropNote();
                         show();
                         a.refresh();
                         android.widget.Toast.makeText(a, R.string.prepare_deleted_toast, android.widget.Toast.LENGTH_LONG).show();

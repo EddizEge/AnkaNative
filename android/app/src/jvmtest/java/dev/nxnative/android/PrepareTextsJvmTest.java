@@ -58,9 +58,11 @@ public final class PrepareTextsJvmTest {
         eq("Preparing " + name, "prepare_head_running", name);
         eq("Update " + version, "prepare_card_update", String.valueOf(version));
         eq("Update " + version + "  (simulated engine)", "prepare_card_simulated", "Update " + version);
-        eq(String.format(Locale.ROOT, "%d %%  ·  shaders %,d of %,d", Math.round(0.4567 * 100), 12345L, 22852L), "prepare_card_progress", Math.round(0.4567 * 100), 12345L, 22852L);
+        // English writes 32% (no space) since 2026-11-15; Turkish %32, pt-BR 32% and es-419 32 % as before
+        eq(String.format(Locale.ROOT, "%d%%  ·  shaders %,d of %,d", Math.round(0.4567 * 100), 12345L, 22852L), "prepare_card_progress", Math.round(0.4567 * 100), 12345L, 22852L);
+        eq("6%", "prepare_card_percent", 6);   // before the shaders step says how many it translates: no count
         // the time left (Eta, added 2026-11-14): the progress line, then the estimate on a line of its own
-        String progress = String.format(Locale.ROOT, "%d %%  ·  shaders %,d of %,d", 46, 19264L, 42854L);
+        String progress = String.format(Locale.ROOT, "%d%%  ·  shaders %,d of %,d", 46, 19264L, 42854L);
         eq(progress + "\nAbout 45 minutes left", "prepare_card_progress_eta", progress, Msg.plural("prepare_eta_minutes", 45, 45));
         eq("Less than a minute left", "prepare_eta_less");
         check("prepare_eta_minutes", Msg.plural("prepare_eta_minutes", 1, 1).english(), "About 1 minute left");
@@ -182,12 +184,15 @@ public final class PrepareTextsJvmTest {
                 new Msg("prepare_step_shaders_in_sentence"), new Msg("errors_no_space", "/storage/emulated/0"), new Msg("prepare_button_retry"));
         eq("Not started yet.", "prepare_status_pending");
         eq("Paused: " + "by you" + ". " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_user"), step);
+        eq("Pausing after the work in hand. " + stepOld + ".", "prepare_status_pausing", step);
         eq(stepOld + " (" + ("step " + 4 + " of " + 5) + ").", "prepare_status_running", step, 4, 5);
         eq("Interrupted (" + stepOld + "). Tap Resume to go on.", "prepare_status_interrupted", step, new Msg("prepare_button_resume"));
         eq("adopting", "prepare_status_raw", "adopting");
         eq("by you", "prepare_reason_user");
-        eq("battery below 20 %: plug in the charger to go on", "prepare_reason_battery");
+        eq("battery below 20%: plug in the charger to go on", "prepare_reason_battery");
         eq("the phone is too hot: it goes on when it has cooled", "prepare_reason_thermal");
+        eq("a game is running: it goes on when the game ends", "prepare_reason_game");
+        eq("Paused: a game is running: it goes on when the game ends. " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_game"), step);
         eq("Android's daily limit for background work: open the app and tap Resume", "prepare_reason_timeout", new Msg("prepare_button_resume"));
         eq("Android did not let it start in the background: open the app and tap Resume", "prepare_reason_refused", new Msg("prepare_button_resume"));
         eq("the app was updated with other shader tools: the shaders are translated again", "prepare_reason_apk");
@@ -206,13 +211,22 @@ public final class PrepareTextsJvmTest {
         eq("Open Anka Native and tap Play.", "prepare_note_done_text", new Msg("prepare_button_play"));
         eq("Preparing " + name, "prepare_note_running", name);
         eq("Waiting: " + name, "prepare_note_waiting", name);
+        eq("Pausing: " + name, "prepare_note_pausing", name);
         eq("Could not prepare " + name, "prepare_note_failed", name);
         eq("Paused: " + name, "prepare_note_paused", name);
-        eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + " %", "prepare_note_step", 3 + 1, 5, 57);
-        eq(stepOld + " · " + 57 + " %", "prepare_note_progress", step, 57);
-        eq(stepOld + " · " + 57 + " %\n" + "battery below 20 %: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
+        eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + "%", "prepare_note_step", 3 + 1, 5, 57);
+        eq(stepOld + " · " + 57 + "%", "prepare_note_progress", step, 57);
+        eq(stepOld + " · " + 57 + "%\n" + "battery below 20%: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
         eq("About 45 minutes left · " + stepOld, "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
         eq(stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", step, Msg.plural("prepare_eta_minutes", 45, 45));
+        // the collapsed notification's title (Android 12+ shows no text under it beside a progress bar)
+        eq("45 min left · Preparing " + name, "prepare_note_running_left", Msg.plural("prepare_eta_short_minutes", 45, 45), name);
+        eq("<1 min left", "prepare_eta_short_less");
+        check("prepare_eta_short_hours", Msg.plural("prepare_eta_short_hours", 2, 2).english(), "2 h left");
+        check("prepare_eta_short_hours_minutes", Msg.plural("prepare_eta_short_hours_minutes", 1, 1, 15).english(), "1 h 15 min left");
+        // the notification in the job's place when its process ended and the app could not start it again (JobWatch)
+        eq("Interrupted: " + name, "prepare_note_stopped", name);
+        eq("Prepare stopped (" + stepOld + "). Tap to go on.", "prepare_note_stopped_text", step);
 
         // PackService: job.json's errors (English)
         for (String s : new String[] {"rewrite", "shaders"}) {

@@ -31,5 +31,30 @@ class Swap(unittest.TestCase):
             self.assertFalse(st.exists())
 
 
+class InProcess(unittest.TestCase):
+    """run_in_process (the phone's rewrite step): a script's exit code, and an interrupt (the phone's Pause) that goes on as an interrupt instead of being taken
+    for exit code 1, which the step printed as a red 'patch_nso.py exit code 1' line on every Pause"""
+    def run_script(self, body):
+        with tempfile.TemporaryDirectory() as d:
+            script, log = Path(d) / 'tool.py', Path(d) / 'tool.log'
+            script.write_text(body)
+            argv, out, err, env = list(sys.argv), sys.stdout, sys.stderr, dict(os.environ)
+            try: return pack_android.run_in_process(script, ['a'], {'in_process_test_var': '1'}, log), log.read_text()
+            finally:
+                self.assertEqual((sys.argv, sys.stdout, sys.stderr), (argv, out, err))
+                self.assertEqual(dict(os.environ), env)
+
+    def test_exit_codes(self):
+        self.assertEqual(self.run_script('import sys; print(sys.argv[1:]); sys.exit(3)\n'), (3, "['a']\n"))
+        self.assertEqual(self.run_script('pass\n')[0], 0)
+        code, log = self.run_script('raise ValueError("bad")\n')
+        self.assertEqual(code, 1)
+        self.assertIn('ValueError: bad', log)
+
+    def test_interrupt_goes_on(self):
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_script('import os; assert os.environ["in_process_test_var"] == "1"; raise KeyboardInterrupt\n')
+
+
 if __name__ == '__main__':
     unittest.main()

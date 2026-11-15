@@ -97,6 +97,9 @@
     <string name="home_state_shaders_needed">Shader\'lar gerekli</string>
     <string name="home_state_ready">Hazır</string>
     <string name="home_state_ready_updating">Hazır · shader\'lar güncelleniyor</string>
+    <string name="home_state_ready_update_game">Hazır · oyun açıkken shader güncellemesi duraklatıldı</string>
+    <string name="home_state_ready_update_paused">Hazır · shader güncellemesi duraklatıldı</string>
+    <string name="home_state_ready_older">Hazır · eski shader\'lar</string>
     <string name="home_state_ready_legacy">Hazır · shader\'lar bir kez güncellenmeli</string>
     <string name="home_manage_game">Yönet: %1$s</string>
     <string name="home_legacy_chip">Shader\'lar bir kez güncellenmeli</string>

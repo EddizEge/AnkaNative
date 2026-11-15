@@ -141,7 +141,9 @@ def nso_build_id(path):   # the module's build ID (NSO header +0x40), as the pro
 
 def run_in_process(script, args, env, log):
     """script run as `python3 script args` would run it, in this process: its sys.argv, env added to os.environ, stdout and stderr to the file log;
-    everything put back after it (the modules it imported from outside the standard library are dropped, so the next run starts afresh). → its exit code"""
+    everything put back after it (the modules it imported from outside the standard library are dropped, so the next run starts afresh). → its exit code.
+    An interrupt (KeyboardInterrupt: the phone's Pause, dm_pack_interrupt) goes on as one, after the same clean-up: taken as the script's exit code 1, it was a
+    red 'patch_nso.py exit code 1' line on every Pause in the rewrite step"""
     saved = (sys.argv, list(sys.path), dict(os.environ), set(sys.modules), sys.stdout, sys.stderr, os.getcwd())
     code = 0
     with open(log, 'w', buffering=1, encoding='utf-8', errors='backslashreplace') as f:
@@ -153,6 +155,8 @@ def run_in_process(script, args, env, log):
             if e.code is None: code = 0
             elif isinstance(e.code, int): code = e.code
             else: print(e.code, file=f); code = 1
+        except KeyboardInterrupt:
+            print('interrupted', file=f); raise
         except BaseException:
             import traceback; traceback.print_exc(); code = 1
         finally:

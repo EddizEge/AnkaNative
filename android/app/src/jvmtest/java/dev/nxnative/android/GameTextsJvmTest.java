@@ -36,6 +36,7 @@ public final class GameTextsJvmTest {
         same("Your save was copied into the app's storage (" + dir + "). The old folder " + old + " is kept as it was.", "game_save_copied", dir, old);
         same("Your save could not be copied into the app's storage (" + "disk full" + "). This start plays it where it is, " + old + ".", "game_save_not_copied", "disk full", old);
         same(name + ": checking this phone's GPU…", "game_checking_gpu", name);
+        same(name + ": pausing Prepare first, so the game has the phone's memory. Prepare goes on by itself when the game ends…", "game_prepare_pausing", name);
         same("GPU: " + "Adreno 830, Vulkan 1.3" + "\nMemory: " + "11.2" + " GiB as Android reports it.", "game_details_gpu", "Adreno 830, Vulkan 1.3", Double.parseDouble("11.2"));
         String missing = "VK_KHR_map_memory2, placed memory maps";
         same("Missing: " + missing + ".\n\nThe game may stop or draw wrongly. A custom GPU driver (Settings › GPU driver) may help.", "game_ready_missing", missing, HomeLabels.settings(), HomeLabels.gpuDriver());
@@ -108,13 +109,14 @@ public final class GameTextsJvmTest {
         }
         same("Now: " + "on x2 120 fps", "game_panel_lsfg_now", "on x2 120 fps");
         // TouchControls
+        // (English writes 32% with no space since 2026-11-15, as the overlay's battery did already)
         String[] groups = {"left stick", "D-pad", "A B X Y", "right stick", "ZL L −", "ZR R +"};
         String[] groupKeys = {"game_controls_group_left_stick", "game_controls_group_dpad", "game_controls_group_face", "game_controls_group_right_stick",
                 "game_controls_group_left_shoulder", "game_controls_group_right_shoulder"};
         for (int g = 0; g < groups.length; g++) {
             same(groups[g], groupKeys[g]);
             float gsc = 1.25f;
-            same(groups[g] + ": drag to move, a second finger to resize (" + Math.round(gsc * 100) + " %)", "game_controls_hint_group", new Msg(groupKeys[g]), Math.round(gsc * 100));
+            same(groups[g] + ": drag to move, a second finger to resize (" + Math.round(gsc * 100) + "%)", "game_controls_hint_group", new Msg(groupKeys[g]), Math.round(gsc * 100));
         }
         String[] tools = {"Top", "Centre", "Bottom", "Reset", "Done"};
         String[] toolKeys = {"game_controls_top", "game_controls_centre", "game_controls_bottom", "game_controls_reset", "game_controls_done"};
@@ -125,8 +127,8 @@ public final class GameTextsJvmTest {
         same("Drag a control or the picture; pinch a control to resize it", "game_controls_hint");
         same("Vibrate on press", "game_controls_vibrate");
         same("Show the log over the game", "game_controls_show_log");
-        same("Opacity " + (50 + 10) + " %", "game_controls_opacity", 50 + 10);
-        same("Size " + (40 + 60) + " %", "game_controls_size", 40 + 60);
+        same("Opacity " + (50 + 10) + "%", "game_controls_opacity", 50 + 10);
+        same("Size " + (40 + 60) + "%", "game_controls_size", 40 + 60);
         same("Reset the controls", "game_controls_reset_all");
         // Overlay
         String[] items = {"Frame rate and frame time", "Throttle dot (green / yellow / red)", "GPU time a frame", "CPU clock caps", "Battery temperature and level",

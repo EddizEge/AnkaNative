@@ -24,11 +24,13 @@ import java.nio.file.StandardCopyOption;
  *   "shader_inputs": the profile inputs its split and library are made for (JobInputs; another APK's start the split or the shaders over),
  *   "split_full": the split reads every file (a delta split's package missed a shader the build wanted), "notice": why a step runs again, a code the status line adds
  *   in words (Job.noticeMsg: "inputs_changed", "split_full"),
- *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, timeout) or "", "error": why failed (English),
+ *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, game, timeout) or "", "error": why failed (English),
  *   "error_code": the code of that failure, Prepare's own (PrepareErrors) or the packer's (JobErrors), or "", "error_args": its arguments (strings),
  *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
  * </pre>
- * A "running" job whose service is gone (the process was killed, the phone rebooted) is resumed by the service (START_STICKY) or the launcher's Resume.
+ * A "running" job whose service is gone (the process was killed, the phone rebooted) is shown as interrupted (statusMsg with serviceAlive false, JobForm PAUSED,
+ * GameGate.card PAUSED), never as running, and is resumed by the service (START_STICKY, where Android restarts it), the app itself (JobDeath: its main process,
+ * Home's open, a game's end) or the launcher's Resume.
  */
 final class Job {
     static final int FORMAT = 2;   // 2: the shaders step writes the library too (vk_android_build.py's result cache); 1 had a library step of its own
@@ -313,15 +315,52 @@ final class Job {
         }
     }
 
+    /** Step s starts over from nothing (its outputs and kept results deleted): pending, and its count cleared, so the next run's count is not taken for kept work */
+    synchronized void restartStep(String s) {
+        try {
+            step0(s).put("state", "pending").put("done", 0).put("total", 0).put("stage", "");
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** The step ended in this process (done, failed, paused): its unfinished starts are forgotten. All steps' when the user starts the job again (Retry, Resume) */
     synchronized void ended(String s) { try { step0(s).put("starts", 0); } catch (JSONException e) { throw new IllegalStateException(e); } }
 
     synchronized void endedAll() { for (String s : STEPS) ended(s); }
 
-    /** A step's count from the tool's progress lines */
+    /**
+     * The time left's rate as this process measured it (Eta.carry: {step, total, map, rate}), for a later process of this job to go on from ("eta_carry", with
+     * this APK's version code: another build's tools may run at another speed); null removes it
+     */
+    synchronized void etaCarry(double[] c) {
+        try {
+            if (c == null) { o.remove("eta_carry"); return; }
+            JSONArray a = new JSONArray();
+            for (double v : c) a.put(v);
+            o.put("eta_carry", new JSONObject().put("rate", a).put("version_code", BuildConfig.VERSION_CODE));
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** The rate a process before this one kept (etaCarry), null when there is none or another build kept it */
+    synchronized double[] etaCarry() {
+        JSONObject e = o.optJSONObject("eta_carry");
+        JSONArray a = e == null || e.optInt("version_code", -1) != BuildConfig.VERSION_CODE ? null : e.optJSONArray("rate");
+        if (a == null || a.length() != 4) return null;
+        double[] c = new double[4];
+        for (int k = 0; k < 4; k++) c[k] = a.optDouble(k, Double.NaN);
+        for (double v : c) if (Double.isNaN(v)) return null;
+        return c;
+    }
+
+    /** A step's count from the tool's progress lines; a stage line of the tool's start keeps a count kept from a run before (JobProgress.keepCount) */
     synchronized void stepProgress(String s, long done, long total, String stage) {
         try {
-            step0(s).put("done", done).put("total", total).put("stage", stage == null ? "" : stage);
+            JSONObject j = step0(s);
+            if (JobProgress.keepCount(j.optLong("total"), j.optString("stage"), done, total, stage)) return;
+            j.put("done", done).put("total", total).put("stage", stage == null ? "" : stage);
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
@@ -364,10 +403,11 @@ final class Job {
     synchronized long stepDone(int i) { return step(STEPS[i]).optLong("done"); }
     synchronized long stepTotal(int i) { return step(STEPS[i]).optLong("total"); }
 
-    /** The shaders translated so far and their total (the game's profile's shader map, Profile.shaderTotal, until the tool says its own) */
-    synchronized long shadersDone() { return "done".equals(stepState(STEPS[SHADERS])) ? shadersTotal() : stepDone(SHADERS); }
-    // the tool's total once it reported one: the shaders it translates (a delta update keeps the others, android/SHADERS.md#delta-updates), else the profile's count
-    synchronized long shadersTotal() { long t = stepTotal(SHADERS); Profile p = Profile.of(titleId()); return t > 1 || !step(STEPS[SHADERS]).optString("stage").isEmpty() ? t : p != null ? p.shaderTotal : 0; }
+    /** The shaders translated so far (shadersTotal once the step is done) */
+    synchronized long shadersDone() { return "done".equals(stepState(STEPS[SHADERS])) ? Math.max(0, shadersTotal()) : stepDone(SHADERS); }
+    /** The shaders the shaders step translates as its tool reported them (a delta update translates only some, android/SHADERS.md#delta-updates), -1 until it has
+     *  (JobProgress.shadersTotal): no count is shown before, where the game's count stood in and an update's card said "shader 0 / 42,854" */
+    synchronized long shadersTotal() { return JobProgress.shadersTotal(stepTotal(SHADERS), step(STEPS[SHADERS]).optString("stage")); }
 
     /** Step i in words, as a heading ("Checking the dump") */
     static Msg stepName(int i) { return new Msg(STEP_KEYS[i]); }
@@ -382,7 +422,8 @@ final class Job {
             String stage = step(STEPS[i]).optString("stage");
             if (stage.equals("library") || stage.equals("done")) return new Msg("prepare_stage_library");
             if (stage.equals("check")) return new Msg("prepare_stage_check");
-            return new Msg("prepare_step_shaders_progress", shadersDone(), shadersTotal());
+            long t = shadersTotal();
+            return t < 0 ? stepName(i) : new Msg("prepare_step_shaders_progress", shadersDone(), t);
         }
         long d = stepDone(i), t = stepTotal(i);
         if (t > 1) return new Msg("prepare_step_progress", stepName(i), d, t);
@@ -393,8 +434,11 @@ final class Job {
      * One line for the screen and the notification: what the job is doing or why it stopped, with the job's notice after it while it is not done (why a step runs
      * again, noticeMsg)
      */
-    synchronized Msg statusMsg(boolean serviceAlive) {
-        Msg s = statusMsg0(serviceAlive), n = noticeMsg();
+    synchronized Msg statusMsg(boolean serviceAlive) { return statusMsg(serviceAlive, false); }
+
+    /** stopping: a pause was asked for and the service's worker is stopping its tool (JobForm STOPPING): "Pausing", with the step it stops in */
+    synchronized Msg statusMsg(boolean serviceAlive, boolean stopping) {
+        Msg s = stopping ? new Msg("prepare_status_pausing", stepMsg()) : statusMsg0(serviceAlive), n = noticeMsg();
         return n == null ? s : new Msg("prepare_status_notice", s, n);
     }
 
@@ -430,6 +474,7 @@ final class Job {
             case "user": return new Msg("prepare_reason_user");
             case "battery": return new Msg("prepare_reason_battery");
             case "thermal": return new Msg("prepare_reason_thermal");
+            case "game": return new Msg("prepare_reason_game");   // GameGate: a game runs
             case "timeout": return new Msg("prepare_reason_timeout", new Msg("prepare_button_resume"));
             case "refused": return new Msg("prepare_reason_refused", new Msg("prepare_button_resume"));
             case "apk": return new Msg("prepare_reason_apk");

@@ -25,6 +25,7 @@
     <string name="prepare_card_update">Actualización %1$s</string>
     <string name="prepare_card_simulated">%1$s\u0020\u0020(motor simulado)</string>
     <string name="prepare_card_progress">%1$d %%\u0020\u0020·\u0020\u0020shaders %2$,d de %3$,d</string>
+    <string name="prepare_card_percent">%1$d %%</string>
     <string name="prepare_eta_less">Queda menos de un minuto</string>
     <plurals name="prepare_eta_minutes">
         <item quantity="one">Queda alrededor de %1$d minuto</item>
@@ -121,6 +122,7 @@
     <string name="prepare_status_failed">Se detuvo durante %1$s: %2$s. Toca %3$s para continuar.</string>
     <string name="prepare_status_pending">Aún no se inició.</string>
     <string name="prepare_status_paused">En pausa: %1$s. %2$s.</string>
+    <string name="prepare_status_pausing">Pausando después del trabajo en curso. %1$s.</string>
     <string name="prepare_status_running">%1$s (paso %2$d de %3$d).</string>
     <string name="prepare_status_interrupted">Se interrumpió (%1$s). Toca %2$s para continuar.</string>
     <string name="prepare_notice_inputs_changed">Esta versión de la app conoce más shaders del juego, así que primero se vuelven a buscar en tu volcado.</string>
@@ -128,6 +130,7 @@
     <string name="prepare_reason_user">la pausaste tú</string>
     <string name="prepare_reason_battery">batería por debajo del 20 %: conecta el cargador para continuar</string>
     <string name="prepare_reason_thermal">el teléfono está demasiado caliente: continuará cuando se enfríe</string>
+    <string name="prepare_reason_game">hay un juego abierto: continuará cuando se cierre el juego</string>
     <string name="prepare_reason_timeout">se alcanzó el límite diario de Android para el trabajo en segundo plano: abre la app y toca %1$s</string>
     <string name="prepare_reason_refused">Android no dejó que se iniciara en segundo plano: abre la app y toca %1$s</string>
     <string name="prepare_reason_apk">la app se actualizó con otras herramientas de shaders: los shaders se vuelven a traducir</string>
@@ -144,9 +147,31 @@
     <string name="prepare_note_done_text">Abre Anka Native y toca %1$s.</string>
     <string name="prepare_note_running">Preparando %1$s</string>
     <string name="prepare_note_waiting">En espera: %1$s</string>
+    <string name="prepare_note_pausing">Pausando: %1$s</string>
     <string name="prepare_note_failed">No se pudo preparar %1$s</string>
     <string name="prepare_note_paused">En pausa: %1$s</string>
+    <string name="prepare_eta_short_less">Queda &lt;1 min</string>
+    <plurals name="prepare_eta_short_minutes">
+        <item quantity="one">Queda %1$d min</item>
+        <item quantity="many">Quedan %1$d min</item>
+        <item quantity="other">Quedan %1$d min</item>
+    </plurals>
+    <plurals name="prepare_eta_short_hours">
+        <item quantity="one">Queda %1$d h</item>
+        <item quantity="many">Quedan %1$d h</item>
+        <item quantity="other">Quedan %1$d h</item>
+    </plurals>
+    <plurals name="prepare_eta_short_hours_minutes">
+        <item quantity="one">Quedan %1$d h %2$d min</item>
+        <item quantity="many">Quedan %1$d h %2$d min</item>
+        <item quantity="other">Quedan %1$d h %2$d min</item>
+    </plurals>
+    <string name="prepare_note_running_left">%1$s · Preparando %2$s</string>
+    <string name="prepare_note_stopped">Se interrumpió: %1$s</string>
+    <string name="prepare_note_stopped_text">La preparación se detuvo (%1$s). Toca para continuar.</string>
     <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>
+    <string name="prepare_note_progress">%1$s · %2$d %%</string>
+    <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors) -->
     <string name="prepare_error_step_killed">Android detuvo %1$s %2$d veces antes de que terminara, probablemente por falta de memoria (necesita hasta %3$.1f GB). Cierra otras apps y luego toca %4$s</string>

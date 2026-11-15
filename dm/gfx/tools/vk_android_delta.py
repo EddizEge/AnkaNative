@@ -9,7 +9,8 @@
 #   - the ABI digest (DMSH_VK_ABI): what the replay reads of a library and its modules (dmsh_abi_vk.h and dmsh_abi.h without comments). A library whose header carries
 #     the host's ABI digest can be played while its update runs, whatever its versions (vka_shlib_check).
 # This file is one of DMSH_VK_CHAIN's files (vk_android_build.py VK_FILES): it decides which old entries a build reuses.
-import concurrent.futures as cf, hashlib, mmap, os, re, struct
+import hashlib, mmap, os, re, struct
+from stop_pool import Pool   # (an interrupt does not wait for every entry: stop_pool.py)
 
 HERE = os.path.dirname(os.path.abspath(__file__)); GFX = os.path.dirname(HERE)
 ABI_VK = os.path.join(GFX, 'nvn', 'dmsh_abi_vk.h'); ABI = os.path.join(GFX, 'nvn', 'dmsh_abi.h')
@@ -124,7 +125,7 @@ class Library:
 def library_hashes(path, zstd, nj=8):
     """(Library, {key: entry hash}) of every entry of a library file"""
     L = Library(path)
-    with cf.ThreadPoolExecutor(nj) as ex: out = {k: h for k, h, _ in ex.map(lambda i: L.hash_of(i, zstd), range(L.ne))}   # zstd and hashlib drop the GIL
+    with Pool(nj) as ex: out = {k: h for k, h, _ in ex.map(lambda i: L.hash_of(i, zstd), range(L.ne))}   # zstd and hashlib drop the GIL
     return L, out
 
 

@@ -96,6 +96,9 @@
     <string name="home_state_shaders_needed">Faltan shaders</string>
     <string name="home_state_ready">Listo</string>
     <string name="home_state_ready_updating">Listo · actualizando shaders</string>
+    <string name="home_state_ready_update_game">Listo · actualización de shaders en pausa mientras hay un juego abierto</string>
+    <string name="home_state_ready_update_paused">Listo · actualización de shaders en pausa</string>
+    <string name="home_state_ready_older">Listo · shaders anteriores</string>
     <string name="home_state_ready_legacy">Listo · los shaders necesitan una actualización</string>
     <string name="home_manage_game">Administrar %1$s</string>
     <string name="home_legacy_chip">Los shaders necesitan una actualización</string>

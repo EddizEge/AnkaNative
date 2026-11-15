@@ -13,7 +13,8 @@
 #              profile's map says. A key's record is its control section and code area as found first, so the same first place is the same record, byte for byte.
 # shader_split.py scans every file whenever any of this cannot be shown (no older library, a manifest of other tools or inputs, a source the dump lacks, a key not
 # found where the map says); the phone's shaders step splits everything again when the build still finds a shader missing (PackService).
-import concurrent.futures as cf, os, re
+import os, re
+from stop_pool import Pool   # (an interrupt does not wait for every older entry: stop_pool.py)
 
 HERE = os.path.dirname(os.path.abspath(__file__)); GFX = os.path.dirname(HERE)
 HEADER_VK = os.path.join(GFX, 'nvn', 'dmsh_chain_vk.h')
@@ -90,7 +91,7 @@ def needed(game, roots, nj=4, log=print):
                 except Exception: continue
                 if h == hashes[k]: return True
             return False
-        with cf.ThreadPoolExecutor(max(1, nj)) as ex: keep = {k for k, ok in zip(cand, ex.map(kept, cand)) if ok}
+        with Pool(max(1, nj)) as ex: keep = {k for k, ok in zip(cand, ex.map(kept, cand)) if ok}
     finally:
         for L in libs: L.close()
     return {k for k in keys if k not in keep}, ''

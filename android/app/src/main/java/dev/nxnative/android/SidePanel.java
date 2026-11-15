@@ -175,7 +175,7 @@ final class SidePanel extends FrameLayout {
         Button stop = new Button(act);
         stop.setText(act.getString(R.string.game_panel_stop));
         stop.setOnClickListener(v -> new AlertDialog.Builder(act).setTitle(act.getString(R.string.game_panel_stop_title)).setMessage(act.getString(R.string.game_panel_stop_message, HomeLabels.shareLog().text()))
-                .setPositiveButton(act.getString(R.string.game_panel_stop_confirm), (d, w) -> { Native.note("stopped by the user"); if (act instanceof GameActivity) ((GameActivity) act).backToFrontend(); android.os.Process.killProcess(android.os.Process.myPid()); })
+                .setPositiveButton(act.getString(R.string.game_panel_stop_confirm), (d, w) -> { Native.note("stopped by the user"); PrepareGate.afterGame(act); if (act instanceof GameActivity) ((GameActivity) act).backToFrontend(); android.os.Process.killProcess(android.os.Process.myPid()); })
                 .setNegativeButton(act.getString(R.string.game_panel_keep_running), null).show());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = Math.round(24 * getResources().getDisplayMetrics().density);

@@ -13,7 +13,9 @@ import java.util.ArrayDeque;
  * <p>
  * Running time only: the clock runs while the service's worker runs the job ({@link #running}); a pause, a wait for the battery or the heat, and a dead service
  * add nothing. After a resume or a new process the first progress line is a baseline: shaders translated before it are not work done in this run, and the first
- * step forward after it starts the timing again (the tool's set-up before it, a minute or so of workers and checks, is no translating).
+ * step forward after it starts the timing again (the tool's set-up before it, a minute or so of workers and checks, is no translating). A resume in the same
+ * process goes on from the rate measured before the pause; a new process goes on from the rate its process before kept in job.json ({@link #carry},
+ * {@link #carried}) when it resumes the same part with the same total, and says nothing otherwise until it has its own.
  * <p>
  * Each part of the job is one of:
  * <ul>
@@ -120,6 +122,12 @@ final class Eta {
     private double finish = Double.NaN;
     private long finishAt;
     private int shown = -1;
+    /** The carried rate's samples are this far apart in the window (the translation's lines come every 6-7 s; the window then thins as it would) */
+    static final long CARRY_STEP_MS = 10_000L;
+    /** A rate a process before this one measured for the job ({@link #carried}), not yet matched to a part: taken at this process's first counted line */
+    private double[] pending;
+    /** The part's rate so far is the one carried over: its samples are that rate's two points until this run's own replace them (within WINDOW_MS) */
+    private boolean carriedOver;
 
     /** shaders: what the shaders step will translate as far as known; library: the entries of the library it writes; shaderS: seconds a shader before measuring */
     Eta(int shaders, int library, double shaderS) { this(shaders, library, shaderS, LIBRARY_S, PACK_MS); }
@@ -208,6 +216,7 @@ final class Eta {
         if (kind != Kind.COUNTED) return false;
         if (started && (t != total || d < done)) {   // another total (a new run of the part), or the count went back: start over, say nothing meanwhile
             disturbed = true;
+            carriedOver = false;
             baseline = true;
             firstInc = -1;
             samples.clear();
@@ -227,6 +236,7 @@ final class Eta {
             lastUnits = u;
             lastInc = runMs;
             lastWorkAt = runMs;   // the time since the last sample (a pause's start, a resumed tool's set-up) is no working time
+            takeCarried();
             return unweighted;
         }
         if (u <= lastUnits) return unweighted;
@@ -284,7 +294,50 @@ final class Eta {
         increments = 0;
         samples.clear();
         disturbed = false;
+        carriedOver = false;
         if (kind == Kind.LIBRARY) known = true;
+    }
+
+    /**
+     * What a later process of the same job may go on from (PackService keeps it in job.json, "eta_carry"): {step, the part's total, the profile map's shaders
+     * (-1: not known), work units a second}, the rate this part measured itself (as raw() takes it); null when it has none now (no counted part, not yet its own
+     * rate, its total changed or its count went back)
+     */
+    synchronized double[] carry() {
+        if (pending != null) return pending.clone();   // offered and not yet matched (this process's start): kept for the next one
+        if (kind != Kind.COUNTED || disturbed || !started || total <= 1) return null;
+        double r = ownRate();
+        return r > 0 ? new double[] {step, total, mapRows, r} : null;
+    }
+
+    /**
+     * A rate a process before this one measured for this job (carry(), from job.json), offered once: this process's first counted line takes it when it is the
+     * same part with the same total and map (the same step resumed from its kept work), and it then stands in for this run's own rate from that line on, as a
+     * rate measured before a pause in this process does (running): samples over WINDOW_MS of working time at that rate, which this run's own replace as they come.
+     * Without it a new process said nothing for over 2 minutes after every resume (the phone test of 2026-11-14: 2:15-2:35). Anything else drops it
+     */
+    synchronized void carried(double[] c) { pending = c != null && c.length == 4 && c[3] > 0 ? c.clone() : null; }
+
+    /** Whether the part's rate is the one carried over from a process before (the log says so) */
+    synchronized boolean carriedOver() { return carriedOver; }
+
+    private void takeCarried() {
+        double[] c = pending;
+        pending = null;
+        if (c == null || kind != Kind.COUNTED || (int) c[0] != step || (long) c[1] != total || (int) c[2] != mapRows || increments > 0) return;
+        samples.clear();   // the window as a run at that rate leaves it, a sample every CARRY_STEP_MS: this run's own replace them as they would its own
+        for (long back = WINDOW_MS; back >= 0; back -= CARRY_STEP_MS) samples.addLast(new double[] {workMs - back, work - c[3] * back / 1000.0});
+        carriedOver = true;
+        known = true;
+    }
+
+    /** The part's own rate (work units a second, as measured: may be 0) once it has one, -1 while it has none */
+    private double ownRate() {
+        long span = firstInc < 0 ? 0 : runMs - firstInc;
+        boolean own = carriedOver || increments >= 3 && (span >= MIN_MS || span >= MIN_SMALL_MS && work >= MIN_SMALL_SHARE * units(Math.max(total, 0)));
+        if (!own || samples.size() < 2) return -1;
+        double[] a = samples.peekFirst(), b = samples.peekLast();
+        return (b[1] - a[1]) / Math.max(1.0, (b[0] - a[0]) / 1000.0);
     }
 
     /** Work units of a count: in the translation (a full build, the map known) a vertex shader is VERTEX_COST of another; else one each */
@@ -322,11 +375,8 @@ final class Eta {
                 if (sinceInc > STALL_MS) return Double.NaN;
                 if (started && (total <= 0 || done > total)) return Double.NaN;   // no count to go on
                 double rest;
-                long span = firstInc < 0 ? 0 : runMs - firstInc;
-                boolean own = increments >= 3 && (span >= MIN_MS || span >= MIN_SMALL_MS && work >= MIN_SMALL_SHARE * units(Math.max(total, 0)));
-                if (own) {
-                    double[] a = samples.peekFirst(), b = samples.peekLast();
-                    double rate = (b[1] - a[1]) / Math.max(1.0, (b[0] - a[0]) / 1000.0);
+                double rate = ownRate();
+                if (rate >= 0) {
                     if (rate <= 0) return Double.NaN;
                     // the time since the last step forward counts down, as working time: not past the gap's cap, and not while a tool sets up after a baseline
                     double since = awaiting || baseline ? 0 : Math.min(runMs - lastWorkAt, gapCap()) / 1000.0;
@@ -403,5 +453,13 @@ final class Eta {
         if (minutes < 60) return Msg.plural("prepare_eta_minutes", minutes, minutes);
         int h = minutes / 60, m = minutes % 60;
         return m == 0 ? Msg.plural("prepare_eta_hours", h, h) : Msg.plural("prepare_eta_hours_minutes", h, h, m);
+    }
+
+    /** The minutes in short, for the notification's title: "<1 min left", "45 min left", "1 h 15 min left" (the same rounding as text) */
+    static Msg shortText(int minutes) {
+        if (minutes <= 0) return new Msg("prepare_eta_short_less");
+        if (minutes < 60) return Msg.plural("prepare_eta_short_minutes", minutes, minutes);
+        int h = minutes / 60, m = minutes % 60;
+        return m == 0 ? Msg.plural("prepare_eta_short_hours", h, h) : Msg.plural("prepare_eta_short_hours_minutes", h, h, m);
     }
 }

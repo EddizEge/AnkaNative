@@ -63,6 +63,27 @@ class Estimator(unittest.TestCase):
         self.assertEqual(got['es-419 60'], 'Queda alrededor de 1 hora')
         self.assertEqual(got['es-419 75'], 'Quedan alrededor de 1 hora y 15 minutos')   # the plural subject "1 hora y 15 minutos"
         self.assertEqual(len(got), 24)
+        short = dict(re.findall(r'^short (\S+ \d+): (.*)$', self.out, re.M))
+        self.assertEqual(short['tr 45'], '45 dk kaldı')
+        self.assertEqual(short['tr 75'], '1 sa 15 dk kaldı')
+        self.assertEqual(short['tr 0'], '<1 dk kaldı')
+        self.assertEqual(short['pt-BR 1'], 'Falta 1 min')
+        self.assertEqual(short['pt-BR 125'], 'Faltam 2 h 5 min')
+        self.assertEqual(short['es-419 45'], 'Quedan 45 min')
+        self.assertEqual(short['es-419 60'], 'Queda 1 h')
+        self.assertEqual(len(short), 21)
+        # short enough to lead a collapsed notification's title: on the POCO F8 Pro that title kept "Hazırlanıyor:…" (about 13 characters) beside the subText,
+        # which Android shrinks first (to 72 dp); the longest form (Eta says nothing above 10 hours) stays within 17 characters in every language
+        self.assertLessEqual(max(len(v) for v in short.values()), 17, short)
+
+    def test_carried(self):
+        """A new process goes on from the rate its process before kept (job.json "eta_carry"): at once the old process's estimate, and as near afterwards"""
+        rows = re.findall(r'^carried (\S+) (\d+) (\d+) (\d+) (\d+)$', self.out, re.M)
+        self.assertEqual(len(rows), 9, self.out)
+        for name, p, got, old, true in rows:
+            self.assertLessEqual(abs(int(got) - int(old)) / int(old), 0.05, f'{name} at {p} %')
+        for case in ('carried', 'carried 6w', 'carried 8w', 'carried 6w-current'):
+            self.assertIn(f'ok {case}\n', self.out)
 
     def test_replay(self):
         rows = {(n, int(p)): (None if e == '-' else float(e), float(t)) for n, p, e, t, _ in re.findall(r'^replay (\S+) (\d+) (\S+) (\S+) (-?\d+)$', self.out, re.M)}
@@ -88,6 +109,23 @@ class Service(unittest.TestCase):
         self.assertIn('d.getInt("eta_min", -1)', o)
         self.assertIn('Eta.shaderMix(profileMap(j))', s)   # the map the tool takes its shaders and total from
         self.assertIn('Eta.SHADER_S)', s)
+
+    def test_collapsed_title(self):
+        """Collapsed, Android 12+ shows a notification with a progress bar as its title and subText only (Notification.java: no text beside a bar unless the
+        style allows it, which only the expanded view does): the time left goes first in the title, in short; expanded, the usual title"""
+        s = (ONDEVICE / 'PackService.java').read_text(encoding='utf-8')
+        note = s[s.index('private Notification note(Job j, int etaMin, boolean live)'):]
+        self.assertIn('getString(R.string.prepare_note_running_left, Eta.shortText(etaMin).text(), name)', note)
+        self.assertIn('setBigContentTitle(simulated(getString(R.string.prepare_note_running, name), sim))', note)
+
+    def test_carry_wiring(self):
+        """The rate goes into job.json with the count (Tail), and a new estimator of the job is offered it (etaFor)"""
+        s = (ONDEVICE / 'PackService.java').read_text(encoding='utf-8')
+        self.assertIn('j.etaCarry(est.carry());', s)
+        self.assertIn('double[] carry = j.etaCarry();', s)
+        self.assertIn('eta.carried(carry);', s)
+        j = (ONDEVICE / 'Job.java').read_text(encoding='utf-8')
+        self.assertIn('e.optInt("version_code", -1) != BuildConfig.VERSION_CODE', j)   # another build's rate is not taken
 
 
 if __name__ == '__main__':

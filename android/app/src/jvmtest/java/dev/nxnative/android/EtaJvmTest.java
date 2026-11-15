@@ -81,6 +81,8 @@ public final class EtaJvmTest {
         takeover();
         for (String w : TRACES) hostile(new File(a[0], "prepare-eta-" + w + ".trace.txt"), w);
         for (String w : TRACES) replay(new File(a[0], "prepare-eta-" + w + ".trace.txt"), w);
+        carried();
+        for (String w : TRACES) carriedReplay(new File(a[0], "prepare-eta-" + w + ".trace.txt"), w);
         if (failed > 0) {
             System.out.println(failed + " failed");
             System.exit(1);
@@ -333,6 +335,15 @@ public final class EtaJvmTest {
         // each language renders every form (no missing item or argument)
         for (Locale l : new Locale[] {Locale.forLanguageTag("tr"), Locale.forLanguageTag("pt-BR"), Locale.forLanguageTag("es-419")})
             for (String[] c : en) System.out.println("text " + l.toLanguageTag() + " " + c[0] + ": " + Eta.text(Integer.parseInt(c[0])).render(l));
+        // the short form, first in the notification's title (a collapsed notification shows only its title and subText on one line)
+        String[][] shortEn = {{"0", "<1 min left"}, {"1", "1 min left"}, {"45", "45 min left"}, {"60", "1 h left"}, {"75", "1 h 15 min left"}, {"125", "2 h 5 min left"},
+                {"595", "9 h 55 min left"}};
+        for (String[] c : shortEn) {
+            String got = Eta.shortText(Integer.parseInt(c[0])).english();
+            check("short", got.equals(c[1]), c[0] + " -> [" + got + "], want [" + c[1] + "]");
+        }
+        for (Locale l : new Locale[] {Locale.forLanguageTag("tr"), Locale.forLanguageTag("pt-BR"), Locale.forLanguageTag("es-419")})
+            for (String[] c : shortEn) System.out.println("short " + l.toLanguageTag() + " " + c[0] + ": " + Eta.shortText(Integer.parseInt(c[0])).render(l));
         ok("words");
     }
 
@@ -430,6 +441,151 @@ public final class EtaJvmTest {
         double want = (20000 - d) / 5.0 + lib(20000) + pack();
         check("takeover", near(prev, want, 0.1), "after 10 minutes " + prev + " s, want " + want);
         ok("takeover");
+    }
+
+    /**
+     * A rate carried over to a new process (Eta.carry, Eta.carried: job.json's "eta_carry"): taken only by the same part with the same total and map, and then an
+     * estimate at once instead of none for 2 minutes; anything else drops it. Not yet matched, it is kept for the process after
+     */
+    static void carried() {
+        Run r = new Run(new Eta(20000, 20000, S));
+        r.e.running(true, r.now);
+        r.e.step(SHADERS, r.now);
+        check("carried", r.e.carry() == null, "a rate before any line");
+        double t = translate(r, 0, 0, 640, 20000, x -> 10, SHADERS, "translate");
+        check("carried", r.e.carry() == null, "a rate before the part's own (64 s)");
+        t = translate(r, t, 640, 3200, 20000, x -> 10, SHADERS, "translate");
+        double[] c = r.e.carry();
+        check("carried", c != null && c[0] == SHADERS && c[1] == 20000 && near(c[3], 10, 0.02), "the carried rate " + Arrays.toString(c));
+        double want = (20000 - 3200) / 10.0 + lib(20000) + pack();
+        // a new process: its first line is the same part with the same total
+        Run q = new Run(new Eta(20000, 20000, S));
+        q.at(t + 600);
+        q.e.carried(c);
+        q.e.running(true, q.now);
+        q.e.step(SHADERS, q.now);
+        check("carried", Arrays.equals(q.e.carry(), c), "the offered rate is kept for the next process until a line takes it");
+        q.e.progress(SHADERS, 3200, 20000, "translate", q.now);
+        check("carried", q.e.carriedOver() && near(q.sec(), want, 0.02), "at the new process's first line " + q.sec() + " s, want " + want);
+        check("carried", Arrays.equals(q.e.carry(), c), "the carried rate is kept for a process after this one");
+        q.at(t + 600 + 60);
+        check("carried", near(q.sec(), want, 0.05), "60 s into the tool's set-up " + q.sec() + " s, want about " + want);
+        // the new process's own speed (5 a second) takes over within the window
+        // the new process's own speed (half) takes over as it does after a pause in the same process (asked at the same moments: the shown time is smoothed)
+        r.e.running(false, r.now);
+        r.at(t + 600);
+        r.e.running(true, r.now);
+        r.e.step(SHADERS, r.now);
+        r.e.progress(SHADERS, 3200, 20000, "translate", r.now);
+        r.sec();
+        r.at(t + 600 + 60);
+        r.sec();
+        for (double x = 0; x <= 600; x += 150) {
+            translate(q, t + 600 + 70 + x, 3264 + (long) (5 * x), 3264 + (long) (5 * (x + 150)), 20000, y -> 5, SHADERS, "translate");
+            translate(r, t + 600 + 70 + x, 3264 + (long) (5 * x), 3264 + (long) (5 * (x + 150)), 20000, y -> 5, SHADERS, "translate");
+            check("carried", near(q.sec(), r.sec(), 0.01), String.format(Locale.ROOT, "%.0f s at half the speed: %.0f s, a resume in the same process %.0f s", x + 150, q.sec(), r.sec()));
+        }
+        // another total (an update's), another step, another map: dropped, and nothing shown until the part's own rate
+        for (Object[] x : new Object[][] {{SHADERS, 584L, "another total"}, {SPLIT, 20000L, "another step"}}) {
+            Run o = new Run(new Eta(20000, 20000, S));
+            o.e.carried(c);
+            o.e.running(true, o.now);
+            o.e.step((Integer) x[0], o.now);
+            o.e.progress((Integer) x[0], 100, (Long) x[1], (Integer) x[0] == SHADERS ? "translate" : "", o.now);
+            check("carried", !o.e.carriedOver() && o.min() == -1 && o.e.carry() == null, x[2] + ": taken, or an estimate at once");
+        }
+        Run m = new Run(new Eta(20000, 20000, S));
+        m.e.carried(c);
+        m.e.running(true, m.now);
+        m.e.step(SHADERS, m.now);
+        m.e.mix(new int[] {20000, 12000});
+        m.e.progress(SHADERS, 3200, 20000, "translate", m.now);
+        check("carried", !m.e.carriedOver() && m.min() == -1, "another map: taken");
+        // a stage line first (the split's "main"): not a counted part, the offer waits for the counted line
+        Run n = new Run(new Eta(20000, 20000, S));
+        double[] sc = {SPLIT, 186583, -1, 400};
+        n.e.carried(sc);
+        n.e.running(true, n.now);
+        n.e.step(SPLIT, n.now);
+        n.e.progress(SPLIT, 0, 1, "main", n.now);
+        check("carried", Arrays.equals(n.e.carry(), sc), "the offer is kept through the split's start");
+        n.at(39);
+        n.e.progress(SPLIT, 171712, 186583, "", n.now);
+        double split = (186583 - 171712) / 400.0 + 20000 * S + lib(20000) + pack();
+        check("carried", n.e.carriedOver() && near(n.sec(), split, 0.02), "the split resumed: " + n.sec() + " s, want " + split);
+        ok("carried");
+    }
+
+    /**
+     * Each trace's run with its process ended at 25, 50 and 75 % of the translation and a new one started at once (a kill: no pause), the tool's first line
+     * at once and its first batch 10 s later: the new process's estimate at its first line against the true time left, and against the estimate the old
+     * process gave at that moment. Prints "carried &lt;name&gt; &lt;percent&gt; &lt;new process's s&gt; &lt;old process's s&gt; &lt;true s&gt;"
+     */
+    static void carriedReplay(File f, String name) throws IOException {
+        List<String> lines = Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
+        List<Ev> ev = fine(lines);
+        int[] mx = mixOf(lines);
+        double end = end(lines), first = -1, last = -1;
+        for (Ev e : ev) if (e.step() == SHADERS && e.stage().equals("translate")) { if (first < 0) first = e.t(); last = e.t(); }
+        for (double share : new double[] {0.25, 0.5, 0.75}) {
+            double at = first + share * (last - first), setup = 10;
+            Run r = new Run(etaOf(lines, mx));
+            r.e.running(true, r.now);
+            int k = 0, step = -1;
+            long done = 0, total = 0;
+            for (; k < ev.size() && ev.get(k).t() <= at; k++) {
+                Ev e = ev.get(k);
+                r.at(e.t());
+                if (e.step() != step) { step = e.step(); r.e.step(step, r.now); if (step == SHADERS) r.e.mix(mx); }
+                r.e.progress(e.step(), e.done(), e.total(), e.stage(), r.now);
+                if (e.step() == SHADERS) { done = e.done(); total = e.total(); }
+            }
+            r.at(at);
+            double old = r.sec();
+            double[] c = r.e.carry();
+            // the new process: PackService.etaFor, then work(): running, the step (its map), the tool's first line
+            Run q = new Run(etaOf(lines, mx));
+            q.at(at);
+            q.e.carried(c);
+            q.e.running(true, q.now);
+            q.e.step(SHADERS, q.now);
+            q.e.mix(mx);
+            q.e.progress(SHADERS, done, total, "translate", q.now);
+            double got = q.sec(), truth = end - at + setup;
+            System.out.println(String.format(Locale.ROOT, "carried %s %.0f %.0f %.0f %.0f", name, share * 100, got, old, truth));
+            check("carried " + name, c != null && near(got, truth, 0.25), String.format(Locale.ROOT, "at %.0f %%: %.0f s, true %.0f s", share * 100, got, truth));
+            check("carried " + name, near(got, old, 0.05), String.format(Locale.ROOT, "at %.0f %%: %.0f s, the old process said %.0f s", share * 100, got, old));
+            // the next 15 minutes (where more than 5 are left): the new process's estimate against the old process's had it gone on (no jump when the new
+            // process's own rate takes over)
+            double worst = 0, worstOld = 0;
+            int ko = k, so = step;
+            for (double t = at + setup; t < Math.min(end, at + 900); t += 10) {
+                for (; k < ev.size() && ev.get(k).t() + setup <= t; k++) {
+                    Ev e = ev.get(k);
+                    q.at(e.t() + setup);
+                    if (e.step() != step) { step = e.step(); q.e.step(step, q.now); }
+                    q.e.progress(e.step(), e.done(), e.total(), e.stage(), q.now);
+                }
+                for (; ko < ev.size() && ev.get(ko).t() <= t - setup; ko++) {
+                    Ev e = ev.get(ko);
+                    r.at(e.t());
+                    if (e.step() != so) { so = e.step(); r.e.step(so, r.now); }
+                    r.e.progress(e.step(), e.done(), e.total(), e.stage(), r.now);
+                }
+                q.at(t);
+                r.at(t - setup);
+                double s = q.sec(), o = r.sec(), left = end + setup - t;
+                if (Double.isNaN(s)) { check("carried " + name, false, String.format(Locale.ROOT, "at %.0f %%: no estimate %.0f s after the restart", share * 100, t - at)); break; }
+                if (left <= 300) continue;
+                worst = Math.max(worst, Math.abs(s - left) / left);
+                if (!Double.isNaN(o)) worstOld = Math.max(worstOld, Math.abs(o - (left - setup)) / (left - setup));
+            }
+            System.out.println(String.format(Locale.ROOT, "carried %s %.0f worst %.1f %% in the 15 minutes after, %.1f %% without the restart", name, share * 100,
+                    100 * worst, 100 * worstOld));
+            check("carried " + name, worst <= worstOld + 0.05, String.format(Locale.ROOT, "at %.0f %%: worst %.1f %%, %.1f %% without the restart", share * 100,
+                    100 * worst, 100 * worstOld));
+        }
+        ok("carried " + name);
     }
 
     /** A trace's events: {seconds, step, done, total} and the stage */

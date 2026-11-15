@@ -85,6 +85,9 @@ final class PackNative {
     private static Context app;
     private static File root;          // filesDir/pack/<version>, once unpacked and Python started
     private static volatile boolean loaded;
+    /** A tool has run in this process: what it left stays resident (the translator's heap, Python's arenas; GameGate), so a game that starts asks this
+     *  process to end rather than wait beside it */
+    private static volatile boolean ran;
 
     private PackNative() {}
 
@@ -109,8 +112,12 @@ final class PackNative {
         synchronized (PackEngine.ENV) {
             env = PackEngine.ENV.entrySet().stream().map(x -> x.getKey() + "=" + x.getValue()).toArray(String[]::new);
         }
+        ran = true;
         return run0(new File(new File(r, "repo"), tool).getPath(), argv, env, logPath);
     }
+
+    /** Whether a tool has run in this process (see ran) */
+    static boolean ranTool() { return ran; }
 
     /** The repository's tools as unpacked from the APK (starts the packer when it has not started in this process) */
     static File repo() throws IOException { return new File(start(), "repo"); }

@@ -13,6 +13,7 @@
     <string name="game_save_copied">Kaydın uygulamanın depolamasına kopyalandı (%1$s). Eski klasör olduğu gibi tutuluyor: %2$s.</string>
     <string name="game_save_not_copied">Kaydın uygulamanın depolamasına kopyalanamadı (%1$s). Bu başlatmada kayıt bulunduğu yerden oynanıyor: %2$s.</string>
     <string name="game_checking_gpu">%1$s: bu telefonun GPU\'su kontrol ediliyor…</string>
+    <string name="game_prepare_pausing">%1$s: oyun telefonun belleğini kullanabilsin diye önce hazırlama duraklatılıyor. Hazırlama, oyun kapanınca kendiliğinden devam eder…</string>
     <!-- The start-up readiness notice and its Details -->
     <string name="game_details_gpu">GPU: %1$s\nBellek: Android\'in bildirdiğine göre %2$.1f GiB.</string>
     <string name="game_ready_missing">Eksik: %1$s.\n\nOyun durabilir ya da yanlış çizebilir. Özel bir GPU sürücüsü (%2$s › %3$s) işe yarayabilir.</string>
