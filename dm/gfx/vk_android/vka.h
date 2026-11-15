@@ -414,6 +414,8 @@ uint32_t vka_shader_lib_count(void);              // the game library's entries 
 uint64_t vka_shader_lib_entry(uint32_t i, int *stage);   // the key and DMSH_VK_STAGE_* of entry i in the library's order (0 = past the end)
 int vka_shader_lib_stage(uint64_t key);            // its DMSH_VK_STAGE_* (the library loaded first), -1 = not in the library
 int vka_shader_lib_stage_loaded(uint64_t key);     // the same without loading the library: -2 before it is loaded
+void vka_shader_gmem_log(const char *when);   // the raw global memory merge's totals so far (vka_gmem.c, DM_VK_GMEM_MERGE), one line
+int vka_shader_gmem_on(void);                 // DM_VK_GMEM_MERGE (read once): the modules are rewritten (the pipeline cache file's name says so, vka_pso.c)
 VkShaderModule vka_shader_module(vka_shader *s, int variant);
 uint32_t vka_shader_sg_pin(int stage);              // DMSH_VK_STAGE_*: the subgroup size its subgroup shaders' pipelines require (vka_shader.c sg_plan), 0 = none
 VkShaderModule vka_shader_cs_module(vka_shader *s);  // a compute shader's module: its DMSH_VK_MOD_SHUFFLE_LDS one where the device takes it (vka_shader.c shuffle_plan), else the base

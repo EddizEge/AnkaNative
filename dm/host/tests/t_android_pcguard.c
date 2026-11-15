@@ -15,6 +15,13 @@ int main(void) {
     CHECK(!vka_ndve_net_key(VKA_NDVE_CONVERT), "the colour conversion runs in every movie frame: not the network");
     CHECK(!vka_ndve_net_key(0xd99fbeeb53d38847ull) && !vka_ndve_net_key(0xfa3033d05c0a41d6ull), "agl's NDSR upscaler networks are made by normal runs: not the NDVE network");
     CHECK(!vka_ndve_net_key(0), "no key");
+    // The cache file's default name: the merge's own file, the other kind's beside it
+    { char p[64];
+      CHECK(vka_pc_default_name(p, sizeof p, "/d", NULL, 0) && !strcmp(p, "/d/vk_pipelines.bin"), "system driver, merge off: %s", p);
+      CHECK(vka_pc_default_name(p, sizeof p, "/d", NULL, 1) && !strcmp(p, "/d/vk_pipelines-gm1.bin"), "system driver, merge on: %s", p);
+      CHECK(vka_pc_default_name(p, sizeof p, "/d", "anka-turnip-1.0.0", 1) && !strcmp(p, "/d/vk_pipelines-anka-turnip-1.0.0-gm1.bin"), "custom driver, merge on: %s", p);
+      CHECK(vka_pc_default_name(p, sizeof p, "/d", "anka-turnip-1.0.0", 0) && !strcmp(p, "/d/vk_pipelines-anka-turnip-1.0.0.bin"), "custom driver, merge off: %s", p);
+      CHECK(!vka_pc_default_name(p, 20, "/d", "anka-turnip-1.0.0", 1), "a name that does not fit is refused"); }
     // The switches
     CHECK(vka_pc_keep_blocker(NULL) == NULL, "a normal run keeps its pipelines");
     CHECK(vka_pc_keep_blocker("") == NULL, "an empty DM_VK_DISPATCH_SKIP is unset");

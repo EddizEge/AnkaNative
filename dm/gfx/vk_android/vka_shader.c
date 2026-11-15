@@ -12,6 +12,7 @@
 #include "game_profile.h"
 #include "vka_spvpatch.h"
 #include "vka_memu_spv.h"
+#include "vka_gmem.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -246,9 +247,47 @@ static void fb_own_set(uint64_t key, uint32_t *w, size_t nb) {
 }
 // A library module's words. With the mesh draws drawn through compute (V.memu, vka_memu.c), a pixel shader of per-primitive inputs is only ever drawn behind the generated
 // vertex shader: every module of it is made from its words with those inputs flat (vka_memu_fs_flat), so the variants and retypes made from them are too.
+// Raw global memory loads of one base address given one page lookup or pool search per group (vka_gmem.c), on every module the replay makes from the library: each
+// variant, the vertex input / colour output / blend guard rewrites, the geometry claim and the task / mesh shaders' compute forms all start from these words.
+// DM_VK_GMEM_MERGE=0 leaves the modules as the library has them; read once (at the first module), so a run's modules are all of one kind. A module the rewrite refuses or
+// fails on is used as the library has it, with a red line. Totals: vka_shader_gmem_log
+static pthread_mutex_t g_gm_mu = PTHREAD_MUTEX_INITIALIZER;
+static vka_gmem_stats g_gm; static int g_gm_mods, g_gm_rew, g_gm_fail;
+static int gmem_on(void) {
+    static _Atomic int on = -1;
+    int v = atomic_load(&on);
+    if (v < 0) { v = VKA_ENV("DM_VK_GMEM_MERGE", 1) ? 1 : 0; int x = -1; if (!atomic_compare_exchange_strong(&on, &x, v)) v = x; }
+    return v;
+}
+int vka_shader_gmem_on(void) { return gmem_on(); }
+static uint32_t *gmem_merge(const dmsh_vk_entry *e, uint32_t *w, size_t *nb) {
+    if (!w || !gmem_on()) return w;
+    uint32_t *o = NULL; size_t on = 0; char err[256] = ""; vka_gmem_stats st = {0};
+    int r = vka_spv_gmem_merge(w, *nb / 4, &o, &on, &st, err, sizeof err);
+    pthread_mutex_lock(&g_gm_mu);
+    if (st.calls || st.left_helper_calls || r < 0) g_gm_mods++;
+    if (r > 0) { g_gm_rew++;
+        g_gm.helpers_pidx += st.helpers_pidx; g_gm.helpers_loop += st.helpers_loop; g_gm.helpers_left += st.helpers_left; g_gm.calls += st.calls; g_gm.merged += st.merged;
+        g_gm.groups += st.groups; g_gm.left_single += st.left_single; g_gm.left_unknown += st.left_unknown; g_gm.left_helper_calls += st.left_helper_calls; }
+    else if (r == 0) { g_gm.helpers_left += st.helpers_left; g_gm.calls += st.calls; g_gm.left_single += st.left_single; g_gm.left_unknown += st.left_unknown; g_gm.left_helper_calls += st.left_helper_calls; }
+    else g_gm_fail++;
+    pthread_mutex_unlock(&g_gm_mu);
+    if (r < 0) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("shader %016llx: raw global memory loads not merged (%s): its module is used as the library has it", e ? (unsigned long long)e->key : 0ull, err); return w; }
+    if (r == 0) return w;
+    free(w); *nb = on * 4;
+    return o;
+}
+void vka_shader_gmem_log(const char *when) {
+    if (!gmem_on()) { VRED_ONCE("raw global memory loads: DM_VK_GMEM_MERGE=0: every module as the library has it (one page lookup or pool search per load)"); return; }
+    pthread_mutex_lock(&g_gm_mu); vka_gmem_stats t = g_gm; int mods = g_gm_mods, rew = g_gm_rew, fail = g_gm_fail; pthread_mutex_unlock(&g_gm_mu);
+    VLOG("raw global memory loads (%s): %d modules with them made, %d rewritten: %d of %d loads take their group's lookup (%d groups; helpers: %d page index, %d pool search); "
+         "left as they are: %d loads without enough neighbours, %d whose address is not base + constant (or not in the function's own variables), %d through %d helpers this rewrite does not prove (stores, other shapes), "
+         "%d modules it failed on (DM_VK_GMEM_MERGE)", when, mods, rew, t.merged, t.calls, t.groups, t.helpers_pidx, t.helpers_loop, t.left_single, t.left_unknown,
+         t.left_helper_calls, t.helpers_left, fail);
+}
 // From Banana Native b39bf8b5 (vka_shader.c lib_words)
 static uint32_t *lib_words(const vka_shlib *L, const dmsh_vk_entry *e, const dmsh_vk_module *m, size_t *nb, char *err, size_t errn) {
-    uint32_t *w = vka_shlib_spirv(L, m, nb, err, errn);
+    uint32_t *w = gmem_merge(e, vka_shlib_spirv(L, m, nb, err, errn), nb);
     if (w && V.memu && e && e->stage == DMSH_VK_STAGE_FS && (e->flags & DMSH_VK_F_MESH_PRIM)) {
         size_t on = 0; char e2[160] = ""; uint32_t *o = vka_memu_fs_flat(w, *nb / 4, &on, e2, sizeof e2);
         if (o) { free(w); w = o; *nb = on * 4; }

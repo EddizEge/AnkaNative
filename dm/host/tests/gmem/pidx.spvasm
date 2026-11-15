@@ -1,0 +1,797 @@
+               OpCapability Shader
+               OpCapability Int64
+               OpCapability PhysicalStorageBufferAddresses
+               OpExtension "SPV_KHR_physical_storage_buffer"
+      %glsl = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel PhysicalStorageBuffer64 GLSL450
+               OpEntryPoint GLCompute %main "main"
+               OpExecutionMode %main LocalSize 1 1 1
+               OpDecorate %rta ArrayStride 4
+               OpDecorate %blk BufferBlock
+               OpMemberDecorate %blk 0 Offset 0
+               OpDecorate %T DescriptorSet 0
+               OpDecorate %T Binding 0
+               OpDecorate %IN DescriptorSet 0
+               OpDecorate %IN Binding 1
+               OpDecorate %OUT DescriptorSet 0
+               OpDecorate %OUT Binding 2
+       %void = OpTypeVoid
+       %bool = OpTypeBool
+       %uint = OpTypeInt 32 0
+        %int = OpTypeInt 32 1
+      %float = OpTypeFloat 32
+      %ulong = OpTypeInt 64 0
+     %v2uint = OpTypeVector %uint 2
+        %rta = OpTypeRuntimeArray %uint
+        %blk = OpTypeStruct %rta
+     %p_blk = OpTypePointer Uniform %blk
+      %p_u  = OpTypePointer Uniform %uint
+      %p_fi = OpTypePointer Function %int
+     %p_psb = OpTypePointer PhysicalStorageBuffer %uint
+        %fnv = OpTypeFunction %void
+        %fnh = OpTypeFunction %int %p_fi %p_fi
+          %T = OpVariable %p_blk Uniform
+         %IN = OpVariable %p_blk Uniform
+        %OUT = OpVariable %p_blk Uniform
+      %int_0 = OpConstant %int 0
+      %int_1 = OpConstant %int 1
+      %int_6 = OpConstant %int 6
+      %int_7 = OpConstant %int 7
+      %int_8 = OpConstant %int 8
+      %int_2 = OpConstant %int 2
+      %int_3 = OpConstant %int 3
+      %int_4 = OpConstant %int 4
+      %int_5 = OpConstant %int 5
+   %int_2048 = OpConstant %int 2048
+  %int_16384 = OpConstant %int 16384
+  %int_32768 = OpConstant %int 32768
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+    %uint_12 = OpConstant %uint 12
+    %uint_20 = OpConstant %uint 20
+  %uint_4095 = OpConstant %uint 4095
+ %uint_32768 = OpConstant %uint 32768
+ %uint_32769 = OpConstant %uint 32769
+ %uint_32772 = OpConstant %uint 32772
+  %uint_page = OpConstant %uint 4294963200
+
+%k0 = OpConstant %int 0
+%k1 = OpConstant %int 1
+%k2 = OpConstant %int 2
+%k3 = OpConstant %int 3
+%k4 = OpConstant %int 4
+%k5 = OpConstant %int 5
+%k6 = OpConstant %int 6
+%k7 = OpConstant %int 7
+%k8 = OpConstant %int 8
+%k9 = OpConstant %int 9
+%k10 = OpConstant %int 10
+%k11 = OpConstant %int 11
+%k12 = OpConstant %int 12
+%k13 = OpConstant %int 13
+%k14 = OpConstant %int 16
+%k15 = OpConstant %int 4088
+%k16 = OpConstant %int 4092
+%k17 = OpConstant %int 4096
+%k18 = OpConstant %int 4100
+%k19 = OpConstant %int 20
+%k20 = OpConstant %int 100
+%k21 = OpConstant %int 24
+%k22 = OpConstant %int -16
+%k23 = OpConstant %int -12
+%k24 = OpConstant %int -8
+%k25 = OpConstant %int 48
+%k26 = OpConstant %int 52
+%k27 = OpConstant %int 56
+%k28 = OpConstant %int 60
+%k29 = OpConstant %int 64
+%k30 = OpConstant %int 68
+%k31 = OpConstant %int 72
+%k32 = OpConstant %int 14
+%k33 = OpConstant %int 32
+%k34 = OpConstant %int 36
+%k35 = OpConstant %int 40
+%k36 = OpConstant %int 44
+%k37 = OpConstant %int 15
+%k38 = OpConstant %int 17
+%k39 = OpConstant %int 18
+%k40 = OpConstant %int 19
+%k41 = OpConstant %int 21
+%k42 = OpConstant %int 22
+%k43 = OpConstant %int 23
+%k44 = OpConstant %int 25
+%k45 = OpConstant %int 26
+%k46 = OpConstant %int 27
+%k47 = OpConstant %int 28
+%k48 = OpConstant %int 29
+%k49 = OpConstant %int 30
+%k50 = OpConstant %int 31
+%k51 = OpConstant %int 33
+%main = OpFunction %void None %fnv
+%entry = OpLabel
+%v49 = OpVariable %p_fi Function
+%v50 = OpVariable %p_fi Function
+%v51 = OpVariable %p_fi Function
+%v59 = OpVariable %p_fi Function
+%v60 = OpVariable %p_fi Function
+%v61 = OpVariable %p_fi Function
+%v69 = OpVariable %p_fi Function
+%v70 = OpVariable %p_fi Function
+%v71 = OpVariable %p_fi Function
+%v79 = OpVariable %p_fi Function
+%v80 = OpVariable %p_fi Function
+%v81 = OpVariable %p_fi Function
+%v89 = OpVariable %p_fi Function
+%v90 = OpVariable %p_fi Function
+%v91 = OpVariable %p_fi Function
+%v99 = OpVariable %p_fi Function
+%v100 = OpVariable %p_fi Function
+%v101 = OpVariable %p_fi Function
+%v109 = OpVariable %p_fi Function
+%v110 = OpVariable %p_fi Function
+%v111 = OpVariable %p_fi Function
+%v119 = OpVariable %p_fi Function
+%v120 = OpVariable %p_fi Function
+%v121 = OpVariable %p_fi Function
+%v129 = OpVariable %p_fi Function
+%v130 = OpVariable %p_fi Function
+%v131 = OpVariable %p_fi Function
+%v139 = OpVariable %p_fi Function
+%v140 = OpVariable %p_fi Function
+%v141 = OpVariable %p_fi Function
+%v149 = OpVariable %p_fi Function
+%v150 = OpVariable %p_fi Function
+%v151 = OpVariable %p_fi Function
+%v159 = OpVariable %p_fi Function
+%v160 = OpVariable %p_fi Function
+%v161 = OpVariable %p_fi Function
+%v169 = OpVariable %p_fi Function
+%v170 = OpVariable %p_fi Function
+%v171 = OpVariable %p_fi Function
+%v179 = OpVariable %p_fi Function
+%v180 = OpVariable %p_fi Function
+%v181 = OpVariable %p_fi Function
+%v191 = OpVariable %p_fi Function
+%v192 = OpVariable %p_fi Function
+%v193 = OpVariable %p_fi Function
+%v201 = OpVariable %p_fi Function
+%v202 = OpVariable %p_fi Function
+%v203 = OpVariable %p_fi Function
+%v211 = OpVariable %p_fi Function
+%v212 = OpVariable %p_fi Function
+%v213 = OpVariable %p_fi Function
+%v221 = OpVariable %p_fi Function
+%v222 = OpVariable %p_fi Function
+%v223 = OpVariable %p_fi Function
+%v231 = OpVariable %p_fi Function
+%v232 = OpVariable %p_fi Function
+%v233 = OpVariable %p_fi Function
+%v241 = OpVariable %p_fi Function
+%v242 = OpVariable %p_fi Function
+%v243 = OpVariable %p_fi Function
+%v251 = OpVariable %p_fi Function
+%v252 = OpVariable %p_fi Function
+%v253 = OpVariable %p_fi Function
+%v261 = OpVariable %p_fi Function
+%v262 = OpVariable %p_fi Function
+%v263 = OpVariable %p_fi Function
+%v272 = OpVariable %p_fi Function
+%v273 = OpVariable %p_fi Function
+%v274 = OpVariable %p_fi Function
+%v282 = OpVariable %p_fi Function
+%v283 = OpVariable %p_fi Function
+%v284 = OpVariable %p_fi Function
+%v292 = OpVariable %p_fi Function
+%v293 = OpVariable %p_fi Function
+%v294 = OpVariable %p_fi Function
+%v304 = OpVariable %p_fi Function
+%v305 = OpVariable %p_fi Function
+%v306 = OpVariable %p_fi Function
+%v314 = OpVariable %p_fi Function
+%v315 = OpVariable %p_fi Function
+%v316 = OpVariable %p_fi Function
+%v324 = OpVariable %p_fi Function
+%v325 = OpVariable %p_fi Function
+%v326 = OpVariable %p_fi Function
+%v329 = OpVariable %p_fi Function
+%v330 = OpVariable %p_fi Function
+%v333 = OpVariable %p_fi Function
+%v334 = OpVariable %p_fi Function
+%v335 = OpVariable %p_fi Function
+%v348 = OpVariable %p_fi Function
+%v349 = OpVariable %p_fi Function
+%v350 = OpVariable %p_fi Function
+%v358 = OpVariable %p_fi Function
+%v359 = OpVariable %p_fi Function
+%v360 = OpVariable %p_fi Function
+%v368 = OpVariable %p_fi Function
+%v369 = OpVariable %p_fi Function
+%v370 = OpVariable %p_fi Function
+%v378 = OpVariable %p_fi Function
+%v379 = OpVariable %p_fi Function
+%v380 = OpVariable %p_fi Function
+%v384 = OpVariable %p_fi Function
+%t1 = OpAccessChain %p_u %IN %int_0 %k0
+%t2 = OpLoad %uint %t1
+%t3 = OpBitcast %int %t2
+%t4 = OpAccessChain %p_u %IN %int_0 %k1
+%t5 = OpLoad %uint %t4
+%t6 = OpBitcast %int %t5
+%t7 = OpAccessChain %p_u %IN %int_0 %k2
+%t8 = OpLoad %uint %t7
+%t9 = OpBitcast %int %t8
+%t10 = OpAccessChain %p_u %IN %int_0 %k3
+%t11 = OpLoad %uint %t10
+%t12 = OpBitcast %int %t11
+%t13 = OpAccessChain %p_u %IN %int_0 %k4
+%t14 = OpLoad %uint %t13
+%t15 = OpBitcast %int %t14
+%t16 = OpAccessChain %p_u %IN %int_0 %k5
+%t17 = OpLoad %uint %t16
+%t18 = OpBitcast %int %t17
+%t19 = OpAccessChain %p_u %IN %int_0 %k6
+%t20 = OpLoad %uint %t19
+%t21 = OpBitcast %int %t20
+%t22 = OpAccessChain %p_u %IN %int_0 %k7
+%t23 = OpLoad %uint %t22
+%t24 = OpBitcast %int %t23
+%t25 = OpAccessChain %p_u %IN %int_0 %k8
+%t26 = OpLoad %uint %t25
+%t27 = OpBitcast %int %t26
+%t28 = OpAccessChain %p_u %IN %int_0 %k9
+%t29 = OpLoad %uint %t28
+%t30 = OpBitcast %int %t29
+%t31 = OpAccessChain %p_u %IN %int_0 %k10
+%t32 = OpLoad %uint %t31
+%t33 = OpBitcast %int %t32
+%t34 = OpAccessChain %p_u %IN %int_0 %k11
+%t35 = OpLoad %uint %t34
+%t36 = OpBitcast %int %t35
+%t37 = OpAccessChain %p_u %IN %int_0 %k12
+%t38 = OpLoad %uint %t37
+%t39 = OpBitcast %int %t38
+%t40 = OpAccessChain %p_u %IN %int_0 %k13
+%t41 = OpLoad %uint %t40
+%t42 = OpBitcast %int %t41
+%twp = OpAccessChain %p_u %T %int_0 %int_32768
+%twv = OpBitcast %uint %t39
+%t43 = OpIAdd %int %t3 %k0
+%t44 = OpBitcast %uint %t43
+%t45 = OpBitcast %uint %t3
+%t46 = OpULessThan %bool %t44 %t45
+%t47 = OpSelect %int %t46 %int_1 %int_0
+%t48 = OpIAdd %int %t6 %t47
+OpStore %v49 %t43
+OpStore %v50 %t48
+%t52 = OpFunctionCall %int %H %v49 %v50
+OpStore %v51 %t52
+%t53 = OpIAdd %int %t3 %k4
+%t54 = OpBitcast %uint %t53
+%t55 = OpBitcast %uint %t3
+%t56 = OpULessThan %bool %t54 %t55
+%t57 = OpSelect %int %t56 %int_1 %int_0
+%t58 = OpIAdd %int %t6 %t57
+OpStore %v59 %t53
+OpStore %v60 %t58
+%t62 = OpFunctionCall %int %H %v59 %v60
+OpStore %v61 %t62
+%t63 = OpIAdd %int %t3 %k8
+%t64 = OpBitcast %uint %t63
+%t65 = OpBitcast %uint %t3
+%t66 = OpULessThan %bool %t64 %t65
+%t67 = OpSelect %int %t66 %int_1 %int_0
+%t68 = OpIAdd %int %t6 %t67
+OpStore %v69 %t63
+OpStore %v70 %t68
+%t72 = OpFunctionCall %int %H %v69 %v70
+OpStore %v71 %t72
+%t73 = OpIAdd %int %t3 %k12
+%t74 = OpBitcast %uint %t73
+%t75 = OpBitcast %uint %t3
+%t76 = OpULessThan %bool %t74 %t75
+%t77 = OpSelect %int %t76 %int_1 %int_0
+%t78 = OpIAdd %int %t6 %t77
+OpStore %v79 %t73
+OpStore %v80 %t78
+%t82 = OpFunctionCall %int %H %v79 %v80
+OpStore %v81 %t82
+%t83 = OpIAdd %int %t9 %k0
+%t84 = OpBitcast %uint %t83
+%t85 = OpBitcast %uint %t9
+%t86 = OpULessThan %bool %t84 %t85
+%t87 = OpSelect %int %t86 %int_1 %int_0
+%t88 = OpIAdd %int %t12 %t87
+OpStore %v89 %t83
+OpStore %v90 %t88
+%t92 = OpFunctionCall %int %H %v89 %v90
+OpStore %v91 %t92
+%t93 = OpIAdd %int %t9 %k4
+%t94 = OpBitcast %uint %t93
+%t95 = OpBitcast %uint %t9
+%t96 = OpULessThan %bool %t94 %t95
+%t97 = OpSelect %int %t96 %int_1 %int_0
+%t98 = OpIAdd %int %t12 %t97
+OpStore %v99 %t93
+OpStore %v100 %t98
+%t102 = OpFunctionCall %int %H %v99 %v100
+OpStore %v101 %t102
+%t103 = OpIAdd %int %t3 %k14
+%t104 = OpBitcast %uint %t103
+%t105 = OpBitcast %uint %t3
+%t106 = OpULessThan %bool %t104 %t105
+%t107 = OpSelect %int %t106 %int_1 %int_0
+%t108 = OpIAdd %int %t6 %t107
+OpStore %v109 %t103
+OpStore %v110 %t108
+%t112 = OpFunctionCall %int %H %v109 %v110
+OpStore %v111 %t112
+%t113 = OpIAdd %int %t9 %k8
+%t114 = OpBitcast %uint %t113
+%t115 = OpBitcast %uint %t9
+%t116 = OpULessThan %bool %t114 %t115
+%t117 = OpSelect %int %t116 %int_1 %int_0
+%t118 = OpIAdd %int %t12 %t117
+OpStore %v119 %t113
+OpStore %v120 %t118
+%t122 = OpFunctionCall %int %H %v119 %v120
+OpStore %v121 %t122
+%t123 = OpIAdd %int %t15 %k15
+%t124 = OpBitcast %uint %t123
+%t125 = OpBitcast %uint %t15
+%t126 = OpULessThan %bool %t124 %t125
+%t127 = OpSelect %int %t126 %int_1 %int_0
+%t128 = OpIAdd %int %t18 %t127
+OpStore %v129 %t123
+OpStore %v130 %t128
+%t132 = OpFunctionCall %int %H %v129 %v130
+OpStore %v131 %t132
+%t133 = OpIAdd %int %t15 %k16
+%t134 = OpBitcast %uint %t133
+%t135 = OpBitcast %uint %t15
+%t136 = OpULessThan %bool %t134 %t135
+%t137 = OpSelect %int %t136 %int_1 %int_0
+%t138 = OpIAdd %int %t18 %t137
+OpStore %v139 %t133
+OpStore %v140 %t138
+%t142 = OpFunctionCall %int %H %v139 %v140
+OpStore %v141 %t142
+%t143 = OpIAdd %int %t15 %k17
+%t144 = OpBitcast %uint %t143
+%t145 = OpBitcast %uint %t15
+%t146 = OpULessThan %bool %t144 %t145
+%t147 = OpSelect %int %t146 %int_1 %int_0
+%t148 = OpIAdd %int %t18 %t147
+OpStore %v149 %t143
+OpStore %v150 %t148
+%t152 = OpFunctionCall %int %H %v149 %v150
+OpStore %v151 %t152
+%t153 = OpIAdd %int %t15 %k18
+%t154 = OpBitcast %uint %t153
+%t155 = OpBitcast %uint %t15
+%t156 = OpULessThan %bool %t154 %t155
+%t157 = OpSelect %int %t156 %int_1 %int_0
+%t158 = OpIAdd %int %t18 %t157
+OpStore %v159 %t153
+OpStore %v160 %t158
+%t162 = OpFunctionCall %int %H %v159 %v160
+OpStore %v161 %t162
+%t163 = OpIAdd %int %t21 %k14
+%t164 = OpBitcast %uint %t163
+%t165 = OpBitcast %uint %t21
+%t166 = OpULessThan %bool %t164 %t165
+%t167 = OpSelect %int %t166 %int_1 %int_0
+%t168 = OpIAdd %int %t24 %t167
+OpStore %v169 %t163
+OpStore %v170 %t168
+%t172 = OpFunctionCall %int %H %v169 %v170
+OpStore %v171 %t172
+%t173 = OpIAdd %int %t21 %k19
+%t174 = OpBitcast %uint %t173
+%t175 = OpBitcast %uint %t21
+%t176 = OpULessThan %bool %t174 %t175
+%t177 = OpSelect %int %t176 %int_1 %int_0
+%t178 = OpIAdd %int %t24 %t177
+OpStore %v179 %t173
+OpStore %v180 %t178
+%t182 = OpFunctionCall %int %H %v179 %v180
+OpStore %v181 %t182
+%t183 = OpAccessChain %p_u %OUT %int_0 %k20
+%t184 = OpBitcast %uint %t21
+OpStore %t183 %t184
+%t185 = OpIAdd %int %t21 %k21
+%t186 = OpBitcast %uint %t185
+%t187 = OpBitcast %uint %t21
+%t188 = OpULessThan %bool %t186 %t187
+%t189 = OpSelect %int %t188 %int_1 %int_0
+%t190 = OpIAdd %int %t24 %t189
+OpStore %v191 %t185
+OpStore %v192 %t190
+%t194 = OpFunctionCall %int %H %v191 %v192
+OpStore %v193 %t194
+%t195 = OpIAdd %int %t27 %k22
+%t196 = OpBitcast %uint %t195
+%t197 = OpBitcast %uint %t27
+%t198 = OpULessThan %bool %t196 %t197
+%t199 = OpSelect %int %t198 %int_1 %int_0
+%t200 = OpIAdd %int %t30 %t199
+OpStore %v201 %t195
+OpStore %v202 %t200
+%t204 = OpFunctionCall %int %H %v201 %v202
+OpStore %v203 %t204
+%t205 = OpIAdd %int %t27 %k23
+%t206 = OpBitcast %uint %t205
+%t207 = OpBitcast %uint %t27
+%t208 = OpULessThan %bool %t206 %t207
+%t209 = OpSelect %int %t208 %int_1 %int_0
+%t210 = OpIAdd %int %t30 %t209
+OpStore %v211 %t205
+OpStore %v212 %t210
+%t214 = OpFunctionCall %int %H %v211 %v212
+OpStore %v213 %t214
+%t215 = OpIAdd %int %t27 %k24
+%t216 = OpBitcast %uint %t215
+%t217 = OpBitcast %uint %t27
+%t218 = OpULessThan %bool %t216 %t217
+%t219 = OpSelect %int %t218 %int_1 %int_0
+%t220 = OpIAdd %int %t30 %t219
+OpStore %v221 %t215
+OpStore %v222 %t220
+%t224 = OpFunctionCall %int %H %v221 %v222
+OpStore %v223 %t224
+%t225 = OpIAdd %int %t33 %k25
+%t226 = OpBitcast %uint %t225
+%t227 = OpBitcast %uint %t33
+%t228 = OpULessThan %bool %t226 %t227
+%t229 = OpSelect %int %t228 %int_1 %int_0
+%t230 = OpIAdd %int %t36 %t229
+OpStore %v231 %t225
+OpStore %v232 %t230
+%t234 = OpFunctionCall %int %H %v231 %v232
+OpStore %v233 %t234
+%t235 = OpIAdd %int %t33 %k26
+%t236 = OpBitcast %uint %t235
+%t237 = OpBitcast %uint %t33
+%t238 = OpULessThan %bool %t236 %t237
+%t239 = OpSelect %int %t238 %int_1 %int_0
+%t240 = OpIAdd %int %t36 %t239
+OpStore %v241 %t235
+OpStore %v242 %t240
+%t244 = OpFunctionCall %int %H %v241 %v242
+OpStore %v243 %t244
+%t245 = OpIAdd %int %t33 %k27
+%t246 = OpBitcast %uint %t245
+%t247 = OpBitcast %uint %t33
+%t248 = OpULessThan %bool %t246 %t247
+%t249 = OpSelect %int %t248 %int_1 %int_0
+%t250 = OpIAdd %int %t36 %t249
+OpStore %v251 %t245
+OpStore %v252 %t250
+%t254 = OpFunctionCall %int %H %v251 %v252
+OpStore %v253 %t254
+%t255 = OpIAdd %int %t33 %k28
+%t256 = OpBitcast %uint %t255
+%t257 = OpBitcast %uint %t33
+%t258 = OpULessThan %bool %t256 %t257
+%t259 = OpSelect %int %t258 %int_1 %int_0
+%t260 = OpIAdd %int %t36 %t259
+OpStore %v261 %t255
+OpStore %v262 %t260
+%t264 = OpFunctionCall %int %H %v261 %v262
+OpStore %v263 %t264
+%t265 = OpIAdd %int %t15 %k8
+%t266 = OpIAdd %int %t9 %k29
+%t267 = OpBitcast %uint %t266
+%t268 = OpBitcast %uint %t9
+%t269 = OpULessThan %bool %t267 %t268
+%t270 = OpSelect %int %t269 %int_1 %int_0
+%t271 = OpIAdd %int %t12 %t270
+OpStore %v272 %t266
+OpStore %v273 %t271
+%t275 = OpFunctionCall %int %H %v272 %v273
+OpStore %v274 %t275
+%t276 = OpIAdd %int %t9 %k30
+%t277 = OpBitcast %uint %t276
+%t278 = OpBitcast %uint %t9
+%t279 = OpULessThan %bool %t277 %t278
+%t280 = OpSelect %int %t279 %int_1 %int_0
+%t281 = OpIAdd %int %t12 %t280
+OpStore %v282 %t276
+OpStore %v283 %t281
+%t285 = OpFunctionCall %int %H %v282 %v283
+OpStore %v284 %t285
+%t286 = OpIAdd %int %t9 %k31
+%t287 = OpBitcast %uint %t286
+%t288 = OpBitcast %uint %t9
+%t289 = OpULessThan %bool %t287 %t288
+%t290 = OpSelect %int %t289 %int_1 %int_0
+%t291 = OpIAdd %int %t12 %t290
+%a296 = OpCopyObject %p_fi %v292
+OpStore %v292 %t286
+OpStore %v293 %t291
+OpStore %a296 %t265
+%t295 = OpFunctionCall %int %H %v292 %v293
+OpStore %v294 %t295
+%t297 = OpIAdd %int %t15 %k8
+%t298 = OpIAdd %int %t9 %k29
+%t299 = OpBitcast %uint %t298
+%t300 = OpBitcast %uint %t9
+%t301 = OpULessThan %bool %t299 %t300
+%t302 = OpSelect %int %t301 %int_1 %int_0
+%t303 = OpIAdd %int %t12 %t302
+OpStore %v304 %t298
+OpStore %v305 %t303
+%t307 = OpFunctionCall %int %H %v304 %v305
+OpStore %v306 %t307
+%t308 = OpIAdd %int %t9 %k30
+%t309 = OpBitcast %uint %t308
+%t310 = OpBitcast %uint %t9
+%t311 = OpULessThan %bool %t309 %t310
+%t312 = OpSelect %int %t311 %int_1 %int_0
+%t313 = OpIAdd %int %t12 %t312
+OpStore %v314 %t308
+OpStore %v315 %t313
+%t317 = OpFunctionCall %int %H %v314 %v315
+OpStore %v316 %t317
+%t318 = OpIAdd %int %t9 %k31
+%t319 = OpBitcast %uint %t318
+%t320 = OpBitcast %uint %t9
+%t321 = OpULessThan %bool %t319 %t320
+%t322 = OpSelect %int %t321 %int_1 %int_0
+%t323 = OpIAdd %int %t12 %t322
+%a328 = OpAccessChain %p_fi %v324
+OpStore %v324 %t318
+OpStore %v325 %t323
+OpStore %a328 %t297
+%t327 = OpFunctionCall %int %H %v324 %v325
+OpStore %v326 %t327
+%t331 = OpIAdd %int %t39 %k29
+OpStore %v329 %t331
+OpStore %v330 %t42
+%t332 = OpBitwiseXor %int %t39 %k14
+OpStore %v333 %t332
+OpStore %v334 %t42
+%t336 = OpFunctionCall %int %H %v333 %v334
+OpStore %v335 %t336
+%t337 = OpAccessChain %p_u %IN %int_0 %k32
+%t338 = OpLoad %uint %t337
+%t339 = OpBitcast %int %t338
+%t340 = OpBitwiseAnd %int %t339 %int_1
+%t341 = OpINotEqual %bool %t340 %int_0
+OpSelectionMerge %mrg None
+OpBranchConditional %t341 %then %mrg
+%then = OpLabel
+%t342 = OpIAdd %int %t3 %k33
+%t343 = OpBitcast %uint %t342
+%t344 = OpBitcast %uint %t3
+%t345 = OpULessThan %bool %t343 %t344
+%t346 = OpSelect %int %t345 %int_1 %int_0
+%t347 = OpIAdd %int %t6 %t346
+OpStore %v348 %t342
+OpStore %v349 %t347
+%t351 = OpFunctionCall %int %H %v348 %v349
+OpStore %v350 %t351
+%t352 = OpIAdd %int %t3 %k34
+%t353 = OpBitcast %uint %t352
+%t354 = OpBitcast %uint %t3
+%t355 = OpULessThan %bool %t353 %t354
+%t356 = OpSelect %int %t355 %int_1 %int_0
+%t357 = OpIAdd %int %t6 %t356
+OpStore %v358 %t352
+OpStore %v359 %t357
+%t361 = OpFunctionCall %int %H %v358 %v359
+OpStore %v360 %t361
+%t362 = OpIAdd %int %t3 %k35
+%t363 = OpBitcast %uint %t362
+%t364 = OpBitcast %uint %t3
+%t365 = OpULessThan %bool %t363 %t364
+%t366 = OpSelect %int %t365 %int_1 %int_0
+%t367 = OpIAdd %int %t6 %t366
+OpStore %v368 %t362
+OpStore %v369 %t367
+%t371 = OpFunctionCall %int %H %v368 %v369
+OpStore %v370 %t371
+%t372 = OpIAdd %int %t3 %k36
+%t373 = OpBitcast %uint %t372
+%t374 = OpBitcast %uint %t3
+%t375 = OpULessThan %bool %t373 %t374
+%t376 = OpSelect %int %t375 %int_1 %int_0
+%t377 = OpIAdd %int %t6 %t376
+OpStore %v378 %t372
+OpStore %v379 %t377
+%t381 = OpFunctionCall %int %H %v378 %v379
+OpStore %v380 %t381
+OpBranch %mrg
+%mrg = OpLabel
+%t383 = OpFunctionCall %int %H %v329 %v330
+OpStore %v384 %t383
+%t385 = OpLoad %int %v51
+%t386 = OpAccessChain %p_u %OUT %int_0 %k0
+%t387 = OpBitcast %uint %t385
+OpStore %t386 %t387
+%t388 = OpLoad %int %v61
+%t389 = OpAccessChain %p_u %OUT %int_0 %k1
+%t390 = OpBitcast %uint %t388
+OpStore %t389 %t390
+%t391 = OpLoad %int %v71
+%t392 = OpAccessChain %p_u %OUT %int_0 %k2
+%t393 = OpBitcast %uint %t391
+OpStore %t392 %t393
+%t394 = OpLoad %int %v81
+%t395 = OpAccessChain %p_u %OUT %int_0 %k3
+%t396 = OpBitcast %uint %t394
+OpStore %t395 %t396
+%t397 = OpLoad %int %v91
+%t398 = OpAccessChain %p_u %OUT %int_0 %k4
+%t399 = OpBitcast %uint %t397
+OpStore %t398 %t399
+%t400 = OpLoad %int %v101
+%t401 = OpAccessChain %p_u %OUT %int_0 %k5
+%t402 = OpBitcast %uint %t400
+OpStore %t401 %t402
+%t403 = OpLoad %int %v111
+%t404 = OpAccessChain %p_u %OUT %int_0 %k6
+%t405 = OpBitcast %uint %t403
+OpStore %t404 %t405
+%t406 = OpLoad %int %v121
+%t407 = OpAccessChain %p_u %OUT %int_0 %k7
+%t408 = OpBitcast %uint %t406
+OpStore %t407 %t408
+%t409 = OpLoad %int %v131
+%t410 = OpAccessChain %p_u %OUT %int_0 %k8
+%t411 = OpBitcast %uint %t409
+OpStore %t410 %t411
+%t412 = OpLoad %int %v141
+%t413 = OpAccessChain %p_u %OUT %int_0 %k9
+%t414 = OpBitcast %uint %t412
+OpStore %t413 %t414
+%t415 = OpLoad %int %v151
+%t416 = OpAccessChain %p_u %OUT %int_0 %k10
+%t417 = OpBitcast %uint %t415
+OpStore %t416 %t417
+%t418 = OpLoad %int %v161
+%t419 = OpAccessChain %p_u %OUT %int_0 %k11
+%t420 = OpBitcast %uint %t418
+OpStore %t419 %t420
+%t421 = OpLoad %int %v171
+%t422 = OpAccessChain %p_u %OUT %int_0 %k12
+%t423 = OpBitcast %uint %t421
+OpStore %t422 %t423
+%t424 = OpLoad %int %v181
+%t425 = OpAccessChain %p_u %OUT %int_0 %k13
+%t426 = OpBitcast %uint %t424
+OpStore %t425 %t426
+%t427 = OpLoad %int %v193
+%t428 = OpAccessChain %p_u %OUT %int_0 %k32
+%t429 = OpBitcast %uint %t427
+OpStore %t428 %t429
+%t430 = OpLoad %int %v203
+%t431 = OpAccessChain %p_u %OUT %int_0 %k37
+%t432 = OpBitcast %uint %t430
+OpStore %t431 %t432
+%t433 = OpLoad %int %v213
+%t434 = OpAccessChain %p_u %OUT %int_0 %k14
+%t435 = OpBitcast %uint %t433
+OpStore %t434 %t435
+%t436 = OpLoad %int %v223
+%t437 = OpAccessChain %p_u %OUT %int_0 %k38
+%t438 = OpBitcast %uint %t436
+OpStore %t437 %t438
+%t439 = OpLoad %int %v233
+%t440 = OpAccessChain %p_u %OUT %int_0 %k39
+%t441 = OpBitcast %uint %t439
+OpStore %t440 %t441
+%t442 = OpLoad %int %v243
+%t443 = OpAccessChain %p_u %OUT %int_0 %k40
+%t444 = OpBitcast %uint %t442
+OpStore %t443 %t444
+%t445 = OpLoad %int %v253
+%t446 = OpAccessChain %p_u %OUT %int_0 %k19
+%t447 = OpBitcast %uint %t445
+OpStore %t446 %t447
+%t448 = OpLoad %int %v263
+%t449 = OpAccessChain %p_u %OUT %int_0 %k41
+%t450 = OpBitcast %uint %t448
+OpStore %t449 %t450
+%t451 = OpLoad %int %v274
+%t452 = OpAccessChain %p_u %OUT %int_0 %k42
+%t453 = OpBitcast %uint %t451
+OpStore %t452 %t453
+%t454 = OpLoad %int %v284
+%t455 = OpAccessChain %p_u %OUT %int_0 %k43
+%t456 = OpBitcast %uint %t454
+OpStore %t455 %t456
+%t457 = OpLoad %int %v294
+%t458 = OpAccessChain %p_u %OUT %int_0 %k21
+%t459 = OpBitcast %uint %t457
+OpStore %t458 %t459
+%t460 = OpLoad %int %v306
+%t461 = OpAccessChain %p_u %OUT %int_0 %k44
+%t462 = OpBitcast %uint %t460
+OpStore %t461 %t462
+%t463 = OpLoad %int %v316
+%t464 = OpAccessChain %p_u %OUT %int_0 %k45
+%t465 = OpBitcast %uint %t463
+OpStore %t464 %t465
+%t466 = OpLoad %int %v326
+%t467 = OpAccessChain %p_u %OUT %int_0 %k46
+%t468 = OpBitcast %uint %t466
+OpStore %t467 %t468
+%t469 = OpLoad %int %v335
+%t470 = OpAccessChain %p_u %OUT %int_0 %k47
+%t471 = OpBitcast %uint %t469
+OpStore %t470 %t471
+%t472 = OpLoad %int %v350
+%t473 = OpAccessChain %p_u %OUT %int_0 %k48
+%t474 = OpBitcast %uint %t472
+OpStore %t473 %t474
+%t475 = OpLoad %int %v360
+%t476 = OpAccessChain %p_u %OUT %int_0 %k49
+%t477 = OpBitcast %uint %t475
+OpStore %t476 %t477
+%t478 = OpLoad %int %v370
+%t479 = OpAccessChain %p_u %OUT %int_0 %k50
+%t480 = OpBitcast %uint %t478
+OpStore %t479 %t480
+%t481 = OpLoad %int %v380
+%t482 = OpAccessChain %p_u %OUT %int_0 %k33
+%t483 = OpBitcast %uint %t481
+OpStore %t482 %t483
+%t484 = OpLoad %int %v384
+%t485 = OpAccessChain %p_u %OUT %int_0 %k51
+%t486 = OpBitcast %uint %t484
+OpStore %t485 %t486
+OpReturn
+OpFunctionEnd
+          %H = OpFunction %int None %fnh
+         %p0 = OpFunctionParameter %p_fi
+         %p1 = OpFunctionParameter %p_fi
+         %hl = OpLabel
+         %a0 = OpLoad %int %p0
+         %lo = OpBitcast %uint %a0
+         %a1 = OpLoad %int %p1
+         %hi = OpBitcast %uint %a1
+        %ix0 = OpBitcast %int %uint_32768
+        %pc0 = OpAccessChain %p_u %T %int_0 %ix0
+      %first = OpLoad %uint %pc0
+        %ix1 = OpBitcast %int %uint_32769
+        %pc1 = OpAccessChain %p_u %T %int_0 %ix1
+      %count = OpLoad %uint %pc1
+         %hc = OpExtInst %uint %glsl UMin %hi %uint_4095
+         %hs = OpShiftLeftLogical %uint %hc %uint_20
+         %ls = OpShiftRightLogical %uint %lo %uint_12
+        %key = OpBitwiseOr %uint %hs %ls
+        %rel = OpISub %uint %key %first
+        %idx = OpExtInst %uint %glsl UMin %rel %count
+         %i2 = OpShiftLeftLogical %uint %idx %uint_1
+         %w0 = OpIAdd %uint %i2 %uint_32772
+        %w0i = OpBitcast %int %w0
+        %pr0 = OpAccessChain %p_u %T %int_0 %w0i
+         %r0 = OpLoad %uint %pr0
+         %w1 = OpIAdd %uint %w0 %uint_1
+        %w1i = OpBitcast %int %w1
+        %pr1 = OpAccessChain %p_u %T %int_0 %w1i
+         %r1 = OpLoad %uint %pr1
+         %vb = OpBitwiseAnd %uint %r0 %uint_1
+      %valid = OpINotEqual %bool %vb %uint_0
+         %pg = OpBitwiseAnd %uint %r0 %uint_page
+        %off = OpBitwiseAnd %uint %lo %uint_4095
+        %dlo = OpBitwiseOr %uint %pg %off
+         %dv = OpCompositeConstruct %v2uint %dlo %r1
+        %d64 = OpBitcast %ulong %dv
+        %ps0 = OpAccessChain %p_u %T %int_0 %int_6
+         %s0 = OpLoad %uint %ps0
+        %ps1 = OpAccessChain %p_u %T %int_0 %int_7
+         %s1 = OpLoad %uint %ps1
+         %sv = OpCompositeConstruct %v2uint %s0 %s1
+        %s64 = OpBitcast %ulong %sv
+        %a64 = OpSelect %ulong %valid %d64 %s64
+         %pp = OpConvertUToPtr %p_psb %a64
+         %ld = OpLoad %uint %pp Aligned 4
+         %lf = OpBitcast %float %ld
+         %li = OpBitcast %int %lf
+          %r = OpSelect %int %valid %li %int_0
+         %nv = OpLogicalNot %bool %valid
+        %res = OpSelect %int %nv %int_0 %r
+               OpReturnValue %res
+               OpFunctionEnd
+
