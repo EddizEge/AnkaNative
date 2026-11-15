@@ -878,6 +878,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     /** A key from a real external device that nothing here uses (not the panel's, not the game's), once per device, key code and scan code: what the controller sends */
     private final HashSet<String> keysNoted = new HashSet<>();
     private void noteUnusedKey(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) return;   // Back is the in-game panel's key too (onBackPressed), from a pad as from the phone: not unused
         InputDevice d = e.getDevice();
         if (d == null || d.isVirtual() || !d.isExternal() || !keysNoted.add(d.getDescriptor() + " " + e.getKeyCode() + " " + e.getScanCode())) return;
         Native.note(String.format(Locale.ROOT, "[input] %s (%d), scan code %#x, from %s: not a game button nor the in-game panel's key; left to Android",   // i18n-keep: log
