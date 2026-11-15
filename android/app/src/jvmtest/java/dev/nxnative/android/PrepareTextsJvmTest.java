@@ -189,7 +189,7 @@ public final class PrepareTextsJvmTest {
         eq("Interrupted (" + stepOld + "). Tap Resume to go on.", "prepare_status_interrupted", step, new Msg("prepare_button_resume"));
         eq("adopting", "prepare_status_raw", "adopting");
         eq("by you", "prepare_reason_user");
-        eq("battery below 20 %: plug in the charger to go on", "prepare_reason_battery");
+        eq("battery below 20%: plug in the charger to go on", "prepare_reason_battery");
         eq("the phone is too hot: it goes on when it has cooled", "prepare_reason_thermal");
         eq("a game is running: it goes on when the game ends", "prepare_reason_game");
         eq("Paused: a game is running: it goes on when the game ends. " + stepOld + ".", "prepare_status_paused", new Msg("prepare_reason_game"), step);
@@ -216,7 +216,7 @@ public final class PrepareTextsJvmTest {
         eq("Paused: " + name, "prepare_note_paused", name);
         eq("Step " + (3 + 1) + " of " + 5 + " · " + 57 + "%", "prepare_note_step", 3 + 1, 5, 57);
         eq(stepOld + " · " + 57 + "%", "prepare_note_progress", step, 57);
-        eq(stepOld + " · " + 57 + "%\n" + "battery below 20 %: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
+        eq(stepOld + " · " + 57 + "%\n" + "battery below 20%: plug in the charger to go on", "prepare_note_progress_why", step, 57, new Msg("prepare_reason_battery"));
         eq("About 45 minutes left · " + stepOld, "prepare_note_running_eta", step, Msg.plural("prepare_eta_minutes", 45, 45));
         eq(stepOld + "\nAbout 45 minutes left", "prepare_note_running_eta_big", step, Msg.plural("prepare_eta_minutes", 45, 45));
         // the collapsed notification's title (Android 12+ shows no text under it beside a progress bar)
