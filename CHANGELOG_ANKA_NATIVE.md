@@ -11,21 +11,26 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   translation: it went on until the app ended its own process 20 s later, and the notification it left said "Waiting" for the battery or the heat, with a
   Pause button and no Resume, for the whole pause (that notification was already wrong in 0.2.2, after Android's daily limit too). For those 20 s the card
   and the notification still said it was running, with the time left. Now the translation stops at the shader in hand and the split at the file in hand
-  (on a computer 0.1-4 s, from 4-11 s in the translation and up to 7 s at the start of the split), every finished shader is kept for the resume, and
-  the library is the same. While it stops, the card and the notification say "Pausing" with no time left; then the job is paused with Resume, also when
+  (on a computer 0.1-4 s, from 4-11 s in the translation and up to 7 s at the start of the split; inside one of the slowest shaders at most one module's
+  compression, about 3 s, where it waited up to 11.5 s for the whole shader), every finished shader is kept for the resume, and the library is the same.
+  A Pause can no longer leave the split or the translation waiting for good (the split hung in 2 of 15 Pauses early in its scan on a computer), and a
+  Pause in the code rewrite no longer writes a red error line in the log. While it stops, the card and the notification say "Pausing" with no time left; then the job is paused with Resume, also when
   the app had to end its process. Measured on a computer in the phone's form; not yet on a phone.
 - **A game no longer runs beside a Prepare or shader update, and they no longer run the phone out of memory.** Starting a game while a Prepare or the
   automatic shader update ran (from a frontend, or Play during the update) ran a 12 GB phone out of memory: about 30 s after the game was in, Android
   ended the Prepare and the phone's own background apps (WhatsApp, the camera, the home screen), and the Prepare stood still until it was resumed by hand.
   Now the game pauses it first: its screen says so for a few seconds (at most 25), the game starts once the Prepare has stopped and given back its
   memory, and the Prepare goes on by itself when the game ends, however it ends (Stop, Back, a crash). While the game runs, the card and the notification
-  say "a game is running: it goes on when the game ends". A Prepare you paused yourself stays paused, and the game can always be started. The game card
-  says "Ready · updating shaders" only while its update runs; otherwise it says that the update is paused, paused while a game runs, or that the shaders
+  say "a game is running: it goes on when the game ends". A Prepare you paused yourself stays paused (also when you tap Pause while it is stopping for the game), one you ended with Force stop
+  is not brought back by a game, and the game can always be started. The game card
+  says "Ready · updating shaders" only while its update runs (not for an update made by "Prepare again" that waits for Start); otherwise it says that the update is paused, paused while a game runs, or that the shaders
   are older. Checked on the JVM and in a build; not yet on a phone.
 - **A Prepare that Android ends comes back by itself, or says it stopped.** When the phone ended a Prepare's process (for memory, or a kill), Android
   was to start it again, but HyperOS never did: the notification went and the Prepare stood still until the app was opened and Resume tapped. Now the
   app starts it again itself where Android lets it: while the app's own process lives (Android allows this while the app is on screen or was just
-  left), when the app is opened (unless you ended it with Force stop), and when a game that it waited for ends. Where Android does not let it, a
+  left), when the app is opened (unless you ended it with Force stop), and when a game that it waited for ends. When Android has ended the
+  app's other processes too, a check a few minutes later (an alarm the Prepare keeps moving on while it works) starts it again or posts the notification
+  below. A Pause tapped on the card just as the app opens on such a Prepare now pauses it, where it was dropped and the Prepare resumed by itself. Where Android does not let it, a
   notification says "Interrupted: …, Prepare stopped. Tap to go on", and a tap opens the app and goes on. A Prepare you paused stays paused. Allowing
   the app's Autostart in HyperOS's app settings may let the phone restart it too (not tried). Checked on the JVM and in a build; not yet on a phone.
 - **Prepare's numbers read right.** The collapsed notification shows the time left first in its title ("45 min left · Preparing …"), where Android
