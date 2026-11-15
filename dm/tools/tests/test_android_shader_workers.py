@@ -99,6 +99,11 @@ ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(t.ident), ctypes.py_ob
 t.join()
 print(f'{time.monotonic() - t0:.2f} {code[0]}', file=out)
 """
+# PAUSE, sent once a shader's translator output is there plus the given seconds: inside its finish (the passes, validation and compression after the translator)
+PAUSE_IN_FIN = PAUSE.replace("res, log, out = sys.argv[1], sys.argv[2], sys.stdout; sys.argv = sys.argv[3:]",
+                             "res, log, after, out = sys.argv[1], sys.argv[2], float(sys.argv[3]), sys.stdout; sys.argv = sys.argv[4:]").replace(
+    "while t.is_alive() and not (os.path.isdir(res) and any(n.endswith('.r') for n in os.listdir(res))): time.sleep(0.02)",
+    "import glob\nwhile t.is_alive() and not glob.glob(os.path.join(res, '.work', 'b_*', '*.spv')): time.sleep(0.02)\ntime.sleep(after)")
 
 
 @unittest.skipUnless(XLATE_LIB and PKG and SPIRV_LIB and sys.version_info >= (3, 14), 'DMSH_TEST_XLATE_LIB, DMSH_TEST_VK_PKG and SPIRV-Tools\' library (Python 3.14)')
@@ -111,16 +116,17 @@ class Build(unittest.TestCase):
         cls.keys = [r[3] for r in rows[::1200]]   # 36 keys over the whole map, of every package; the tool adds their pairs
         (cls.tmp / 'no_interps.py').write_text(NO_INTERPS)
         (cls.tmp / 'pause.py').write_text(PAUSE)
+        (cls.tmp / 'pause_in_fin.py').write_text(PAUSE_IN_FIN)
 
     @classmethod
     def tearDownClass(cls): shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def build(self, name, interps, wrap=(), fail=False, **more):
+    def build(self, name, interps, wrap=(), fail=False, keys=None, **more):
         d = self.tmp / name
         env = dict(os.environ, DM_GAME='0400486024DEC000', XLATE=XLATE_LIB, SPIRV_VAL=SPIRV_LIB, J='2', DMSH_VK_XLATE_J='1', DMSH_VK_INTERPS=str(interps),
                    DMSH_VK_RESULTS=str(d / 'results'), TMPDIR=str(self.tmp), **more)
         env.pop('DMSH_VK_BUILD_CACHE', None)
-        r = subprocess.run([sys.executable, *wrap, str(REPO / 'dm/gfx/tools/vk_android_build.py'), '--target', 'vulkan', PKG, str(d / 'out'), *self.keys],
+        r = subprocess.run([sys.executable, *wrap, str(REPO / 'dm/gfx/tools/vk_android_build.py'), '--target', 'vulkan', PKG, str(d / 'out'), *(keys or self.keys)],
                            capture_output=True, text=True, env=env)
         if fail: return r
         self.assertEqual(r.returncode, 0, r.stdout[-3000:] + r.stderr[-3000:])
@@ -162,6 +168,23 @@ class Build(unittest.TestCase):
                 again, out = self.build(name, interps)
                 self.assertIn(f'({len(kept)} already in ', out)
                 for n in whole: self.assertEqual(whole[n], again[n], n)
+
+    def test_pause_in_a_slow_shader(self):
+        """A Pause inside one shader's finish ends it between two passes: the slowest compute shader of Ocarina of Time (d15370a382630d4e: two 5.7-MB modules,
+        8 s of finish on a computer, 6.3 s of it in their two zstd calls) took the rest of its finish to stop, 11.5 s with 6 workers, past PackService's 20-s
+        fallback on a phone. Now the longest wait is one compression (3.2 s); the shader has no result, and the next run makes it"""
+        key = 'd15370a382630d4e'
+        d = self.tmp / 'pause_fin'
+        r = self.build('pause_fin', 1, (str(self.tmp / 'pause_in_fin.py'), str(d / 'results'), str(self.tmp / 'pause_fin.log'), '1.0'), fail=True, keys=[key])
+        self.assertEqual(r.returncode, 0, r.stderr[-3000:])
+        log = (self.tmp / 'pause_fin.log').read_text()
+        secs, code = r.stdout.split()[-2:]
+        self.assertEqual(code, '130', r.stdout[-2000:] + log[-3000:])
+        self.assertLess(float(secs), 5.0, log[-2000:])
+        self.assertEqual(list((d / 'results').glob('*.r')), [])
+        self.assertEqual(list((d / 'results').glob('.work/b_*')), [])   # the batch's folder went with it
+        again, _ = self.build('pause_fin', 1, keys=[key])
+        self.assertGreater(len(again['dmsh_vk.lib']), 1 << 20)
 
     def test_cut_short_result(self):
         """A result file cut short (its head whole, a module's bytes not) stops the library before any of it is written: no dmsh_vk.lib.tmp is left"""

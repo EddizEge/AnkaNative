@@ -34,8 +34,9 @@
 #   and the library is written from the result files. Pixel shaders go first; the vertex shaders' padding reads their inputs from the pixel shaders' results.
 #   Progress lines on stdout: "progress <done> <total> <stage>" (stage translate, library, done); the total is the shader count from the profile's shader_map.tsv, known
 #   before any translation
-# Stopped: an interrupt (KeyboardInterrupt: Ctrl-C, or the phone's Pause, which raises it in the tool's thread) ends the translation within about one shader: the batches
-#   in hand end before their next shader or translator call (run_batches, check_stop), each shader finished before it keeps its result, and a rerun goes on from them
+# Stopped: an interrupt (KeyboardInterrupt: Ctrl-C, or the phone's Pause, which raises it in the tool's thread) ends the translation within about one pass: the batches
+#   in hand end before their next shader, translator call, pass, validation or compression of a module (run_batches, check_stop), each shader finished before it keeps
+#   its result, and a rerun goes on from them. The longest step that cannot be cut is one module's zstd compression (3.2 s for the largest, 5.7 MB, on a computer)
 # Build cache (across versions: vk_android_delta.py BuildCache, android/SHADERS.md#build-speed): the translator's output per job (stamped with the translator's files,
 #   DMSH_CHAIN, the profile inputs and the job itself) and each finished module's validated, compressed form (by the module's SHA-256, stamped with the validator, the zstd
 #   level and library), so a change of a post-pass translates nothing and validates and compresses only the modules it changed. A stale or corrupt entry is made again
@@ -595,6 +596,10 @@ PS_INPUTS = {}   # pixel shader key → the input locations it reads (for its ve
 
 
 def finish(key, w, job, c1):
+    # check_stop between the passes, before each validation and each compression: a stop does not wait for the rest of this shader (the slowest compute shaders' finish
+    # took up to 18 s on a computer with 6 workers; alone, 6.3 s of the slowest one's 8 s were its two modules' zstd calls; on a phone that went past PackService's 20-s
+    # fallback). Its partial work is dropped with the batch's folder (run_batch), and a rerun does the shader again
+    check_stop()
     stage = job['stage']; sp = os.path.join(w, key + '.spv')
     res = json.load(open(os.path.join(w, key + '.res.json')))
     m = spv.Module(open(sp, 'rb').read())
@@ -602,6 +607,7 @@ def finish(key, w, job, c1):
         extra = {l: t for l, t in spv.integer_only_inputs(m).items() if l not in job['attr']}
         if extra:
             job = dict(job, attr={**job['attr'], **extra})
+            check_stop()
             rx = translate_cached([job], w, 'int_' + key, '.int')
             if rx.returncode or not os.path.exists(sp): return 'translation failed', ('integer-input retranslation: ' + rx.stderr.strip())[:160], None
             res = json.load(open(os.path.join(w, key + '.res.json'))); m = spv.Module(open(sp, 'rb').read())
@@ -620,6 +626,7 @@ def finish(key, w, job, c1):
     sbase = spv.ssbo_base(m, c0, ssbo_rows(stage, binds), VK['SSBO_ALIGN'], VK['C0_SSBO_BASE'] // 4)   # storage buffers from the base the host writes (dmsh_abi_vk.h DMSH_VK_F_SSBO_BASE)
     try: place(stage, binds, m)
     except ValueError as e: return 'reflection failed', str(e)[:160], None
+    check_stop()
     pad = []
     if stage == 'vs':
         want_in = set().union(*[PS_INPUTS.get(p, set()) for p in PAIRS.get(key, ())]) if PAIRS.get(key) else set()
@@ -638,6 +645,7 @@ def finish(key, w, job, c1):
         mods_, uint_mask = ps_variants(key, m, iout)
         mods += [(v, d) for v, d, _ in mods_]; src += [u for _, _, u in mods_]
     if stage == 'cs':   # its subgroup shuffles through workgroup memory, for drivers without an arbitrary-index shuffle instruction (vk_android_spv.py shuffle_lds)
+        check_stop()
         x = m.copy()
         if spv.shuffle_lds(x, VK['SHARED_MAX']): mods.append((VK['MOD_SHUFFLE_LDS'], x.data())); src.append(x)
     # What the reflection reads of the base module as it is here (facts_of, drv_reads below), taken now: the passes below then run on m itself instead of a copy.
@@ -650,6 +658,7 @@ def finish(key, w, job, c1):
     nfwd = gloop = gcache = gpidx = gleft = 0
     plain, texfb, fb_err = list(mods), (0, 0), None   # (the modules without texture-use feedback: kept when the pass fails for any of them)
     for i, (variant, data) in enumerate(mods):   # the translator's temporaries forwarded within each block (vk_android_spv.py local_forward), in every module
+        check_stop()
         x = src[i].reparsed(index=False); src[i] = None; n = spv.local_forward(x, stale=True)
         # then the pool searches as loops NIR keeps (vk_android_spv.py gmem_loop: no spills, Turnip's private memory BOs stay small) in compute (GMEM_LOOP_STAGES), and
         # in the other stages replaced by the page index (gmem_pidx, GMEM_PIDX: every module of the entry) or behind the invocation's cached entry (gmem_cache; both off:
@@ -676,6 +685,7 @@ def finish(key, w, job, c1):
             h = hashlib.sha256(data).hexdigest() if CACHE else None
             hit = CACHE.module_get(h, len(data)) if CACHE else None
             if hit is None:
+                check_stop()
                 err = validate(data, w, f'{key}_{variant}')
                 if err: return None, err
             cached.append((h, hit))
@@ -714,6 +724,7 @@ def finish(key, w, job, c1):
     out_mods = []
     for (variant, data), (h, hit) in zip(mods, cached):   # compressed here, in parallel
         if hit is None:
+            check_stop()
             hit = pack_module(data)
             if CACHE: CACHE.module_put(h, *hit)
         out_mods.append((variant, len(data), *hit, data if loose else None))
@@ -1010,8 +1021,8 @@ def fin(key, bd, job, c1, xerr):
 
 
 class Stopped(BaseException):
-    """A batch in a stopped build (run_batches: an interrupt, the phone's Pause): raised before the next shader or translator call. A BaseException, so no
-    `except Exception` on the way (a shader's reflection, a cache read) takes it for that shader's failure"""
+    """A batch in a stopped build (run_batches: an interrupt, the phone's Pause): raised before the next shader, translator call or pass of a shader (finish).
+    A BaseException, so no `except Exception` on the way (a shader's reflection, a cache read) takes it for that shader's failure"""
 
 
 # run_batches: what check_stop reads while a phase runs, set once the phase is stopped. Threads of this interpreter: a threading.Event. Subinterpreter workers and
@@ -1026,8 +1037,8 @@ def check_stop():
 
 
 def run_batch(batch):
-    """Translate a batch of shaders in one translator call, finish each (fin) and write its result file. A stop (check_stop) ends it before the translator call or
-    between two shaders: each shader finished before it has its result file, and a rerun translates the others"""
+    """Translate a batch of shaders in one translator call, finish each (fin) and write its result file. A stop (check_stop) ends it before the translator call,
+    between two shaders or between two passes of one (finish): each shader finished before it has its result file, and a rerun translates the others"""
     check_stop()
     bd = tempfile.mkdtemp(prefix='b_', dir=w); jobs, c1s = {}, {}
     try:
