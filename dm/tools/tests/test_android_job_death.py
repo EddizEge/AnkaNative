@@ -39,6 +39,13 @@ class Decide(unittest.TestCase):
 class Service(unittest.TestCase):
     s = code(ONDEVICE / 'PackService.java')
 
+    def test_pid_written_at_begin(self):
+        """The rc1-fixes review: the new pid reached job.json only with the worker's first write, after the deletes at the start of work() (seconds after an
+        app update): a process killed in that window left job.json naming the process before, whose older exit record decided. begin() writes it at once"""
+        b = body(self.s, 'private int begin(Job j, boolean user, int startId) {')
+        self.assertLess(b.index('j.process(Process.myPid(), System.currentTimeMillis());'), b.index('save(j, true);'))
+        self.assertLess(b.index('save(j, true);'), b.index('worker = new Thread(this::work, "nxpack-job");'))
+
     def test_start_rule(self):
         """A sticky restart and the app's own start (EXTRA_AUTO) resume only a job that should be working, and count its starts of a step (MAX_STARTS)"""
         start = body(self.s, 'public int onStartCommand(')

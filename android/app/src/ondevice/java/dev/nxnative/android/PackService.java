@@ -242,8 +242,11 @@ public final class PackService extends Service {
             return START_NOT_STICKY;
         }
         stopReason = null;
-        j.process(Process.myPid(), System.currentTimeMillis());   // its exit record is the job's from now on (JobWatch.exitOf); job.json has it with the next write
+        j.process(Process.myPid(), System.currentTimeMillis());   // its exit record is the job's from now on (JobWatch.exitOf)
         if (user) j.endedAll();   // only sticky restarts (and a game's start) add up
+        // written now, before the worker's first steps (deleting an older build's results takes seconds after an app update): a process killed before the
+        // worker's first write would leave job.json naming the process before it, whose older exit record Home, the job alarm and a game's start would take
+        save(j, true);
         Job.remember(this, j.file);
         game = game || PrepareGate.gameRunning(this);   // the worker's first wait (work) must know before it starts (game: a game's start asked just now)
         policy();
