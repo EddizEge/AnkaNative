@@ -118,7 +118,7 @@ The gear on the main screen holds the app's settings; a game's ⋯ menu > **Game
 | Game resolution | the phone's 1080p or the game's own |
 | GPU driver | the Vulkan driver the game runs on (the system's, or an installed Turnip zip) |
 | Frame generation | Lossless Scaling's frame generation (2x, 3x, 4x or a target frame rate); needs your own `Lossless.dll` |
-| Performance overlay | fps, GPU time, throttling and battery over the game |
+| Performance overlay | fps, GPU time, 3D render resolution, throttling and battery over the game |
 | Readiness check | what the phone is missing for a game, with a button to fix most items |
 
 On-screen controls have a layout editor; gamepads work. Every switch the host reads is listed in

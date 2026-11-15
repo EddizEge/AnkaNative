@@ -504,6 +504,7 @@ static int present_one(const pq_item *it) {
     vk.vkBeginCommandBuffer(cb, &bi);
     int cx = 0, cy = 0, cw = im ? (int)im->w : 1, ch = im ? (int)im->h : 1;
     if (it->has_crop && it->crop[2] > 0 && it->crop[3] > 0) { cx = it->crop[0]; cy = it->crop[1]; cw = it->crop[2]; ch = it->crop[3]; }
+    if (im) vka_fps_output((uint32_t)cw, (uint32_t)ch);   // the overlay's output size: the game's picture, before it is scaled to the display
     int ew = (int)(rot_quarter(g_pre) ? g_ext.height : g_ext.width), eh = (int)(rot_quarter(g_pre) ? g_ext.width : g_ext.height);   // the display, as the user sees it
     double s = (double)ew / cw < (double)eh / ch ? (double)ew / cw : (double)eh / ch;
     int dw = (int)(cw * s + 0.5), dh = (int)(ch * s + 0.5), dx = (int)((long)(ew - dw) * g_place_x / 10000), dy = (int)((long)(eh - dh) * g_place_y / 10000);   // nxhost_picture_place
@@ -627,6 +628,7 @@ uint64_t vka_present_reserve(void) {
 }
 void vka_present_fill(uint64_t tk, const tex_t *t, double period_s, const int crop[4]) {
     vka_perf_frame(period_s);
+    vka_fps_frame_end();   // the frame's draws are recorded (this thread replays them in order): the overlay's scene size counts the next frame
     pthread_mutex_lock(&g_pmu);
     if (!g_thread_up || tk <= g_pq_fill) { pthread_mutex_unlock(&g_pmu); return; }
     pq_item *it = &g_pq[(tk - 1) % PQ];

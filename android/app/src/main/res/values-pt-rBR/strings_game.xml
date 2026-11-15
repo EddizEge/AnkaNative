@@ -64,6 +64,7 @@
     <string name="game_panel_skip_now">Pular a introdução agora</string>
     <string name="game_panel_pause">Pausar o jogo</string>
     <string name="game_panel_pause_on_return">Pausar quando o jogo voltar do segundo plano</string>
+    <string name="game_panel_stick_menu">Apertar os dois botões dos analógicos juntos abre e fecha este painel (para um controle cujo botão Home o Android guarda para si)</string>
     <string name="game_panel_stop">Parar o jogo</string>
     <string name="game_panel_stop_title">Parar o jogo?</string>
     <!-- %1$s: Share log (home's Settings row) -->
@@ -104,6 +105,7 @@
     <string name="game_overlay_item_fps">Taxa de quadros e tempo de quadro</string>
     <string name="game_overlay_item_throttle">Ponto de limitação térmica (verde / amarelo / vermelho)</string>
     <string name="game_overlay_item_gpu">Tempo de GPU por quadro</string>
+    <string name="game_overlay_item_resolution">Resolução de renderização 3D (e o tamanho da imagem)</string>
     <string name="game_overlay_item_cpu">Limites de clock da CPU</string>
     <string name="game_overlay_item_battery">Temperatura e nível da bateria</string>
     <string name="game_overlay_item_memory">Memória: a do jogo e a do celular</string>

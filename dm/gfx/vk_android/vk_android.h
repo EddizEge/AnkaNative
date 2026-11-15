@@ -13,8 +13,10 @@ __attribute__((visibility("default"))) void nxhost_set_window(struct ANativeWind
 __attribute__((visibility("default"))) int nxhost_vk_selftest(struct ANativeWindow *w, int frames);
 // The overlay's frame rate (vka_fps.c), for the launcher to draw over the game: out[0] game frames presented a second, out[1] images presented a second (with frame generation
 // on, the game's and the generated ones), out[2] the game's frame time in ms, out[3] frame generation (0 off, 1 generating, 2 on and not generating, -1 unavailable),
-// out[4] images per game frame, out[5] the GPU's busy time a game frame in ms, averaged over recent frames (-1: no GPU timestamps; only computed when n > 5).
-// n is out's length (at most 6 are written). 1 = fresh numbers, 0 = no present for 2.5 s (the rates are 0 then)
+// out[4] images per game frame, out[5] the GPU's busy time a game frame in ms, averaged over recent frames (-1: no GPU timestamps; only computed when n > 5),
+// out[6], out[7] the size the game renders its 3D scene at now (the viewport of its depth-tested draws that write colour, vka_fps.c; 0 when no frame of the last 2.5 s had
+// one, and until the first call with n > 6, which starts the count), out[8], out[9] the size of the picture it presents (0 before the first present).
+// n is out's length (at most 10 are written). 1 = fresh numbers, 0 = no present for 2.5 s (the rates are 0 then)
 __attribute__((visibility("default"))) int nxhost_fps(float *out, int n);
 // Frame generation (Lossless Scaling's LSFG, vka_framegen.c): on / off, images per game frame (2..4), a target output rate (0 = the fixed multiplier), the optical flow's
 // resolution in % of the game's (0 = auto: 100 %), taken from the next frame. The status: 0 off, 1 generating, 2 on and not generating, -1 unavailable; buf gets the reason

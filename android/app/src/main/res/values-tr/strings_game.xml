@@ -57,6 +57,7 @@
     <string name="game_panel_skip_now">Girişi şimdi atla</string>
     <string name="game_panel_pause">Oyunu duraklat</string>
     <string name="game_panel_pause_on_return">Oyun arka plandan dönünce duraklat</string>
+    <string name="game_panel_stick_menu">İki analog çubuğun düğmelerine birlikte basmak bu paneli açıp kapatır (Home tuşunu Android\'in kendine ayırdığı oyun kumandaları için)</string>
     <string name="game_panel_stop">Oyunu durdur</string>
     <string name="game_panel_stop_title">Oyun durdurulsun mu?</string>
     <string name="game_panel_stop_message">Oyun kapanır; kaydedilmemiş ilerleme kaybolur. Günlük saklanır; %1$s ile gönderebilirsin.</string>
@@ -94,6 +95,7 @@
     <string name="game_overlay_item_fps">Kare hızı ve kare süresi</string>
     <string name="game_overlay_item_throttle">Kısıtlama göstergesi (yeşil / sarı / kırmızı)</string>
     <string name="game_overlay_item_gpu">Kare başına GPU süresi</string>
+    <string name="game_overlay_item_resolution">3D render çözünürlüğü (ve görüntünün boyutu)</string>
     <string name="game_overlay_item_cpu">CPU saat hızı sınırları</string>
     <string name="game_overlay_item_battery">Pil sıcaklığı ve seviyesi</string>
     <string name="game_overlay_item_memory">Bellek: oyunun ve telefonun</string>

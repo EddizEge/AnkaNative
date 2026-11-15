@@ -84,7 +84,9 @@ final class Native {
     static native void audioRouteChanged();
 
     /** The overlay's frame rate (nxhost_fps): out[0] game frames a second, out[1] images presented a second, out[2] the game's frame time in ms, out[3] frame generation
-     *  (0 off, 1 generating, 2 on and not generating, -1 unavailable), out[4] images per game frame, out[5] GPU ms a game frame (-1: none). False when stale (no present for 2.5 s) or not in this host. */
+     *  (0 off, 1 generating, 2 on and not generating, -1 unavailable), out[4] images per game frame, out[5] GPU ms a game frame (-1: none), out[6] and out[7] the size the
+     *  game renders its 3D scene at now, out[8] and out[9] the size of the picture it presents (0: not known, or a host without them; an array of 6 leaves them out).
+     *  False when stale (no present for 2.5 s) or not in this host. */
     static native boolean fps(float[] out);
 
     /** Frame generation's settings for the next frames (nxhost_framegen_set): on, images per game frame 2..4, target rate (0 = fixed), flow scale % (0 = auto). */

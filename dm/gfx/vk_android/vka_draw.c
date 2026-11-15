@@ -1750,6 +1750,11 @@ void vka_draw(vka_dstate *d, const p_set_rt *rt, int has_rt, const p_scissor *sc
     if (restart) { uint32_t all = di->itype == 0 ? 0xff : di->itype == 1 ? 0xffff : 0xffffffffu; if (d->restart.index != all) VRED_ONCE("primitive restart index %#x is not the all-ones index Vulkan restarts at", d->restart.index); }
     if (!mesh) DY_SET1(pr, (uint32_t)(restart), vk.vkCmdSetPrimitiveRestartEnable(g_cb, DY.pr));
     DY.valid = 1;
+    if (vka_fps_scene_want() && hd && d->ds.dt && !d->rast_discard) {   // the overlay's 3D scene size (vka_fps.c): a draw that tests depth and writes colour, by its viewport
+        uint8_t wr = 0; for (uint32_t i = 0; i < R.ncolor && i < 8; i++) wr |= k.att[i].mask;
+        if (wr) { uint32_t sw = (uint32_t)(fabsf(vw) + 0.5f), sh = (uint32_t)(fabsf(vh) + 0.5f);
+                  vka_fps_scene_draw(sw < R.area.extent.width ? sw : R.area.extent.width, sh < R.area.extent.height ? sh : R.area.extent.height); }
+    }
 
     PT(7);
     // The draw

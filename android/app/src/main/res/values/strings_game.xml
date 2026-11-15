@@ -71,6 +71,7 @@
     <string name="game_panel_skip_now">Skip the intro now</string>
     <string name="game_panel_pause">Pause the game</string>
     <string name="game_panel_pause_on_return">Pause when the game comes back from the background</string>
+    <string name="game_panel_stick_menu">Both stick buttons pressed together open and close this panel (for a controller whose Home key Android keeps for itself)</string>
     <string name="game_panel_stop">Stop the game</string>
     <string name="game_panel_stop_title">Stop the game?</string>
     <!-- %1$s: Share log (home's Settings row) -->
@@ -114,6 +115,7 @@
     <string name="game_overlay_item_fps">Frame rate and frame time</string>
     <string name="game_overlay_item_throttle">Throttle dot (green / yellow / red)</string>
     <string name="game_overlay_item_gpu">GPU time a frame</string>
+    <string name="game_overlay_item_resolution">3D render resolution (and the picture\'s size)</string>
     <string name="game_overlay_item_cpu">CPU clock caps</string>
     <string name="game_overlay_item_battery">Battery temperature and level</string>
     <string name="game_overlay_item_memory">Memory: the game\'s and the phone\'s</string>
@@ -133,6 +135,9 @@
     <string name="game_overlay_frame_ms">%1$.1f ms</string>
     <string name="game_overlay_no_lsfg">no LSFG</string>
     <string name="game_overlay_gpu_ms">GPU %1$.1f ms</string>
+    <!-- The size the game renders its 3D scene at now (width, height in pixels), then on a line of its own the size of the picture it presents, when that differs -->
+    <string name="game_overlay_resolution">3D %1$d×%2$d</string>
+    <string name="game_overlay_resolution_output">→ %1$d×%2$d</string>
     <!-- The battery: its temperature, then its level in percent; with ⚡ while charging -->
     <string name="game_overlay_battery">%1$.0f°C %2$d%%</string>
     <string name="game_overlay_battery_charging">%1$.0f°C %2$d%% ⚡\uFE0E</string>

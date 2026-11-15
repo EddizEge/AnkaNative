@@ -27,7 +27,8 @@ import java.util.concurrent.Executors;
 
 /**
  * The overlay's top-right text over the game (GameActivity polls it twice a second while the overlay is on; nothing is read while it is off): the frame rate and frame
- * time (nxhost_fps), the throttle dot, the GPU's time a frame (nxhost_fps), the CPU clock caps, the battery and the memory (MemText: the game process's VmRSS and
+ * time (nxhost_fps), the throttle dot, the GPU's time a frame (nxhost_fps), the size the game renders its 3D scene at now with the size of the picture it presents
+ * (nxhost_fps: the viewport of the frame's depth-tested draws that write colour, the same rule for every game, vka_fps.c), the CPU clock caps, the battery and the memory (MemText: the game process's VmRSS and
  * the phone's RAM in use, read every 2 s on a thread of its own). Android text only, no GPU work. Each item has its own
  * switch (Prefs.overlayItem), all on by default, under the master switch (Prefs.overlay). The build tag top left is not one of them: it is always shown (GameActivity),
  * so every screenshot and recording names its build.
@@ -45,10 +46,10 @@ import java.util.concurrent.Executors;
  */
 final class Overlay {
     /** The items: column 0 is the Prefs key (MainActivity counts the rows and reads it); the switch's label is ITEM_KEYS at the same index */
-    static final String[][] ITEMS = {{"fps"}, {"throttle"}, {"gpu"}, {"cpu"}, {"battery"}, {"memory"}};
+    static final String[][] ITEMS = {{"fps"}, {"throttle"}, {"gpu"}, {"resolution"}, {"cpu"}, {"battery"}, {"memory"}};
     /** The switches' labels, at ITEMS' index */
-    static final String[] ITEM_KEYS = {"game_overlay_item_fps", "game_overlay_item_throttle", "game_overlay_item_gpu", "game_overlay_item_cpu", "game_overlay_item_battery",
-            "game_overlay_item_memory"};
+    static final String[] ITEM_KEYS = {"game_overlay_item_fps", "game_overlay_item_throttle", "game_overlay_item_gpu", "game_overlay_item_resolution", "game_overlay_item_cpu",
+            "game_overlay_item_battery", "game_overlay_item_memory"};
 
     /** The master switch and, below it, one switch per item (main screen dialog, in-game settings). masterNote: a note after the switch's label, the caller's own
      *  text (null: none), put into the label's sentence (game_overlay_master_note), never glued to it */
@@ -84,7 +85,7 @@ final class Overlay {
     private float headroom = Float.NaN, batTemp = Float.NaN;
     private boolean charging;
     private long notedAt;
-    private final float[] rate = new float[6];
+    private final float[] rate = new float[10];
 
     // The memory, read every 2 s on a thread of its own (ActivityManager.getMemoryInfo is a call into the system server; the UI thread only formats what it last read)
     private static ExecutorService memThread;
@@ -192,13 +193,13 @@ final class Overlay {
     CharSequence tick() {
         ticks++;
         boolean fps = Prefs.overlayItem(ctx, "fps"), dot = Prefs.overlayItem(ctx, "throttle"), gpu = Prefs.overlayItem(ctx, "gpu"),
-                cpu = Prefs.overlayItem(ctx, "cpu"), bat = Prefs.overlayItem(ctx, "battery"), mem = Prefs.overlayItem(ctx, "memory");
-        if (!fps && !dot && !gpu && !cpu && !bat && !mem) return null;
+                res = Prefs.overlayItem(ctx, "resolution"), cpu = Prefs.overlayItem(ctx, "cpu"), bat = Prefs.overlayItem(ctx, "battery"), mem = Prefs.overlayItem(ctx, "memory");
+        if (!fps && !dot && !gpu && !res && !cpu && !bat && !mem) return null;
         if (mem) askMemory();
         if (dot || cpu) readCpu();
         if (dot) { readThermal(); level = level(); note(); }
         if (bat) readBattery();
-        boolean fresh = (fps || gpu) && Native.fps(rate);
+        boolean fresh = (fps || gpu || res) && Native.fps(rate);
 
         // One short item a line, so that the block fits in the black bar right of the game's 16:9 picture on a wide phone and stays off the game's own HUD
         SpannableStringBuilder s = new SpannableStringBuilder();
@@ -217,6 +218,10 @@ final class Overlay {
         if (fps && (rate[3] == 1 || rate[3] == 2)) line(s, "LSFG");
         if (fps && rate[3] < 0) line(s, ctx.getString(R.string.game_overlay_no_lsfg));
         if (gpu && fresh && rate[5] >= 0) line(s, ctx.getString(R.string.game_overlay_gpu_ms, rate[5]));
+        if (res && fresh && rate[6] > 0 && rate[7] > 0) {   // the 3D scene's size, then the presented picture's when the game scales the scene to it (dynamic resolution, an upscaler)
+            line(s, ctx.getString(R.string.game_overlay_resolution, (int) rate[6], (int) rate[7]));
+            if (rate[8] > 0 && rate[9] > 0 && (rate[8] != rate[6] || rate[9] != rate[7])) line(s, ctx.getString(R.string.game_overlay_resolution_output, (int) rate[8], (int) rate[9]));
+        }
         if (cpu) caps(s);
         if (bat && batLevel >= 0)
             line(s, Float.isNaN(batTemp) ? ctx.getString(charging ? R.string.game_overlay_battery_level_charging : R.string.game_overlay_battery_level, batLevel)
