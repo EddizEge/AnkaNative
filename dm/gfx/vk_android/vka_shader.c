@@ -510,6 +510,12 @@ int vka_shader_lib_stage_loaded(uint64_t key) {
     const dmsh_vk_entry *e = st > 0 ? vka_shlib_find(&g_lib, key) : NULL;   // (the library is not changed once loaded)
     return e ? e->stage : -1;
 }
+// A shader's base module as the library has it (no rewrite, no global memory merge: vka_pso.c reads only its variables before making a form ahead). malloc'd
+uint32_t *vka_shader_lib_words(vka_shader *s, size_t *nb, char *err, size_t errn) {
+    const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
+    if (!m) { snprintf(err, errn, "no base module"); return NULL; }
+    return vka_shlib_spirv(s->lib, m, nb, err, errn);
+}
 // A task / mesh shader's base words for its compute form: the library's module, with the one-invocation subgroup rewrite where the device's compute stage needs it
 // (sg_plan's compute row, not the mesh stage's), and the texture-use feedback bitmap moved to its own set with DM_VK_TEXFB_SET as every other module of the entry
 // (fb_own_set: the compute form's layout then has no bitmap in set 1, vka_tex.c). malloc'd

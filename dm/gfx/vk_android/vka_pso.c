@@ -1497,8 +1497,9 @@ static void ah_make(uint64_t key, int src) {
     int st = s && s->e ? s->e->stage : vka_shader_lib_stage(key);
     if (!s || !s->e) why = "the replay refuses the shader (its line above)";
     else {
-        // A local memory array that would grow the device's private memory (vka_ahead_private_bytes): left to its draw, which pays for it only if the game draws it
-        size_t nb = 0; char err[160] = ""; uint32_t *w = vka_shader_memu_words(s, &nb, err, sizeof err); uint64_t pv = vka_ahead_private_bytes(w, nb / 4); free(w);
+        // A local memory array that would grow the device's private memory (vka_ahead_private_bytes, on the library's words: the translator's local memory is there as
+        // it is in the form, and reading them merges nothing): left to its draw, which pays for it only if the game draws it
+        size_t nb = 0; char err[160] = ""; uint32_t *w = vka_shader_lib_words(s, &nb, err, sizeof err); uint64_t pv = vka_ahead_private_bytes(w, nb / 4); free(w);
         if (pv > VKA_AHEAD_PRIVATE_MAX) {
             atomic_fetch_add(&g_ah_big, 1);
             static _Atomic int nl; if (atomic_fetch_add(&nl, 1) < 32) VLOG("mesh draws through compute: %s shader %016llx not made ahead: a %llu-byte local memory array (over %d), which Turnip keeps in private memory sized for the whole device; made at its first draw",

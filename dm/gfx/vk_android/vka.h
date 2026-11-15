@@ -410,6 +410,7 @@ vka_shader *vka_shader_by_key(uint64_t key);   // the game library's shader of k
 int vka_shader_lib_has(uint64_t key);       // key is an entry of the game's library
 int vka_shader_memu_key(uint64_t key);      // key is no library entry but a task / mesh shader's compute form or vertex shader (vka_memu.h VKA_MEMU_KEY_*: a run through compute)
 uint32_t *vka_shader_memu_words(vka_shader *s, size_t *nb, char *err, size_t errn);   // a task / mesh shader's words for its compute form (vka_memu.c), malloc'd
+uint32_t *vka_shader_lib_words(vka_shader *s, size_t *nb, char *err, size_t errn);    // its base module as the library has it (no rewrite), malloc'd
 uint32_t vka_shader_lib_count(void);              // the game library's entries (loaded first); 0 = none
 uint64_t vka_shader_lib_entry(uint32_t i, int *stage);   // the key and DMSH_VK_STAGE_* of entry i in the library's order (0 = past the end)
 int vka_shader_lib_stage(uint64_t key);            // its DMSH_VK_STAGE_* (the library loaded first), -1 = not in the library
