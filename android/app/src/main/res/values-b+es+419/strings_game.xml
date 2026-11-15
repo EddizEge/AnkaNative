@@ -92,6 +92,7 @@
     <string name="game_overlay_item_fps">Velocidad de cuadros y tiempo por cuadro</string>
     <string name="game_overlay_item_throttle">Indicador de limitación de rendimiento (verde / amarillo / rojo)</string>
     <string name="game_overlay_item_gpu">Tiempo de GPU por cuadro</string>
+    <string name="game_overlay_item_resolution">Resolución de renderizado 3D (y el tamaño de la imagen)</string>
     <string name="game_overlay_item_cpu">Límites de frecuencia de la CPU</string>
     <string name="game_overlay_item_battery">Temperatura y nivel de la batería</string>
     <string name="game_overlay_item_memory">Memoria: la del juego y la del teléfono</string>

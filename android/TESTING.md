@@ -370,7 +370,7 @@ A good run on the emulator (Donkey Kong Bananza 458752): stages 1–8 within abo
 
 ## Overlay and frame generation (LSFG)
 
-The overlay is on by default: the build tag at the top left (`Anka Native test · <branch>@<commit> · <time>`, the same as the log's first line `[nxlaunch] build …`) and at the top right the throttle dot with the frame rate (`<n> fps`; `-- fps` before the first frame and while nothing is presented), the frame time and GPU time, the CPU clock caps and the battery (README, Overlay: the dot's thresholds; each item has its own switch). Turn it off in the main screen or in the controls' settings (hold the top-centre button); `DM_OVERLAY=0` in `env.txt` hides it for a run.
+The overlay is on by default: the build tag at the top left (`Anka Native test · <branch>@<commit> · <time>`, the same as the log's first line `[nxlaunch] build …`) and at the top right the throttle dot with the frame rate (`<n> fps`; `-- fps` before the first frame and while nothing is presented), the frame time and GPU time, the 3D render resolution (`3D 683×384`, then `→ 2048×1152` when the game presents another size), the CPU clock caps and the battery (README, Overlay: the dot's thresholds; each item has its own switch). Turn it off in the main screen or in the controls' settings (hold the top-centre button); `DM_OVERLAY=0` in `env.txt` hides it for a run.
 
 Frame generation needs the user's own `Lossless.dll` (Lossless Scaling for Windows):
 

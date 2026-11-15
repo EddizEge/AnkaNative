@@ -94,6 +94,7 @@
     <string name="game_overlay_item_fps">Kare hızı ve kare süresi</string>
     <string name="game_overlay_item_throttle">Kısıtlama göstergesi (yeşil / sarı / kırmızı)</string>
     <string name="game_overlay_item_gpu">Kare başına GPU süresi</string>
+    <string name="game_overlay_item_resolution">3D render çözünürlüğü (ve görüntünün boyutu)</string>
     <string name="game_overlay_item_cpu">CPU saat hızı sınırları</string>
     <string name="game_overlay_item_battery">Pil sıcaklığı ve seviyesi</string>
     <string name="game_overlay_item_memory">Bellek: oyunun ve telefonun</string>
