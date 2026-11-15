@@ -74,49 +74,42 @@ res_choice	fixed:6	Low (50 %, about 1024x576)
 res_choice	fixed:lowest	Lowest: the least sharp level (33 %, about 683x384)
 res_choice	cap:1	Dynamic, never above High
 res_choice	cap:4	Dynamic, never above Medium
-# ---- Plants and effects (Game settings; DM_DETAIL, dm/host/detail.h; README "Plants and effects") ----
-# CANDIDATES, not measured: the phone session (session-2026-11-14/detail-setting.md) confirms or removes each row before the release. Full sends nothing.
-# Every edit is relative to the value in the player's own file (a scale, or a boolean set false), in place. Reduced: foliage density and distance only, both copies
-# of each scene's ResFoliageScene (the 43 loose ones and the 61 of Pack/Foliage.pack.zs; which one the game reads is not known yet: DM_DETAIL_COPY=loose|pack).
-# Never IsEnableTurf, and no layer whose plants may drop items: the undergrowth, moss and stone rows are in m_layers only (env.txt: DM_DETAIL=reduced+m_layers), not
-# in Reduced or Lowest, until the phone shows with a fixed seed (DM_DETCLOCK) that cutting plants drops the same items with them (FoliageDropParam: every scene but
-# Market_Child, whose DropParam is NoDrop, takes the default drop table). Then the release adds reduced,lowest to their first column (a new build). Lowest: Reduced plus the runtime effect flags of the gameplay scenes' parent files
-# (MainField: SSAO, depth of field, bloom, the dynamic shadows' far fade), never the Create* flags or a render target's size. a1 is the game's handheld preset
-# (DM_OPMODE=0), in no level: only DM_DETAIL=a1 or reduced+a1 in env.txt chooses it, until the phone shows the NDSR networks it runs are covered.
-# To remove a candidate before the release: delete its detail_param row (both copies) or take its level out of the row's first column
+# ---- Ground plants and stones (Game settings; DM_DETAIL, dm/host/detail.h; README "Ground plants and stones") ----
+# The game's own foliage layer switches of every scene, set false in place in the copy the game reads: the members of Pack/Foliage.pack.zs (the phone, 2026-11-15:
+# the game opens only the pack; the loose Foliage/ResFoliageScene files are never read, so no row names them). Full, the default, sends nothing.
+# Reduced: moss and stone off. Those layers have no cut or drop switch (ResMoss, ResStone), and the game builds its cut and drop tables from shoot leaves only
+# (main 0xc958cc, 0xc93150). Lowest: also the undergrowth layers, whose leaves can be cut and drop items (ResShootLeaf EnableGrassCut / NoDrop; the scenes'
+# default FoliageDropParam gives hearts, magic and rupees) and which hold the leaves of climbable ivy: its about text says so. Never IsEnableTurf, the grass.
+# Measured on the phone with all four layers off (m_layers, 2026-11-15): balcony 78.8 -> 55 ms GPU, village -11 ms, no holes. Reduced alone is NOT measured.
+# detail_setting hidden: the Game settings row is not shown (a stored level sends nothing; env.txt's DM_DETAIL still works) until the phone has measured Reduced
+# and checked Lowest's drops and the ivy (session-2026-11-14/detail2.md). Showing it is this one line: shown.
+detail_setting	hidden
 detail_level	full	shown	Full (as the game draws it)
-detail_level	reduced	shown	Reduced
-detail_level	lowest	shown	Lowest
+detail_level	reduced	shown	Reduced (no moss or stones)
+detail_level	lowest	shown	Lowest (no small plants)
 detail_level	a1	hidden	Handheld preset (candidate a1, env.txt only)
-# Measurement levels (hidden, env.txt only): each candidate group on its own, for its gain and its picture (DM_DETAIL=m_turf, m_lod+m_turf, ...)
+# Measurement levels (hidden, env.txt only; DM_DETAIL joins levels with +). The grass, distance and effect rows gained nothing on the phone (2026-11-15:
+# within 1 ms of Full's spread): they stay for measurement only. m_ug: the undergrowth layers alone (Lowest minus Reduced)
+detail_level	m_ug	hidden	Measurement: undergrowth layers off
 detail_level	m_turf	hidden	Measurement: grass density (TurfDensity, TurfMinBlades)
 detail_level	m_lod	hidden	Measurement: LodSetting and LodSetting_hh distances
-detail_level	m_layers	hidden	Measurement: undergrowth, moss and stone layers off
 detail_level	m_ssao	hidden	Measurement: SSAO off
 detail_level	m_dof	hidden	Measurement: depth of field off
 detail_level	m_bloom	hidden	Measurement: bloom off
 detail_level	m_shadow	hidden	Measurement: dynamic shadow far fade x0.5
 detail_zsdic	Pack/ZsDic.pack.zs
-detail_param	reduced,lowest,m_turf	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	TurfDensity	x0.5
-detail_param	reduced,lowest,m_turf	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	TurfDensity	x0.5
-detail_param	reduced,lowest,m_turf	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	TurfMinBlades	x0.5
-detail_param	reduced,lowest,m_turf	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	TurfMinBlades	x0.5
-detail_param	reduced,lowest,m_lod	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	LodSetting_hh.Dist_*	x0.5
-detail_param	reduced,lowest,m_lod	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	LodSetting_hh.Dist_*	x0.5
-detail_param	reduced,lowest,m_lod	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	LodSetting.Dist_*	x0.5
-detail_param	reduced,lowest,m_lod	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	LodSetting.Dist_*	x0.5
-detail_param	m_layers	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableUndergrowth8	=false
-detail_param	m_layers	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableUndergrowth8	=false
-detail_param	m_layers	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableUndergrowth4	=false
-detail_param	m_layers	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableUndergrowth4	=false
-detail_param	m_layers	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableMoss	=false
-detail_param	m_layers	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableMoss	=false
-detail_param	m_layers	Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableStone	=false
-detail_param	m_layers	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableStone	=false
-detail_param	lowest,m_ssao	gsys/ModelSceneShadowParam/MainField.gsys__ModelSceneShadowParam.bgyml	SSAO.IsEnable	=false
-detail_param	lowest,m_dof	agl/DepthOfFieldParam/MainField.agl__DepthOfFieldParam.bgyml	Enable	=false
-detail_param	lowest,m_bloom	agl/BloomParam/MainField.agl__BloomParam.bgyml	Enable	=false
-detail_param	lowest,m_shadow	agl/ShadowPrePassParam/MainField.agl__ShadowPrePassParam.bgyml	DynamicShadowFarFade*	x0.5
+detail_param	reduced,lowest	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableMoss	=false
+detail_param	reduced,lowest	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableStone	=false
+detail_param	lowest,m_ug	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableUndergrowth4	=false
+detail_param	lowest,m_ug	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	IsEnableUndergrowth8	=false
+detail_param	m_turf	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	TurfDensity	x0.5
+detail_param	m_turf	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	TurfMinBlades	x0.5
+detail_param	m_lod	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	LodSetting_hh.Dist_*	x0.5
+detail_param	m_lod	pack:Pack/Foliage.pack.zs:Foliage/ResFoliageScene/*.game__foliage__ResFoliageScene.bgyml	LodSetting.Dist_*	x0.5
+detail_param	m_ssao	gsys/ModelSceneShadowParam/MainField.gsys__ModelSceneShadowParam.bgyml	SSAO.IsEnable	=false
+detail_param	m_dof	agl/DepthOfFieldParam/MainField.agl__DepthOfFieldParam.bgyml	Enable	=false
+detail_param	m_bloom	agl/BloomParam/MainField.agl__BloomParam.bgyml	Enable	=false
+detail_param	m_shadow	agl/ShadowPrePassParam/MainField.agl__ShadowPrePassParam.bgyml	DynamicShadowFarFade*	x0.5
 detail_env	a1	DM_OPMODE=0
 # The CPU writes some textures after creating them, published with and without a flush (upstream nxnative's profile: the terrain's height, blend and hole maps)
 tex_flush_upload	on

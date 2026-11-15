@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * A game this APK runs: its profile (dm/games/&lt;title ID&gt;) was compiled into a host of its own, libnxhost_&lt;title ID&gt;.so (build.gradle nxGames,
  * src/main/cpp/CMakeLists.txt), and what the launcher needs of it comes from build.gradle as BuildConfig.NX_PROFILES: one line per game, tab-separated: title ID,
- * name, the shader count Prepare translates, the shader inputs digest, the builds (game.tsv build rows, "version module=build ID …", ';' between builds), and, when the APK has them, the readiness rows (the profile's readiness.tsv: "level|fact|min|what", ';' between rows: Readiness.parseReqs), its status row (playable or bring-up; dm/games/README.md "Readiness rows"), the shader delta rows (vk_delta.tsv's "from" rows: "version=count" or, for this version's library of older profile inputs, "version@inputs=count", ',' between them), its "stamp" rows ("version:old SHA-256:new SHA-256", ';' between them), what Game resolution sets (resolutionEnv), the RomFS checks (romfsChecks), the GPU timestamp mode (gpuTs), the default Game resolution (window), the phone's split times (split: a whole split, and a shader update's) and the Plants and effects levels (detail).
+ * name, the shader count Prepare translates, the shader inputs digest, the builds (game.tsv build rows, "version module=build ID …", ';' between builds), and, when the APK has them, the readiness rows (the profile's readiness.tsv: "level|fact|min|what", ';' between rows: Readiness.parseReqs), its status row (playable or bring-up; dm/games/README.md "Readiness rows"), the shader delta rows (vk_delta.tsv's "from" rows: "version=count" or, for this version's library of older profile inputs, "version@inputs=count", ',' between them), its "stamp" rows ("version:old SHA-256:new SHA-256", ';' between them), what Game resolution sets (resolutionEnv), the RomFS checks (romfsChecks), the GPU timestamp mode (gpuTs), the default Game resolution (window), the phone's split times (split: a whole split, and a shader update's) and the Ground plants and stones levels (detail).
  * A game without a profile here cannot run in this APK (its host has no profile for it): the launcher says so instead of starting it.
  * No Android classes: the JVM test (android/app/src/jvmtest) runs it on the Mac.
  */
@@ -24,7 +24,7 @@ final class Profile {
     String window = "";   // game.tsv android_window (build.gradle windowOf): the default Game resolution when the player chose none (Prefs.gameWindow), "" for the main screen's
     String resChoices = "";   // game.tsv res_choice rows (build.gradle resChoicesOf): "<DM_RES_LEVEL value>=<label>", ';' between them; "" = no 3D resolution setting
     String split = "";   // game.tsv android_split_minutes (build.gradle splitOf): "lo-hi" or "lo-hi,ulo-uhi", the phone's shader split of this game and of a shader update in minutes, "" when not measured (split(), updateSplit())
-    String detail = "";   // game.tsv detail_level rows (build.gradle detailOf): "<id>|<shown|hidden>|<label>", ';' between them; "" = no Plants and effects setting
+    String detail = "";   // game.tsv detail_level rows (build.gradle detailOf): "<id>|<shown|hidden>|<label>", ';' between them; "" = no Ground plants and stones setting
     String romfsChecks = "";   // game.tsv romfs_check rows (build.gradle romfsChecksOf): "<path>|<line>|<expected or main>", ';' between them (RomfsCheck)
 
     /** The phone's shader split of this game as {lo, hi} minutes (ShaderLibs.minutes), null when the profile has no android_split_minutes row */
@@ -102,7 +102,7 @@ final class Profile {
     }
 
     /**
-     * Plants and effects: the levels Game settings offers, in the profile's order, as [id, label]: its shown detail_level rows (a hidden one, a candidate, is
+     * Ground plants and stones: the levels Game settings offers, in the profile's order, as [id, label]: its shown detail_level rows (a hidden one, a candidate, is
      * chosen only by a DM_DETAIL line). The first is the default, as the game draws it. A malformed entry is skipped
      */
     List<String[]> detailLevels() {
@@ -115,7 +115,7 @@ final class Profile {
         return out;
     }
 
-    /** Whether Game settings › Plants and effects is offered: the profile has a default level and at least one other to choose */
+    /** Whether Game settings › Ground plants and stones is offered: the profile has a default level and at least one other to choose */
     boolean hasDetail() { return detailLevels().size() >= 2; }
 
     /**
@@ -150,7 +150,7 @@ final class Profile {
     }
 
     /**
-     * The folder the host builds the Plants and effects overlay in: beside the game's temporary storage, "&lt;DM_TEMP&gt;_detail" (dm/host/hle_fs.c dm_detail_start;
+     * The folder the host builds the Ground plants and stones overlay in: beside the game's temporary storage, "&lt;DM_TEMP&gt;_detail" (dm/host/hle_fs.c dm_detail_start;
      * never inside DM_TEMP, which is the game's own temp: mount)
      */
     static java.io.File detailDir(java.io.File temp) { return new java.io.File(temp.getPath() + "_detail"); }
@@ -165,11 +165,14 @@ final class Profile {
     /**
      * At a start with Full (no DM_DETAIL, or an empty one): the overlay an earlier start built is removed, so no file of an earlier level stays on the phone. Here, in
      * the launcher, so that the host sends and logs nothing for Full. Only at a start: the game this start replaces has ended, and no running game reads it.
-     * Returns whether the folder is gone (or never was)
+     * Returns the game log's line about it: null when there was nothing to do (a level, or no folder), else whether the folder was removed (a [RED] line when
+     * some of it stays)
      */
-    static boolean dropDetail(java.io.File temp, List<String> env) {
-        if (detailOn(env)) return true;
-        return deleteTree(detailDir(temp));
+    static String dropDetail(java.io.File temp, List<String> env) {
+        java.io.File d = detailDir(temp);
+        if (detailOn(env) || (!d.exists() && !isLink(d))) return null;
+        return deleteTree(d) ? "[nxlaunch] Full (as the game draws it): the earlier start's overlay " + d + " was removed"   // i18n-keep: log
+                : "[RED] [detail] the earlier overlay " + d + " could not be removed entirely (the game does not read it: it is not in its temporary storage)";   // i18n-keep: log
     }
 
     private static boolean deleteTree(java.io.File f) {

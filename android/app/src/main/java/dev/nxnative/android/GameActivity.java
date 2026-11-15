@@ -523,14 +523,14 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             if (ts != null) env.add("DM_NVN_GPU_TS=" + ts);
             // Game settings › 3D resolution: the game's dynamic-resolution level held or capped (loader.c drs_level_apply); a DM_RES_LEVEL line of env.txt comes later and wins
             if (prof != null) env.addAll(prof.resLevelEnv(Prefs.resLevel(this, id)));
-            // Game settings › Plants and effects: DM_DETAIL=<level> for a level other than the default (the host builds the overlay of the game's own parameter files at
+            // Game settings › Ground plants and stones: DM_DETAIL=<level> for a level other than the default (the host builds the overlay of the game's own parameter files at
             // start, dm/host/detail.h); nothing at all for the default, as the game draws it. A DM_DETAIL line of env.txt comes later and wins
             if (prof != null) env.addAll(prof.detailEnv(Prefs.detailLevel(this, id)));
             if (Prefs.introSkip(this, id)) env.add("DM_SKIP=1");   // Game settings › Intro skip: Minus+Plus held 1 s skips the intro (hle_hid.c); a DM_SKIP line of env.txt comes later and wins
             if (Prefs.ramSaver(this, id)) { env.add("DM_MEM_FILEBACK=1"); env.add("DM_MEM_FILEBACK_KINDS=shader,texture"); }   // Game settings › RAM saver: texture pools in a file (vka_mem.c "File-backed pools"); lines of env.txt or the game's own come later and win
             env.addAll(user);
-            // Full (no DM_DETAIL, or an empty one, after env.txt): an earlier start's Plants and effects overlay is removed here, not by the host, so Full sends nothing
-            boolean detailLeft = !Profile.dropDetail(temp, env);
+            // Full (no DM_DETAIL, or an empty one, after env.txt): an earlier start's Ground plants and stones overlay is removed here, not by the host, so Full sends nothing
+            String detailNote = Profile.dropDetail(temp, env);
             for (String kv : env) if (kv.startsWith("DM_OVERLAY=")) overlayEnv = !kv.substring(11).trim().equals("0");
             String[] args = {"nxhost", packDir.getPath()};
             int r = Native.start(args, env.toArray(new String[0]), log.getPath(), files.getPath());
@@ -547,7 +547,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             Native.note("device " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + "), " + Build.SUPPORTED_ABIS[0]
                     + "; game " + game + "; pack " + packDir);
             if (envProblem != null) Native.note("[RED] env.txt: " + envProblem);
-            if (detailLeft) Native.note("[RED] [detail] the earlier Plants and effects overlay " + Profile.detailDir(temp) + " could not be removed entirely (the game does not read it: it is not in its temporary storage)");   // i18n-keep: log
+            if (detailNote != null) Native.note(detailNote);   // the overlay of an earlier level removed at a start with Full (Profile.dropDetail)
             if (!refused.isEmpty()) {
                 List<String> english = new ArrayList<>(), shown = new ArrayList<>();
                 for (Msg k : refused) { english.add(k.english()); shown.add(k.text()); }

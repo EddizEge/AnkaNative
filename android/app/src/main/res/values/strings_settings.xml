@@ -63,12 +63,12 @@
     <string name="settings_game_res_level_gone">Dynamic (the game\'s own; the stored %1$s is no longer offered)</string>
     <string name="settings_game_res_level_about">The game changes the sharpness of its 3D picture by itself. A fixed level keeps it there: a lower level is less work for the GPU, a higher one is sharper. A choice that caps the level lets the game lower it under load but not raise it past that level. From the next start; a DM_RES_LEVEL line in env.txt wins.</string>
     <string name="settings_game_res_level_title">3D resolution · %1$s</string>
-    <string name="settings_game_detail">Plants and effects</string>
+    <string name="settings_game_detail">Ground plants and stones</string>
     <string name="settings_game_detail_full">Full (as the game draws it)</string>
-    <string name="settings_game_detail_reduced">Reduced</string>
-    <string name="settings_game_detail_lowest">Lowest</string>
-    <string name="settings_game_detail_about">Reduced: fewer grass blades, and plants drawn less far away. Lowest also turns off some screen effects. For more speed; uses the game\'s own settings. Applies at the next start; a DM_DETAIL line in env.txt wins.</string>
-    <string name="settings_game_detail_title">Plants and effects · %1$s</string>
+    <string name="settings_game_detail_reduced">Reduced (no moss or stones)</string>
+    <string name="settings_game_detail_lowest">Lowest (no small plants)</string>
+    <string name="settings_game_detail_about">Reduced: moss and small stones on the ground are not drawn. Lowest: the small plants are not drawn either, nor the leaves on some climbable walls; the plants you could cut with the sword are gone, and so are the hearts, rupees and magic they sometimes drop. Grass, bushes and trees stay. Applies at the next start; the first time after a change, the game makes some shaders for 10–20 s and may stutter. A DM_DETAIL line in env.txt wins.</string>
+    <string name="settings_game_detail_title">Ground plants and stones · %1$s</string>
     <string name="settings_game_detail_gone">Full (as the game draws it; the stored %1$s is no longer offered)</string>
     <!-- %1$s: the default window size's name -->
     <string name="settings_game_default_choice">Default (%1$s)</string>
