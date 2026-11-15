@@ -149,9 +149,10 @@ static _Atomic uint64_t g_try_skipped;                              // cache-onl
 static _Atomic uint64_t g_save_ns_total, g_hy_draws, g_pw_wait_ns;
 static void pw_load(void); static void pw_start(void); static int pw_save(void); static int g_pw_dirty;
 static uint32_t g_pw_ndve;   // records of the NDVE network pw_load left out (the files beside the list came from a run that made the network)
-// What this run keeps (vka_pcguard.h): a run with a diagnostic switch that changes which pipelines are made, or one that made a pipeline of the NDVE movie network
-// (DM_VK_NDVE_DIRECT turned off live), writes neither the cache file nor the prewarm list from then on. Turnip loads every program of the file at the next start, and
-// the network's private memory then took 1.3 GB more GPU memory at every start until the file was removed (session-2026-11-14, a DM_VK_DISPATCH_SKIP=0 run)
+// What this run keeps (vka_pcguard.h): a run with a diagnostic switch that changes which pipelines are made (DM_VK_DISPATCH_SKIP) writes neither the cache file nor
+// the prewarm list from then on. Turnip loads every program of the file at the next start, and a program only such a run made stays there: the NDVE network's private
+// memory took 1.3 GB more GPU memory at every start until the file was removed (session-2026-11-14, a DM_VK_DISPATCH_SKIP=0 run). The network itself is kept out of
+// both files by cs_build in every run
 static const char *_Atomic g_pc_nokeep;
 static void pc_nokeep(const char *why) {
     const char *z = NULL;
@@ -221,8 +222,8 @@ static void pc_drop_ndve(size_t *n) {
         if (strcmp(f, g_pc_path) && !unlink(f)) gone++;
     }
     if (d) closedir(d);
-    VRED("pipeline cache %s not read and %u cache file%s in %s removed: the prewarm list %s had %u records of the NDVE movie network, which only a run with "
-         "DM_VK_NDVE_DIRECT=0 (or, before 2026-11-15, DM_VK_DISPATCH_SKIP) makes; Turnip loads every program of a cache file at the start, and the network's private memory "
+    VRED("pipeline cache %s not read and %u cache file%s in %s removed: the prewarm list %s had %u records of the NDVE movie network, which only a build before "
+         "2026-11-15 wrote (a run with DM_VK_NDVE_DIRECT=0 or DM_VK_DISPATCH_SKIP); Turnip loads every program of a cache file at the start, and the network's private memory "
          "took about 1.3 GB more GPU memory at every start. This run starts with an empty cache", g_pc_path, gone, gone == 1 ? "" : "s", dir, g_pw_path, g_pw_ndve);
     *n = 0;
 }
@@ -239,7 +240,7 @@ static void pc_open_once(void) {
     if (pf && *pf) snprintf(g_pw_path, sizeof g_pw_path, "%s", pf);
     else if (e && *e && strcmp(e, "0")) snprintf(g_pw_path, sizeof g_pw_path, "%s.keys", e);
     else if ((t && *t) || (home && *home)) snprintf(g_pw_path, sizeof g_pw_path, "%s/vk_pipelines.keys", t && *t ? t : home);
-    { const char *b = vka_pc_keep_blocker(getenv("DM_VK_DISPATCH_SKIP"), vka_ndve_direct()); if (b) pc_nokeep(b); }
+    { const char *b = vka_pc_keep_blocker(getenv("DM_VK_DISPATCH_SKIP")); if (b) pc_nokeep(b); }
     pw_load();   // (before the cache file: a list with records of the NDVE network says the cache files beside it hold the network's programs)
     void *data = NULL; size_t n = 0;
     FILE *f = g_pc_path[0] ? fopen(g_pc_path, "rb") : NULL;
@@ -271,7 +272,7 @@ static void pc_open(void) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthr
 // The cache and the prewarm list to their files. vkGetPipelineCacheData runs without g_mu (the cache is internally synchronized): holding it there kept the replay thread's
 // pipeline lookups waiting for a 17 MB copy once a minute
 static void save_now(const char *why) {
-    { const char *b = vka_pc_keep_blocker(getenv("DM_VK_DISPATCH_SKIP"), vka_ndve_direct()); if (b) pc_nokeep(b); }   // (both switches are live)
+    { const char *b = vka_pc_keep_blocker(getenv("DM_VK_DISPATCH_SKIP")); if (b) pc_nokeep(b); }   // (the switch is live)
     if (atomic_load(&g_pc_nokeep)) return;
     uint64_t t = now_ns();
     uint64_t made = __atomic_load_n(&g_made, __ATOMIC_RELAXED);
@@ -906,9 +907,9 @@ static void pw_load(void) {
         if (r.klen > sizeof(vka_gkey) || o + pw_size(&r) > (size_t)sz) break;   // (the record's size is not trustworthy: the rest of the file is not read)
         if (!pw_rec_ok(&r, d + o + sizeof r)) { skipped++; o += pw_size(&r); n++; g_pw_dirty = 1; continue; }
         r.bad = 0;
-        // A record of the NDVE network: only a run that made the network (DM_VK_NDVE_DIRECT=0) writes one; with the switch on it is left out, and pc_open_once does not
-        // read the cache files that run wrote (pc_drop_ndve)
-        if (r.kind == 1 && vka_ndve_direct() && vka_ndve_net_key(r.key[0])) { g_pw_ndve++; g_pw_dirty = 1; o += pw_size(&r); n++; continue; }
+        // A record of the NDVE network: only a build before 2026-11-15 wrote one (cs_build keeps the network out of the list now); it is left out, and pc_open_once does
+        // not read the cache files that run wrote (pc_drop_ndve)
+        if (r.kind == 1 && vka_ndve_net_key(r.key[0])) { g_pw_ndve++; g_pw_dirty = 1; o += pw_size(&r); n++; continue; }
         uint64_t hh = fnv(d + o + sizeof r, r.klen, fnv(&r, sizeof r, 1469598103934665603ull));
         if (pw_set_add(hh)) pw_append(&r, d + o + sizeof r);
         o += pw_size(&r); n++;
@@ -1347,6 +1348,11 @@ static void cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm
     VkPipelineCreationFeedback cfb = {0}; VkPipelineCreationFeedbackCreateInfo cfi = {VK_STRUCTURE_TYPE_PIPELINE_CREATION_FEEDBACK_CREATE_INFO, .pPipelineCreationFeedback = &cfb};
     if (pc_policy() || prewarm) ci.pNext = &cfi;   // (a hit is no reason to save; prewarm counts its hits)
     VkPipeline p = VK_NULL_HANDLE; VkResult r; int over = 0;
+    // The NDVE movie network (vka_pcguard.h; made only when no conversion was matched before it, or with DM_VK_NDVE_DIRECT=0): made outside the pipeline cache and kept
+    // out of the prewarm list. Turnip loads every program of the cache file at the next start, and the network's private memory then took 1.3 GB more GPU memory at
+    // every start (session-2026-11-14)
+    int ndve = vka_ndve_net_key(cs->key);
+    VkPipelineCache pc = ndve ? VK_NULL_HANDLE : g_pc;
     // Shared memory past the device's limit is invalid usage (the driver may refuse, crash or run it with less). The translator keeps a program's shared memory past
     // DMSH_VK_SHARED_MAX in a storage buffer (DMSH_VK_KIND_SHARED_SPILL), and e->shared is then what stays in workgroup memory; a program still over this device's
     // limit (a library built before the spill, or a device under DMSH_VK_SHARED_MAX) is not made and its dispatches are skipped. docs/reference/shaders.md "Compute
@@ -1355,17 +1361,16 @@ static void cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm
     if (smax && cs->e->shared > smax && !VKA_ENV("DM_VK_CS_SHARED_OVER", 0)) {
         r = VK_ERROR_FEATURE_NOT_PRESENT; over = 1;
         static _Atomic int n; if (atomic_fetch_add(&n, 1) < 16) VRED("compute program %016llx takes %u bytes of shared memory, the device at most %u: not made, its dispatches are skipped (the first 16 are logged; the count is in the pipeline line)", (unsigned long long)cs->key, cs->e->shared, smax);
-    } else { int bs = build_begin("compute pipeline", cs->key, 0); r = vk.vkCreateComputePipelines(V.dev, g_pc, 1, &ci, NULL, &p); build_end(bs); }
+    } else { int bs = build_begin("compute pipeline", cs->key, 0); r = vk.vkCreateComputePipelines(V.dev, pc, 1, &ci, NULL, &p); build_end(bs); }
     pthread_mutex_lock(&g_mu);
     if (over) { p = VK_NULL_HANDLE; g_ncs_over++; } else if (r) { p = VK_NULL_HANDLE; g_nfail++; } else { g_ncs++; g_made++; if (!prewarm && !bg) g_frame_made++; }
-    { uint64_t dns = now_ns() - t0; g_create_ms += dns / 1e6; if (!prewarm && !bg) g_create_ns += dns; if (!over && !r && g_pc) pc_added(dns, fb_hit(&cfb) ? PC_HIT : PC_NEW); }
+    { uint64_t dns = now_ns() - t0; g_create_ms += dns / 1e6; if (!prewarm && !bg) g_create_ns += dns; if (!over && !r && pc) pc_added(dns, fb_hit(&cfb) ? PC_HIT : PC_NEW); }
     if (!over && !r && prewarm && (cfb.flags & VK_PIPELINE_CREATION_FEEDBACK_VALID_BIT)) atomic_fetch_add(fb_hit(&cfb) ? &g_pw_fb_hit : &g_pw_fb_miss, 1);
     g->p = p; g->busy = 0; pthread_cond_broadcast(&g_busy_cv);
     pthread_mutex_unlock(&g_mu);
     if (r && !over) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 16) VRED("compute pipeline %016llx: %d; its dispatches are skipped", (unsigned long long)cs->key, r); }
-    if (!r && !over && vka_ndve_net_key(cs->key)) pc_nokeep("a pipeline of the NDVE movie network was made (DM_VK_NDVE_DIRECT=0)");
     { double ms_ = (now_ns() - t0) / 1e6; static _Atomic int n; if (!r && ms_ > 50 && atomic_fetch_add(&n, 1) < 200) VLOG("compute pipeline %016llx took %.0f ms%s%s", (unsigned long long)cs->key, ms_, prewarm ? " (prewarm)" : bg ? " (in the background)" : "", vka_rss_note()); }
-    if (!prewarm && !over) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }   // (one not made stays out of the prewarm list)
+    if (!prewarm && !over && !ndve) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }   // (one not made stays out of the prewarm list, and the NDVE network)
 }
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay) { int made; return cs_obtain(cs, lay, 0, &made); }
 

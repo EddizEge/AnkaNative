@@ -1,5 +1,5 @@
-// What a run keeps in the pipeline cache file and the prewarm list (dm/gfx/vk_android/vka_pcguard.h; vka_pso.c pc_nokeep, pc_drop_ndve, pw_load): the NDVE network's
-// keys, and the switches that keep a run's pipelines out of the files
+// What a run keeps in the pipeline cache file and the prewarm list (dm/gfx/vk_android/vka_pcguard.h; vka_pso.c pc_nokeep, pc_drop_ndve, pw_load, cs_build): the NDVE network's
+// keys, and the switch that keeps a run's pipelines out of the files
 #include <stdio.h>
 #include <string.h>
 #include "../../gfx/vk_android/vka_pcguard.h"
@@ -16,14 +16,12 @@ int main(void) {
     CHECK(!vka_ndve_net_key(0xd99fbeeb53d38847ull) && !vka_ndve_net_key(0xfa3033d05c0a41d6ull), "agl's NDSR upscaler networks are made by normal runs: not the NDVE network");
     CHECK(!vka_ndve_net_key(0), "no key");
     // The switches
-    CHECK(vka_pc_keep_blocker(NULL, 1) == NULL, "a normal run keeps its pipelines");
-    CHECK(vka_pc_keep_blocker("", 1) == NULL, "an empty DM_VK_DISPATCH_SKIP is unset");
-    const char *b = vka_pc_keep_blocker("0", 1);
+    CHECK(vka_pc_keep_blocker(NULL) == NULL, "a normal run keeps its pipelines");
+    CHECK(vka_pc_keep_blocker("") == NULL, "an empty DM_VK_DISPATCH_SKIP is unset");
+    const char *b = vka_pc_keep_blocker("0");
     CHECK(b && !strcmp(b, "DM_VK_DISPATCH_SKIP"), "DM_VK_DISPATCH_SKIP=0 (the run that saved the network) keeps nothing");
-    b = vka_pc_keep_blocker("12,40", 1);
+    b = vka_pc_keep_blocker("12,40");
     CHECK(b && !strcmp(b, "DM_VK_DISPATCH_SKIP"), "a range too");
-    b = vka_pc_keep_blocker(NULL, 0);
-    CHECK(b && !strcmp(b, "DM_VK_NDVE_DIRECT=0"), "DM_VK_NDVE_DIRECT=0 runs the network: keeps nothing");
     printf("pcguard: %s\n", fails ? "FAILED" : "ok");
     return fails != 0;
 }

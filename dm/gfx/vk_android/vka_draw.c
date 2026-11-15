@@ -1819,8 +1819,8 @@ void vka_draw(vka_dstate *d, const p_set_rt *rt, int has_rt, const p_scissor *sc
 // instead: the network's dispatches are not recorded and their pipelines never made (vka_pso.c prewarm too). The picture differs from the network's by about one
 // level in 255 on average (measured on the Mac, nxnative #1375). Matched by the pack's shader keys after a conversion (the movie library may submit the conversion and the network in different frames: the replay's frame count is not
 // a boundary); the last pass ends the match. Anything else runs as recorded. The keys are vka_pcguard.h's: a pipeline cache file that holds the network costs Turnip
-// 1.3 GB more GPU memory at every later start, so with the switch on no path makes its pipelines: a network dispatch with no conversion before it is not recorded
-// either (until 2026-11-15 it ran as recorded, and a DM_VK_DISPATCH_SKIP run that skipped the conversion made the network and saved it)
+// 1.3 GB more GPU memory at every later start, so a network pipeline that is made (a network dispatch with no conversion matched before it, or DM_VK_NDVE_DIRECT=0)
+// is made outside the pipeline cache and kept out of the prewarm list (vka_pso.c cs_build)
 static const uint64_t k_ndve_convert = VKA_NDVE_CONVERT, k_ndve_final = VKA_NDVE_FINAL;
 static struct { int src; unsigned long long skipped, scaled; } g_ndve;   // src: the texture ID the last conversion wrote, until the last pass (replay thread only)
 int vka_ndve_direct(void) { return VKA_ENV("DM_VK_NDVE_DIRECT", 1) != 0; }
@@ -2027,10 +2027,7 @@ void vka_dispatch(vka_dstate *d, const p_dispatch *dp) {
         if (key == k_ndve_convert) ndve = 1;
         else if (after && key == k_ndve_final) { if (ndve_scale(d, sh)) { g_ndve.src = 0; g_dispatches++; return; } }
         else if (after && ndve_net(key)) { g_ndve.skipped++; g_dispatches++; return; }
-        else if (ndve_net(key)) {   // (the conversion was not met: its dispatch was skipped, or another stream of the movie library's; the output keeps what it held)
-            VRED_ONCE("NDVE movie: network shader %016llx dispatched with no colour conversion before it: not recorded either (its pipeline is never made with DM_VK_NDVE_DIRECT on); the movie output keeps its last frame", (unsigned long long)key);
-            g_ndve.skipped++; g_dispatches++; return;
-        }
+        else if (ndve_net(key)) VRED_ONCE("NDVE movie: network shader %016llx dispatched with no colour conversion before it: it runs as recorded (its pipeline is made, outside the pipeline cache file and the prewarm list)", (unsigned long long)key);
     }
     // agl's NDSR network replaced by its bilinear term (DM_VK_NDSR_STANDIN)
     if (ndsr_net(sh[5]->key) && ndsr_standin_on() && ndsr_standin(d, sh, dp)) { g_dispatches++; return; }
