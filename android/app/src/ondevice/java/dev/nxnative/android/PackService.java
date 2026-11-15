@@ -109,6 +109,8 @@ public final class PackService extends Service {
     private final Object noteLock = new Object();
     /** The notification left for after this service (leaveNote: the 20-s fallback, onTimeout): the worker's updates no longer replace it */
     private volatile boolean noteLeft;
+    /** The start id of the user's Resume that came while a Pause's worker still stopped (JobForm.keepsResume), taken by finished(); 0: none. Main thread */
+    private int resumeAfterStop;
     private int batteryPct = 100, thermal;
     private boolean charging = true;
     private long lastNote, lastSave, lastSend;
@@ -188,8 +190,10 @@ public final class PackService extends Service {
             String from = intent.getStringExtra(EXTRA_FROM);
             boolean running = worker != null && worker.isAlive();
             logPause(job, (from != null ? from : "an intent without \"from\"") + (running ? "" : ", nothing running"));   // i18n-keep: a log line
-            if (running) requestStop("user");
-            else if (worker == null) {   // nothing runs here: a stale notification, or the card's Pause on a job whose process died
+            if (running) {
+                resumeAfterStop = 0;   // a Pause after a kept Resume: the last word is the Pause
+                requestStop("user");
+            } else if (worker == null) {   // nothing runs here: a stale notification, or the card's Pause on a job whose process died
                 pauseDead();
                 stopSelf(startId);
             }
@@ -216,6 +220,12 @@ public final class PackService extends Service {
             return START_NOT_STICKY;
         }
         if (worker != null && worker.isAlive()) {
+            // the user's Resume while a Pause's worker still stops (no tool runs: the notification and the card already offer Resume): taken when it ends
+            Job w = job;
+            if (JobForm.keepsResume(stopReason, intent != null && !auto, j != null && w != null && j.file.getPath().equals(w.file.getPath()))) {
+                resumeAfterStop = startId;
+                Log.i(TAG, "Resume asked while the Pause still stops the worker: the job goes on once it has ended");
+            }
             startForeground(job);
             return START_STICKY;
         }
@@ -612,6 +622,13 @@ public final class PackService extends Service {
         Job j = job;
         worker = null;
         JobAlarm.cancel(this);   // the worker ended with the job done, failed or paused: nothing to check (a process that dies before this keeps its alarm)
+        int again = resumeAfterStop;
+        resumeAfterStop = 0;
+        if (again != 0 && j != null && JobForm.resumesAtEnd(j.state(), j.reason())) {
+            Log.i(TAG, "the Pause has stopped the worker: the Resume asked meanwhile goes on with the job");
+            // still foreground: its notification goes on as the new worker's. Refused (Android's foreground limit): the job is paused/refused, ended below
+            if (begin(j, true, again) == START_STICKY) return;
+        }
         publish(j, true);
         stopForeground(STOP_FOREGROUND_DETACH);
         if (j != null) postNote(j, -1, false);   // worker is null: paused (Resume), failed (Retry) or done (Play)

@@ -50,4 +50,17 @@ final class JobForm {
         if (worker && "paused".equals(state) && waitsByItself(reason)) return Form.WAITING;
         return Form.PAUSED;
     }
+
+    /**
+     * Whether a start the service gets while its worker still lives is a Resume to keep for when the worker has ended (PackService.onStartCommand, finished).
+     * The form above is PAUSED, with Resume on the notification and the card, as soon as no tool runs, but the worker may still be stopping: before its first
+     * step (deleting an older build's results, which takes seconds on GB-sized trees after an app update), in a wait (the battery, the heat, a game) or between
+     * the tool's end and finished(). A Resume tapped then was dropped (the service only answered startForeground) and the job stayed paused.
+     * stopReason: the pause in hand (PackService.stopReason, null: none); user: the start is the user's (not a sticky restart, not the app's automatic one);
+     * sameJob: it names the job this worker runs. Only a pause the user asked for: Android's daily limit (timeout) stops the service for good
+     */
+    static boolean keepsResume(String stopReason, boolean user, boolean sameJob) { return "user".equals(stopReason) && user && sameJob; }
+
+    /** Whether the worker's job, once it has ended, goes on with a Resume kept by keepsResume: it ended paused by that pause (not done, not failed) */
+    static boolean resumesAtEnd(String state, String reason) { return "paused".equals(state) && "user".equals(reason); }
 }

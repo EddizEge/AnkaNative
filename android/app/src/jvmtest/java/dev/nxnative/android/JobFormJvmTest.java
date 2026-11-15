@@ -12,6 +12,11 @@ public final class JobFormJvmTest {
         System.out.println("ok " + what);
     }
 
+    private static void same(boolean got, boolean want, String what) {
+        if (got != want) { System.out.println("FAIL " + what + ": " + got + ", want " + want); System.exit(1); }
+        System.out.println("ok " + what);
+    }
+
     public static void main(String[] a) {
         check(JobForm.of("running", "", true, false, false), JobForm.Form.RUNNING, "the worker runs the job");
         // Pause asked: the service writes the job paused (reason user) at once, the worker lives until the tool stops
@@ -42,6 +47,16 @@ public final class JobFormJvmTest {
         check(JobForm.of("paused", "timeout", true, true, false), JobForm.Form.PAUSED, "the daily limit with no tool running");
         check(JobForm.of("paused", "game", true, false, false), JobForm.Form.WAITING, "waiting for a game, no pause asked");
         check(JobForm.of("paused", "user", true, false, false), JobForm.Form.PAUSED, "a Pause of a job that waited for a game (no tool ran): paused at once");
+        // the rc1-fixes review: once PAUSED shows Resume while the worker still stops, a Resume tapped then is kept and taken when the worker ends
+        same(JobForm.keepsResume("user", true, true), true, "Resume tapped while the Pause's worker still stops: kept");
+        same(JobForm.keepsResume(null, true, true), false, "a start while the worker runs and no pause is asked: nothing to keep");
+        same(JobForm.keepsResume("timeout", true, true), false, "Android's daily limit: the service stops for good");
+        same(JobForm.keepsResume("user", false, true), false, "the app's automatic start or a sticky restart is no Resume");
+        same(JobForm.keepsResume("user", true, false), false, "a start for another job");
+        same(JobForm.resumesAtEnd("paused", "user"), true, "the worker ended paused by that Pause: the job goes on");
+        same(JobForm.resumesAtEnd("done", ""), false, "the job finished before the Pause took: nothing to resume");
+        same(JobForm.resumesAtEnd("failed", ""), false, "a failed job is retried only by Retry");
+        same(JobForm.resumesAtEnd("paused", "timeout"), false, "the daily limit");
         if (!JobForm.waitsByItself("battery") || !JobForm.waitsByItself("thermal") || JobForm.waitsByItself("user") || JobForm.waitsByItself("timeout")
                 || JobForm.waitsByItself("")) { System.out.println("FAIL waitsByItself"); System.exit(1); }
         System.out.println("all ok");

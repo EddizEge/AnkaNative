@@ -104,5 +104,28 @@ class OnePlace(unittest.TestCase):
         self.assertEqual(len(re.findall(r'inTool = (true|false);', code)), 2)   # nowhere else
 
 
+class ResumeWhileStopping(unittest.TestCase):
+    """The rc1-fixes review: with the form PAUSED as soon as no tool runs, Resume shows on the notification and the card while the Pause's worker may still be
+    stopping (before its first step, in a wait, between the tool's end and finished()). onStartCommand only answered startForeground then, so the tap did
+    nothing and the job stayed paused. The user's Resume is now kept (JobForm.keepsResume) and finished() goes on with the job (JobForm.resumesAtEnd)"""
+    s = (ONDEVICE / 'PackService.java').read_text(encoding='utf-8')
+
+    def test_kept_in_on_start(self):
+        st = body(self.s, 'public int onStartCommand(Intent intent, int flags, int startId)', '\n    }\n')
+        alive = st[st.index('if (worker != null && worker.isAlive()) {\n            // the user'):]
+        self.assertIn('JobForm.keepsResume(stopReason, intent != null && !auto,', alive)
+        self.assertIn('resumeAfterStop = startId;', alive)
+        self.assertLess(alive.index('resumeAfterStop = startId;'), alive.index('return START_STICKY;'))
+        pause = st[st.index('if (ACTION_PAUSE.equals(action))'):st.index('if (ACTION_GAME.equals(action))')]
+        self.assertLess(pause.index('resumeAfterStop = 0;'), pause.index('requestStop("user");'))
+
+    def test_taken_when_the_worker_ends(self):
+        fin = body(self.s, 'private void finished()', '\n    }\n')
+        self.assertIn('if (again != 0 && j != null && JobForm.resumesAtEnd(j.state(), j.reason())) {', fin)
+        self.assertIn('if (begin(j, true, again) == START_STICKY) return;', fin)
+        self.assertLess(fin.index('begin(j, true, again)'), fin.index('publish(j, true);'))
+        self.assertLess(fin.index('begin(j, true, again)'), fin.index('stopSelf();'))
+
+
 if __name__ == '__main__':
     unittest.main()
