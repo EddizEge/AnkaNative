@@ -7,6 +7,12 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 
 ## Unreleased
 
+- **Prepare's notification and card after a Pause, a kill and Prepare again.** After a quick Pause the notification could stay "Pausing" with no
+  button though the Prepare was paused: it now says paused with Resume as soon as the work in hand has stopped, and at once when nothing was running.
+  A Prepare killed while Home was open was taken for one you ended with Force stop (Resume offered, not resumed) when you had used Force stop on it
+  earlier: only how the Prepare's own last process ended counts now. A game card's "Prepare again" checks that card's own pack; it no longer moves the
+  card to another pack folder it finds beside the game, and a job you forgot comes back only if you resume it. The app no longer logs a Prepare's end
+  after each clean stop. Checked on the JVM and in a build; not yet on a phone.
 - **Pause stops a Prepare within seconds, and the notification says paused.** Pausing while the shaders were being translated did not stop the
   translation: it went on until the app ended its own process 20 s later, and the notification it left said "Waiting" for the battery or the heat, with a
   Pause button and no Resume, for the whole pause (that notification was already wrong in 0.2.2, after Android's daily limit too). For those 20 s the card
@@ -33,8 +39,9 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
   below. A Pause tapped on the card just as the app opens on such a Prepare now pauses it, where it was dropped and the Prepare resumed by itself. Where Android does not let it, a
   notification says "Interrupted: …, Prepare stopped. Tap to go on", and a tap opens the app and goes on. A Prepare you paused stays paused. Allowing
   the app's Autostart in HyperOS's app settings may let the phone restart it too (not tried). Checked on the JVM and in a build; not yet on a phone.
-- **Prepare's numbers read right.** The collapsed notification shows the time left first in its title ("45 min left · Preparing …"), where Android
-  shows a notification with a progress bar on one line with no text under it. After a resume the time left comes back at once from the speed measured
+- **Prepare's numbers read right.** The collapsed notification shows what it does and the time left ("Preparing · 45 min"), where Android shows a
+  notification with a progress bar on one line with no text under it (on HyperOS it showed only "45 min left ·…"); every notification's title starts with
+  what it says (Paused, Waiting, Ready to play, …), so a narrow screen cuts the game's name, not that. After a resume the time left comes back at once from the speed measured
   before, instead of nothing for over 2 minutes. A shader update's card no longer says "shader 0 / 42,854" at its start: the shader count shows once
   the update says how many it translates (584 for a 0.2.2 pack). A paused shader scan that resumes no longer drops the bar (it fell from 17 % to 6 % for
   the 39 s the scan's start took again). English writes the percent sign as "32%". Checked on the JVM; not yet on a phone.
