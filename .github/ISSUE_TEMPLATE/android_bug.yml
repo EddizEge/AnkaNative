@@ -64,7 +64,7 @@ body:
     attributes:
       label: Anka Native release
       description: Settings › About shows the build tag.
-      placeholder: "v0.1.0"
+      placeholder: "v0.3.0"
     validations:
       required: true
   - type: dropdown

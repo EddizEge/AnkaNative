@@ -37,7 +37,7 @@ body:
     attributes:
       label: Where it is
       description: The screen and how to get there.
-      placeholder: "Settings › Game settings › the second switch from the top"
+      placeholder: "a game's ⋯ › Game settings › the second switch from the top"
     validations:
       required: true
   - type: textarea
