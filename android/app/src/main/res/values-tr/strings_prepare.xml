@@ -55,6 +55,8 @@
     <string name="prepare_label_delete_work">Çalışma dosyalarını sil</string>
     <string name="prepare_label_manage">Yönet</string>
     <string name="prepare_other_folder_job">Bu döküm için bitmemiş bir iş %1$s konumuna yazıyor: %2$s\n\nBaşka bir klasöre hazırlamadan önce işe karttan devam et ya da çalışma dosyalarını sil (⋯ › %3$s).</string>
+    <string name="prepare_other_folder_title">Başka klasörde bitmemiş iş</string>
+    <string name="prepare_button_show_job">İşi göster</string>
     <string name="prepare_busy">%1$s şu anda hazırlanıyor (%2$s). Önce duraklat, sonra yeniden dene.</string>
     <string name="prepare_redo_code_update">Oyun kodunu yeniden yazar (birkaç dakika). %1$s</string>
     <string name="prepare_redo_both">Oyun kodunu ve shader\'ları dökümden yeniden yapar (%1$s, arka planda).</string>

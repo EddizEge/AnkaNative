@@ -473,9 +473,9 @@ final class Ondevice {
                 f.r = DumpCheck.check(dump, f.existing == null);
                 // the pack to check: a card's own (its automatic update, its Prepare again), else the one Folders finds for the dump; an adb test's
                 // ondevice_pack is a folder for a new job, never checked (a pack there is not adopted)
-                boolean cardPack = card || again && packOverride != null;
-                if (f.r.ok() && (packOverride == null || cardPack)) {
-                    f.packDir = cardPack ? packOverride : Folders.packFor(a, f.r.dump, f.r.titleId);
+                JobPick.Pack which = JobPick.packToCheck(card, again, packOverride != null);
+                if (f.r.ok() && which != JobPick.Pack.NONE) {
+                    f.packDir = which == JobPick.Pack.CARD ? packOverride : Folders.packFor(a, f.r.dump, f.r.titleId);
                     try {
                         Pack p = f.packDir == null ? null : Pack.read(f.packDir);
                         if (p != null && !p.simulated && p.titleId.equals(f.r.titleId)) {
@@ -498,9 +498,9 @@ final class Ondevice {
             if (f.existing != null) {
                 try {
                     Job j = Job.read(f.existing);
-                    boolean same = j.dump().getPath().equals(r.dump.getPath()) && j.version() == r.version && (packOverride == null || packOverride.equals(j.pack()));
-                    String s = j.state();
-                    if (same && (s.equals("running") || s.equals("paused") || s.equals("failed") || s.equals("pending"))) {
+                    boolean same = JobPick.samePlace(j.dump(), r.dump) && j.version() == r.version && (packOverride == null || JobPick.samePlace(packOverride, j.pack()));
+                    JobPick.Found found = JobPick.existing(same, j.state());
+                    if (found == JobPick.Found.TAKE) {
                         // remembered (Home's card shows it again) only once the user takes it: a job forgotten (Manage › Forget) and found again by a new pick,
                         // as Forget says, stays forgotten when the question is cancelled (the rc1 phone check: Cancel brought the forgotten job back)
                         Runnable take = () -> {
@@ -514,12 +514,16 @@ final class Ondevice {
                                 a.getString(R.string.prepare_button_resume), take);
                         return;
                     }
-                    if (!s.equals("done") && !s.isEmpty()) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
+                    if (found == JobPick.Found.OTHER_FOLDER) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
                         if (card) { a.refresh(); return; }   // an automatic update leaves it to the user
-                        a.error(a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(), a.getString(R.string.prepare_label_delete_work)));
-                        Job.remember(a, f.existing);
-                        job = j;
-                        show();
+                        // shown on Home (its card: Resume, Delete working files) only when the user asks: a job forgotten (Manage › Forget) stays forgotten
+                        Runnable showIt = () -> {
+                            Job.remember(a, f.existing);
+                            job = j;
+                            show();
+                        };
+                        confirm(a.getString(R.string.prepare_other_folder_title), a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(),
+                                a.getString(R.string.prepare_label_delete_work)), a.getString(R.string.prepare_button_show_job), showIt);
                         return;
                     }
                 } catch (IOException e) {

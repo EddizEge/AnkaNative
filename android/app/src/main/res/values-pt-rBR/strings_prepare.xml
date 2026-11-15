@@ -60,6 +60,8 @@
     <!-- The Preparing card's ⋯ button, named inside other areas' sentences -->
     <string name="prepare_label_manage">Gerenciar</string>
     <string name="prepare_other_folder_job">Uma tarefa inacabada deste dump grava em %1$s: %2$s\n\nRetome-a pelo cartão, ou exclua os arquivos de trabalho dela (⋯ › %3$s) antes de preparar em outra pasta.</string>
+    <string name="prepare_other_folder_title">Tarefa inacabada em outra pasta</string>
+    <string name="prepare_button_show_job">Mostrar a tarefa</string>
     <string name="prepare_busy">A preparação de %1$s está em andamento (%2$s). Pause primeiro e tente de novo.</string>
     <!-- %1$s: prepare_shaders_update -->
     <string name="prepare_redo_code_update">Reescreve o código do jogo (alguns minutos). %1$s</string>

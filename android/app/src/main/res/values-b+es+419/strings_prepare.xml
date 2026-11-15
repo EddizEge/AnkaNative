@@ -53,6 +53,8 @@
     <string name="prepare_label_delete_work">Eliminar archivos de trabajo</string>
     <string name="prepare_label_manage">Administrar</string>
     <string name="prepare_other_folder_job">Una preparación sin terminar de este volcado escribe en %1$s: %2$s\n\nReanúdala desde la tarjeta o elimina sus archivos de trabajo (⋯ › %3$s) antes de preparar el juego en otra carpeta.</string>
+    <string name="prepare_other_folder_title">Preparación sin terminar en otra carpeta</string>
+    <string name="prepare_button_show_job">Mostrar la preparación</string>
     <string name="prepare_busy">Se está preparando %1$s en este momento (%2$s). Pausa primero la preparación y luego vuelve a intentarlo.</string>
     <string name="prepare_redo_code_update">Reescribe el código del juego (unos minutos). %1$s</string>
     <string name="prepare_redo_both">Vuelve a crear el código del juego y los shaders a partir de tu volcado (%1$s, en segundo plano).</string>

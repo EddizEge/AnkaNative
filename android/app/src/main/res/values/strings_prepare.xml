@@ -66,6 +66,8 @@
     <!-- The Preparing card's ⋯ button, named inside other areas' sentences (Ondevice.manageLabel; its description is prepare_card_manage) -->
     <string name="prepare_label_manage">Manage</string>
     <string name="prepare_other_folder_job">An unfinished job for this dump writes to %1$s: %2$s\n\nResume it from the card, or delete its working files (⋯ › %3$s) before preparing into another folder.</string>
+    <string name="prepare_other_folder_title">Unfinished job in another folder</string>
+    <string name="prepare_button_show_job">Show the job</string>
     <string name="prepare_busy">%1$s is being prepared now (%2$s). Pause it first, then try again.</string>
     <!-- %1$s: prepare_shaders_update_quick or _full -->
     <string name="prepare_redo_code_update">Rewrites the game code (a few minutes). %1$s</string>
