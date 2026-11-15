@@ -65,7 +65,8 @@ public final class GameGateJvmTest {
         same(GameGate.card(false, null, null, false), GameGate.Line.OLDER, "no update of this pack queued or running: not \"updating shaders\" (the phone test's line)");
         same(GameGate.card(true, null, null, false), GameGate.Line.UPDATING, "the card's check just started its update");
         same(GameGate.card(false, "running", "", true), GameGate.Line.UPDATING, "its update runs");
-        same(GameGate.card(false, "pending", "", false), GameGate.Line.UPDATING, "its update is written and starting");
+        same(GameGate.card(false, "pending", "", true), GameGate.Line.UPDATING, "its update is written and its worker starts it");
+        same(GameGate.card(false, "pending", "", false), GameGate.Line.OLDER, "written and waiting for the user's Start (Prepare again): not \"updating shaders\" (the review's finding)");
         same(GameGate.card(false, "running", "", false), GameGate.Line.PAUSED, "running in job.json, its process dead: not updating");
         same(GameGate.card(false, "paused", "game", true), GameGate.Line.GAME, "waiting while a game runs");
         same(GameGate.card(false, "paused", "game", false), GameGate.Line.GAME, "left waiting for a game (Home resumes it once the game is gone)");

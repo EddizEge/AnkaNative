@@ -84,7 +84,7 @@ final class GameGate {
         GAME,
         /** "Ready · shader update paused": paused by the user, Android's daily limit or a start Android refused, or its process died (Resume on the Preparing card) */
         PAUSED,
-        /** "Ready · older shaders": no update of this card's pack is queued or running (none started, or it stopped with an error) */
+        /** "Ready · older shaders": no update of this card's pack is queued or running (none started, one written that waits for Start, or it stopped with an error) */
         OLDER
     }
 
@@ -95,7 +95,7 @@ final class GameGate {
     static Line card(boolean queued, String state, String reason, boolean worker) {
         if (queued) return Line.UPDATING;   // started or resumed just now (Ondevice.autoUpdate); the card is made again as the job goes on (Ondevice show)
         if (state != null) {
-            if ("pending".equals(state)) return Line.UPDATING;
+            if ("pending".equals(state)) return worker ? Line.UPDATING : Line.OLDER;   // with no worker: written, waiting for the user's Start (Prepare again)
             if ("running".equals(state)) return worker ? Line.UPDATING : Line.PAUSED;
             if ("paused".equals(state)) {
                 if (REASON.equals(reason)) return Line.GAME;   // with no worker too: Home resumes it once no game runs (resumeAfterGame)
