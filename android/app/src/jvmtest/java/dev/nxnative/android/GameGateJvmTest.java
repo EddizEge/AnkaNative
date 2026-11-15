@@ -47,6 +47,15 @@ public final class GameGateJvmTest {
         same(GameGate.onGame(false, false, false, "", "", U), GameGate.Act.NOTHING, "no job");
 
         // When the game may start
+        // the rc1-fixes review: a Pause writes the job paused at once, before its tool has stopped; the game must ask while the job's process still runs
+        check(GameGate.holds("paused", "user", true), "paused by the user, its process still runs (the tool may still be stopping): the game asks first");
+        check(GameGate.holds("paused", "timeout", true), "paused by the daily limit, its process still runs: the game asks first");
+        check(!GameGate.holds("paused", "user", false), "paused by the user, its process gone: the game starts at once");
+        check(!GameGate.holds("paused", "refused", true), "a start Android refused leaves no worker: nothing to wait for");
+        check(GameGate.holds("running", "", false) && GameGate.holds("paused", "battery", false) && GameGate.holds("paused", "game", false),
+                "a job that may be working is asked as before (pauseFirst)");
+        for (String st : new String[] {"done", "failed", "pending", ""}) check(!GameGate.holds(st, "", true), "no job works (" + st + "): the game starts at once");
+        same(GameGate.onGame(true, true, true, "paused", "user", U), GameGate.Act.NOTHING, "asked while the Pause stops the worker: nothing more to do, game_ready once it ends");
         check(GameGate.ready(false, false, true), "no worker: the game starts");
         check(GameGate.ready(true, true, false), "the worker waits for the game in a process that ran no tool: the game starts");
         check(!GameGate.ready(true, true, true), "the worker waits but a tool ran here: not yet (the process ends first)");

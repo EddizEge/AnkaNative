@@ -69,6 +69,18 @@ class Game(unittest.TestCase):
         self.assertIn('if (done) return;', fin)
         self.assertIn('go.run();', fin)
 
+    def test_a_pause_in_hand_holds_the_game(self):
+        """The rc1-fixes review: a Pause writes the job paused/user at once, before its tool has stopped (up to 20 s), and the game started at once beside it,
+        without ACTION_GAME, so the process the tool ran in was not ended for the game either. The gate now also holds while the job's process runs"""
+        hold = body(self.gate, 'static boolean hold(Activity a, Runnable go) {')
+        self.assertIn('if (j == null || !GameGate.holds(j.state(), j.reason(), packRunning(a, j.pid()))) return false;', hold)
+        pr = body(self.gate, 'static boolean packRunning(Context c, int pid) {')
+        self.assertIn('c.getPackageName() + ":pack"', pr)
+        self.assertIn('(pid <= 0 || p.pid == pid)', pr)
+        s = code(ONDEVICE / 'PackService.java')
+        fin = body(s, 'private void finished() {')
+        self.assertIn('if (gameAsked && PackNative.ranTool()) {', fin)   # asked while the worker stopped: the process ends once it has
+
     def test_binding_death_says_what_happened(self):
         """The rc1 phone check: all four starts that stopped a tool ended through onBindingDied ("the binding to the job's service died: the game starts"),
         never through "asked N time(s)". Android takes the service down when its process ends (HyperOS refuses the restart) and tells the binding

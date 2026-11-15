@@ -279,7 +279,8 @@ public final class PackService extends Service {
         GameGate.Act act = GameGate.onGame(alive, PackNative.ranTool(), stopReason != null, j == null ? "" : j.state(), j == null ? "" : j.reason(),
                 exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());
         Log.i(TAG, "a game starts: " + act + (j == null ? ", no job" : ", the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()))
-                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : "") + (exit != null ? ", its process ended (" + JobWatch.describe(exit) + ")" : ""));
+                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : "") + (exit != null ? ", its process ended (" + JobWatch.describe(exit) + ")" : "")
+                + (alive && stopReason != null ? "; a Pause is in hand: the game starts once the worker has ended" + (PackNative.ranTool() ? ", and this process ends then" : "") : ""));
         gameAsked = true;   // also a Pause in hand: once its worker ends, this process ends too (finished)
         if (alive) {
             startForeground(job);   // startForegroundService's answer

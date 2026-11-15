@@ -52,11 +52,12 @@ final class PrepareGate implements ServiceConnection {
 
     private PrepareGate(Activity a, Runnable go, String was) { this.a = a; this.go = go; this.was = was; }
 
-    /** true: the game waits, and go runs on the main thread once the job waits (or after WAIT_MS); false: nothing to pause, go on at once */
+    /** true: the game waits, and go runs on the main thread once the job waits or no longer works (or after WAIT_MS); false: nothing to pause, go on at once.
+     *  Also a job paused by the user (or the daily limit) whose process still runs: its tool may still be stopping (GameGate.holds) */
     static boolean hold(Activity a, Runnable go) {
         outcome = null;
         Job j = job(a);
-        if (j == null || !GameGate.pauseFirst(j.state(), j.reason())) return false;
+        if (j == null || !GameGate.holds(j.state(), j.reason(), packRunning(a, j.pid()))) return false;
         new PrepareGate(a, go, j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason())).begin();
         return true;
     }
@@ -176,6 +177,14 @@ final class PrepareGate implements ServiceConnection {
         } catch (RuntimeException e) {   // the job stays paused for the game: Home resumes it when it opens (Ondevice.Panel.afterDeath)
             Log.w(TAG, "the game ends: Android did not let it start the job's service (" + e + "); Home resumes it when it opens");
         }
+    }
+
+    /** Whether the job's process (":pack" with that pid; any ":pack" for pid 0 or less: a job.json of an older build) runs */
+    static boolean packRunning(Context c, int pid) {
+        List<ActivityManager.RunningAppProcessInfo> ps = c.getSystemService(ActivityManager.class).getRunningAppProcesses();
+        String name = c.getPackageName() + ":pack";
+        if (ps != null) for (ActivityManager.RunningAppProcessInfo p : ps) if (name.equals(p.processName) && (pid <= 0 || p.pid == pid)) return true;
+        return false;
     }
 
     /** Whether a game's process (GameActivity's ":game", AndroidManifest.xml) runs: in the foreground, in the background or still starting */
