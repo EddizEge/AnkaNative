@@ -8,6 +8,9 @@
 // of Time's forest vertex shaders b1f06157308e3b22 / f8ead72a83b146b7 load 253 words, mostly the four words of a vec4 at base + 0, 4, 8, 12, each with its own
 // dependent table read; the froxel compute pass 9e6b00b050e30801 runs 208 searches of 12 dependent steps each (session-2026-11-14 perf-measure-1.md, perf-gmem.md).
 //
+// A call's address words are the last values stored, in its block, to the two Function variables it is given, which is only sure when nothing else can write those
+// variables: both must be the calling function's own variables, used in it by nothing but OpLoad, OpStore (as the pointer) and calls of the load helpers (own_vars;
+// a copy or an access chain of one, even with no index, would be a second pointer a store could go through unseen: such calls are left as they are and counted).
 // The call sites give the address as base + constant: low = base_lo + k, high = base_hi + (low < base_lo) (the translator's 64-bit add of a zero-extended k). For a
 // group of calls of one helper with the same base words (the same SSA values), offsets within 4,095 bytes of each other, in one block with no memory write, barrier,
 // atomic or other call between its first and last call, every address A_i = B + k_i lies in [A_min, A_max] = [B + k_min, B + k_max] (mod 2^64, a run of at most
@@ -199,6 +202,7 @@ static int helper_params(const mod_t *m, helper_t *h) {   // OpFunction, two poi
     if (OPC(m, b) != OpFunctionParameter) return 0;
     if (OPC(m, b + LEN(m, b)) != OpLabel) return 0;
     h->pt0 = m->w[a + 1]; h->p0 = m->w[a + 2]; h->pt1 = m->w[b + 1]; h->p1 = m->w[b + 2];
+    { size_t d = h->ret_t < m->bound ? m->def[h->ret_t] : 0; if (!d || OPC(m, d) == OpTypePointer) return 0; }   // (a pointer result could carry a parameter out)
     for (int k = 0; k < 2; k++) {
         uint32_t pt = k ? h->pt1 : h->pt0; size_t d = pt < m->bound ? m->def[pt] : 0;
         if (!d || OPC(m, d) != OpTypePointer || m->w[d + 2] != SCFunction || !int32_type(m, m->w[d + 3])) return 0;
@@ -370,6 +374,35 @@ static int take_loop(const mod_t *m, helper_t *h) {
 }
 
 // ---- call sites
+// The function's own variables (from fn, its OpFunction): Function variables it declares whose id appears nowhere in it but as the pointer of an OpLoad, the pointer of
+// an OpStore and an argument of a call of a taken load helper (which neither writes nor keeps it: no store, no call, a result that is not a pointer). Only then is the
+// last OpStore to one in a block its value at a later call in that block: no other pointer to it exists (an OpCopyObject, an access chain, even with no index, a phi, a
+// select, or an argument of another function, could write it unseen). own[id]: OWN_YES such a variable, OWN_NO a Function variable used any other way, 0 not one.
+// Any word of any other instruction that equals the variable's id counts as a use (a literal that happens to equal it only leaves a call as it is). 0: a bad instruction
+enum { OWN_YES = 1, OWN_NO = 2 };
+static int own_vars(const mod_t *m, size_t fn, const uint32_t *hid, int nh, uint8_t *own) {
+    memset(own, 0, m->bound);
+    size_t i = fn;
+    for (; i < m->nw && OPC(m, i) != OpFunctionEnd; i += LEN(m, i)) {
+        if (!LEN(m, i) || i + LEN(m, i) > m->nw) return 0;
+        if (OPC(m, i) == OpVariable && LEN(m, i) >= 4 && m->w[i + 3] == SCFunction && m->w[i + 2] < m->bound) own[m->w[i + 2]] = OWN_YES;
+    }
+    if (i >= m->nw) return 0;
+    for (i = fn; OPC(m, i) != OpFunctionEnd; i += LEN(m, i)) {
+        uint32_t op = OPC(m, i), len = LEN(m, i), skip[3] = {0, 0, 0};   // word positions where a variable's id is a use this pass follows
+        if (op == OpVariable) skip[0] = 2;                                // (its own definition)
+        else if (op == OpLoad && len >= 4) skip[0] = 3;
+        else if (op == OpStore && len >= 3) skip[0] = 1;
+        else if (op == OpFunctionCall && len == 6) { for (int k = 0; k < nh; k++) if (m->w[i + 3] == hid[k]) { skip[0] = 4; skip[1] = 5; } }
+        else if (op == 8 || op == 317) continue;                           // OpLine, OpNoLine: a file name and line numbers
+        for (uint32_t k = 1; k < len; k++) {
+            if (k == skip[0] || k == skip[1]) continue;
+            uint32_t v = m->w[i + k];
+            if (v < m->bound && own[v] == OWN_YES) own[v] = OWN_NO;
+        }
+    }
+    return 1;
+}
 typedef struct { size_t call; int h; uint32_t bl, bh, k, lo, hi; int cl; } site_t;
 typedef struct { int h; int n; int first; uint32_t bl, bh, kmin, kmax; uint32_t fn; } cluster_t;
 typedef struct {
@@ -584,7 +617,7 @@ static void add_stats(vka_gmem_stats *to, const vka_gmem_stats *st) {
 int vka_spv_gmem_merge(const uint32_t *w, size_t nw, uint32_t **out, size_t *out_nw, vka_gmem_stats *st_out, char *err, size_t errn) {
 #define FAIL(...) do { snprintf(err, errn, __VA_ARGS__); goto fail; } while (0)
     vka_gmem_stats st0 = {0}, *st = &st0;
-    mod_t M = {0}, *m = &M; plan_t P = {0}; vec_t o = {0}; uint32_t *map = NULL, *map2 = NULL, *last = NULL, *fvars = NULL; uint8_t *taint = NULL;
+    mod_t M = {0}, *m = &M; plan_t P = {0}; vec_t o = {0}; uint32_t *map = NULL, *map2 = NULL, *last = NULL, *fvars = NULL; uint8_t *taint = NULL, *own = NULL;
     helper_t hs[MAXH]; int nh = 0; uint32_t hid[MAXH]; size_t *fn_at = NULL; int nfn = 0, cfn = 0;
     *out = NULL; *out_nw = 0; err[0] = 0;
     if (nw < 5 || w[0] != 0x07230203) FAIL("not SPIR-V");
@@ -625,12 +658,13 @@ int vka_spv_gmem_merge(const uint32_t *w, size_t nw, uint32_t **out, size_t *out
     }
     if (!nh) goto count_left;
     // pass 3: call sites, per function and block
-    if (!(last = calloc(m->bound, sizeof *last))) FAIL("out of memory");
+    if (!(last = calloc(m->bound, sizeof *last)) || !(own = calloc(m->bound, 1))) FAIL("out of memory");
     uint32_t *touched = NULL; size_t nt = 0, ct = 0;
     for (int f = 0; f < nfn; f++) {
         uint32_t fid = w[fn_at[f] + 2]; int is_h = 0;
         for (int k = 0; k < nh; k++) if (hid[k] == fid) is_h = 1;
         if (is_h) continue;
+        if (!own_vars(m, fn_at[f], hid, nh, own)) { free(touched); FAIL("bad instruction in function %u", fid); }
         int from = P.ns;
         for (size_t i = fn_at[f]; i < nw && OPC(m, i) != OpFunctionEnd; i += LEN(m, i)) {
             uint32_t op = OPC(m, i);
@@ -639,7 +673,7 @@ int vka_spv_gmem_merge(const uint32_t *w, size_t nw, uint32_t **out, size_t *out
                 from = P.ns; for (size_t t = 0; t < nt; t++) last[touched[t]] = 0; nt = 0;
                 continue;
             }
-            if (op == OpStore && sc_of(m, w[i + 1]) == SCFunction && w[i + 1] < m->bound) {   // a Function variable's value in this block
+            if (op == OpStore && w[i + 1] < m->bound && own[w[i + 1]] == OWN_YES) {   // an own variable's value in this block (nothing else can write it: own_vars)
                 if (nt == ct) { size_t c2 = ct ? 2 * ct : 256; uint32_t *q = realloc(touched, c2 * 4); if (!q) { free(touched); FAIL("out of memory"); } touched = q; ct = c2; }
                 last[w[i + 1]] = w[i + 2]; touched[nt++] = w[i + 1];
                 continue;
@@ -648,7 +682,10 @@ int vka_spv_gmem_merge(const uint32_t *w, size_t nw, uint32_t **out, size_t *out
             if (op == OpFunctionCall && LEN(m, i) == 6) for (int k = 0; k < nh; k++) if (w[i + 3] == hid[k]) hk = k;
             if (hk >= 0) {
                 st->calls++;
-                uint32_t lo = w[i + 4] < m->bound ? last[w[i + 4]] : 0, hi = w[i + 5] < m->bound ? last[w[i + 5]] : 0;
+                // the address words: only through the function's own variables (any other pointer to them, a copy, an access chain, a phi, a select, a parameter or
+                // another call's argument, could write them without this pass seeing it: such calls are left as they are)
+                uint32_t a0 = w[i + 4], a1 = w[i + 5];
+                uint32_t lo = a0 < m->bound && own[a0] == OWN_YES ? last[a0] : 0, hi = a1 < m->bound && own[a1] == OWN_YES ? last[a1] : 0;
                 if (!lo || !hi) { st->left_unknown++; continue; }
                 site_t s = {i, hk, 0, 0, 0, lo, hi, -1};
                 base_of(m, lo, hi, &s.bl, &s.bh, &s.k);
@@ -656,9 +693,6 @@ int vka_spv_gmem_merge(const uint32_t *w, size_t nw, uint32_t **out, size_t *out
                 P.s[P.ns++] = s;
                 continue;
             }
-            // a Function variable passed anywhere else (a call, a copy) is no longer known
-            if (op != OpLoad && op != OpStore) { int pos[40]; (void)pos;
-                for (uint32_t k = 1; k < LEN(m, i); k++) { uint32_t v = w[i + k]; if (v < m->bound && last[v]) last[v] = 0; } }
             if (writes_memory(m, i, hid, nh)) {
                 if (!flush(&P, from, hs, fid, st)) { free(touched); FAIL("out of memory"); }
                 from = P.ns;
@@ -788,7 +822,7 @@ int vka_spv_gmem_merge(const uint32_t *w, size_t nw, uint32_t **out, size_t *out
     for (size_t i = 5; i < o.n;) { uint32_t len = o.w[i] >> 16; if (!len || i + len > o.n) FAIL("internal: bad instruction at word %zu of the output", i); i += len; }
     count_untaken(m, hid, nh, st); add_stats(st_out, st);
     int merged = st->merged;
-    free(m->def); free(m->decl.w); free(P.s); free(P.c); free(fn_at); free(map); free(map2); free(last); free(fvars); free(taint);
+    free(m->def); free(m->decl.w); free(P.s); free(P.c); free(fn_at); free(map); free(map2); free(last); free(fvars); free(taint); free(own);
     *out = o.w; *out_nw = o.n;
     return merged;
 ofail:
@@ -798,10 +832,10 @@ count_left:
 none:
     if (m->def && nfn) count_untaken(m, hid, nh, st);
     add_stats(st_out, st);
-    free(m->def); free(m->decl.w); free(P.s); free(P.c); free(fn_at); free(map); free(map2); free(last); free(fvars); free(taint);
+    free(m->def); free(m->decl.w); free(P.s); free(P.c); free(fn_at); free(map); free(map2); free(last); free(fvars); free(taint); free(own);
     return 0;
 fail:
-    free(m->def); free(m->decl.w); free(P.s); free(P.c); free(fn_at); free(o.w); free(map); free(map2); free(last); free(fvars); free(taint);
+    free(m->def); free(m->decl.w); free(P.s); free(P.c); free(fn_at); free(o.w); free(map); free(map2); free(last); free(fvars); free(taint); free(own);
     return -1;
 #undef FAIL
 }

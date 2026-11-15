@@ -411,6 +411,7 @@ int vka_shader_lib_has(uint64_t key);       // key is an entry of the game's lib
 int vka_shader_memu_key(uint64_t key);      // key is no library entry but a task / mesh shader's compute form or vertex shader (vka_memu.h VKA_MEMU_KEY_*: a run through compute)
 uint32_t *vka_shader_memu_words(vka_shader *s, size_t *nb, char *err, size_t errn);   // a task / mesh shader's words for its compute form (vka_memu.c), malloc'd
 void vka_shader_gmem_log(const char *when);   // the raw global memory merge's totals so far (vka_gmem.c, DM_VK_GMEM_MERGE), one line
+int vka_shader_gmem_on(void);                 // DM_VK_GMEM_MERGE (read once): the modules are rewritten (the pipeline cache file's name says so, vka_pso.c)
 VkShaderModule vka_shader_module(vka_shader *s, int variant);
 uint32_t vka_shader_sg_pin(int stage);              // DMSH_VK_STAGE_*: the subgroup size its subgroup shaders' pipelines require (vka_shader.c sg_plan), 0 = none
 VkShaderModule vka_shader_cs_module(vka_shader *s);  // a compute shader's module: its DMSH_VK_MOD_SHUFFLE_LDS one where the device takes it (vka_shader.c shuffle_plan), else the base

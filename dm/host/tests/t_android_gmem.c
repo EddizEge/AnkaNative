@@ -1,6 +1,7 @@
 // Raw global memory loads merged per base address (dm/gfx/vk_android/vka_gmem.c, DM_VK_GMEM_MERGE), on the PC: the hand-written fixtures in gmem/ (a compute module
 // with a load helper in each of the library's two forms: the page index and the pool search, calls in the translator's base + constant form, runs across a 4 KiB
-// bucket, near 2^32, cut by a store, in another block, not known in their block, not base + constant; the _tw variants with a store to the table between two calls)
+// bucket, near 2^32, cut by a store, in another block, not known in their block, not base + constant, address variables written through a copy or an access chain of
+// them (must stay as they are: the 2026-11-15 review's case); the _tw variants with a store to the table between two calls)
 // rewritten, checked by count, by spirv-val when it is on the PATH, and EXECUTED: a small SPIR-V interpreter runs the original and the rewritten module on the same
 // random memory, inputs and tables (pages mapped and unmapped, windows across 2^32 and at the page index's clamp, sorted and unsorted pool tables, base words near page
 // ends), and their outputs, every memory store, every helper call's value and every Output must be bit-identical. As a check of the check, the rewritten main
@@ -50,7 +51,7 @@ typedef struct {
     uint64_t *pool; size_t np, cp;                           // physical pointers: addresses
     uint64_t seed; long steps; int stop, cap_hit;
     uint64_t *tr; size_t ntr, ctr;                           // the trace
-    uint32_t P0, N; uint64_t sink; int sorted; uint32_t ES;  // the trial's tables
+    uint32_t P0, N; uint64_t sink; int sorted, dense; uint32_t ES;   // the trial's tables (dense: most words are the window's addresses, few pages unmapped)
     long cov[8];                                             // pidx c true / false; search equal / from a bit / full; sink loads / mapped loads
 } run_t;
 static uint32_t *map_slot(map_t *m, uint64_t key, int add) {
@@ -175,9 +176,13 @@ static void find_tables(im_t *M) {
 }
 
 // ---- the trial's memory
+// A word the module reads from its inputs or buffers: often a low word in the page window (near page ends too) or the window's high word. In a dense trial (half of
+// them) half the words are low words in the window and 40 % its high word, so that a base's two words, drawn apart, still name a window address about a fifth of the
+// time (the 2026-11-15 review: with the plain mix only about 8 % of the library's loads met a mapped page)
 static uint32_t biased(run_t *r, uint64_t h) {
     uint32_t cat = (uint32_t)(h % 10), pg = r->P0 + (uint32_t)((h >> 8) % (r->N + 3)) - 1;
     static const uint32_t edge[] = {0, 1, 2, 3, 4, 8, 12, 0xfe0, 0xff0, 0xff4, 0xff8, 0xffc, 0xffd, 0xfff};
+    if (r->dense) cat = cat < 5 ? 0 : cat < 9 ? 3 : 9;
     switch (cat) {
     case 0: case 1: case 2: return (pg << 12) + ((h >> 32) & 1 ? edge[(h >> 40) % 14] : (uint32_t)(h >> 44) & 0xfff);
     case 3: case 4: case 5: return pg >> 20;
@@ -195,7 +200,7 @@ static uint32_t table_word(run_t *r, uint64_t wi) {
         if (j < 4) return 0;
         uint64_t rec = (j - 4) / 2; int half = (int)((j - 4) & 1);
         uint64_t hr = mix(r->seed ^ (rec * 0x9e3779b97f4a7c15ull) ^ 0x5151);
-        if (rec >= r->N || (hr & 3) == 0) return 0;   // unmapped pages, and the record past the window
+        if (rec >= r->N || (hr & (r->dense ? 15 : 3)) == 0) return 0;   // unmapped pages (a dense trial: 1 in 16), and the record past the window
         return half ? (uint32_t)(hr >> 40) & 0xff : ((uint32_t)(hr >> 8) & 0xfffff) << 12 | 1;
     }
     uint64_t e = wi / 8, f = wi % 8;
@@ -215,7 +220,7 @@ static uint32_t buf_word(run_t *r, uint32_t var, uint64_t b) {
 }
 static uint32_t psb_word(run_t *r, uint64_t a) {
     uint32_t *p = map_slot(&r->psb, a, 0);
-    return p ? *p : (uint32_t)mix(r->seed * 31 ^ a);
+    return p ? *p : r->dense ? biased(r, mix(r->seed * 31 ^ a)) : (uint32_t)mix(r->seed * 31 ^ a);   // (dense: an address read from memory names the window too)
 }
 
 // ---- execution
@@ -452,7 +457,7 @@ static void trial_setup(run_t *r, uint64_t seed) {
     default: r->P0 = (uint32_t)(h >> 20) & 0xfffff; break;                                    // high word 0
     }
     memset(r->cov, 0, sizeof r->cov);
-    r->sink = mix(seed ^ 0x51) & ~0xfffull; r->sorted = (seed / 4) % 2 == 0; r->ES = 4096u << (seed % 3);
+    r->sink = mix(seed ^ 0x51) & ~0xfffull; r->sorted = (seed / 4) % 2 == 0; r->ES = 4096u << (seed % 3); r->dense = (int)((seed >> 3) & 1);
 }
 static int run_module(run_t *r, uint64_t seed) {
     im_t *M = r->M;
@@ -543,14 +548,14 @@ int main(void) {
     g_val = system("spirv-val --version > /dev/null 2>&1") == 0;
     // The fixtures: counts, validation, and execution
     struct { const uint32_t *w; size_t n; const char *tag; int merged, groups, single, unknown; } fx[] = {
-        {GMEM_PIDX, sizeof GMEM_PIDX / 4, "pidx", 19, 5, 8, 1}, {GMEM_PIDX_TW, sizeof GMEM_PIDX_TW / 4, "pidx_tw", 15, 4, 12, 1},
-        {GMEM_LOOP, sizeof GMEM_LOOP / 4, "loop", 25, 8, 2, 1}, {GMEM_LOOP_TW, sizeof GMEM_LOOP_TW / 4, "loop_tw", 25, 9, 2, 1}};
+        {GMEM_PIDX, sizeof GMEM_PIDX / 4, "pidx", 23, 6, 8, 3}, {GMEM_PIDX_TW, sizeof GMEM_PIDX_TW / 4, "pidx_tw", 19, 5, 12, 3},
+        {GMEM_LOOP, sizeof GMEM_LOOP / 4, "loop", 29, 9, 2, 3}, {GMEM_LOOP_TW, sizeof GMEM_LOOP_TW / 4, "loop_tw", 29, 10, 2, 3}};
     uint32_t *rew[4] = {0}; size_t rn[4] = {0};
     for (int f = 0; f < 4; f++) {
         vka_gmem_stats st = {0};
         int r = vka_spv_gmem_merge(fx[f].w, fx[f].n, &rew[f], &rn[f], &st, err, sizeof err);
-        CHECK(r == fx[f].merged && st.groups == fx[f].groups && st.left_single == fx[f].single && st.left_unknown == fx[f].unknown && st.calls == 28,
-              "%s: %d merged in %d groups, %d single, %d unknown of %d calls (%s); want %d, %d, %d, %d of 28", fx[f].tag, r, st.groups, st.left_single, st.left_unknown, st.calls, err,
+        CHECK(r == fx[f].merged && st.groups == fx[f].groups && st.left_single == fx[f].single && st.left_unknown == fx[f].unknown && st.calls == 34,
+              "%s: %d merged in %d groups, %d single, %d unknown of %d calls (%s); want %d, %d, %d, %d of 34", fx[f].tag, r, st.groups, st.left_single, st.left_unknown, st.calls, err,
               fx[f].merged, fx[f].groups, fx[f].single, fx[f].unknown);
         if (r <= 0) continue;
         CHECK(validate(rew[f], rn[f], fx[f].tag), "%s: the rewritten module validates", fx[f].tag);

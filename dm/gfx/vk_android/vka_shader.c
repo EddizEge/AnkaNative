@@ -259,6 +259,7 @@ static int gmem_on(void) {
     if (v < 0) { v = VKA_ENV("DM_VK_GMEM_MERGE", 1) ? 1 : 0; int x = -1; if (!atomic_compare_exchange_strong(&on, &x, v)) v = x; }
     return v;
 }
+int vka_shader_gmem_on(void) { return gmem_on(); }
 static uint32_t *gmem_merge(const dmsh_vk_entry *e, uint32_t *w, size_t *nb) {
     if (!w || !gmem_on()) return w;
     uint32_t *o = NULL; size_t on = 0; char err[256] = ""; vka_gmem_stats st = {0};
@@ -280,7 +281,7 @@ void vka_shader_gmem_log(const char *when) {
     if (!gmem_on()) { VRED_ONCE("raw global memory loads: DM_VK_GMEM_MERGE=0: every module as the library has it (one page lookup or pool search per load)"); return; }
     pthread_mutex_lock(&g_gm_mu); vka_gmem_stats t = g_gm; int mods = g_gm_mods, rew = g_gm_rew, fail = g_gm_fail; pthread_mutex_unlock(&g_gm_mu);
     VLOG("raw global memory loads (%s): %d modules with them made, %d rewritten: %d of %d loads take their group's lookup (%d groups; helpers: %d page index, %d pool search); "
-         "left as they are: %d loads without enough neighbours, %d whose address is not base + constant, %d through %d helpers this rewrite does not prove (stores, other shapes), "
+         "left as they are: %d loads without enough neighbours, %d whose address is not base + constant (or not in the function's own variables), %d through %d helpers this rewrite does not prove (stores, other shapes), "
          "%d modules it failed on (DM_VK_GMEM_MERGE)", when, mods, rew, t.merged, t.calls, t.groups, t.helpers_pidx, t.helpers_loop, t.left_single, t.left_unknown,
          t.left_helper_calls, t.helpers_left, fail);
 }

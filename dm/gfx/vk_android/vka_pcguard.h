@@ -9,6 +9,7 @@
 // kept out of the prewarm list (vka_pso.c cs_build); older files may still hold it (pc_drop_ndve)
 #pragma once
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 // The NDVE network's shader keys (NintendoSDK movie, Movie/Ndve/Ndve-Nvn2-vid_seq5.dat): the colour conversion before it, its 9 dispatches and its last pass
@@ -28,4 +29,14 @@ static inline int vka_ndve_net_key(uint64_t key) {
 static inline const char *vka_pc_keep_blocker(const char *dispatch_skip) {
     if (dispatch_skip && *dispatch_skip) return "DM_VK_DISPATCH_SKIP";
     return NULL;
+}
+// The pipeline cache file's default name in dir: vk_pipelines[-<driver>][-gm<pass>].bin. drv: vka_driver_tag (NULL: the system driver). gm: the raw global memory merge's
+// pass version when it is on (vka_gmem.h VKA_GMEM_PASS), 0 when it is off (DM_VK_GMEM_MERGE=0). The merge rewrites the modules of nearly every game pipeline, and the
+// driver keys a pipeline by its SPIR-V, so one file for both would hold two programs of each such pipeline after a run of each kind, and Turnip loads every program of
+// the file at every start (above: start time, memory, private memory sized over both). With its own file each kind loads only its own programs; the other kind's file
+// of the same driver is removed when the merge is on (vka_pso.c pc_open_once), as it would only take space. → 0 when the name does not fit
+static inline int vka_pc_default_name(char *out, size_t n, const char *dir, const char *drv, int gm) {
+    char g[16] = ""; if (gm > 0) snprintf(g, sizeof g, "-gm%d", gm);
+    int k = snprintf(out, n, "%s/vk_pipelines%s%s%s.bin", dir, drv ? "-" : "", drv ? drv : "", g);
+    return k > 0 && (size_t)k < n;
 }

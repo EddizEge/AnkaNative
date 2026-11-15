@@ -8,6 +8,7 @@
 #include "vka.h"
 #include "vka_aspick.h"
 #include "vka_pcguard.h"
+#include "vka_gmem.h"
 #include "vka_memu_abi.h"
 #include "../nvn/nvn_mtl.h"
 #include <stdlib.h>
@@ -18,6 +19,7 @@
 #include <sys/resource.h>
 #include <errno.h>
 #include <dirent.h>
+#include <sys/stat.h>
 uint64_t vka_frame(void);   // (vka_exec.c: the frame being recorded; a skipped draw stamps its pipeline's need)
 
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -140,7 +142,7 @@ static int layout_slow(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout
 
 
 // ---------- The pipeline cache ----------
-// DM_VK_PCACHE (restart): unset = $DM_TEMP/vk_pipelines[-<driver>].bin; a path = that file; 0 = no file (the run starts empty and keeps nothing: a cold run). Before 2026-11-03 "0"
+// DM_VK_PCACHE (restart): unset = $DM_TEMP/vk_pipelines[-<driver>][-gm<pass>].bin (-gm: the raw global memory merge on, vka_pcguard.h); a path = that file; 0 = no file (the run starts empty and keeps nothing: a cold run). Before 2026-11-03 "0"
 // was taken as a file named 0 in the working folder, so a second "cold" run read the first one's pipelines back (stutter-agent cold2gpl: 10 MB read, warm)
 static VkPipelineCache g_pc; static char g_pc_path[1024], g_pw_path[1100]; static uint64_t g_made, g_save_ns; static double g_create_ms;
 static uint64_t g_ngfx, g_ncs, g_nfail, g_ncs_over, g_create_ns, g_frame_made;   // all pipelines made (frame path, background and prewarm); g_frame_made / g_create_ns: on the frame path only
@@ -232,8 +234,17 @@ static void pc_open_once(void) {
     if (e && !strcmp(e, "0")) g_pc_path[0] = 0;
     else if (e && *e) snprintf(g_pc_path, sizeof g_pc_path, "%s", e);
     else if ((t && *t) || (home && *home)) {   // a custom driver (DM_VK_DRIVER) keeps its own file, so switching drivers leaves the system driver's cache alone
-        const char *dt = vka_driver_tag();
-        snprintf(g_pc_path, sizeof g_pc_path, "%s/vk_pipelines%s%s.bin", t && *t ? t : home, dt ? "-" : "", dt ? dt : "");
+        // With the raw global memory merge on, its own file (vka_pcguard.h vka_pc_default_name: one file for both kinds would hold two programs of nearly every game
+        // pipeline, all loaded at every start); the same driver's file without the merge is removed then (DM_VK_GMEM_MERGE=0 makes it again)
+        const char *dt = vka_driver_tag(), *dir = t && *t ? t : home; int gm = vka_shader_gmem_on() ? VKA_GMEM_PASS : 0;
+        if (!vka_pc_default_name(g_pc_path, sizeof g_pc_path, dir, dt, gm)) g_pc_path[0] = 0;
+        char off[1024];
+        if (gm && g_pc_path[0] && vka_pc_default_name(off, sizeof off, dir, dt, 0)) {
+            struct stat sb;
+            if (!stat(off, &sb) && !unlink(off))
+                VLOG("pipeline cache %s removed (%lld bytes): its programs are of the modules without the raw global memory merge, which this run and the next do not make "
+                     "(this run's file: %s; DM_VK_GMEM_MERGE=0 makes the other again)", off, (long long)sb.st_size, g_pc_path);
+        }
     }
     // The prewarm list (pw_*): the pipeline keys of earlier runs, whatever the driver (a key names shaders and state, not driver code). DM_VK_PREWARM_FILE overrides
     const char *pf = getenv("DM_VK_PREWARM_FILE");

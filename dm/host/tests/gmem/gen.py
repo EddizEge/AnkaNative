@@ -7,7 +7,8 @@
 # high word + carry, both through Function variables), keeps each result in a Function variable and writes them all to OUT (binding 2) at the end. The scenarios:
 # a vec4 run (0, 4, 8, 12), a second base interleaved with it, a run across a 4 KiB bucket (4088 .. 4100), a run cut by a store to OUT, offsets near 2^32 (carries),
 # a run that the _tw variant cuts with a store to the table itself, a run in another block, a call whose words are stored in another block (not known there), and a
-# call whose low word is not base + constant. The helper's table is binding 0: pool entries of 8 words (start, end, delta, 2 unused), entry 0's words 6 and 7 the sink,
+# call whose low word is not base + constant, and calls whose low word's variable has a second pointer (a copy, an access chain with no index) written through after
+# the call's own store (must not merge). The helper's table is binding 0: pool entries of 8 words (start, end, delta, 2 unused), entry 0's words 6 and 7 the sink,
 # and from word 32768 the page index (first page, page count, 2 words, then a record of 2 words per page and one past the window).
 import os, subprocess, sys, tempfile
 
@@ -235,7 +236,7 @@ class Entry:
         b = self.new(); self.code.append(f'{b} = OpBitcast %int {x}')
         return b
 
-    def call(self, blo, bhi, k, lo=None):   # one helper call at base + k (the translator's words), its result kept in a Function variable
+    def call(self, blo, bhi, k, lo=None, alias=None):   # one helper call at base + k (the translator's words), its result kept in a Function variable
         c = self.code
         if lo is None:
             lo = self.new(); c.append(f'{lo} = OpIAdd %int {blo} {self.k(k)}')
@@ -244,7 +245,10 @@ class Entry:
                   f'{hi} = OpIAdd %int {bhi} {cs}']
         else: hi = bhi
         vl, vh, vr, r = self.var(), self.var(), self.var(), self.new()
-        c += [f'OpStore {vl} {lo}', f'OpStore {vh} {hi}', f'{r} = OpFunctionCall %int %H {vl} {vh}', f'OpStore {vr} {r}']
+        if alias:   # (kind, value): a second pointer to the low word's variable (a copy, or an access chain with no index), written through after the call's own store
+            a = self.new('a'); c.append(f'{a} = OpCopyObject %p_fi {vl}' if alias[0] == 'copy' else f'{a} = OpAccessChain %p_fi {vl}')
+            c += [f'OpStore {vl} {lo}', f'OpStore {vh} {hi}', f'OpStore {a} {alias[1]}', f'{r} = OpFunctionCall %int %H {vl} {vh}', f'OpStore {vr} {r}']
+        else: c += [f'OpStore {vl} {lo}', f'OpStore {vh} {hi}', f'{r} = OpFunctionCall %int %H {vl} {vh}', f'OpStore {vr} {r}']
         self.res.append(vr)
         return vl, vh, vr
 
@@ -270,6 +274,11 @@ def module(form, tw):
     e.call(*b[5], 48); e.call(*b[5], 52)
     if tw: e.code.append(f'OpStore {twp} {twv}')                 # the table written between the calls
     e.call(*b[5], 56); e.call(*b[5], 60)
+    # a call whose low word's variable is also written through another pointer to it, after the call's own store (here with the low word of another base): the call
+    # reads that other address, so it must stay as it is (counted as not known), beside neighbours of its base that merge
+    for kind in ('copy', 'chain'):
+        o = e.new(); e.code.append(f'{o} = OpIAdd %int {b[2][0]} {e.k(8)}')
+        e.call(*b[1], 64); e.call(*b[1], 68); e.call(*b[1], 72, alias=(kind, o))
     vl, vh, _ = e.var(), e.var(), None
     lo = e.new(); e.code += [f'{lo} = OpIAdd %int {b[6][0]} {e.k(64)}', f'OpStore {vl} {lo}', f'OpStore {vh} {b[6][1]}']   # words stored in this block, called in the next
     x = e.new(); e.code.append(f'{x} = OpBitwiseXor %int {b[6][0]} {e.k(16)}'); e.call(None, b[6][1], 0, lo=x)   # not base + constant
