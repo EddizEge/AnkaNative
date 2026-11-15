@@ -19,8 +19,9 @@
 // A mesh draw met inside an open pass that the look-ahead did not reach ends the pass and has the look-ahead run from it (counted: "render passes split"). GPL-3.0-or-later.
 // A draw's entry is the next one of its record in walk order, not the first one of its record (vka_memu_order.h: one look-ahead can meet a record more than once)
 #include "vka_memu_order.h"
+#include "vka_memu_rule.h"
 enum { MEMU_MAX = VKA_MEMU_ORDER_MAX };
-typedef struct { int ok, wait, rec, indexed, points; vka_shader *vs, *ts, *ms, *tcs, *mcs; vka_layout tl, ml; VkPipeline tp, mp; } memu_ent;
+typedef struct { int ok, wait, hold, rec, indexed, points; vka_shader *vs, *ts, *ms, *tcs, *mcs; vka_layout tl, ml; VkPipeline tp, mp; } memu_ent;
 static struct { int live; vka_memu_order o; memu_ent e[MEMU_MAX]; vka_span rec; VkBuffer arena, ctl; uint32_t cap; } MB;
 static memu_ent *g_memu_cur;
 // The record being replayed: its entry (the next of its record from the batch's cursor, taken), NULL when the batch has none left for it
@@ -28,6 +29,9 @@ void vka_memu_cur(const uint8_t *p) { int i = vka_memu_order_take(&MB.o, p); g_m
 int vka_memu_on(void) { return V.memu; }
 int vka_memu_has(const uint8_t *p) { return vka_memu_order_find(&MB.o, p) >= 0; }   // the batch still has an entry for a meeting of record p
 static memu_ent *memu_find(void) { return g_memu_cur; }   // the entry of the draw being replayed (vka_memu_cur), NULL none
+// vka_memu_rule.h rule 1: whether this frame's mesh draws are drawn (latched at its first mesh draw whose compute forms are there)
+static vka_memu_frame_rule g_memu_fr;
+static int memu_frame_draws(void) { return vka_memu_frame_draws(&g_memu_fr, vka_frame(), vka_memu_forms_waited()); }
 static void memu_write(uint32_t binding, VkBuffer b, VkDeviceSize off, VkDeviceSize range) {
     if (g_w.n == 512) return;
     uint32_t k = g_w.n++;
@@ -98,6 +102,9 @@ void vka_memu_batch(int phase, const vka_dstate *d, const p_draw *dw, const uint
         if (ts) { c5[5] = E->tcs; if (!vka_layout_of(c5, 1, &E->tl)) return; E->tp = vka_memu_pipeline(E->tcs, &E->tl, &pt, 1); }
         if (pm || pt) { E->wait = 1; return; }
         if (!E->mp || (ts && !E->tp)) return;
+        // A frame that began while a form a draw asked for was still being made draws no mesh draw (vka_memu_rule.h): its prepass and its shading would not draw the
+        // same objects, and the sky shows wherever the prepass drew and the shading did not. Its compute work is left out too
+        if (!memu_frame_draws()) { E->hold = 1; return; }
         vka_memu_rec_mesh(&mi->L, r);
         r[VKA_MEMU_R_FLAGS] |= ts ? VKA_MEMU_F_TASK : 0; r[VKA_MEMU_R_WT] = ts ? ti->L.payload_words : 0;
         r[VKA_MEMU_R_MAXG] = V.cs_groups < 65535 ? V.cs_groups : 65535;
@@ -111,7 +118,8 @@ void vka_memu_batch(int phase, const vka_dstate *d, const p_draw *dw, const uint
     }
     if (MB.live <= 0 || !MB.o.n) return;
     switch (phase) {
-    case MEMU_SETUP: vka_barrier(g_cb); memu_helper(0); vka_barrier(g_cb); break;
+    case MEMU_SETUP:   // (vka_memu_rule.h rule 2: the batch hands the arena out from its start; the barrier orders the last batch's draws, which read it, before this one's writes)
+        vk.vkCmdFillBuffer(g_cb, MB.ctl, VKA_MEMU_CTL_COUNTER * 4, 4, 0); vka_barrier(g_cb); memu_helper(0); vka_barrier(g_cb); break;
     case MEMU_TASK: if (idx < MB.o.n && MB.e[idx].ok && MB.e[idx].tcs) memu_dispatch(d, 6, MB.e[idx].tcs, &MB.e[idx].tl, MB.e[idx].tp, idx, VKA_MEMU_R_TASK_X); break;
     case MEMU_DIST: vka_barrier(g_cb); memu_helper(1); vka_barrier(g_cb); break;
     case MEMU_MESH: if (idx < MB.o.n && MB.e[idx].ok) memu_dispatch(d, 7, MB.e[idx].mcs, &MB.e[idx].ml, MB.e[idx].mp, idx, VKA_MEMU_R_MESH_X); break;

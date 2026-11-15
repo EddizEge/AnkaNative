@@ -2,7 +2,7 @@
 // triangles with a payload and the workgroup ID, points with a point size, a per-primitive location and the cull array, a task module, a pixel shader of a
 // per-primitive input) converted (the task / mesh module to GLCompute, the vertex shader of each mesh layout, the pixel shader made flat), checked by structure and,
 // when spirv-val is on the PATH, by validation (--target-env vulkan1.3). DM_VK_MEMU_LIB=<dmsh_vk.lib> converts and validates every task and mesh module of a real
-// library and every pixel shader of per-primitive inputs, as the replay makes them (the specialization constants folded first, GL depth 0 and 1); with DM_VK_MEMU_OUT=<folder>
+// library and every pixel shader of per-primitive inputs, as the replay makes them (the specialization constants folded first, GL depth 0 and 1), and a module of the subgroup or feedback flags also as rewritten first (one-lane subgroups, the feedback bitmap in its own set); with DM_VK_MEMU_OUT=<folder>
 // each module (GL depth 0) is written there as <key>.in.spv (folded) and <key>.cs.spv / .vs.spv / .flat.spv, for a look with spirv-dis or an interpreter
 #include "../../gfx/vk_android/vka_memu_spv.h"
 #include "../../gfx/vk_android/vka_memu_abi.h"
@@ -178,6 +178,33 @@ int main(void) {
         CHECK(!x && !nl, "a module without a ladder is left as it is");
         free(x);
     }
+    {   // the float arithmetic made exact: every float result of an arithmetic or GLSL.std.450 instruction carries NoContraction once (the already exact
+        // multiply keeps its one), no integer result does (IAdd, UMin)
+        vka_memu_layout Le; CHECK(vka_memu_layout_of(MEMU_MESH_EXACT, sizeof MEMU_MESH_EXACT / 4, &Le, err, sizeof err), "exact mesh layout (%s)", err);
+        convert(MEMU_MESH_EXACT, sizeof MEMU_MESH_EXACT / 4, 0, "mesh_exact", &Le);
+        size_t n; uint32_t *o = vka_memu_cs(MEMU_MESH_EXACT, sizeof MEMU_MESH_EXACT / 4, &n, err, sizeof err);
+        int nfloat = 0, nint = 0, ndec = 0, twice = 0, dec_int = 0, undecorated = 0;
+        if (o) {
+            uint32_t bound = o[3]; uint8_t *dec = calloc(bound, 1), *isf = calloc(bound, 1); uint32_t glsl = 0;
+            for (size_t i = 5; i < n; i += o[i] >> 16) {
+                uint32_t op = o[i] & 0xffff, len = o[i] >> 16; if (!len) break;
+                if (op == 71 && len >= 3 && o[i + 2] == 42) { ndec++; twice += dec[o[i + 1]]++ > 0; }
+                if (op == 11) glsl = o[i + 1];
+                if (op == 22) isf[o[i + 1]] = 1;
+                if (op == 23 && isf[o[i + 2]]) isf[o[i + 1]] = 1;
+            }
+            for (size_t i = 5; i < n; i += o[i] >> 16) {
+                uint32_t op = o[i] & 0xffff, len = o[i] >> 16; if (!len) break;
+                int arith = op == 127 || op == 129 || op == 131 || op == 133 || op == 136 || op == 142 || op == 148 || (op == 12 && o[i + 3] == glsl);
+                if (!arith && op != 128) continue;
+                if (isf[o[i + 1]]) { nfloat++; undecorated += !dec[o[i + 2]]; } else { nint++; dec_int += dec[o[i + 2]] > 0; }
+            }
+            free(dec); free(isf);
+        }
+        CHECK(o && nfloat == 10 && !undecorated && ndec == 10 && !twice, "10 float results, each NoContraction once (%d float, %d undecorated, %d decorations, %d twice)", nfloat, undecorated, ndec, twice);
+        CHECK(o && nint >= 2 && !dec_int, "no integer result decorated (IAdd, UMin: %d, %d decorated)", nint, dec_int);
+        free(o);
+    }
     {   // a GL depth specialization constant in a module without lane built-ins: vka_spv_spec_freeze leaves it, vka_spv_spec_fold (the compute form's) folds it
         size_t fn = 0; uint32_t *fz = vka_spv_spec_freeze(MEMU_MESH_SPEC, sizeof MEMU_MESH_SPEC / 4, 0, 1, &fn);
         CHECK(!fz, "no lane built-in: the freeze leaves the module");
@@ -203,7 +230,7 @@ int main(void) {
     const char *lp = getenv("DM_VK_MEMU_LIB"); g_out = getenv("DM_VK_MEMU_OUT");
     if (lp) {
         vka_shlib S; CHECK(vka_shlib_open(&S, lp, NULL, NULL, NULL, NULL, err, sizeof err), "%s: %s", lp, err);
-        int nt = 0, nm = 0, nf = 0, bad = 0, refused = 0, nidx = 0, npts = 0, nprim = 0;
+        int nt = 0, nm = 0, nf = 0, bad = 0, refused = 0, nidx = 0, npts = 0, nprim = 0, nsl = 0, nsl_bad = 0;
         for (uint32_t i = 0; S.h && i < S.h->entry_count; i++) {
             const dmsh_vk_entry *e = &S.ent[i];
             int ts = e->stage == DMSH_VK_STAGE_TS, ms = e->stage == DMSH_VK_STAGE_MS, fs = e->stage == DMSH_VK_STAGE_FS && (e->flags & DMSH_VK_F_MESH_PRIM);
@@ -221,12 +248,28 @@ int main(void) {
                     if (!gl) { if (ts) nt++; else { nm++; nidx += L2.indexed; npts += L2.points; nprim += L2.nploc > 0; } }
                     if (!convert(w, nb / 4, gl, gl ? t2 : tag, &L2)) bad++;
                 }
+                // As the replay makes it on a device whose compute subgroups do not fit the library, or with the feedback bitmap in a set of its own (vka_shader.c
+                // vka_shader_memu_words: single_lane, then fb_own_set, both before the conversion): that input converted and validated too
+                if (e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB)) {
+                    size_t sn = 0; int ch = 0; char e3[256] = "";
+                    uint32_t *sw = vka_spv_subgroup_single(w, nb / 4, &sn, &ch, e3, sizeof e3);
+                    if (!sw && e3[0]) { nsl_bad++; printf("  %s: subgroup operations not rewritten: %s\n", tag, e3); }
+                    if (!sw) { sw = malloc(nb); memcpy(sw, w, nb); sn = nb / 4; }
+                    if ((e->flags & DMSH_VK_F_TEXFB) && vka_spv_move_set(sw, sn, DMSH_VK_SET_POOL, DMSH_VK_POOL_FB_BINDING, 2) <= 0) {   // 2: vka.h VKA_FB_OWN_SET
+                        nsl_bad++; printf("  %s: feedback bitmap not found at set %d binding %d\n", tag, DMSH_VK_SET_POOL, DMSH_VK_POOL_FB_BINDING); }
+                    char t3[80]; snprintf(t3, sizeof t3, "%s_one", tag);
+                    vka_memu_layout L3; char e4[256];
+                    if (vka_memu_layout_of(sw, sn, &L3, e4, sizeof e4)) { nsl++; if (!convert(sw, sn, 0, t3, &L3)) bad++; }
+                    else { nsl_bad++; printf("  %s refused: %s\n", t3, e4); }
+                    free(sw);
+                }
             }
             free(w);
         }
-        printf("t_android_memu: %s: %d task and %d mesh modules converted (%d indexed, %d points, %d with per-primitive values), %d pixel shaders made flat; %d refused, %d failed\n",
-               lp, nt, nm, nidx, npts, nprim, nf, refused, bad);
+        printf("t_android_memu: %s: %d task and %d mesh modules converted (%d indexed, %d points, %d with per-primitive values), %d pixel shaders made flat; %d refused, %d failed; "
+               "%d also converted as rewritten first (one-lane subgroups, the feedback bitmap's own set), %d not rewritten\n", lp, nt, nm, nidx, npts, nprim, nf, refused, bad, nsl, nsl_bad);
         CHECK(!bad, "every module of the library converts and validates");
+        CHECK(!nsl_bad, "every task and mesh module the replay may rewrite first is rewritten");
         vka_shlib_close(&S);
     }
     printf("t_android_memu: %s%s\n", g_fail ? "FAILED" : "ok", g_val ? "" : " (no spirv-val: structure only)");
