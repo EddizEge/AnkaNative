@@ -245,7 +245,7 @@ void vka_memu_stats(char *b, size_t n) {
     uint64_t nb = vka_memu_n_batches - b0, nd = vka_memu_n_draws - d0, ns = vka_memu_n_splits - s0, nk = vka_memu_n_skip - k0, nw = vka_memu_n_wait - w0, nq = g_short - q0, nh = vka_memu_n_hold - h0;
     b0 = vka_memu_n_batches; d0 = vka_memu_n_draws; s0 = vka_memu_n_splits; k0 = vka_memu_n_skip; w0 = vka_memu_n_wait; q0 = g_short; h0 = vka_memu_n_hold;
     if (!nb && !nd) { if (n) b[0] = 0; return; }
-    char pl[240]; vka_memu_pso_line(pl, sizeof pl);
+    char pl[400]; vka_memu_pso_line(pl, sizeof pl);
     uint64_t aw = 0; int na = 0; for (int i = 0; i < NARENA; i++) if (g_ar[i].buf) { aw += g_ar[i].words; na++; }   // (read without the replay's lock: a statistic)
     snprintf(b, n, "mesh draws through compute: %llu draws in %llu batches (%.1f a batch), %llu render passes split for one, %llu not prepared, %llu skipped waiting for their compute pipelines, "
              "%llu held in frames that began with one being made; arenas %d, %.0f MiB of device memory (the most a batch asked for %.1f MiB), %llu submissions short of room (their last mesh draws not drawn)%s",

@@ -410,6 +410,13 @@ vka_shader *vka_shader_by_key(uint64_t key);   // the game library's shader of k
 int vka_shader_lib_has(uint64_t key);       // key is an entry of the game's library
 int vka_shader_memu_key(uint64_t key);      // key is no library entry but a task / mesh shader's compute form or vertex shader (vka_memu.h VKA_MEMU_KEY_*: a run through compute)
 uint32_t *vka_shader_memu_words(vka_shader *s, size_t *nb, char *err, size_t errn);   // a task / mesh shader's words for its compute form (vka_memu.c), malloc'd
+uint32_t *vka_shader_lib_words(vka_shader *s, size_t *nb, char *err, size_t errn);    // its base module as the library has it (no rewrite), malloc'd
+uint32_t vka_shader_lib_count(void);              // the game library's entries (loaded first); 0 = none
+uint64_t vka_shader_lib_entry(uint32_t i, int *stage);   // the key and DMSH_VK_STAGE_* of entry i in the library's order (0 = past the end)
+int vka_shader_lib_stage(uint64_t key);            // its DMSH_VK_STAGE_* (the library loaded first), -1 = not in the library
+int vka_shader_lib_stage_loaded(uint64_t key);     // the same without loading the library: -2 before it is loaded
+void vka_shader_gmem_log(const char *when);   // the raw global memory merge's totals so far (vka_gmem.c, DM_VK_GMEM_MERGE), one line
+int vka_shader_gmem_on(void);                 // DM_VK_GMEM_MERGE (read once): the modules are rewritten (the pipeline cache file's name says so, vka_pso.c)
 VkShaderModule vka_shader_module(vka_shader *s, int variant);
 uint32_t vka_shader_sg_pin(int stage);              // DMSH_VK_STAGE_*: the subgroup size its subgroup shaders' pipelines require (vka_shader.c sg_plan), 0 = none
 VkShaderModule vka_shader_cs_module(vka_shader *s);  // a compute shader's module: its DMSH_VK_MOD_SHUFFLE_LDS one where the device takes it (vka_shader.c shuffle_plan), else the base
@@ -440,6 +447,8 @@ VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);
 VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw);   // a mesh draw through compute's compute form: made in the background (pending: not yet); draw: a draw waits for it (made before the prewarm list's)
 void vka_memu_pso_line(char *out, size_t n);
 int vka_memu_forms_waited(void);   // compute forms of mesh draws through compute that a draw asked for and that are not made yet (0 when they are made on the frame path)
+int vka_memu_ahead_wanted(void);   // the forms made ahead still take program notes (DM_VK_MEMU_AHEAD on, the queue not ended)
+void vka_memu_ahead_note(uint64_t key, int stage);   // a shader key of a program the game set up (stage -2: not known yet): its mesh form made ahead first (vka_pso.c)
 void vka_pso_save(int force);         // the VkPipelineCache and the prewarm list to the app's files (DM_TEMP): due DM_VK_PCACHE_SAVE_S after the last save, on the saver thread; force = now, on the caller's
 void vka_pso_waits(uint64_t *save_ns, uint64_t *pw_wait_ns);   // cumulative: time saving the cache (saver thread), the frame path's waits for a prewarm thread making the same pipeline
 double vka_gpu_span_ms(uint64_t f);   // frame f's submissions from first part's start to last part's end (vka_exec.c); -1 = not in yet

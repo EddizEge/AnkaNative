@@ -12,6 +12,7 @@
 #include "game_profile.h"
 #include "vka_spvpatch.h"
 #include "vka_memu_spv.h"
+#include "vka_gmem.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +22,7 @@
 #include <time.h>
 
 static vka_shlib g_lib; static int g_lib_state;   // 0 not tried, 1 loaded, -1 none
+static _Atomic int g_lib_pub;                    // g_lib_state once lib_load has ended (read without g_mu: vka_shader_lib_stage_loaded, the game's thread)
 static char g_lib_path[1024];                       // the library loaded (vka_shader_lib_path)
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 
@@ -105,8 +107,12 @@ static void tfb_count(const vka_shlib *L) {
                                              fb, L->h->entry_count, fbpool, pool, fb && fbpool < pool ? ": draws of the others keep the scan's images, dispatches that read no pool texture are not gated" : "");
 }
 
-static int lib_load(void) {
+static int lib_load_(void);
+static int lib_load(void) {   // (under g_mu)
     if (g_lib_state) return g_lib_state > 0;
+    int r = lib_load_(); atomic_store_explicit(&g_lib_pub, g_lib_state, memory_order_release); return r;
+}
+static int lib_load_(void) {
     g_lib_state = -1;
     char path[1024], err[256]; const char *e = getenv("DM_VK_SHLIB"); const char *dir = dm_module_dir(); dir = dir && *dir ? dir : ".";
     if (e && *e) snprintf(path, sizeof path, "%s", e);
@@ -246,9 +252,47 @@ static void fb_own_set(uint64_t key, uint32_t *w, size_t nb) {
 }
 // A library module's words. With the mesh draws drawn through compute (V.memu, vka_memu.c), a pixel shader of per-primitive inputs is only ever drawn behind the generated
 // vertex shader: every module of it is made from its words with those inputs flat (vka_memu_fs_flat), so the variants and retypes made from them are too.
+// Raw global memory loads of one base address given one page lookup or pool search per group (vka_gmem.c), on every module the replay makes from the library: each
+// variant, the vertex input / colour output / blend guard rewrites, the geometry claim and the task / mesh shaders' compute forms all start from these words.
+// DM_VK_GMEM_MERGE=0 leaves the modules as the library has them; read once (at the first module), so a run's modules are all of one kind. A module the rewrite refuses or
+// fails on is used as the library has it, with a red line. Totals: vka_shader_gmem_log
+static pthread_mutex_t g_gm_mu = PTHREAD_MUTEX_INITIALIZER;
+static vka_gmem_stats g_gm; static int g_gm_mods, g_gm_rew, g_gm_fail;
+static int gmem_on(void) {
+    static _Atomic int on = -1;
+    int v = atomic_load(&on);
+    if (v < 0) { v = VKA_ENV("DM_VK_GMEM_MERGE", 1) ? 1 : 0; int x = -1; if (!atomic_compare_exchange_strong(&on, &x, v)) v = x; }
+    return v;
+}
+int vka_shader_gmem_on(void) { return gmem_on(); }
+static uint32_t *gmem_merge(const dmsh_vk_entry *e, uint32_t *w, size_t *nb) {
+    if (!w || !gmem_on()) return w;
+    uint32_t *o = NULL; size_t on = 0; char err[256] = ""; vka_gmem_stats st = {0};
+    int r = vka_spv_gmem_merge(w, *nb / 4, &o, &on, &st, err, sizeof err);
+    pthread_mutex_lock(&g_gm_mu);
+    if (st.calls || st.left_helper_calls || r < 0) g_gm_mods++;
+    if (r > 0) { g_gm_rew++;
+        g_gm.helpers_pidx += st.helpers_pidx; g_gm.helpers_loop += st.helpers_loop; g_gm.helpers_left += st.helpers_left; g_gm.calls += st.calls; g_gm.merged += st.merged;
+        g_gm.groups += st.groups; g_gm.left_single += st.left_single; g_gm.left_unknown += st.left_unknown; g_gm.left_helper_calls += st.left_helper_calls; }
+    else if (r == 0) { g_gm.helpers_left += st.helpers_left; g_gm.calls += st.calls; g_gm.left_single += st.left_single; g_gm.left_unknown += st.left_unknown; g_gm.left_helper_calls += st.left_helper_calls; }
+    else g_gm_fail++;
+    pthread_mutex_unlock(&g_gm_mu);
+    if (r < 0) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("shader %016llx: raw global memory loads not merged (%s): its module is used as the library has it", e ? (unsigned long long)e->key : 0ull, err); return w; }
+    if (r == 0) return w;
+    free(w); *nb = on * 4;
+    return o;
+}
+void vka_shader_gmem_log(const char *when) {
+    if (!gmem_on()) { VRED_ONCE("raw global memory loads: DM_VK_GMEM_MERGE=0: every module as the library has it (one page lookup or pool search per load)"); return; }
+    pthread_mutex_lock(&g_gm_mu); vka_gmem_stats t = g_gm; int mods = g_gm_mods, rew = g_gm_rew, fail = g_gm_fail; pthread_mutex_unlock(&g_gm_mu);
+    VLOG("raw global memory loads (%s): %d modules with them made, %d rewritten: %d of %d loads take their group's lookup (%d groups; helpers: %d page index, %d pool search); "
+         "left as they are: %d loads without enough neighbours, %d whose address is not base + constant (or not in the function's own variables), %d through %d helpers this rewrite does not prove (stores, other shapes), "
+         "%d modules it failed on (DM_VK_GMEM_MERGE)", when, mods, rew, t.merged, t.calls, t.groups, t.helpers_pidx, t.helpers_loop, t.left_single, t.left_unknown,
+         t.left_helper_calls, t.helpers_left, fail);
+}
 // From Banana Native b39bf8b5 (vka_shader.c lib_words)
 static uint32_t *lib_words(const vka_shlib *L, const dmsh_vk_entry *e, const dmsh_vk_module *m, size_t *nb, char *err, size_t errn) {
-    uint32_t *w = vka_shlib_spirv(L, m, nb, err, errn);
+    uint32_t *w = gmem_merge(e, vka_shlib_spirv(L, m, nb, err, errn), nb);
     if (w && V.memu && e && e->stage == DMSH_VK_STAGE_FS && (e->flags & DMSH_VK_F_MESH_PRIM)) {
         size_t on = 0; char e2[160] = ""; uint32_t *o = vka_memu_fs_flat(w, *nb / 4, &on, e2, sizeof e2);
         if (o) { free(w); w = o; *nb = on * 4; }
@@ -452,6 +496,31 @@ int vka_shader_memu_key(uint64_t key) {
     }
     return 0;
 }
+// The library's entries for the mesh forms made ahead (vka_pso.c, vka_memu_ahead.h): how many (the library loaded first), the key of entry i in the library's order,
+// a key's stage (-1 not in the library). vka_shader_lib_stage_loaded answers VKA_AHEAD_STAGE_UNKNOWN (-2) instead of loading the library (the game's own threads)
+uint32_t vka_shader_lib_count(void) { pthread_mutex_lock(&g_mu); int ok = lib_load(); pthread_mutex_unlock(&g_mu); return ok ? g_lib.h->entry_count : 0; }
+uint64_t vka_shader_lib_entry(uint32_t i, int *stage) {
+    pthread_mutex_lock(&g_mu); int ok = lib_load(); pthread_mutex_unlock(&g_mu);
+    if (!ok || i >= g_lib.h->entry_count) { *stage = -1; return 0; }
+    *stage = g_lib.ent[i].stage; return g_lib.ent[i].key;
+}
+int vka_shader_lib_stage(uint64_t key) {
+    pthread_mutex_lock(&g_mu); int ok = lib_load(); pthread_mutex_unlock(&g_mu);
+    const dmsh_vk_entry *e = ok ? vka_shlib_find(&g_lib, key) : NULL;
+    return e ? e->stage : -1;
+}
+int vka_shader_lib_stage_loaded(uint64_t key) {
+    int st = atomic_load_explicit(&g_lib_pub, memory_order_acquire);   // (no lock: the game's thread must not wait for a library being opened)
+    if (st == 0) return -2;
+    const dmsh_vk_entry *e = st > 0 ? vka_shlib_find(&g_lib, key) : NULL;   // (the library is not changed once loaded)
+    return e ? e->stage : -1;
+}
+// A shader's base module as the library has it (no rewrite, no global memory merge: vka_pso.c reads only its variables before making a form ahead). malloc'd
+uint32_t *vka_shader_lib_words(vka_shader *s, size_t *nb, char *err, size_t errn) {
+    const dmsh_vk_module *m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
+    if (!m) { snprintf(err, errn, "no base module"); return NULL; }
+    return vka_shlib_spirv(s->lib, m, nb, err, errn);
+}
 // A task / mesh shader's base words for its compute form: the library's module, with the one-invocation subgroup rewrite where the device's compute stage needs it
 // (sg_plan's compute row, not the mesh stage's), and the texture-use feedback bitmap moved to its own set with DM_VK_TEXFB_SET as every other module of the entry
 // (fb_own_set: the compute form's layout then has no bitmap in set 1, vka_tex.c). malloc'd
@@ -512,7 +581,12 @@ void mtl_prog_release(prog_t *p) {
     if (!p || !p->serial) return;
     pthread_mutex_lock(&g_mu); prent *e = pr_find(p->serial); if (e) { e->serial = ~0ull; memset(&e->ps, 0, sizeof e->ps); } pthread_mutex_unlock(&g_mu);   // a tombstone
 }
-void mtl_prog_prefetch(const prog_t *p) { (void)p; }   // modules are made at the program's first draw (vka_prog_shaders)
+// A program the game has set up (nvnProgramSetShaders, the game's thread): modules are made at its first draw (vka_prog_shaders); its stage keys go to the queue of mesh
+// forms made ahead (vka_pso.c vka_memu_ahead_note), which takes the task and mesh shaders among them first, in the order the game set them up
+void mtl_prog_prefetch(const prog_t *p) {
+    if (!p || !vka_memu_ahead_wanted()) return;   // (DM_VK_MEMU_AHEAD=0 or the queue ended: no lookup at all, as before it)
+    for (unsigned i = 0; i < p->nstage && i < 6; i++) { uint8_t md[8]; if (prog_key(p, i, md)) { uint64_t k = vka_shlib_key(md); vka_memu_ahead_note(k, vka_shader_lib_stage_loaded(k)); } }
+}
 
 // DM_NVN_SHDUMP=directory (debugging): a stage missing from the library is saved as <key>.ctl + <key>.code, the Mac's form (nvn_mtl.m; shader_split.py nvn_dumps, runtime_shaders.py --dump),
 // once per key. The control section is hle_nvn.c's copy (nvnProgramSetShaders keeps one while SHDUMP is set), the code area is read in the game's memory pool at its address;

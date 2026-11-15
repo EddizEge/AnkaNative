@@ -72,9 +72,11 @@ run: $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_touch $(B)/t_gesture 
 	$(B)/t_android_place
 	$(B)/t_drs_level
 	$(B)/t_android_aspick
+	$(B)/t_android_memuahead
 	$(B)/t_android_memu
 	$(B)/t_android_pcguard
 	$(B)/t_android_memurule
+	$(B)/t_android_gmem
 run: $(B)/t_nro
 run: $(B)/t_symbols
 $(B)/t_symbols: t_symbols.c ../hle.c ../loader.c ../hle.h ../dm.h $(GAME_H) | $(B)
@@ -353,7 +355,7 @@ coverage:
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
 # The Android host's pure parts (dm/host/android): resampler, channel map, SPS size, MediaCodec picture layouts; gamepad / touch / sensor mapping
-run: $(B)/t_android_av $(B)/t_android_input $(B)/t_android_shlib $(B)/t_android_spvpatch $(B)/t_android_imgmem $(B)/t_android_zshare $(B)/t_android_rtalias $(B)/t_android_memfoot $(B)/t_android_place $(B)/t_android_aspick $(B)/t_android_memu $(B)/t_android_pcguard $(B)/t_android_memurule
+run: $(B)/t_android_av $(B)/t_android_input $(B)/t_android_shlib $(B)/t_android_spvpatch $(B)/t_android_imgmem $(B)/t_android_zshare $(B)/t_android_rtalias $(B)/t_android_memfoot $(B)/t_android_place $(B)/t_android_aspick $(B)/t_android_memu $(B)/t_android_pcguard $(B)/t_android_memurule $(B)/t_android_gmem
 $(B)/t_android_av: t_android_av.c ../android/av_android.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_av.c
 $(B)/t_android_input: t_android_input.c ../android/input_map.c ../android/input_map.h ../motion_fusion.h ../dm_input.h | $(B)
@@ -376,6 +378,11 @@ $(B)/t_android_pcguard: t_android_pcguard.c $(VKA)/vka_pcguard.h | $(B)
 # Mesh draws through compute: the frame's rule and the arena's size (vka_memu_rule.h; vka_memu_draw.inc, vka_memu.c)
 $(B)/t_android_memurule: t_android_memurule.c $(VKA)/vka_memu_rule.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_memurule.c
+# Mesh draws through compute: the queue of compute forms made ahead, its order, priority and stop, the NDVE network never in it, the local memory guard (vka_memu_ahead.h;
+# vka_pso.c); DM_VK_MEMU_LIB=<dmsh_vk.lib> runs the guard on every task and mesh module of a real library
+run: $(B)/t_android_memuahead
+$(B)/t_android_memuahead: t_android_memuahead.c $(VKA)/vka_memu_ahead.h $(VKA)/vka_pcguard.h $(VKA)/vka_shlib.c $(VKA)/vka_bind.c ../../gfx/nvn/dmsh_abi_vk.h $(B)/zstddeclib.o | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_memuahead.c $(VKA)/vka_shlib.c $(VKA)/vka_bind.c $(B)/zstddeclib.o
 # Zero-shared image memory's bookkeeping (vka_zshare.h; vka_imgmem.c vka_imem_bind_zero, vka_tex.c img_own)
 $(B)/t_android_zshare: t_android_zshare.c $(VKA)/vka_zshare.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_zshare.c
@@ -411,3 +418,7 @@ $(B)/t_android_spvpatch: t_android_spvpatch.c $(VKA)/vka_spvpatch.c $(VKA)/vka_s
 # DM_VK_MEMU_LIB=<dmsh_vk.lib> adds every task and mesh module of a real library
 $(B)/t_android_memu: t_android_memu.c $(VKA)/vka_memu_spv.c $(VKA)/vka_memu_spv.h $(VKA)/vka_memu_abi.h $(VKA)/vka_memu_order.h $(VKA)/vka_spvpatch.c $(VKA)/vka_shlib.c $(VKA)/vka_bind.c memu/memu_fixtures.h $(B)/zstddeclib.o | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_memu.c $(VKA)/vka_memu_spv.c $(VKA)/vka_spvpatch.c $(VKA)/vka_shlib.c $(VKA)/vka_bind.c $(B)/zstddeclib.o
+# Raw global memory loads merged per base address (vka_gmem.c, DM_VK_GMEM_MERGE): the fixtures in gmem/ rewritten, validated by spirv-val when it is on the PATH and
+# executed against the original on random tables and memory; DM_VK_GMEM_LIB=<dmsh_vk.lib> adds every module of a real library (DM_VK_GMEM_TRIALS runs each)
+$(B)/t_android_gmem: t_android_gmem.c $(VKA)/vka_gmem.c $(VKA)/vka_gmem.h $(VKA)/vka_shlib.c $(VKA)/vka_bind.c gmem/gmem_fixtures.h $(B)/zstddeclib.o | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_gmem.c $(VKA)/vka_gmem.c $(VKA)/vka_shlib.c $(VKA)/vka_bind.c $(B)/zstddeclib.o
