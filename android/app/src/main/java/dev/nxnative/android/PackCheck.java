@@ -53,7 +53,11 @@ final class PackCheck {
 
     /** The job that is rewriting the code of this pack folder or stopped while it did (its rewrite step is running in job.json), else null */
     static Job rewriting(Context c, File packDir, File game, String titleId) {
-        File[] cands = {Job.remembered(c), Job.fileOf(DumpCheck.workOf(game, titleId))};
+        // the job Home shows, and the job folders a job of this pack may be in (JobPick.candidates: the default one, the pack's own)
+        File[] folders = JobPick.candidates(DumpCheck.workOf(game, titleId), packDir);
+        File[] cands = new File[folders.length + 1];
+        cands[0] = Job.remembered(c);
+        System.arraycopy(folders, 0, cands, 1, folders.length);
         for (File f : cands) {
             if (f == null || !f.isFile()) continue;
             try {

@@ -52,33 +52,32 @@ final class Job {
         this.o = o;
     }
 
-    static File fileOf(File work) { return new File(new File(work, "ondevice"), "job.json"); }
-
     /**
-     * A new job for a checked dump; not written yet. pack: where its pack goes, the app's packs/&lt;title ID&gt; (AppStorage.pack); the working files stay in the
-     * dump's work folder (&lt;dump&gt;/../&lt;id&gt;-work/ondevice)
+     * A new job for a checked dump; not written yet. pack: where its pack goes, the app's packs/&lt;title ID&gt; (AppStorage.pack); jobFile: its job.json, in
+     * a job folder of the dump's work folder (&lt;dump&gt;/../&lt;id&gt;-work/ondevice, or the pack's own ondevice-… when that one holds another pack folder's
+     * unfinished job: JobPick.place), where its working files stay
      */
-    static Job create(DumpCheck.Result r, File appPack) throws JSONException {
+    static Job create(DumpCheck.Result r, File appPack, File jobFile) throws JSONException {
         JSONObject o = new JSONObject().put("format", FORMAT).put("title_id", r.titleId).put("name", Profile.of(r.titleId) != null ? Profile.of(r.titleId).name : r.titleId).put("version", r.version)
                 .put("dump", r.dump.getPath()).put("work", r.work.getPath()).put("apk", apk()).put("state", "pending").put("reason", "").put("error", "")
                 .put("step", STEPS[0]).put("created", System.currentTimeMillis()).put("shader_inputs", inputs(r.titleId));
-        // the fake engine never writes over a real pack: its pack is a placeholder in ondevice/
-        File pack = "fake".equals(BuildConfig.NX_PACK_ENGINE) ? new File(r.work, "ondevice/fake-pack") : appPack;
+        // the fake engine never writes over a real pack: its pack is a placeholder in its job folder
+        File pack = "fake".equals(BuildConfig.NX_PACK_ENGINE) ? new File(jobFile.getParentFile(), "fake-pack") : appPack;
         o.put("pack", pack.getPath());
         o.put("own_pack", isNew(pack));
         JSONObject steps = new JSONObject();
         for (String s : STEPS) steps.put(s, new JSONObject().put("state", "pending").put("done", 0).put("total", 0).put("stage", ""));
         o.put("steps", steps);
-        return new Job(fileOf(r.work), o);
+        return new Job(jobFile, o);
     }
 
     /**
      * A job for a pack that is already there (PackCheck): ready (every step done, its pack that folder), or with what does not fit redone in that folder: the code
      * (rewrite and pack; the shader library in the pack is kept), the shaders (split, shaders, pack; the code is kept), or both. The simulated engine never writes
-     * into a real pack: its rebuild goes to ondevice/fake-pack.
+     * into a real pack: its rebuild goes to its job folder's fake-pack. jobFile: as create's
      */
-    static Job adopt(DumpCheck.Result r, File packDir, boolean code, boolean shaders) throws JSONException {
-        Job j = create(r, packDir);
+    static Job adopt(DumpCheck.Result r, File packDir, boolean code, boolean shaders, File jobFile) throws JSONException {
+        Job j = create(r, packDir, jobFile);
         boolean fake = "fake".equals(BuildConfig.NX_PACK_ENGINE);
         boolean ready = !code && !shaders;
         if (ready || !fake) j.o.put("pack", packDir.getPath());
@@ -526,5 +525,19 @@ final class Job {
 
     static void remember(Context c, File jobFile) {
         Prefs.open(c, "ondevice").edit().putString("job", jobFile == null ? null : jobFile.getPath()).commit();
+    }
+
+    /** The user chose only to see job j (the other-folder dialog's "Show the job"), not to run it: marked as its job.json is now (JobPick.shownKey) */
+    static void shown(Context c, Job j) {
+        Prefs.open(c, "ondevice").edit().putString("shown", JobPick.shownKey(j.file, j.updated())).commit();
+    }
+
+    /**
+     * Whether job j is as it was when the user chose only to see it (shown): then the app does not start it by itself (Home's open, a game's end, the job
+     * watch, the job alarm, a sticky restart), though job.json may say it should be working (paused for the battery: the rc2 phone check's case, a test job of
+     * another pack folder). Once a start the user asked for runs it, job.json changes and the usual rules hold again
+     */
+    static boolean onlyShown(Context c, Job j) {
+        return JobPick.shownKey(j.file, j.updated()).equals(Prefs.open(c, "ondevice").getString("shown", ""));
     }
 }

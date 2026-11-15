@@ -7,6 +7,11 @@ The credits for the code it is built on are in [NOTICE.md](NOTICE.md).
 
 ## Unreleased
 
+- **An unfinished Prepare for another pack folder no longer stops a game card's shader update.** A paused Prepare beside the game that writes
+  another pack folder (a test, or a pack you prepared elsewhere) kept the card's automatic shader update from ever running, and the card's "Prepare
+  again" could only show that other job, which Home then resumed by itself. The card's update and Prepare again now run in a job folder of the card's
+  own pack beside it; the other job is left as it is and is still found by Add game. A job you only ask to see is no longer started by itself.
+  Checked on the JVM and in a compile; not yet on a phone.
 - **Prepare's notification and card after a Pause, a kill and Prepare again.** After a quick Pause the notification could stay "Pausing" with no
   button though the Prepare was paused: it now says paused with Resume as soon as the work in hand has stopped, and at once when nothing was running.
   A Prepare killed while Home was open was taken for one you ended with Force stop (Resume offered, not resumed) when you had used Force stop on it

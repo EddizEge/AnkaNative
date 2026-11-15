@@ -166,6 +166,7 @@ final class JobWatch implements ServiceConnection {
      * not back with its worker within VERIFY_MS, or when it ended again within JobDeath.MIN_GAP_MS of the last automatic start, the stopped notification goes up
      */
     static void restart(Context c, Job j, String why) {
+        if (Job.onlyShown(c, j)) { Log.i(TAG, "the job: " + why + ", but the user asked only to see it (Show the job): not started"); return; }
         long now = SystemClock.elapsedRealtime();
         if (!JobDeath.mayStart(now, lastAuto)) {   // it ended again right after an automatic start: no loop, the user is told
             Log.w(TAG, "the job: " + why + ", " + (now - lastAuto) + " ms after an automatic start: the stopped notification instead");

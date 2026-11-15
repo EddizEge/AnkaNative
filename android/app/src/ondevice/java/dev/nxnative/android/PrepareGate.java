@@ -169,6 +169,7 @@ final class PrepareGate implements ServiceConnection {
             return;
         }
         if (!"paused".equals(j.state()) || !GameGate.REASON.equals(j.reason())) return;
+        if (Job.onlyShown(a, j)) { Log.i(TAG, "the game ends: the job waits for a game, but the user asked only to see it (Show the job): not started"); return; }
         try {
             a.startForegroundService(new Intent(a, PackService.class).setAction(PackService.ACTION_START).putExtra(PackService.EXTRA_JOB, f.getPath())
                     .putExtra(PackService.EXTRA_AUTO, true));
