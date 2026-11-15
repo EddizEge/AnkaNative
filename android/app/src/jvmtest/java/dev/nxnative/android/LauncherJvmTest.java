@@ -107,6 +107,15 @@ public final class LauncherJvmTest {
         check(oot.resLevelEnv("cap:1").equals(List.of("DM_RES_LEVEL=cap:1")) && oot.resLevelEnv("fixed:lowest").equals(List.of("DM_RES_LEVEL=fixed:lowest")), "DM_RES_LEVEL for a choice");
         check(oot.resLevelEnv(null).isEmpty() && oot.resLevelEnv("fixed:7").isEmpty(), "nothing for the game's own or a value no longer offered");
         check(oot.resLevelLabel(null).startsWith("Dynamic") && oot.resLevelLabel("fixed:0").equals("Max") && oot.resLevelLabel("fixed:7") == null, "labels");
+        // Plants and effects (detail_level rows, column 15): the shown levels in order, a hidden one (a candidate) not offered; DM_DETAIL for a level other than the
+        // first, nothing for the first (Full sends nothing) or for a value no longer offered
+        check(!l.get(0).hasDetail() && l.get(0).detailLevels().isEmpty() && l.get(0).detailEnv("reduced").isEmpty() && l.get(0).detailLabel(null) == null, "no column: no Plants and effects");
+        Profile det = Profile.parse("0400486024DEC000\tO\t0\tx\t\t\t\t\t\t\t\tsegment\t\t\t\tfull|shown|Full (as the game draws it);reduced|shown|Reduced;a1|hidden|Candidate;Bad Id|shown|x;lowest|shown|Lowest;broken").get(0);
+        check(det.hasDetail() && det.detailLevels().size() == 3 && det.detailLevels().get(1)[0].equals("reduced") && det.detailLevels().get(2)[0].equals("lowest"), "shown levels only, malformed ones skipped");
+        check(det.detailEnv(null).isEmpty() && det.detailEnv("full").isEmpty() && det.detailEnv("a1").isEmpty() && det.detailEnv("medium").isEmpty(), "Full, a hidden level, a stale value: nothing");
+        check(det.detailEnv("reduced").equals(List.of("DM_DETAIL=reduced")) && det.detailEnv("lowest").equals(List.of("DM_DETAIL=lowest")), "DM_DETAIL for a level");
+        check(det.detailLabel(null).equals("Full (as the game draws it)") && det.detailLabel("reduced").equals("Reduced") && det.detailLabel("medium") == null, "labels: " + det.detailLabel(null));
+        check(!Profile.parse("0400486024DEC000\tO\t0\tx\t\t\t\t\t\t\t\t\t\t\t\tfull|shown|Full").get(0).hasDetail(), "one level: nothing to choose");
         check(Profile.versionName(0).equals("the base game") && Profile.versionName(458752).equals("update 458752"), "versionName");
         check(Profile.of("040074A01BF12000") != null && Profile.of("0100000000010000") == null, "Profile.of over BuildConfig.NX_PROFILES");
         check(Profile.missing("0100000000010000", "Mario").contains("has no game profile") && Profile.missing("040074A01BF12000", null) == null, "Profile.missing");
