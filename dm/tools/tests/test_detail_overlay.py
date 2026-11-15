@@ -97,8 +97,8 @@ def read_sarc(b):
     return out
 
 
-SCENE_A = {'TurfDensity': 150.0, 'TurfMinBlades': 16, 'IsEnableMoss': True, 'IsEnableTurf': True, 'Name': 'kokiri',
-           'LodSetting_hh': {'Dist_LowTree': 50.0, 'Dist_Undergrowth0': 20.0, 'Range_LowTree01': 5.0}}
+SCENE_A = {'TurfDensity': 123.0, 'TurfMinBlades': 11, 'IsEnableMoss': True, 'IsEnableTurf': True, 'Name': 'scene_a',   # made-up values, none of a game file
+           'LodSetting_hh': {'Dist_LowTree': 41.0, 'Dist_Undergrowth0': 33.0, 'Range_LowTree01': 7.0}}
 SCENE_B = {'IsEnableMoss': True, 'IsEnableStone': True}
 ROWS = '''detail_level\tfull\tshown\tFull (as the game draws it)
 detail_level\treduced\tshown\tReduced
@@ -150,8 +150,8 @@ class DetailOverlay(unittest.TestCase):
         m, m0 = read_sarc(out), read_sarc(self.sarc)
         self.assertEqual(m, m0)   # the members where they were
         a = read_byml(out[slice(*m['Foliage/ResFoliageScene/A.bgyml'])])
-        self.assertEqual((a['TurfDensity'], a['TurfMinBlades'], a['IsEnableMoss'], a['IsEnableTurf'], a['Name']), (75.0, 8, False, True, 'kokiri'))
-        self.assertEqual(a['LodSetting_hh'], {'Dist_LowTree': 25.0, 'Dist_Undergrowth0': 10.0, 'Range_LowTree01': 5.0})
+        self.assertEqual((a['TurfDensity'], a['TurfMinBlades'], a['IsEnableMoss'], a['IsEnableTurf'], a['Name']), (61.5, 6, False, True, 'scene_a'))
+        self.assertEqual(a['LodSetting_hh'], {'Dist_LowTree': 20.5, 'Dist_Undergrowth0': 16.5, 'Range_LowTree01': 7.0})
         self.assertEqual(read_byml(out[slice(*m['Foliage/ResFoliageScene/B.bgyml'])]), {**SCENE_B, 'IsEnableMoss': False})
         self.assertEqual(out[slice(*m['Other/Unrelated.bgyml'])], self.members['Other/Unrelated.bgyml'])
         changed = sum(x != y for x, y in zip(out, self.sarc))
@@ -165,9 +165,11 @@ class DetailOverlay(unittest.TestCase):
         self.check_pack(over, self.dict.dict_id)
         loose = (over / 'Foliage/ResFoliageScene/A.bgyml').read_bytes()
         self.assertEqual(len(loose), len((self.rom / 'Foliage/ResFoliageScene/A.bgyml').read_bytes()))
-        self.assertEqual(read_byml(loose), {**SCENE_A, 'TurfDensity': 75.0})
+        self.assertEqual(read_byml(loose), {**SCENE_A, 'TurfDensity': 61.5})
         self.assertFalse((over / 'Foliage/ResFoliageScene/B.bgyml').exists())   # B has no TurfDensity: not edited, not in the overlay
-        self.assertEqual(sorted(p.name for p in temp.iterdir()), [over.name])
+        self.assertEqual(over.name, 'romfs')   # the folder DM_ROMFS_OVERLAY names; the manifest beside it, not among the game's files
+        self.assertTrue((over.parent / 'detail.txt').is_file()); self.assertFalse((over / 'detail.txt').exists())
+        self.assertEqual(sorted(p.name for p in temp.iterdir()), ['.lock', over.parent.name])
 
     def test_without_the_dictionary_id(self):
         r, _, over = self.build('reduced', 'both', 'none')
@@ -189,6 +191,20 @@ class DetailOverlay(unittest.TestCase):
         self.assertFalse((over / 'Pack/Foliage.pack.zs').exists())   # the pack stays the game's own; the loose file is still edited
         self.assertTrue((over / 'Foliage/ResFoliageScene/A.bgyml').exists())
 
+
+
+class DetailInTheTestsMakefile(unittest.TestCase):
+    """t_detail runs on its own line of `make run` when GAME is set (its rows are that profile's), and not at all without GAME (a clean `make run` on the Mac)"""
+    def dry_run(self, game):
+        r = subprocess.run(['make', '-n', '-C', str(REPO / 'dm/host/tests'), 'run', f'GAME={game}', 'B=/nonexistent-detail-check'], capture_output=True, text=True)
+        return [l for l in r.stdout.splitlines() if 't_detail' in l and not l.startswith(('clang', 'cc '))]
+
+    def test_run_with_and_without_game(self):
+        lines = self.dry_run('0400486024DEC000')
+        self.assertEqual(len(lines), 1, lines)
+        self.assertEqual([w.rsplit('/', 1)[-1] for w in lines[0].split()][-1:], ['t_detail'])
+        self.assertNotIn('t_android', lines[0])   # its own command, not an argument of another test
+        self.assertEqual(self.dry_run(''), [])
 
 if __name__ == '__main__':
     unittest.main()

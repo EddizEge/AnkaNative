@@ -71,11 +71,10 @@ run: $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_touch $(B)/t_gesture 
 	$(B)/t_android_memfoot
 	$(B)/t_android_place
 	$(B)/t_drs_level
-	TMPDIR="$(abspath $(B))" $(B)/t_detail
 	$(B)/t_android_aspick
 	$(B)/t_android_memu
 	$(B)/t_android_pcguard
-	$(B)/t_android_memurule $(B)/t_detail
+	$(B)/t_android_memurule
 run: $(B)/t_nro
 run: $(B)/t_symbols
 $(B)/t_symbols: t_symbols.c ../hle.c ../loader.c ../hle.h ../dm.h $(GAME_H) | $(B)
@@ -396,8 +395,13 @@ drs_level: $(B)/t_drs_level
 	$(B)/t_drs_level
 # Game settings › Plants and effects (dm/host/detail.h), any machine: the rows, the BYML and SARC editors, the zstd frame of raw blocks and the overlay build, with
 # zstd's decoder and this GAME's profile rows (a header of its own, generated here: the host's gen/ is the Mac build's)
+.PHONY: detail
 detail: $(B)/t_detail
 	TMPDIR="$(abspath $(B))" $(B)/t_detail
+# in `run` when GAME is set (its rows come from that profile); `make run` without GAME leaves it out
+ifneq ($(strip $(GAME)),)
+run: detail
+endif
 $(B)/gen-$(GAME)/game_profile.h: ../../games/$(GAME)/game.tsv ../../games/game.py | $(B)
 	$(if $(strip $(GAME)),,$(error GAME is not set: make GAME=<base game title ID>))
 	$(PYTHON) ../../games/game.py header $(GAME) $@

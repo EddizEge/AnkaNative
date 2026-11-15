@@ -149,6 +149,39 @@ final class Profile {
         return env;
     }
 
+    /**
+     * The folder the host builds the Plants and effects overlay in: beside the game's temporary storage, "&lt;DM_TEMP&gt;_detail" (dm/host/hle_fs.c dm_detail_start;
+     * never inside DM_TEMP, which is the game's own temp: mount)
+     */
+    static java.io.File detailDir(java.io.File temp) { return new java.io.File(temp.getPath() + "_detail"); }
+
+    /** Whether the host gets a level other than Full: the last DM_DETAIL line of the start's environment (env.txt's come later and win) is not empty */
+    static boolean detailOn(List<String> env) {
+        String v = "";
+        for (String kv : env) if (kv.startsWith("DM_DETAIL=")) v = kv.substring(10).trim();
+        return !v.isEmpty();
+    }
+
+    /**
+     * At a start with Full (no DM_DETAIL, or an empty one): the overlay an earlier start built is removed, so no file of an earlier level stays on the phone. Here, in
+     * the launcher, so that the host sends and logs nothing for Full. Only at a start: the game this start replaces has ended, and no running game reads it.
+     * Returns whether the folder is gone (or never was)
+     */
+    static boolean dropDetail(java.io.File temp, List<String> env) {
+        if (detailOn(env)) return true;
+        return deleteTree(detailDir(temp));
+    }
+
+    private static boolean deleteTree(java.io.File f) {
+        if (!f.exists() && !isLink(f)) return true;
+        java.io.File[] in = isLink(f) ? null : f.listFiles();
+        boolean ok = true;
+        if (in != null) for (java.io.File c : in) ok &= deleteTree(c);
+        return f.delete() && ok;
+    }
+
+    private static boolean isLink(java.io.File f) { return java.nio.file.Files.isSymbolicLink(f.toPath()); }
+
     /** Whether any game of this APK has Game resolution (Settings shows its default only then) */
     static boolean anyResolution() { for (Profile p : all()) if (p.hasResolution()) return true; return false; }
 

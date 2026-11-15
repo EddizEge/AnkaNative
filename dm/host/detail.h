@@ -8,10 +8,14 @@
 // index) and an edit: "x<factor>" scales a number (an integer is rounded), "=true" / "=false" sets a boolean, "=<number>" sets a number. Edits are in place: a
 // file's size never changes (the game's resource size table holds the sizes). A key a matched file does not have is left to the game's defaults (scenes carry only
 // the keys they change); a row whose key is in none of its files, a path that matches nothing, a value of another type, a malformed file or a pack that cannot be
-// decoded is a "[RED] " line naming it, and that file (or member) stays the game's own. The overlay is built into "<DM_TEMP>/detail-<levels>-<digest>.tmp", then
-// renamed: the digest covers the rows, the switches below and every source file's bytes, so a changed row or a game update builds a new one, and a folder without
-// its manifest (a build cut off) is built again. Other detail-* folders of the game's DM_TEMP are removed. When nothing can be built the game starts as the game
-// draws it (Full), with a red line.
+// decoded is a "[RED] " line naming it, and that file (or member) stays the game's own. The overlay is built in a folder of its own beside the game's temporary
+// storage, "<DM_TEMP>_detail" (as <DM_TEMP>_sysdata: DM_TEMP itself is the game's temp: mount, whose folders the game lists and deletes), into
+// "detail-<levels>-<digest>.tmp", then renamed: the digest covers the rows, the switches below and every source file's bytes, so a changed row or a game update
+// builds a new one, and a folder without its manifest (a build cut off) is built again. The game's files are under its "romfs/" (the folder DM_ROMFS_OVERLAY
+// names), the manifest "detail.txt" beside it (never in the game's rom:/ listings): the summary line, then the build's red lines, which a later start that uses the
+// folder says again (every failure is said at every start). One build at a time ("<DM_TEMP>_detail/.lock"); the other detail-* folders are removed. When nothing
+// can be built the game starts as the game draws it (Full), with a red line. Full itself never reaches this code (the launcher sends nothing, and removes the
+// folder).
 //
 // A pack member written back: the pack's SARC with the edited members in place, as one zstd frame of raw blocks (no compression: the host has only zstd's
 // decoder). Its header is the source frame's: the same content size and, by default, the same dictionary ID (DM_DETAIL_PACK_DICTID=keep), so a loader that picks
@@ -29,13 +33,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #define DETAIL_MAX_LEVELS 16
 #define DETAIL_MAX_PARAMS 256
 #define DETAIL_MAX_ENV 32
-#define DETAIL_VERSION "detail 1"   // in the digest: a change of what the builder writes builds every overlay again
+#define DETAIL_VERSION "detail 2"   // in the digest: a change of what the builder writes builds every overlay again
 
 enum { DETAIL_SCALE = 1, DETAIL_SET_BOOL = 2, DETAIL_SET_NUM = 3 };
 enum { DETAIL_COPY_BOTH = 0, DETAIL_COPY_LOOSE = 1, DETAIL_COPY_PACK = 2 };
@@ -540,18 +545,27 @@ static int detail_selected(const detail_param *q, uint32_t mask, int copy) {
     return (q->levels & mask) && !(copy == DETAIL_COPY_LOOSE && q->pack) && !(copy == DETAIL_COPY_PACK && !q->pack);
 }
 
+// The build's log: lines go to the caller's log; once recording is on, the red lines are also kept for the manifest (said again when the folder is used later)
+typedef struct { detail_log_fn log; void *ctx; char *buf; size_t n; int on; } detail_rec;
+static void detail_rec_log(void *c, const char *line) {
+    detail_rec *r = c; r->log(r->ctx, line);
+    if (!r->on || strncmp(line, "[RED] ", 6)) return;
+    size_t l = strlen(line); char *b = realloc(r->buf, r->n + l + 2); if (!b) return;
+    memcpy(b + r->n, line, l); b[r->n + l] = '\n'; b[r->n + l + 1] = 0; r->buf = b; r->n += l + 1;
+}
 // Builds (or finds) the overlay for the levels in mask. Returns 1 with its folder in outdir (empty when the levels edit no file), 0 when there is no overlay to use
 // (the game then starts as the game draws it; the reason is a red line). report: when not NULL, the values changed, file by file (the PC check's report)
 static int detail_build(detail_profile *p, uint32_t mask, const char *name, int copy, int dictid_mode, const char *temp, const detail_io *io, char *outdir, size_t on, FILE *report) {
-    char why[600] = "", final[1200] = "", tmp[1300] = "", manifest[1300] = ""; int ok = 0, nsel = 0, red = 0;
+    char why[600] = "", final[1200] = "", tmp[1300] = "", tmpfs[1400] = "", manifest[1300] = "", lockp[1300] = ""; int ok = 0, nsel = 0, red = 0, lockfd = -1;
+    detail_rec rec = {io->log, io->ctx, NULL, 0, 0};
     *outdir = 0;
     detail_srcs src = {0}; detail_out *outs = NULL; int nout = 0;
     for (int i = 0; i < p->npar; i++) { p->par[i].files = p->par[i].found = p->par[i].hit_files = p->par[i].values = 0; if (detail_selected(&p->par[i], mask, copy)) nsel++; }
     if (!nsel) return 1;   // the levels set switches only
-    if (!temp || !*temp) { detail_say(io->log, io->ctx, "[RED] [detail] %s: DM_TEMP is not set: no overlay, the game starts as the game draws it (Full)", name); return 0; }
+    if (!temp || !*temp) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: DM_TEMP is not set: no overlay, the game starts as the game draws it (Full)", name); return 0; }
     outs = calloc((size_t)p->npar * 2 + 64, sizeof *outs);
     int outcap = p->npar * 2 + 64;
-    if (!outs) { detail_say(io->log, io->ctx, "[RED] [detail] %s: out of memory: the game starts as the game draws it (Full)", name); return 0; }
+    if (!outs) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: out of memory: the game starts as the game draws it (Full)", name); return 0; }
     // 1. The files each row names, read once; the digest of the rows, the switches and their bytes
     uint64_t h = detail_fnv(0xcbf29ce484222325ull, DETAIL_VERSION, sizeof DETAIL_VERSION);
     char sw[64]; snprintf(sw, sizeof sw, "copy=%d dictid=%d", copy, dictid_mode); h = detail_fnv(h, sw, strlen(sw) + 1);
@@ -570,12 +584,12 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
             if (l.n) qsort(l.names, (size_t)l.n, 256, detail_cmp_name);
             for (int k = 0; k < l.n; k++) { char full[256]; snprintf(full, sizeof full, "%s%s%s", dir, *dir ? "/" : "", l.names[k]); snprintf(l.names[k], 256, "%s", full); }
         }
-        if (!l.n) { detail_say(io->log, io->ctx, "[RED] [detail] row \"%s\": no file matches %s; the row does nothing", q->text, q->path); red++; }
+        if (!l.n) { detail_say(detail_rec_log, &rec, "[RED] [detail] row \"%s\": no file matches %s; the row does nothing", q->text, q->path); red++; }
         for (int k = 0; k < l.n; k++) {
             if (njob == jcap) { jcap = jcap ? jcap * 2 : 256; job *v = realloc(jobs, (size_t)jcap * sizeof *v); if (!v) { free(l.names); goto oom; } jobs = v; }
             jobs[njob].row = i; snprintf(jobs[njob].path, sizeof jobs[njob].path, "%s", l.names[k]); njob++;
             detail_src *s = detail_src_get(&src, io, l.names[k], why, sizeof why);
-            if (!s) { detail_say(io->log, io->ctx, "[RED] [detail] %s: cannot be read (%s): the rows that name it do nothing", l.names[k], why); red++; *why = 0; njob--; continue; }
+            if (!s) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: cannot be read (%s): the rows that name it do nothing", l.names[k], why); red++; *why = 0; njob--; continue; }
         }
         free(l.names);
     }
@@ -586,7 +600,7 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
     }
     if (need_dict && *p->zsdic) {
         detail_src *s = detail_src_get(&src, io, p->zsdic, why, sizeof why);
-        if (s) { dict_pack = s->b; dict_pack_n = s->n; } else { detail_say(io->log, io->ctx, "[RED] [detail] the dictionaries %s cannot be read (%s)", p->zsdic, why); red++; *why = 0; }
+        if (s) { dict_pack = s->b; dict_pack_n = s->n; } else { detail_say(detail_rec_log, &rec, "[RED] [detail] the dictionaries %s cannot be read (%s)", p->zsdic, why); red++; *why = 0; }
     }
     {   // the sources in path order: the digest does not depend on the order the rows name them
         int *ord = malloc(sizeof(int) * (size_t)(src.n ? src.n : 1)); if (!ord) goto oom;
@@ -596,18 +610,38 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
         free(ord);
     }
     snprintf(final, sizeof final, "%s/detail-%s-%016llx", temp, name, (unsigned long long)h);
-    snprintf(tmp, sizeof tmp, "%s.tmp", final);
+    snprintf(tmp, sizeof tmp, "%s.tmp", final); snprintf(tmpfs, sizeof tmpfs, "%s/romfs", tmp);
     snprintf(manifest, sizeof manifest, "%s/detail.txt", final);
-    // 2. An overlay already built for these rows and files is used as it is (its manifest is written last, so a folder without it was cut off)
+    // One build at a time: a second start waits here, then finds the first one's folder (no lock file, as on a read-only folder: the writes below say why)
+    snprintf(lockp, sizeof lockp, "%s/.lock", temp);
+    if (!detail_mkdirs(temp) && (lockfd = open(lockp, O_RDWR | O_CREAT, 0644)) >= 0) while (flock(lockfd, LOCK_EX) && errno == EINTR) {}
+    // 2. An overlay already built for these rows and files is used as it is (its manifest is written last, so a folder without it was cut off); its build's red
+    //    lines (the manifest's other lines) are said again
     {
         FILE *m = fopen(manifest, "r");
         if (m) {
-            char line[6144] = ""; size_t k = fread(line, 1, sizeof line - 1, m); line[k] = 0; fclose(m);
-            char *nl = strchr(line, '\n'); if (nl) *nl = 0;
-            if (*line) { detail_say(io->log, io->ctx, "[detail] %s: overlay %s (made at an earlier start from the same rows and files): %s", name, final, line); snprintf(outdir, on, "%s", final); ok = 1; goto clean; }
+            char *all = NULL; size_t an = 0, k; char chunk[4096];
+            while ((k = fread(chunk, 1, sizeof chunk, m)) > 0) { char *g = realloc(all, an + k + 1); if (!g) { free(all); all = NULL; break; } all = g; memcpy(all + an, chunk, k); an += k; all[an] = 0; }
+            fclose(m);
+            char *nl = all ? strchr(all, '\n') : NULL;
+            if (nl && nl > all) {
+                *nl = 0; char dir[1300]; struct stat st; snprintf(dir, sizeof dir, "%s/romfs", final);
+                if (!stat(dir, &st) && S_ISDIR(st.st_mode)) {
+                    for (char *ln = nl + 1; *ln;) {
+                        char *e2 = strchr(ln, '\n'); if (e2) *e2 = 0;
+                        if (!strncmp(ln, "[RED] ", 6)) io->log(io->ctx, ln);
+                        if (!e2) break;
+                        ln = e2 + 1;
+                    }
+                    detail_say(detail_rec_log, &rec, "[detail] %s: overlay %s (made at an earlier start from the same rows and files): %s", name, dir, all);
+                    snprintf(outdir, on, "%s", dir); ok = 1; free(all); goto older;
+                }
+            }
+            free(all);
         }
     }
-    if (detail_rm_tree(final) || detail_rm_tree(tmp)) { detail_say(io->log, io->ctx, "[RED] [detail] %s: cannot remove the earlier, partial %s (errno %d): the game starts as the game draws it (Full)", name, final, errno); goto clean; }
+    rec.on = 1;   // from here on the red lines go into the manifest too
+    if (detail_rm_tree(final) || detail_rm_tree(tmp)) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: cannot remove the earlier, partial %s (errno %d): the game starts as the game draws it (Full)", name, final, errno); goto clean; }
     // 3. The edits, file by file, in the rows' order
     for (int j = 0; j < njob; j++) {
         detail_param *q = &p->par[jobs[j].row]; detail_src *s = NULL;
@@ -649,7 +683,7 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
                 if (!bad && detail_sarc(o->b, o->n, &mm, why, sizeof why) < 0) bad = 1;
                 free(mm);
                 if (bad) {
-                    detail_say(io->log, io->ctx, "[RED] [detail] %s: %s: the pack stays the game's own", jobs[j].path, why); red++; *why = 0;
+                    detail_say(detail_rec_log, &rec, "[RED] [detail] %s: %s: the pack stays the game's own", jobs[j].path, why); red++; *why = 0;
                     free(o->b); o->b = NULL; o->n = 0; o->bad = 1; nout++;   // kept, marked: its other rows are skipped below
                     continue;
                 }
@@ -663,7 +697,7 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
             for (int i = 0; i < p->npar; i++) if (detail_selected(&p->par[i], mask, copy) && detail_row_names(&p->par[i], o->path, NULL)) peers[np++] = &p->par[i];
             q->files++;
             if (!detail_byml_edit(c, o->n, q, peers, np, &o->done, 0, &hits, &applied, why, sizeof why, chg, sizeof chg)) {
-                detail_say(io->log, io->ctx, "[RED] [detail] %s: %s (row \"%s\"): the file stays the game's own", o->path, why, q->text); red++; *why = 0;
+                detail_say(detail_rec_log, &rec, "[RED] [detail] %s: %s (row \"%s\"): the file stays the game's own", o->path, why, q->text); red++; *why = 0;
                 free(c); free(o->b); o->b = NULL; o->bad = 1; q->found++; continue;   // (said: not "none has the key" again)
             }
             if (hits) { q->found++; o->rowfiles[jobs[j].row]++; o->rowvals[jobs[j].row] += applied; o->edits += applied; detail_note(o, chg); }
@@ -681,7 +715,7 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
                 for (int i = 0; i < p->npar; i++) if (detail_selected(&p->par[i], mask, copy) && detail_row_names(&p->par[i], o->path, mm[k].name)) peers[np++] = &p->par[i];
                 q->files++;
                 if (!detail_byml_edit(c, ml, q, peers, np, &o->done, (uint64_t)mm[k].start << 34, &hits, &applied, why, sizeof why, chg, sizeof chg)) {
-                    detail_say(io->log, io->ctx, "[RED] [detail] %s member %s: %s (row \"%s\"): the member stays the game's own", o->path, mm[k].name, why, q->text); red++; *why = 0;
+                    detail_say(detail_rec_log, &rec, "[RED] [detail] %s member %s: %s (row \"%s\"): the member stays the game's own", o->path, mm[k].name, why, q->text); red++; *why = 0;
                     free(c); q->found++;
                     // the member as the game has it: its earlier rows' edits undone, and not counted
                     if (o->orig) memcpy(o->b + mm[k].start, o->orig + mm[k].start, ml);
@@ -701,13 +735,13 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
                 }
                 free(c);
             }
-            if (!matched) { detail_say(io->log, io->ctx, "[RED] [detail] row \"%s\": no member of %s matches %s; the row does nothing", q->text, o->path, q->member); red++; }
+            if (!matched) { detail_say(detail_rec_log, &rec, "[RED] [detail] row \"%s\": no member of %s matches %s; the row does nothing", q->text, o->path, q->member); red++; }
             free(mm);
         }
     }
     for (int i = 0; i < p->npar; i++) {
         detail_param *q = &p->par[i];
-        if (detail_selected(q, mask, copy) && q->files && !q->found) { detail_say(io->log, io->ctx, "[RED] [detail] row \"%s\": none of its %u files has the key %s; the row does nothing", q->text, q->files, q->key); red++; }
+        if (detail_selected(q, mask, copy) && q->files && !q->found) { detail_say(detail_rec_log, &rec, "[RED] [detail] row \"%s\": none of its %u files has the key %s; the row does nothing", q->text, q->files, q->key); red++; }
     }
     // 4. Written into the temporary folder, then renamed
     int nfiles = 0, nloose = 0, npk = 0;
@@ -715,20 +749,20 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
         detail_out *o = &outs[k]; if (o->bad || !o->b || !o->edits) continue;
         detail_src *s = NULL; for (int i = 0; i < src.n; i++) if (!strcmp(src.v[i].path, o->path)) s = &src.v[i];
         if (!o->pack) {
-            if (!s || s->n != o->n) { detail_say(io->log, io->ctx, "[RED] [detail] %s: its size would change (%zu -> %zu bytes): the file stays the game's own", o->path, s ? s->n : 0, o->n); red++; continue; }
-            if (detail_write(tmp, o->path, o->b, o->n)) { detail_say(io->log, io->ctx, "[RED] [detail] cannot write %s/%s (errno %d): the game starts as the game draws it (Full)", tmp, o->path, errno); goto fail; }
+            if (!s || s->n != o->n) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: its size would change (%zu -> %zu bytes): the file stays the game's own", o->path, s ? s->n : 0, o->n); red++; continue; }
+            if (detail_write(tmpfs, o->path, o->b, o->n)) { detail_say(detail_rec_log, &rec, "[RED] [detail] cannot write %s/%s (errno %d): the game starts as the game draws it (Full)", tmpfs, o->path, errno); goto fail; }
             nloose++;
         } else {
             uint8_t *w; size_t wn2 = 0;
             if (!o->zh.hsize) { w = malloc(o->n); if (!w) goto oom; memcpy(w, o->b, o->n); wn2 = o->n; }   // a pack stored without compression stays so
-            else if (!(w = detail_zstd_raw(&o->zh, o->b, o->n, dictid_mode, &wn2))) { detail_say(io->log, io->ctx, "[RED] [detail] %s: its size would change (the frame says %llu bytes, the SARC has %zu): the pack stays the game's own", o->path, (unsigned long long)o->zh.fcs, o->n); red++; continue; }
+            else if (!(w = detail_zstd_raw(&o->zh, o->b, o->n, dictid_mode, &wn2))) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: its size would change (the frame says %llu bytes, the SARC has %zu): the pack stays the game's own", o->path, (unsigned long long)o->zh.fcs, o->n); red++; continue; }
             if (o->zh.hsize) {   // decoded back as the game's loader would, with the dictionary its ID names (raw blocks read none of it): it must be the edited SARC
                 uint8_t *back = io->zdecode(io->ctx, w, wn2, o->dict, o->dn, o->n, why, sizeof why);
                 int same = back && !memcmp(back, o->b, o->n); free(back);
-                if (!same) { detail_say(io->log, io->ctx, "[RED] [detail] %s: the rewritten pack does not decode back to the edited SARC (%s): the pack stays the game's own", o->path, back ? "different bytes" : why); red++; *why = 0; free(w); continue; }
+                if (!same) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: the rewritten pack does not decode back to the edited SARC (%s): the pack stays the game's own", o->path, back ? "different bytes" : why); red++; *why = 0; free(w); continue; }
             }
-            int r = detail_write(tmp, o->path, w, wn2); free(w);
-            if (r) { detail_say(io->log, io->ctx, "[RED] [detail] cannot write %s/%s (errno %d): the game starts as the game draws it (Full)", tmp, o->path, errno); goto fail; }
+            int r = detail_write(tmpfs, o->path, w, wn2); free(w);
+            if (r) { detail_say(detail_rec_log, &rec, "[RED] [detail] cannot write %s/%s (errno %d): the game starts as the game draws it (Full)", tmpfs, o->path, errno); goto fail; }
             npk++;
         }
         nfiles++;
@@ -743,32 +777,33 @@ static int detail_build(detail_profile *p, uint32_t mask, const char *name, int 
             l += (size_t)snprintf(line + l, sizeof line - l, " [%s%s%s %s %s: %u values in %u of %u]", q->pack ? q->path : "", q->pack ? ":" : "", base ? base + 1 : q->pack ? q->member : q->path,
                                   q->key, strrchr(q->text, ' ') + 1, q->values, q->hit_files, q->files);
         }
-        if (!nfiles) { detail_say(io->log, io->ctx, "[RED] [detail] %s: no file was edited (%s): no overlay, the game starts as the game draws it (Full)", name, line); detail_rm_tree(tmp); goto clean; }
+        if (!nfiles) { detail_say(detail_rec_log, &rec, "[RED] [detail] %s: no file was edited (%s): no overlay, the game starts as the game draws it (Full)", name, line); detail_rm_tree(tmp); goto clean; }
         char mf[1400]; snprintf(mf, sizeof mf, "%s/detail.txt", tmp);
         FILE *m = fopen(mf, "w");
-        if (!m || fprintf(m, "%s\n", line) < 0 || fclose(m)) { if (m) fclose(m); detail_say(io->log, io->ctx, "[RED] [detail] cannot write %s (errno %d): the game starts as the game draws it (Full)", mf, errno); goto fail; }
-        if (rename(tmp, final)) { detail_say(io->log, io->ctx, "[RED] [detail] cannot rename %s to %s (errno %d): the game starts as the game draws it (Full)", tmp, final, errno); goto fail; }
-        detail_say(io->log, io->ctx, "[detail] %s: overlay %s built: %s", name, final, line);
-        snprintf(outdir, on, "%s", final); ok = 1;
+        if (!m || fprintf(m, "%s\n%s", line, rec.buf ? rec.buf : "") < 0 || fclose(m)) { if (m) fclose(m); detail_say(detail_rec_log, &rec, "[RED] [detail] cannot write %s (errno %d): the game starts as the game draws it (Full)", mf, errno); goto fail; }
+        if (rename(tmp, final)) { detail_say(detail_rec_log, &rec, "[RED] [detail] cannot rename %s to %s (errno %d): the game starts as the game draws it (Full)", tmp, final, errno); goto fail; }
+        detail_say(detail_rec_log, &rec, "[detail] %s: overlay %s/romfs built: %s", name, final, line);
+        snprintf(outdir, on, "%s/romfs", final); ok = 1;
     }
-    // 5. Older overlays of this game (other levels, rows or game files) go
+older:   // 5. Older overlays of this game (other levels, rows or game files) go, also when this start uses an earlier one
     {
         DIR *d = opendir(temp); struct dirent *e; const char *base = strrchr(final, '/') + 1;
         while (d && (e = readdir(d))) {
             if (strncmp(e->d_name, "detail-", 7) || !strcmp(e->d_name, base)) continue;
             char c[1400]; snprintf(c, sizeof c, "%s/%s", temp, e->d_name);
-            if (detail_rm_tree(c)) detail_say(io->log, io->ctx, "[RED] [detail] cannot remove the older overlay %s (errno %d)", c, errno);
+            if (detail_rm_tree(c)) detail_say(detail_rec_log, &rec, "[RED] [detail] cannot remove the older overlay %s (errno %d)", c, errno);
         }
         if (d) closedir(d);
     }
     goto clean;
 oom:
-    detail_say(io->log, io->ctx, "[RED] [detail] %s: out of memory: the game starts as the game draws it (Full)", name);
+    detail_say(detail_rec_log, &rec, "[RED] [detail] %s: out of memory: the game starts as the game draws it (Full)", name);
 fail:
     if (*tmp) detail_rm_tree(tmp);
     ok = 0; *outdir = 0;
 clean:
     for (int k = 0; k < nout; k++) { free(outs[k].b); free(outs[k].chg); free(outs[k].dict); free(outs[k].done.v); free(outs[k].orig); free(outs[k].badm); free(outs[k].mlog); free(outs[k].rowvals); free(outs[k].rowfiles); }
-    free(outs); free(jobs); detail_srcs_free(&src);
+    free(outs); free(jobs); detail_srcs_free(&src); free(rec.buf);
+    if (lockfd >= 0) close(lockfd);   // (the lock goes with it)
     return ok;
 }

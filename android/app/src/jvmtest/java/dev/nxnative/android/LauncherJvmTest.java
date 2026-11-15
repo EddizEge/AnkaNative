@@ -71,7 +71,7 @@ public final class LauncherJvmTest {
         System.out.println("ok " + n);
     }
 
-    static void profiles() {
+    static void profiles() throws IOException {
         List<Profile> l = Profile.parse("040074A01BF12000\tDonkey Kong Bananza\t22852\tabcdef012345\t458752 main=aa sdk=BB;0 main=cc\nbad line\n"
                 + "0400C3F00006E000\t\t0\tunknown\t");
         check(l.size() == 2, "two profiles, the bad line skipped");
@@ -116,6 +116,18 @@ public final class LauncherJvmTest {
         check(det.detailEnv("reduced").equals(List.of("DM_DETAIL=reduced")) && det.detailEnv("lowest").equals(List.of("DM_DETAIL=lowest")), "DM_DETAIL for a level");
         check(det.detailLabel(null).equals("Full (as the game draws it)") && det.detailLabel("reduced").equals("Reduced") && det.detailLabel("medium") == null, "labels: " + det.detailLabel(null));
         check(!Profile.parse("0400486024DEC000\tO\t0\tx\t\t\t\t\t\t\t\t\t\t\t\tfull|shown|Full").get(0).hasDetail(), "one level: nothing to choose");
+        // The overlay of an earlier start: beside the game's temporary storage (never in it, the game's temp: mount), removed by a start with Full, kept with a level
+        {
+            File base = java.nio.file.Files.createTempDirectory("detail-jvm").toFile(), temp = new File(base, "temp/0400486024DEC000");
+            check(temp.mkdirs() && Profile.detailDir(temp).getPath().equals(temp.getPath() + "_detail"), "the overlay's folder: " + Profile.detailDir(temp));
+            File over = new File(Profile.detailDir(temp), "detail-reduced-0123456789abcdef/romfs/Foliage/ResFoliageScene");
+            check(over.mkdirs() && java.nio.file.Files.write(new File(over, "A.bgyml").toPath(), new byte[] {1}) != null, "fixture");
+            check(Profile.detailOn(List.of("DM_DETAIL=reduced")) && !Profile.detailOn(List.of()) && !Profile.detailOn(List.of("DM_DETAIL=reduced", "DM_DETAIL=")) && Profile.detailOn(List.of("DM_DETAIL=", "DM_DETAIL=lowest")), "the last DM_DETAIL line wins");
+            check(Profile.dropDetail(temp, List.of("DM_TEMP=" + temp, "DM_DETAIL=reduced")) && over.isDirectory(), "a level: the overlay is kept (the host reuses it)");
+            check(Profile.dropDetail(temp, List.of("DM_TEMP=" + temp, "DM_DETAIL=reduced", "DM_DETAIL=")) && !Profile.detailDir(temp).exists() && temp.isDirectory(), "Full (env.txt's empty line wins): the overlay is gone, the game's temp kept");
+            check(Profile.dropDetail(temp, List.of()), "Full with no overlay: nothing to do");
+            temp.delete(); new File(base, "temp").delete(); base.delete();
+        }
         check(Profile.versionName(0).equals("the base game") && Profile.versionName(458752).equals("update 458752"), "versionName");
         check(Profile.of("040074A01BF12000") != null && Profile.of("0100000000010000") == null, "Profile.of over BuildConfig.NX_PROFILES");
         check(Profile.missing("0100000000010000", "Mario").contains("has no game profile") && Profile.missing("040074A01BF12000", null) == null, "Profile.missing");

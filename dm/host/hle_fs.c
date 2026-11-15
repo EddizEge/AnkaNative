@@ -1192,7 +1192,10 @@ void dm_detail_start(void) {
         if (!(r.img = img_open(r.dir))) { LOG("[RED] [detail] %s: the game files %s cannot be read: the game starts as the game draws it (Full)", name, r.dir); free(p); return; }
     }
     detail_io io = { &r, detail_rom_read, detail_rom_list, detail_rom_zdecode, detail_log_line };
-    int ok = detail_build(p, (uint32_t)m, name, copy, dict, getenv("DM_TEMP"), &io, out, sizeof out, NULL);
+    // beside the game's temporary storage, not in it (DM_TEMP is the game's temp: mount, h_fs_MountTemp): "<DM_TEMP>_detail", as <DM_TEMP>_sysdata
+    const char *gt = getenv("DM_TEMP"); char dt[1100] = "";
+    if (gt && *gt) { snprintf(dt, sizeof dt, "%s", gt); size_t l = strlen(dt); while (l > 1 && dt[l - 1] == '/') dt[--l] = 0; snprintf(dt + l, sizeof dt - l, "_detail"); }
+    int ok = detail_build(p, (uint32_t)m, name, copy, dict, *dt ? dt : NULL, &io, out, sizeof out, NULL);
     if (r.img) romfs_image_close(r.img);
     if (!ok) { free(p); return; }   // (its red line said why: as the game draws it)
     for (int i = 0; i < p->nenv; i++) if (p->env[i].levels & (uint32_t)m) {

@@ -32,8 +32,8 @@ static int log_red(void) { int n = 0; for (int i = 0; i < g_nlog; i++) if (!strn
 
 // ---- A small BYML, version 7, either byte order ----
 // keys (sorted): Arr Dist_LowTree Dist_Undergrowth0 IsEnableMoss LodSetting_hh Name Range_LowTree01 TurfDensity TurfMinBlades
-// root: { Arr: [1.0f, 2.0f], IsEnableMoss: true, LodSetting_hh: { Dist_LowTree: 50.0f, Dist_Undergrowth0: 20.0f, Range_LowTree01: 5.0f }, Name: "kokiri",
-//         TurfDensity: 150.0f, TurfMinBlades: 16 }   (with_turf 0: no TurfDensity / TurfMinBlades)
+// root: { Arr: [1.0f, 2.0f], IsEnableMoss: true, LodSetting_hh: { Dist_LowTree: 41.0f, Dist_Undergrowth0: 33.0f, Range_LowTree01: 7.0f }, Name: "scene_a",
+//         TurfDensity: 123.0f, TurfMinBlades: 11 }   (made-up values, none of a game file)   (with_turf 0: no TurfDensity / TurfMinBlades)
 static const char *KEYS[] = {"Arr", "Dist_LowTree", "Dist_Undergrowth0", "IsEnableMoss", "LodSetting_hh", "Name", "Range_LowTree01", "TurfDensity", "TurfMinBlades"};
 typedef struct { uint8_t b[1024]; size_t n; int be; } buf;
 static void put(buf *x, uint64_t v, int w) { for (int i = 0; i < w; i++) x->b[x->n + i] = (uint8_t)(v >> (8 * (x->be ? w - 1 - i : i))); x->n += (size_t)w; }
@@ -50,12 +50,12 @@ static size_t make_byml(uint8_t *out, int be, int with_turf, size_t *slot_densit
     buf x = {{0}, 0, be};
     x.b[0] = be ? 'B' : 'Y'; x.b[1] = be ? 'Y' : 'B'; x.n = 2; put(&x, 7, 2); x.n = 16;
     size_t keys = x.n; strtab(&x, KEYS, 9);
-    const char *strs[] = {"kokiri"}; size_t st = x.n; strtab(&x, strs, 1);
+    const char *strs[] = {"scene_a"}; size_t st = x.n; strtab(&x, strs, 1);
     size_t arr = x.n; put(&x, 0xC0, 1); put(&x, 2, 3); x.b[x.n++] = 0xD2; x.b[x.n++] = 0xD2; align4(&x); put(&x, f32(1.0f), 4); put(&x, f32(2.0f), 4);
-    size_t lod = x.n; put(&x, 0xC1, 1); put(&x, 3, 3); ent(&x, 1, 0xD2, f32(50.0f)); ent(&x, 2, 0xD2, f32(20.0f)); ent(&x, 6, 0xD2, f32(5.0f));
+    size_t lod = x.n; put(&x, 0xC1, 1); put(&x, 3, 3); ent(&x, 1, 0xD2, f32(41.0f)); ent(&x, 2, 0xD2, f32(33.0f)); ent(&x, 6, 0xD2, f32(7.0f));
     size_t root = x.n; put(&x, 0xC1, 1); put(&x, with_turf ? 6 : 4, 3);
     ent(&x, 0, 0xC0, (uint32_t)arr); ent(&x, 3, 0xD0, 1); ent(&x, 4, 0xC1, (uint32_t)lod); ent(&x, 5, 0xA0, 0);
-    if (with_turf) { if (slot_density) *slot_density = x.n + 4; ent(&x, 7, 0xD2, f32(150.0f)); ent(&x, 8, 0xD1, 16); }
+    if (with_turf) { if (slot_density) *slot_density = x.n + 4; ent(&x, 7, 0xD2, f32(123.0f)); ent(&x, 8, 0xD1, 11); }
     put_at(&x, 4, keys, 4); put_at(&x, 8, st, 4); put_at(&x, 12, root, 4);
     memcpy(out, x.b, x.n); return x.n;
 }
@@ -84,22 +84,22 @@ static int ndiff(const uint8_t *a, const uint8_t *b, size_t n, size_t *first) { 
 
 static void test_byml(int be) {
     uint8_t orig[1024], b[1024]; size_t sd = 0, n = make_byml(orig, be, 1, &sd); slots s = find_slots(orig, be);
-    CHECK(sd == s.density && rdf(orig, s.density, be) == 150.0f && rdi(orig, s.blades, be) == 16 && rdf(orig, s.lod_low, be) == 50.0f, "the fixture's slots (be %d)", be);
+    CHECK(sd == s.density && rdf(orig, s.density, be) == 123.0f && rdi(orig, s.blades, be) == 11 && rdf(orig, s.lod_low, be) == 41.0f, "the fixture's slots (be %d)", be);
     char why[300], chg[1000]; unsigned hits; size_t first = 0;
     // a float scaled: only its 4 bytes change, the size is the file's
     memcpy(b, orig, n); chg[0] = 0; detail_param q = row("TurfDensity", "x0.5");
     CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && hits == 1, "TurfDensity x0.5: %s", why);
-    CHECK(rdf(b, s.density, be) == 75.0f && ndiff(orig, b, n, &first) >= 1 && ndiff(orig, b, n, NULL) <= 4 && first >= s.density && first < s.density + 4, "only TurfDensity's bytes, now 75 (be %d)", be);
-    CHECK(strstr(chg, "TurfDensity 150 -> 75") != NULL, "the change noted: %s", chg);
+    CHECK(rdf(b, s.density, be) == 61.5f && ndiff(orig, b, n, &first) >= 1 && ndiff(orig, b, n, NULL) <= 4 && first >= s.density && first < s.density + 4, "only TurfDensity's bytes, now 61.5 (be %d)", be);
+    CHECK(strstr(chg, "TurfDensity 123 -> 61.5") != NULL, "the change noted: %s", chg);
     // an integer scaled and rounded
     memcpy(b, orig, n); chg[0] = 0; q = row("TurfMinBlades", "x0.5");
-    CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && hits == 1 && rdi(b, s.blades, be) == 8 && ndiff(orig, b, n, NULL) == 1, "TurfMinBlades 16 x0.5 = 8");
-    memcpy(b, orig, n); chg[0] = 0; q = row("TurfMinBlades", "x0.3");
-    CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && rdi(b, s.blades, be) == 5, "16 x0.3 = 4.8, rounded to 5");
+    CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && hits == 1 && rdi(b, s.blades, be) == 6 && ndiff(orig, b, n, NULL) == 1, "TurfMinBlades 11 x0.5 = 5.5, rounded to 6");
+    memcpy(b, orig, n); chg[0] = 0; q = row("TurfMinBlades", "x0.43");
+    CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && rdi(b, s.blades, be) == 5, "11 x0.43 = 4.73, rounded to 5");
     // a glob in a nested dictionary: the two distances, not the range
     memcpy(b, orig, n); chg[0] = 0; q = row("LodSetting_hh.Dist_*", "x0.5");
     CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && hits == 2, "two Dist_ values: %u %s", hits, why);
-    CHECK(rdf(b, s.lod_low, be) == 25.0f && rdf(b, s.lod_ug0, be) == 10.0f && rdf(b, s.lod_range, be) == 5.0f && ndiff(orig, b, n, NULL) <= 8, "50 -> 25, 20 -> 10, the range kept");
+    CHECK(rdf(b, s.lod_low, be) == 20.5f && rdf(b, s.lod_ug0, be) == 16.5f && rdf(b, s.lod_range, be) == 7.0f && ndiff(orig, b, n, NULL) <= 8, "41 -> 20.5, 33 -> 16.5, the range kept");
     // a boolean set false
     memcpy(b, orig, n); chg[0] = 0; q = row("IsEnableMoss", "=false");
     CHECK(edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && hits == 1 && rdi(b, s.moss, be) == 0 && ndiff(orig, b, n, NULL) == 1, "IsEnableMoss false");
@@ -127,12 +127,12 @@ static void test_byml(int be) {
     b[0] = 'X'; CHECK(!edit1(b, n, &q, &hits, why, sizeof why, chg, sizeof chg) && strstr(why, "not a BYML"), "not a BYML");
 }
 
-// A BYML whose two dictionaries are one node, as the game's writer stores equal containers once: { LodSetting: L, LodSetting_hh: L }, L = { Dist_LowTree: 50.0f }
+// A BYML whose two dictionaries are one node, as the game's writer stores equal containers once: { LodSetting: L, LodSetting_hh: L }, L = { Dist_LowTree: 41.0f }
 static size_t make_shared(uint8_t *out, size_t *slot) {
     static const char *k[] = {"Dist_LowTree", "LodSetting", "LodSetting_hh"}; buf x = {{0}, 0, 0};
     x.b[0] = 'Y'; x.b[1] = 'B'; x.n = 2; put(&x, 7, 2); x.n = 16;
     size_t keys = x.n; strtab(&x, k, 3);
-    size_t lod = x.n; put(&x, 0xC1, 1); put(&x, 1, 3); *slot = x.n + 4; ent(&x, 0, 0xD2, f32(50.0f));
+    size_t lod = x.n; put(&x, 0xC1, 1); put(&x, 1, 3); *slot = x.n + 4; ent(&x, 0, 0xD2, f32(41.0f));
     size_t root = x.n; put(&x, 0xC1, 1); put(&x, 2, 3); ent(&x, 1, 0xC1, (uint32_t)lod); ent(&x, 2, 0xC1, (uint32_t)lod);
     put_at(&x, 4, keys, 4); put_at(&x, 12, root, 4); memcpy(out, x.b, x.n); return x.n;
 }
@@ -145,8 +145,8 @@ static void test_shared(void) {
     CHECK(!detail_byml_edit(b, n, &hh, one, 1, &d, 0, &found, &applied, why, sizeof why, chg, sizeof chg) && strstr(why, "stored once with LodSetting.Dist_LowTree") && !ndiff(o, b, n, NULL), "shared, one row: %s", why);
     // both rows with the same edit: the value is edited once (25, not 12.5); the second row finds it, edits nothing
     const detail_param *two[] = {&hh, &pl};
-    CHECK(detail_byml_edit(b, n, &hh, two, 2, &d, 0, &found, &applied, why, sizeof why, chg, sizeof chg) && found == 1 && applied == 1 && rdf(b, slot, 0) == 25.0f, "first row: %s", why);
-    CHECK(detail_byml_edit(b, n, &pl, two, 2, &d, 0, &found, &applied, why, sizeof why, chg, sizeof chg) && found == 1 && applied == 0 && rdf(b, slot, 0) == 25.0f, "second row: once");
+    CHECK(detail_byml_edit(b, n, &hh, two, 2, &d, 0, &found, &applied, why, sizeof why, chg, sizeof chg) && found == 1 && applied == 1 && rdf(b, slot, 0) == 20.5f, "first row: %s", why);
+    CHECK(detail_byml_edit(b, n, &pl, two, 2, &d, 0, &found, &applied, why, sizeof why, chg, sizeof chg) && found == 1 && applied == 0 && rdf(b, slot, 0) == 20.5f, "second row: once");
     free(d.v); d = (detail_done){0};
     // different edits of one stored value: refused
     memcpy(b, o, n); const detail_param *mix[] = {&hh, &pq};
@@ -283,6 +283,8 @@ static uint8_t *fs_zdecode(void *c, const uint8_t *src, size_t n, const uint8_t 
 }
 static void wfile(const char *root, const char *rel, const uint8_t *b, size_t n) { CHECK(!detail_write(root, rel, b, n), "fixture %s", rel); }
 static uint8_t *rfile(const char *path, size_t *n) { fs_ctx c = {""}; char why[100]; return fs_read(&c, path, n, why, sizeof why); }
+// The manifest of an overlay: beside its romfs/ folder (the folder the host hands to DM_ROMFS_OVERLAY), never in it
+static void manifest_of(char *m, size_t mn, const char *out) { snprintf(m, mn, "%s", out); char *sl = strrchr(m, '/'); if (sl && !strcmp(sl, "/romfs")) *sl = 0; snprintf(m + strlen(m), mn - strlen(m), "/detail.txt"); }
 static int count_dirs(const char *dir, const char *prefix) { DIR *d = opendir(dir); int k = 0; struct dirent *e; while (d && (e = readdir(d))) if (!strncmp(e->d_name, prefix, strlen(prefix))) k++; if (d) closedir(d); return k; }
 
 static void test_build(void) {
@@ -290,7 +292,7 @@ static void test_build(void) {
     if (!mkdtemp(root)) { CHECK(0, "mkdtemp %s", root); return; }
     char rom[700], tmp[700]; snprintf(rom, sizeof rom, "%s/romfs", root); snprintf(tmp, sizeof tmp, "%s/temp", root); mkdir(tmp, 0755);
     uint8_t a[1024], b[1024], s[4096], f[8192]; size_t na = make_byml(a, 0, 1, NULL), nb = make_byml(b, 1, 0, NULL);
-    wfile(rom, "Foliage/ResFoliageScene/A.bgyml", a, na);   // TurfDensity 150, IsEnableMoss
+    wfile(rom, "Foliage/ResFoliageScene/A.bgyml", a, na);   // TurfDensity 123, IsEnableMoss
     wfile(rom, "Foliage/ResFoliageScene/B.bgyml", b, nb);   // big-endian, no TurfDensity
     const char *names[] = {"Foliage/ResFoliageScene/A.bgyml", "Foliage/Other/C.bgyml"}; const uint8_t *d[] = {a, a}; size_t l[] = {na, na};
     size_t ns = make_sarc(s, names, d, l, 2), hn = frame_head(f, ns, 0);
@@ -308,7 +310,7 @@ static void test_build(void) {
     CHECK(detail_build(p, 2, "reduced", DETAIL_COPY_BOTH, DETAIL_DICTID_KEEP, tmp, &io, out, sizeof out, NULL) == 1 && strstr(out, "/detail-reduced-"), "reduced built: %s", out);
     CHECK(!log_red() && log_has("built: 2 files (1 loose, 1 packs)") && log_has("[*.bgyml TurfDensity x0.5: 1 values in 1 of 2]") && log_has("[Pack/Foliage.pack.zs:*.bgyml TurfDensity x0.5: 1 values in 1 of 1]"), "the [detail] line: %s", g_nlog ? g_log[0] : "");
     snprintf(path, sizeof path, "%s/Foliage/ResFoliageScene/A.bgyml", out); x = rfile(path, &n); slots sa = find_slots(a, 0);
-    CHECK(x && n == na && rdf(x, sa.density, 0) == 75.0f && ndiff(a, x, n, NULL) <= 4, "loose A: 75, same size");
+    CHECK(x && n == na && rdf(x, sa.density, 0) == 61.5f && ndiff(a, x, n, NULL) <= 4, "loose A: 61.5, same size");
     free(x);
     snprintf(path, sizeof path, "%s/Foliage/ResFoliageScene/B.bgyml", out); CHECK(access(path, F_OK), "B, without the key, is not in the overlay");
     snprintf(path, sizeof path, "%s/Pack/Foliage.pack.zs", out); x = rfile(path, &n);
@@ -316,17 +318,23 @@ static void test_build(void) {
     CHECK(x && !ZSTD_isError(r) && r == ns, "the pack decodes with zstd's decoder to the SARC's size");
     if (dec && r == ns) {
         detail_member *m = NULL; int cm = detail_sarc(dec, ns, &m, why, sizeof why);
-        CHECK(cm == 2 && rdf(dec + m[0].start, sa.density, 0) == 75.0f && !memcmp(dec + m[1].start, a, na) && ndiff(s, dec, ns, NULL) <= 4, "member A edited, C as it was");
+        CHECK(cm == 2 && rdf(dec + m[0].start, sa.density, 0) == 61.5f && !memcmp(dec + m[1].start, a, na) && ndiff(s, dec, ns, NULL) <= 4, "member A edited, C as it was");
         free(m);
     }
     free(x); free(dec);
-    snprintf(path, sizeof path, "%s/detail.txt", out); CHECK(!access(path, F_OK), "manifest");
+    CHECK(strlen(out) > 6 && !strcmp(out + strlen(out) - 6, "/romfs"), "the overlay is the romfs/ folder of the build: %s", out);
+    manifest_of(path, sizeof path, out); CHECK(!access(path, F_OK), "manifest beside romfs/");
+    snprintf(path, sizeof path, "%s/detail.txt", out); CHECK(access(path, F_OK), "no manifest among the game's files (rom:/detail.txt)");
+    snprintf(path, sizeof path, "%s/.lock", tmp); CHECK(!access(path, F_OK) && count_dirs(tmp, "detail-") == 1, "the lock file and one folder");
     // the same rows and files again: the overlay of the earlier start
     char first[1300]; snprintf(first, sizeof first, "%s", out); g_nlog = 0;
     CHECK(detail_build(p, 2, "reduced", DETAIL_COPY_BOTH, DETAIL_DICTID_KEEP, tmp, &io, out, sizeof out, NULL) == 1 && !strcmp(out, first) && log_has("made at an earlier start"), "reused");
     // a partial folder (no manifest: a build cut off) is built again
-    snprintf(path, sizeof path, "%s/detail.txt", out); unlink(path); g_nlog = 0;
+    manifest_of(path, sizeof path, out); unlink(path); g_nlog = 0;
     CHECK(detail_build(p, 2, "reduced", DETAIL_COPY_BOTH, DETAIL_DICTID_KEEP, tmp, &io, out, sizeof out, NULL) == 1 && !strcmp(out, first) && log_has("built:") && !access(path, F_OK), "rebuilt");
+    // an older folder of another level or game version goes also when an earlier overlay is used as it is
+    snprintf(path, sizeof path, "%s/detail-old-0000000000000000/romfs", tmp); detail_mkdirs(path); g_nlog = 0;
+    CHECK(detail_build(p, 2, "reduced", DETAIL_COPY_BOTH, DETAIL_DICTID_KEEP, tmp, &io, out, sizeof out, NULL) == 1 && log_has("made at an earlier start") && count_dirs(tmp, "detail-") == 1, "older folder removed on reuse");
     // lowest (more rows): a new folder, the older one removed
     g_nlog = 0;
     CHECK(detail_build(p, 4, "lowest", DETAIL_COPY_BOTH, DETAIL_DICTID_KEEP, tmp, &io, out, sizeof out, NULL) == 1 && strstr(out, "/detail-lowest-") && count_dirs(tmp, "detail-") == 1, "lowest replaces reduced");
@@ -356,6 +364,12 @@ static void test_build(void) {
     snprintf(path, sizeof path, "%s/Foliage/ResFoliageScene/A.bgyml", out); CHECK(access(path, F_OK), "A, whose edit failed, stays the game's own");
     snprintf(path, sizeof path, "%s/Pack/Bad.pack.zs", out); CHECK(access(path, F_OK), "the bad pack stays the game's own");
     snprintf(path, sizeof path, "%s/Foliage/ResFoliageScene/B.bgyml", out); CHECK(!access(path, F_OK), "B is edited");
+    {   // the next start uses that overlay and says every red line again: those of the files (step 1, said each time) and those of the build (from its manifest)
+        char again[1300]; snprintf(again, sizeof again, "%s", out); g_nlog = 0;
+        CHECK(detail_build(q, 2, "r", DETAIL_COPY_BOTH, DETAIL_DICTID_KEEP, tmp, &io, out, sizeof out, NULL) == 1 && !strcmp(out, again) && log_has("made at an earlier start"), "reused with red lines");
+        CHECK(log_red() == 5 && log_has("member Foliage/ResFoliageScene/A.bgyml: Name is a string") && log_has("no file matches Nothing/*.bgyml") && log_has("has the key NoSuchKey") && log_has("A.bgyml: Name is a string") && log_has("Pack/Bad.pack.zs:"),
+              "the same five red lines at the later start: %d", log_red());
+    }
     snprintf(path, sizeof path, "%s/Pack/Foliage.pack.zs", out); x = rfile(path, &n); dec = x ? malloc(ns) : NULL; r = x ? ZSTD_decompress(dec, ns, x, n) : 0;
     if (CHECK_OK(x && r == ns, "the pack is written (member C edited)")) {
         detail_member *m = NULL; detail_sarc(dec, ns, &m, why, sizeof why); slots sc = find_slots(a, 0);
