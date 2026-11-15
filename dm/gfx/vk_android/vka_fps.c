@@ -55,12 +55,12 @@ static float gpu_ms(void) {
 // The draw thread keeps the frame's tally (vka_fps_scene_draw, from vka_draw); the replay's present (vka_present_fill) ends the frame, and the first draw after it publishes
 // the tally of the frame before. Only counted once the overlay has asked for the size (g_scene_want): a relaxed atomic load a draw otherwise
 static _Atomic int g_scene_want;
-static _Atomic uint32_t g_scene_epoch, g_pub_scene, g_pub_out;   // frames ended; published sizes as w << 16 | h
+static _Atomic uint32_t g_scene_epoch, g_pub_scene, g_pub_size;   // frames ended; published sizes as w << 16 | h
 static _Atomic uint64_t g_pub_scene_t;
 static struct { uint32_t w, h, n; } g_tally[8]; static int g_ntally; static uint32_t g_tally_epoch;   // the draw thread's
 int vka_fps_scene_want(void) { return atomic_load_explicit(&g_scene_want, memory_order_relaxed); }
 void vka_fps_frame_end(void) { atomic_fetch_add_explicit(&g_scene_epoch, 1, memory_order_relaxed); }
-void vka_fps_output(uint32_t w, uint32_t h) { if (w && h && w < 65536 && h < 65536) atomic_store_explicit(&g_pub_out, w << 16 | h, memory_order_relaxed); }
+void vka_fps_output(uint32_t w, uint32_t h) { if (w && h && w < 65536 && h < 65536) atomic_store_explicit(&g_pub_size, w << 16 | h, memory_order_relaxed); }
 void vka_fps_scene_draw(uint32_t w, uint32_t h) {
     uint32_t e = atomic_load_explicit(&g_scene_epoch, memory_order_relaxed);
     if (e != g_tally_epoch) {   // a frame ended since the last count: publish its scene
@@ -86,7 +86,7 @@ int nxhost_fps(float *out, int n) {
     v[4] = (float)atomic_load(&g_fg_mult);
     v[5] = fresh && n > 5 ? gpu_ms() : -1;
     if (n > 6) atomic_store_explicit(&g_scene_want, 1, memory_order_relaxed);
-    uint64_t st = atomic_load(&g_pub_scene_t); uint32_t sc = st && now_ns() - st < 2500000000ull ? atomic_load(&g_pub_scene) : 0, o = atomic_load(&g_pub_out);
+    uint64_t st = atomic_load(&g_pub_scene_t); uint32_t sc = st && now_ns() - st < 2500000000ull ? atomic_load(&g_pub_scene) : 0, o = atomic_load(&g_pub_size);
     v[6] = (float)(sc >> 16); v[7] = (float)(sc & 0xffff); v[8] = (float)(o >> 16); v[9] = (float)(o & 0xffff);
     for (int i = 0; i < n && i < 10; i++) out[i] = v[i];
     return fresh;
