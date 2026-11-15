@@ -304,6 +304,7 @@ static void save_now(const char *why) {
     if (d || keys > 0) VLOG("pipeline cache: %zu bytes written to %s (%llu pipelines made this run), prewarm list %d keys, %.0f ms (%s; save %u of this run, %.1f MiB written in all%s)", n,
                             g_pc_path[0] ? g_pc_path : "(none)", (unsigned long long)made, keys, dt / 1e6, why, atomic_load(&g_pc_nsaves), atomic_load(&g_pc_bytes) / 1048576.0,
                             pc_policy() ? "; policy DM_VK_PCACHE_MIN_S" : "");
+    if (d) vka_shader_gmem_log("at the pipeline cache save");
     if (pc_policy() && d) VLOG("pipeline cache saver: %llu cache hits not counted, %llu saves put off by a burst", (unsigned long long)atomic_load(&g_pc_hits), (unsigned long long)atomic_load(&g_pc_deferred));
     free(d);
 }
@@ -1067,6 +1068,7 @@ static void *pw_main(void *a) {
              "the driver reported %u pipeline cache hits and %u misses among those made",
              (unsigned)(atomic_load(&g_pw_made) + atomic_load(&g_pw_had) + atomic_load(&g_pw_bad) + atomic_load(&g_pw_memu)), n, (now_ns() - g_pw_t0) / 1e9, g_pw_threads,
              (unsigned)atomic_load(&g_pw_made), (unsigned)atomic_load(&g_pw_had), (unsigned)atomic_load(&g_pw_bad), (unsigned)atomic_load(&g_pw_memu), atomic_load(&g_pw_wait_ns) / 1e6, fh, fm);
+        vka_shader_gmem_log("after the prewarm");
         // Every key of the list was made by an earlier run, whose cache file this run read: misses there mean the driver did not take the file's entries (play run
         // 2026-11-08: 149.6 MB read, 86 s of prewarm instead of fb13's 0.5 s; the file's entries were not found, cause open: PLAY.md section 1)
         if (g_pc_read > (1u << 20) && fm > 32 && fm > fh)
