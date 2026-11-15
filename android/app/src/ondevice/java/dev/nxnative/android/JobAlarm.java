@@ -58,7 +58,7 @@ public final class JobAlarm extends BroadcastReceiver {
         Job j = JobWatch.remembered(c);
         if (j == null) return;
         boolean pack = packRuns(c), game = PrepareGate.gameRunning(c);
-        ApplicationExitInfo exit = pack ? null : JobWatch.exitOf(c, 0);
+        ApplicationExitInfo exit = pack ? null : JobWatch.exitOf(c, j);
         JobDeath.Act act = JobDeath.after(j.state(), j.reason(), pack, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), game);
         boolean again = JobDeath.checkAgain(j.state(), j.reason(), pack, game);
         Log.i(TAG, "job alarm: the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()) + (pack ? ", its process runs" : ", no process of it ("

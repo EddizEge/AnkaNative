@@ -69,10 +69,20 @@ final class Ondevice {
     /** What to do instead when this APK cannot prepare a game (available() is false), for the screen */
     static String unavailableText() { return Tr.s("prepare_unavailable"); }
 
-    /** Prepare the dump (MainActivity's Add game, a game card's Prepare again): checked off the main thread, then asked before anything is written */
+    /** Prepare the dump (MainActivity's Add game, a game card's Prepare): checked off the main thread, then asked before anything is written */
     static void prepare(MainActivity a, File dump, boolean again) {
         if (!available()) { a.error(unavailableText()); return; }
         if (panel != null && panel.a == a) panel.picked(dump, false, null, again);
+    }
+
+    /**
+     * A game card's Prepare again (its Manage sheet): the card's own pack is the one checked and kept, and what does not fit in it is redone there. The rc1
+     * phone check: it went through Folders.packFor, which with several pack folders in the work folder picked another one (the best that fits), found it
+     * ready, wrote a done job for it and moved the card to it, which the user never asked for
+     */
+    static void prepareAgain(MainActivity a, File dump, File cardPack) {
+        if (!available()) { a.error(unavailableText()); return; }
+        if (panel != null && panel.a == a) panel.picked(dump, false, cardPack, true);
     }
 
     /** Shaders a delta update of this pack translates (the profile's manifest rows for the pack's older libraries, ShaderLibs.toTranslate), -1 when the manifest has none of them */
@@ -190,7 +200,8 @@ final class Ondevice {
         long resumedAt;
         Job job;
         boolean jobAlive;   // the service said its worker runs this job
-        boolean jobStopping;   // the service said a pause was asked for and its worker is stopping (PackService "stopping", JobForm STOPPING)
+        boolean jobStopping;   // the service said a pause was asked for (PackService "stop_asked")
+        boolean jobInTool;     // …and its tool has not stopped yet (PackService "in_tool"): JobForm STOPPING only with both
         /** The minutes the running job has left, as the service last sent them (PackService "eta_min", Eta), -1 for none: an older service sends none */
         int etaMin = -1;
 
@@ -260,7 +271,7 @@ final class Ondevice {
                 a.unbindService(this);
                 bound = false;
                 service = null;
-                jobAlive = jobStopping = false;
+                jobAlive = jobStopping = jobInTool = false;
             }
         }
 
@@ -291,14 +302,14 @@ final class Ondevice {
 
         @Override public void onServiceDisconnected(ComponentName n) {   // the :pack process died
             service = null;
-            jobAlive = jobStopping = false;
+            jobAlive = jobStopping = jobInTool = false;
             etaMin = -1;
             show();
         }
 
         @Override public void onBindingDied(ComponentName n) {
             service = null;
-            jobAlive = jobStopping = false;
+            jobAlive = jobStopping = jobInTool = false;
             if (bound) { a.unbindService(this); bound = false; }
             if (resumed) bound = a.bindService(new Intent(a, PackService.class), this, 0);
         }
@@ -309,7 +320,8 @@ final class Ondevice {
             Job j = d.containsKey("job") ? Job.of(new File(d.getString("file", "")), d.getString("job", "{}")) : null;   // none: a service with no job
             if (j != null) job = j;
             jobAlive = d.getBoolean("alive");
-            jobStopping = d.getBoolean("stopping");
+            jobStopping = d.getBoolean("stop_asked");
+            jobInTool = d.getBoolean("in_tool");
             etaMin = d.getInt("eta_min", -1);
             show();
             return true;
@@ -344,7 +356,8 @@ final class Ondevice {
                     || !JobDeath.shouldWork(job.state(), job.reason()) || !android.os.Environment.isExternalStorageManager()) return;
             String key = job.file.getPath() + "@" + job.updated();
             if (key.equals(afterDeathKey)) return;
-            android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, 0);
+            if (JobWatch.decides(job.pid())) return;   // the watch saw that process (bound to it, or its binder died just now): its decision, with its exact record
+            android.app.ApplicationExitInfo exit = JobWatch.exitOf(a, job);
             JobDeath.Act act = JobDeath.after(job.state(), job.reason(), jobAlive, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(a));
             if (act == JobDeath.Act.NOTHING) return;   // a game still runs: its end starts it (PrepareGate.afterGame), or Home once it is gone
             afterDeathKey = key;
@@ -374,7 +387,7 @@ final class Ondevice {
             String update = a.getString(R.string.prepare_card_update, String.valueOf(job.version()));
             title.setText("fake".equals(BuildConfig.NX_PACK_ENGINE) ? a.getString(R.string.prepare_card_simulated, update) : update);
             // a pause asked for while the tool stops: said so, with no time left and Resume not yet tappable (the service would not take it while its worker runs)
-            boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping) == JobForm.Form.STOPPING;
+            boolean stopping = JobForm.of(st, job.reason(), jobAlive && service != null, jobStopping, jobInTool) == JobForm.Form.STOPPING;
             status.setText(job.statusMsg(alive, stopping).text());
             bar.setProgress((int) Math.round(job.overall() * 1000));
             // the shader count once the shaders step's tool has said how many it translates (an update's few hundred), only the percentage before
@@ -458,8 +471,11 @@ final class Ondevice {
                     // DumpCheck says what is wrong
                 }
                 f.r = DumpCheck.check(dump, f.existing == null);
-                if (f.r.ok() && (packOverride == null || card)) {
-                    f.packDir = card ? packOverride : Folders.packFor(a, f.r.dump, f.r.titleId);
+                // the pack to check: a card's own (its automatic update, its Prepare again), else the one Folders finds for the dump; an adb test's
+                // ondevice_pack is a folder for a new job, never checked (a pack there is not adopted)
+                JobPick.Pack which = JobPick.packToCheck(card, again, packOverride != null);
+                if (f.r.ok() && which != JobPick.Pack.NONE) {
+                    f.packDir = which == JobPick.Pack.CARD ? packOverride : Folders.packFor(a, f.r.dump, f.r.titleId);
                     try {
                         Pack p = f.packDir == null ? null : Pack.read(f.packDir);
                         if (p != null && !p.simulated && p.titleId.equals(f.r.titleId)) {
@@ -482,23 +498,32 @@ final class Ondevice {
             if (f.existing != null) {
                 try {
                     Job j = Job.read(f.existing);
-                    boolean same = j.dump().getPath().equals(r.dump.getPath()) && j.version() == r.version && (packOverride == null || packOverride.equals(j.pack()));
-                    String s = j.state();
-                    if (same && (s.equals("running") || s.equals("paused") || s.equals("failed") || s.equals("pending"))) {
-                        Job.remember(a, f.existing);
-                        job = j;
-                        show();
-                        if (start) startService(j);
+                    boolean same = JobPick.samePlace(j.dump(), r.dump) && j.version() == r.version && (packOverride == null || JobPick.samePlace(packOverride, j.pack()));
+                    JobPick.Found found = JobPick.existing(same, j.state());
+                    if (found == JobPick.Found.TAKE) {
+                        // remembered (Home's card shows it again) only once the user takes it: a job forgotten (Manage › Forget) and found again by a new pick,
+                        // as Forget says, stays forgotten when the question is cancelled (the rc1 phone check: Cancel brought the forgotten job back)
+                        Runnable take = () -> {
+                            Job.remember(a, f.existing);
+                            job = j;
+                            show();
+                            startService(j);
+                        };
+                        if (start) take.run();
                         else confirm(a.getString(R.string.prepare_resume_title), a.getString(R.string.prepare_resume_body, j.statusMsg(false).text()),
-                                a.getString(R.string.prepare_button_resume), () -> startService(j));
+                                a.getString(R.string.prepare_button_resume), take);
                         return;
                     }
-                    if (!s.equals("done") && !s.isEmpty()) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
+                    if (found == JobPick.Found.OTHER_FOLDER) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
                         if (card) { a.refresh(); return; }   // an automatic update leaves it to the user
-                        a.error(a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(), a.getString(R.string.prepare_label_delete_work)));
-                        Job.remember(a, f.existing);
-                        job = j;
-                        show();
+                        // shown on Home (its card: Resume, Delete working files) only when the user asks: a job forgotten (Manage › Forget) stays forgotten
+                        Runnable showIt = () -> {
+                            Job.remember(a, f.existing);
+                            job = j;
+                            show();
+                        };
+                        confirm(a.getString(R.string.prepare_other_folder_title), a.getString(R.string.prepare_other_folder_job, j.pack(), j.statusMsg(false).text(),
+                                a.getString(R.string.prepare_label_delete_work)), a.getString(R.string.prepare_button_show_job), showIt);
                         return;
                     }
                 } catch (IOException e) {
@@ -544,7 +569,7 @@ final class Ondevice {
             String which = r.version == 0 ? (other ? a.getString(R.string.prepare_what_base_code, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_base))
                     : other ? a.getString(R.string.prepare_what_update_code, version, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_update, version);
             String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesMsg(prof.shaderTotal, prof.split()).text(), r.free / 1073741824.0, r.work,
-                    AppStorage.pack(a, r.titleId));
+                    packOverride != null ? packOverride : AppStorage.pack(a, r.titleId));   // where the job writes the pack (go, below)
             Runnable go = () -> {
                 try {
                     Job j = Job.create(r, AppStorage.pack(a, r.titleId));

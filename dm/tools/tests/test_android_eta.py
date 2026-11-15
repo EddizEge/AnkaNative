@@ -63,18 +63,18 @@ class Estimator(unittest.TestCase):
         self.assertEqual(got['es-419 60'], 'Queda alrededor de 1 hora')
         self.assertEqual(got['es-419 75'], 'Quedan alrededor de 1 hora y 15 minutos')   # the plural subject "1 hora y 15 minutos"
         self.assertEqual(len(got), 24)
-        short = dict(re.findall(r'^short (\S+ \d+): (.*)$', self.out, re.M))
-        self.assertEqual(short['tr 45'], '45 dk kaldı')
-        self.assertEqual(short['tr 75'], '1 sa 15 dk kaldı')
-        self.assertEqual(short['tr 0'], '<1 dk kaldı')
-        self.assertEqual(short['pt-BR 1'], 'Falta 1 min')
-        self.assertEqual(short['pt-BR 125'], 'Faltam 2 h 5 min')
-        self.assertEqual(short['es-419 45'], 'Quedan 45 min')
-        self.assertEqual(short['es-419 60'], 'Queda 1 h')
-        self.assertEqual(len(short), 21)
-        # short enough to lead a collapsed notification's title: on the POCO F8 Pro that title kept "Hazırlanıyor:…" (about 13 characters) beside the subText,
-        # which Android shrinks first (to 72 dp); the longest form (Eta says nothing above 10 hours) stays within 17 characters in every language
-        self.assertLessEqual(max(len(v) for v in short.values()), 17, short)
+        compact = dict(re.findall(r'^compact (\S+ \d+): (.*)$', self.out, re.M))
+        self.assertEqual(compact['tr 45'], '45 dk')
+        self.assertEqual(compact['tr 75'], '1 sa 15 dk')
+        self.assertEqual(compact['tr 0'], '<1 dk')
+        self.assertEqual(compact['pt-BR 1'], '1 min')
+        self.assertEqual(compact['pt-BR 125'], '2 h 5 min')
+        self.assertEqual(compact['es-419 45'], '45 min')
+        self.assertEqual(compact['es-419 60'], '1 h')
+        self.assertEqual(len(compact), 21)
+        # after the state in a collapsed notification's title: on the POCO F8 Pro (HyperOS, the phone check of rc1) the old title kept 13 characters
+        # ("45 dk kaldı ·…") beside the subText and the time; the longest form (Eta says nothing above 10 hours) stays within 10 characters
+        self.assertLessEqual(max(len(v) for v in compact.values()), 10, compact)
 
     def test_carried(self):
         """A new process goes on from the rate its process before kept (job.json "eta_carry"): at once the old process's estimate, and as near afterwards"""
@@ -111,12 +111,38 @@ class Service(unittest.TestCase):
         self.assertIn('Eta.SHADER_S)', s)
 
     def test_collapsed_title(self):
-        """Collapsed, Android 12+ shows a notification with a progress bar as its title and subText only (Notification.java: no text beside a bar unless the
-        style allows it, which only the expanded view does): the time left goes first in the title, in short; expanded, the usual title"""
+        """Collapsed, Android 12+ shows a notification as one row of title, subText and time (with a progress bar, no text under it); on HyperOS (the phone
+        check of rc1, 2026-11-15) the title "45 dk kaldı · Hazırlanıyor: <game>" kept 13 characters, "45 dk kaldı ·…", beside "Adım 4 / 5…" and "şimdi". Now
+        the ongoing forms have no subText and no time, the running title is the state and the time left in short, and the game is in the text and the
+        expanded title"""
         s = (ONDEVICE / 'PackService.java').read_text(encoding='utf-8')
-        note = s[s.index('private Notification note(Job j, int etaMin, boolean live)'):]
-        self.assertIn('getString(R.string.prepare_note_running_left, Eta.shortText(etaMin).text(), name)', note)
+        note = s[s.index('private Notification note(Job j, int etaMin, boolean live)'):s.index('private String simulated(')]
+        self.assertIn('getString(R.string.prepare_note_running_short, Eta.compactText(etaMin).text())', note)
+        self.assertIn('.setContentText(name)', note)
         self.assertIn('setBigContentTitle(simulated(getString(R.string.prepare_note_running, name), sim))', note)
+        self.assertIn('getString(R.string.prepare_note_running_eta_big, steps, step, Eta.text(etaMin).text())', note)
+        self.assertNotIn('setSubText(', note)
+        self.assertEqual(note.count('.setShowWhen(false)'), 2)   # waiting; running and pausing
+
+    def test_collapsed_titles_fit(self):
+        """Each language's collapsed titles, with the longest time left the notification shows (under 10 h) and the longest state word: the running title
+        at most 25 characters (the old one was cut at 13 beside a subText and a time, which the ongoing forms no longer have), and every other form starts
+        with its state, so the cut, if any, takes the game's name"""
+        import xml.etree.ElementTree as ET
+        res = REPO / 'android/app/src/main/res'
+        for d in ('values', 'values-tr', 'values-pt-rBR', 'values-b+es+419'):
+            t = {e.get('name'): (e.text or '') for e in ET.parse(res / d / 'strings_prepare.xml').getroot() if e.tag == 'string'}
+            run = t['prepare_note_running_short']
+            for m in (0, 1, 45, 59, 60, 75, 595):
+                left = (t['prepare_eta_compact_less'] if m == 0 else t['prepare_eta_compact_minutes'].replace('%1$d', str(m)) if m < 60
+                        else t['prepare_eta_compact_hours'].replace('%1$d', str(m // 60)) if m % 60 == 0
+                        else t['prepare_eta_compact_hours_minutes'].replace('%1$d', str(m // 60)).replace('%2$d', str(m % 60)))
+                title = run.replace('%1$s', left)
+                self.assertLessEqual(len(title), 25, f'{d}: "{title}"')
+            for k in ('prepare_note_running', 'prepare_note_waiting', 'prepare_note_pausing', 'prepare_note_paused', 'prepare_note_failed', 'prepare_note_stopped',
+                      'prepare_note_done'):
+                self.assertFalse(t[k].startswith('%1$s'), f'{d}: {k} "{t[k]}" starts with the game')
+                self.assertLessEqual(t[k].index('%1$s'), 20, f'{d}: {k} "{t[k]}": the state is long')
 
     def test_carry_wiring(self):
         """The rate goes into job.json with the count (Tail), and a new estimator of the job is offered it (etaFor)"""

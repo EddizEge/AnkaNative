@@ -66,6 +66,8 @@
     <!-- The Preparing card's ⋯ button, named inside other areas' sentences (Ondevice.manageLabel; its description is prepare_card_manage) -->
     <string name="prepare_label_manage">Manage</string>
     <string name="prepare_other_folder_job">An unfinished job for this dump writes to %1$s: %2$s\n\nResume it from the card, or delete its working files (⋯ › %3$s) before preparing into another folder.</string>
+    <string name="prepare_other_folder_title">Unfinished job in another folder</string>
+    <string name="prepare_button_show_job">Show the job</string>
     <string name="prepare_busy">%1$s is being prepared now (%2$s). Pause it first, then try again.</string>
     <!-- %1$s: prepare_shaders_update_quick or _full -->
     <string name="prepare_redo_code_update">Rewrites the game code (a few minutes). %1$s</string>
@@ -180,7 +182,7 @@
     <!-- a test build's simulated engine; %1$s: the notification's title -->
     <string name="prepare_note_simulated">%1$s (simulated)</string>
     <string name="prepare_note_starting">Starting…</string>
-    <string name="prepare_note_done">%1$s is ready to play</string>
+    <string name="prepare_note_done">Ready to play: %1$s</string>
     <!-- %1$s: prepare_button_play -->
     <string name="prepare_note_done_text">Open Anka Native and tap %1$s.</string>
     <string name="prepare_note_running">Preparing %1$s</string>
@@ -188,24 +190,17 @@
     <string name="prepare_note_pausing">Pausing: %1$s</string>
     <string name="prepare_note_failed">Could not prepare %1$s</string>
     <string name="prepare_note_paused">Paused: %1$s</string>
-    <!-- PackService: the time left in short, first in the running notification's title, which a collapsed notification shows on one line with the step
-         (Android 12+ shows no text under a title when the notification has a progress bar). Short so it is not cut on a phone's width: whole minutes, hours and
+    <!-- PackService: the time left in short (Eta.compactText), in the running notification's collapsed title (prepare_note_running_short). Collapsed,
+         Android 12+ shows a notification with a progress bar as one row (title, subText, time) with no text under it; on HyperOS (POCO F8 Pro, the phone
+         check of rc1, 2026-11-15) the title kept only 13 characters ("45 dk kaldı ·…") beside the subText and the time. Whole minutes, hours and
          minutes as Eta.text rounds them; %2$d (the minutes) is always 5-55 -->
-    <string name="prepare_eta_short_less">&lt;1 min left</string>
-    <plurals name="prepare_eta_short_minutes">
-        <item quantity="one">%1$d min left</item>
-        <item quantity="other">%1$d min left</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours">
-        <item quantity="one">%1$d h left</item>
-        <item quantity="other">%1$d h left</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours_minutes">
-        <item quantity="one">%1$d h %2$d min left</item>
-        <item quantity="other">%1$d h %2$d min left</item>
-    </plurals>
-    <!-- the running notification's title with the time left (%1$s: prepare_eta_short_*) and the game (%2$s); expanded, the title is prepare_note_running -->
-    <string name="prepare_note_running_left">%1$s · Preparing %2$s</string>
+    <string name="prepare_eta_compact_less">&lt;1 min</string>
+    <string name="prepare_eta_compact_minutes">%1$d min</string>
+    <string name="prepare_eta_compact_hours">%1$d h</string>
+    <string name="prepare_eta_compact_hours_minutes">%1$d h %2$d min</string>
+    <!-- the running notification's collapsed title: the state, then the time left (%1$s: prepare_eta_compact_*); the game is in its text and in the expanded
+         title (prepare_note_running), and the notification has no subText and no time, so the row is the title's -->
+    <string name="prepare_note_running_short">Preparing · %1$s</string>
     <!-- JobWatch: the job's process ended and Android did not let the app start it again from the background (or it did not start): %1$s: the game; the text,
          %1$s: the step where it stopped (Job.stepMsg). A tap opens the app, which resumes it -->
     <string name="prepare_note_stopped">Interrupted: %1$s</string>
@@ -214,10 +209,10 @@
     <!-- %1$s: the step (Job.stepMsg), %3$s: why it waits or stopped -->
     <string name="prepare_note_progress">%1$s · %2$d%%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d%%\n%3$s</string>
-    <!-- the running notification with the time left (Eta): %1$s: the step (Job.stepMsg), %2$s: prepare_eta_*. The notification's text; a collapsed
-         notification with a progress bar shows none on Android 12+, only its title (prepare_note_running_left) and subText. _big: the expanded notification -->
-    <string name="prepare_note_running_eta">%2$s · %1$s</string>
-    <string name="prepare_note_running_eta_big">%1$s\n%2$s</string>
+    <!-- the expanded notification (BigTextStyle), whose title is the usual one with the game: _big, running with the time left: %1$s: prepare_note_step,
+         %2$s: the step (Job.stepMsg), %3$s: prepare_eta_*; step_big, running with no time left or pausing: %1$s: prepare_note_step, %2$s: the step -->
+    <string name="prepare_note_running_eta_big">%1$s\n%2$s\n%3$s</string>
+    <string name="prepare_note_step_big">%1$s\n%2$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors): English in job.json's error, with its code and arguments beside it, so the status line
          (prepare_status_failed) and the notification show it in the user's language; %1$s: prepare_step_*_in_sentence (the object of "stopped"), %2$d: how many times (2 or more), %3$.1f: the step's memory in GB, tap %4$s: the button's label -->

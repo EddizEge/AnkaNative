@@ -50,6 +50,16 @@ public final class JobDeathJvmTest {
                 && !JobDeath.go(true, true, "paused", "refused", false), "the app's own start: only a job that should work");
         check(JobDeath.go(true, false, "paused", "user", false) && JobDeath.go(true, false, "failed", "", false) && !JobDeath.go(true, false, "done", "", false)
                 && JobDeath.go(true, false, "done", "", true), "the user's start (Resume, Retry, the notification's Resume): any job not done, or another APK's");
+        // which exit record is the job's (JobDeath.fits): the phone check of rc1, 09:39:16.771: 0.5 s after a kill -9 of the job's process 31837, whose record
+        // was not written yet, Home took an older :pack process's Force stop record and offered Resume instead of resuming
+        long start = 1_794_724_700_000L, killed = start + 56_000, older = start - 200_000;
+        check(!JobDeath.fits(30_999, older, 31_837, start, start + 50_000), "an older process's Force stop record: not the job's");
+        check(!JobDeath.fits(31_837, older, 31_837, start, start + 50_000), "the job's pid, but older than its start (a pid used again): not the job's");
+        check(JobDeath.fits(31_837, killed, 31_837, start, start + 50_000), "the job's process, after its start: the job's");
+        check(!JobDeath.fits(31_900, killed, 31_837, start, start + 50_000), "another process after the start (a :pack that never took the job): not the job's");
+        check(JobDeath.fits(31_837, killed, -1, 0, start + 50_000) && !JobDeath.fits(31_837, older, -1, 0, start + 50_000),
+                "a job.json without its process (an older build): a record not older than its last write");
+        check(!JobDeath.fits(31_837, killed, -1, 0, 0), "a job.json that was never written: no record is its");
 
         System.out.println("all ok");
     }

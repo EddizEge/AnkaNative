@@ -26,7 +26,8 @@ import java.nio.file.StandardCopyOption;
  *   in words (Job.noticeMsg: "inputs_changed", "split_full"),
  *   "state": "pending" | "running" | "paused" | "done" | "failed", "reason": why paused (user, battery, thermal, game, timeout) or "", "error": why failed (English),
  *   "error_code": the code of that failure, Prepare's own (PrepareErrors) or the packer's (JobErrors), or "", "error_args": its arguments (strings),
- *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms }
+ *   "step": the current step, "steps": { "&lt;step&gt;": { "state": "pending" | "running" | "done", "done", "total", "stage" } }, "updated": ms,
+ *   "pid", "pid_start": the process that last ran the job (PackService.begin) and when it took the job (ms): its exit record is the one that tells how it ended }
  * </pre>
  * A "running" job whose service is gone (the process was killed, the phone rebooted) is shown as interrupted (statusMsg with serviceAlive false, JobForm PAUSED,
  * GameGate.card PAUSED), never as running, and is resumed by the service (START_STICKY, where Android restarts it), the app itself (JobDeath: its main process,
@@ -217,6 +218,18 @@ final class Job {
     synchronized long version() { return o.optLong("version"); }
     synchronized long updated() { return o.optLong("updated"); }
     synchronized long created() { return o.optLong("created"); }
+    /** The process that last ran the job (PackService.begin), -1 for none (a job.json of an older build), and when it took the job (ms, 0 for none) */
+    synchronized int pid() { return o.optInt("pid", -1); }
+    synchronized long pidStart() { return o.optLong("pid_start"); }
+
+    /** The process that runs the job from now on (PackService.begin): its exit record, and no other, tells how the job's process ended (JobDeath.fits) */
+    synchronized void process(int pid, long start) {
+        try {
+            o.put("pid", pid).put("pid_start", start);
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
     synchronized File dump() { return new File(o.optString("dump")); }
     synchronized File work() { return new File(o.optString("work")); }
     synchronized File pack() { return new File(o.optString("pack")); }

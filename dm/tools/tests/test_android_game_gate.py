@@ -69,6 +69,32 @@ class Game(unittest.TestCase):
         self.assertIn('if (done) return;', fin)
         self.assertIn('go.run();', fin)
 
+    def test_a_pause_in_hand_holds_the_game(self):
+        """The rc1-fixes review: a Pause writes the job paused/user at once, before its tool has stopped (up to 20 s), and the game started at once beside it,
+        without ACTION_GAME, so the process the tool ran in was not ended for the game either. The gate now also holds while the job's process runs"""
+        hold = body(self.gate, 'static boolean hold(Activity a, Runnable go) {')
+        self.assertIn('if (j == null || !GameGate.holds(j.state(), j.reason(), packRunning(a, j.pid()))) return false;', hold)
+        pr = body(self.gate, 'static boolean packRunning(Context c, int pid) {')
+        self.assertIn('c.getPackageName() + ":pack"', pr)
+        self.assertIn('(pid <= 0 || p.pid == pid)', pr)
+        s = code(ONDEVICE / 'PackService.java')
+        fin = body(s, 'private void finished() {')
+        self.assertIn('if (gameAsked && PackNative.ranTool()) {', fin)   # asked while the worker stopped: the process ends once it has
+
+    def test_binding_death_says_what_happened(self):
+        """The rc1 phone check: all four starts that stopped a tool ended through onBindingDied ("the binding to the job's service died: the game starts"),
+        never through "asked N time(s)". Android takes the service down when its process ends (HyperOS refuses the restart) or the service stops, and tells
+        the binding onServiceDisconnected (which asks for the new process) and then onBindingDied. The log says what is known, without guessing which of the
+        two it was (the review of work/rc1-fixes: "asks > 1" did not tell them apart), with the job's state, the asks and the time"""
+        raw = (ONDEVICE / 'PrepareGate.java').read_text(encoding='utf-8')
+        bd = body(raw, '    @Override public void onBindingDied(ComponentName n) {')
+        self.assertNotIn('the binding to the job', bd)
+        self.assertNotIn('asks > 1', bd)
+        self.assertIn('"Android took the job\'s service down (its process ended or the service stopped): the game starts (the job %s; asked %d time(s), %.1f s)";   // i18n-keep', bd)
+        self.assertIn('finish(String.format(Locale.ROOT, what, now, asks, s));', bd)
+        dis = body(self.gate, 'public void onServiceDisconnected(')
+        self.assertIn('ask();', dis)   # the new process is asked for before the binding is declared dead
+
     def test_game_process_name(self):
         """The process the service watches is GameActivity's"""
         m = (REPO / 'android/app/src/main/AndroidManifest.xml').read_text()
@@ -84,7 +110,7 @@ class Service(unittest.TestCase):
         g = body(self.s, 'private int game(int startId) {')
         self.assertIn('GameGate.onGame(alive, PackNative.ranTool(), stopReason != null,', g)
         # a dead running job: its last process's exit record decides (a Force stop is not resumed by a game's start)
-        self.assertIn('!alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, 0) : null', g)
+        self.assertIn('!alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, j) : null', g)
         self.assertIn('exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());', g)
         self.assertIn('startForeground(job);', g)   # startForegroundService's answer
         self.assertIn('return begin(j, false, startId);', g)

@@ -335,15 +335,15 @@ public final class EtaJvmTest {
         // each language renders every form (no missing item or argument)
         for (Locale l : new Locale[] {Locale.forLanguageTag("tr"), Locale.forLanguageTag("pt-BR"), Locale.forLanguageTag("es-419")})
             for (String[] c : en) System.out.println("text " + l.toLanguageTag() + " " + c[0] + ": " + Eta.text(Integer.parseInt(c[0])).render(l));
-        // the short form, first in the notification's title (a collapsed notification shows only its title and subText on one line)
-        String[][] shortEn = {{"0", "<1 min left"}, {"1", "1 min left"}, {"45", "45 min left"}, {"60", "1 h left"}, {"75", "1 h 15 min left"}, {"125", "2 h 5 min left"},
-                {"595", "9 h 55 min left"}};
-        for (String[] c : shortEn) {
-            String got = Eta.shortText(Integer.parseInt(c[0])).english();
-            check("short", got.equals(c[1]), c[0] + " -> [" + got + "], want [" + c[1] + "]");
+        // the compact form, after the state in the running notification's collapsed title ("Preparing · 45 min"): the phone check of rc1 (HyperOS) showed only
+        // "45 dk kaldı ·…" of the old "45 dk kaldı · Hazırlanıyor: <game>"
+        String[][] compactEn = {{"0", "<1 min"}, {"1", "1 min"}, {"45", "45 min"}, {"60", "1 h"}, {"75", "1 h 15 min"}, {"125", "2 h 5 min"}, {"595", "9 h 55 min"}};
+        for (String[] c : compactEn) {
+            String got = Eta.compactText(Integer.parseInt(c[0])).english();
+            check("compact", got.equals(c[1]), c[0] + " -> [" + got + "], want [" + c[1] + "]");
         }
         for (Locale l : new Locale[] {Locale.forLanguageTag("tr"), Locale.forLanguageTag("pt-BR"), Locale.forLanguageTag("es-419")})
-            for (String[] c : shortEn) System.out.println("short " + l.toLanguageTag() + " " + c[0] + ": " + Eta.shortText(Integer.parseInt(c[0])).render(l));
+            for (String[] c : compactEn) System.out.println("compact " + l.toLanguageTag() + " " + c[0] + ": " + Eta.compactText(Integer.parseInt(c[0])).render(l));
         ok("words");
     }
 

@@ -98,9 +98,19 @@ public final class PackService extends Service {
     private volatile boolean waiting;
     /** The heat wait holds until thermal MODERATE or better */
     private boolean hot;
+    /** The worker is inside a tool (engine.run): what a pause waits for. Changed only under noteLock, which the notification's every post takes */
     private volatile boolean inTool;
+    /**
+     * Taken by the one place that decides the job's notification and posts it (postNote, and startForeground) and by the tool's start and end (step), so the
+     * form is decided from one consistent inTool. Nearly every post runs on the main thread already (save posts publish there, finished, leaveNote, pauseDead,
+     * onTimeout); endForGame's leaveNote runs on the worker. The rc1 phone check's stuck "Pausing" was no race between threads: see JobForm.of (no "Pausing"
+     * once the tool has stopped) and leaveNote (the final form posted before the service leaves the foreground)
+     */
+    private final Object noteLock = new Object();
     /** The notification left for after this service (leaveNote: the 20-s fallback, onTimeout): the worker's updates no longer replace it */
     private volatile boolean noteLeft;
+    /** The start id of the user's Resume that came while a Pause's worker still stopped (JobForm.keepsResume), taken by finished(); 0: none. Main thread */
+    private int resumeAfterStop;
     private int batteryPct = 100, thermal;
     private boolean charging = true;
     private long lastNote, lastSave, lastSend;
@@ -180,8 +190,10 @@ public final class PackService extends Service {
             String from = intent.getStringExtra(EXTRA_FROM);
             boolean running = worker != null && worker.isAlive();
             logPause(job, (from != null ? from : "an intent without \"from\"") + (running ? "" : ", nothing running"));   // i18n-keep: a log line
-            if (running) requestStop("user");
-            else if (worker == null) {   // nothing runs here: a stale notification, or the card's Pause on a job whose process died
+            if (running) {
+                resumeAfterStop = 0;   // a Pause after a kept Resume: the last word is the Pause
+                requestStop("user");
+            } else if (worker == null) {   // nothing runs here: a stale notification, or the card's Pause on a job whose process died
                 pauseDead();
                 stopSelf(startId);
             }
@@ -208,6 +220,12 @@ public final class PackService extends Service {
             return START_NOT_STICKY;
         }
         if (worker != null && worker.isAlive()) {
+            // the user's Resume while a Pause's worker still stops (no tool runs: the notification and the card already offer Resume): taken when it ends
+            Job w = job;
+            if (JobForm.keepsResume(stopReason, intent != null && !auto, j != null && w != null && j.file.getPath().equals(w.file.getPath()))) {
+                resumeAfterStop = startId;
+                Log.i(TAG, "Resume asked while the Pause still stops the worker: the job goes on once it has ended");
+            }
             startForeground(job);
             return START_STICKY;
         }
@@ -224,7 +242,11 @@ public final class PackService extends Service {
             return START_NOT_STICKY;
         }
         stopReason = null;
+        j.process(Process.myPid(), System.currentTimeMillis());   // its exit record is the job's from now on (JobWatch.exitOf)
         if (user) j.endedAll();   // only sticky restarts (and a game's start) add up
+        // written now, before the worker's first steps (deleting an older build's results takes seconds after an app update): a process killed before the
+        // worker's first write would leave job.json naming the process before it, whose older exit record Home, the job alarm and a game's start would take
+        save(j, true);
         Job.remember(this, j.file);
         game = game || PrepareGate.gameRunning(this);   // the worker's first wait (work) must know before it starts (game: a game's start asked just now)
         policy();
@@ -256,11 +278,12 @@ public final class PackService extends Service {
             }
         }
         // with no worker, a job that says running died with its process: how it ended decides (a stop the user asked for is not resumed by a game's start)
-        android.app.ApplicationExitInfo exit = !alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, 0) : null;
+        android.app.ApplicationExitInfo exit = !alive && j != null && "running".equals(j.state()) ? JobWatch.exitOf(this, j) : null;
         GameGate.Act act = GameGate.onGame(alive, PackNative.ranTool(), stopReason != null, j == null ? "" : j.state(), j == null ? "" : j.reason(),
                 exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason());
         Log.i(TAG, "a game starts: " + act + (j == null ? ", no job" : ", the job " + j.state() + (j.reason().isEmpty() ? "" : "/" + j.reason()))
-                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : "") + (exit != null ? ", its process ended (" + JobWatch.describe(exit) + ")" : ""));
+                + (alive ? ", its worker runs" : "") + (PackNative.ranTool() ? ", a tool ran in this process" : "") + (exit != null ? ", its process ended (" + JobWatch.describe(exit) + ")" : "")
+                + (alive && stopReason != null ? "; a Pause is in hand: the game starts once the worker has ended" + (PackNative.ranTool() ? ", and this process ends then" : "") : ""));
         gameAsked = true;   // also a Pause in hand: once its worker ends, this process ends too (finished)
         if (alive) {
             startForeground(job);   // startForegroundService's answer
@@ -320,7 +343,7 @@ public final class PackService extends Service {
 
     private boolean startForeground(Job j) {
         try {
-            startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            synchronized (noteLock) { startForeground(NOTE, note(j), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); }
             noteLeft = false;
             return true;
         } catch (RuntimeException e) {   // ForegroundServiceStartNotAllowedException, or the type's time limit used up
@@ -405,7 +428,7 @@ public final class PackService extends Service {
             Log.e(TAG, "job.json: " + e);
             return;
         }
-        nm.notify(NOTE, note(j, -1, false));
+        postNote(j, -1, false);
     }
 
     /** A job a pause applies to: running, or waiting for the battery or the heat (not one already done, failed or paused for good) */
@@ -413,11 +436,19 @@ public final class PackService extends Service {
         return j != null && ("running".equals(j.state()) || "paused".equals(j.state()) && JobForm.waitsByItself(j.reason()));
     }
 
-    /** The job's notification as it stands once this service is gone (paused: Resume; failed: Retry), detached from the service, which no later update replaces */
+    /**
+     * The job's notification as it stands once this service is gone (paused: Resume; failed: Retry), detached from the service, which no later update replaces.
+     * The final form is posted while the service is still foreground, and only then does it leave the foreground (finished() does the same). In the rc1 phone
+     * check (2026-11-15) the app posted "Pausing" and then, after stopForeground(DETACH), "Paused", all on the main thread in that order, yet the system kept
+     * "Pausing" (its record's when was the earlier post's), and in both cases one more post reached the shade than the app made (four for three at
+     * 10:22:55.9, three for two at 10:30:05.2): what the system does with the service's notification as it leaves the foreground came after the app's last
+     * post. Which step of Android or HyperOS that is, is open (no "Shedding" line, numRateViolations 0); with the final form posted before the service leaves
+     * the foreground, the service's notification is the final form at that step too
+     */
     private void leaveNote(Job j) {
         noteLeft = true;
+        postNote(j, -1, false);
         stopForeground(STOP_FOREGROUND_DETACH);
-        nm.notify(NOTE, note(j, -1, false));
     }
 
     // ---- Battery and heat ----
@@ -603,9 +634,16 @@ public final class PackService extends Service {
         Job j = job;
         worker = null;
         JobAlarm.cancel(this);   // the worker ended with the job done, failed or paused: nothing to check (a process that dies before this keeps its alarm)
+        int again = resumeAfterStop;
+        resumeAfterStop = 0;
+        if (again != 0 && j != null && JobForm.resumesAtEnd(j.state(), j.reason())) {
+            Log.i(TAG, "the Pause has stopped the worker: the Resume asked meanwhile goes on with the job");
+            // still foreground: its notification goes on as the new worker's. Refused (Android's foreground limit): the job is paused/refused, ended below
+            if (begin(j, true, again) == START_STICKY) return;
+        }
         publish(j, true);
+        if (j != null) postNote(j, -1, false);   // worker is null: paused (Resume), failed (Retry) or done (Play); posted while still foreground (leaveNote)
         stopForeground(STOP_FOREGROUND_DETACH);
-        if (j != null) nm.notify(NOTE, note(j));
         stopSelf();
         if (gameAsked && PackNative.ranTool()) {   // a game starts (a Pause was in hand, or the job ended meanwhile): what the tools left goes with this process
             Log.i(TAG, "a game starts: ending this process, which keeps what the tools left");
@@ -783,12 +821,12 @@ public final class PackService extends Service {
         Tail tail = new Tail(j, s, log);
         tail.start();
         int code;
-        inTool = true;
+        synchronized (noteLock) { inTool = true; }
         try {
             if (autoReason != null || stopReason != null) return "interrupted";
             code = engine.run(tool, argv, log.getPath());
         } finally {
-            inTool = false;
+            synchronized (noteLock) { inTool = false; }   // from here every post of the notification says paused, not pausing (noteLock)
             tail.finish();
         }
         Log.i(TAG, s + ": exit " + code);
@@ -1012,7 +1050,7 @@ public final class PackService extends Service {
         long now = SystemClock.elapsedRealtime();
         // the time left, asked once here for both (it smooths and rounds as it is asked); none unless the worker runs the job and no pause was asked for
         Eta est = eta;
-        boolean stopping = worker != null && stopReason != null;
+        boolean stopping = worker != null && stopReason != null;   // a pause was asked for: no time left (the form says pausing only while the tool stops)
         int etaMin = est != null && worker != null && !stopping && "running".equals(j.state()) ? est.minutes(now) : -1;
         if (force || now - lastSend >= 250) {
             lastSend = now;
@@ -1022,7 +1060,8 @@ public final class PackService extends Service {
             b.putString("file", j.file.getPath());
             b.putBoolean("alive", worker != null);
             b.putInt("pid", Process.myPid());   // JobWatch: the exit record of this process when it ends
-            b.putBoolean("stopping", stopping);   // a pause was asked for and the tool is stopping (JobForm STOPPING)
+            b.putBoolean("stop_asked", stopping);   // a pause was asked for (JobForm stopAsked)
+            b.putBoolean("in_tool", inTool);        // and the tool has not stopped yet (JobForm toolRuns): the card says pausing only then
             b.putInt("eta_min", etaMin);
             // a game about to start may (PrepareGate): no worker, or one that waits for the game in a process that has run no tool
             b.putBoolean("game_ready", GameGate.ready(worker != null, waiting && GameGate.REASON.equals(autoReason), PackNative.ranTool()));
@@ -1037,8 +1076,16 @@ public final class PackService extends Service {
         }
         if (worker != null && !noteLeft && (force || now - lastNote >= 1000)) {
             lastNote = now;
-            nm.notify(NOTE, note(j, etaMin, true));
+            postNote(j, etaMin, true);
         }
+    }
+
+    /**
+     * Posts the job's notification: the only place that does (with startForeground), deciding its form (note, JobForm) and posting it under noteLock, which
+     * the tool's end also takes. live: the worker runs the job and goes on (false: the service is ending, or has no worker)
+     */
+    private void postNote(Job j, int etaMin, boolean live) {
+        synchronized (noteLock) { nm.notify(NOTE, note(j, etaMin, live)); }
     }
 
     private boolean handle(Message m) {
@@ -1073,7 +1120,7 @@ public final class PackService extends Service {
         int i = j.current();
         if (state.equals("done")) return b.setContentTitle(simulated(getString(R.string.prepare_note_done, name), sim))
                 .setContentText(getString(R.string.prepare_note_done_text, getString(R.string.prepare_button_play))).setAutoCancel(true).build();
-        JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null);
+        JobForm.Form form = JobForm.of(state, j.reason(), live, stopReason != null, inTool);   // inTool under noteLock (postNote)
         boolean running = form == JobForm.Form.RUNNING, stopping = form == JobForm.Form.STOPPING;
         boolean waiting = form == JobForm.Form.WAITING;   // the policy's pause: it goes on by itself
         b.setContentTitle(simulated(getString(running ? R.string.prepare_note_running : stopping ? R.string.prepare_note_pausing : waiting ? R.string.prepare_note_waiting
@@ -1082,27 +1129,29 @@ public final class PackService extends Service {
         Notification.Action pauseAction = new Notification.Action.Builder(null, getString(R.string.prepare_button_pause),
                 PendingIntent.getService(this, 1, pause, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build();
         String step = j.stepMsg().text(), steps = getString(R.string.prepare_note_step, i + 1, Job.STEPS.length, pct);
+        // The ongoing forms have no subText and no time ("now"): collapsed, Android 12+ shows a notification as one row of title, subText and time (with a
+        // progress bar, no text under it), and on HyperOS (the phone check of rc1, 2026-11-15) the title kept 13 characters, "45 dk kaldı ·…", beside "Adım
+        // 4 / 5…" and "şimdi". So the row is the title's, which starts with the state; the step line goes into the expanded text
         if (waiting) {
             String reason = Job.reasonMsg(j.reason()).text();
             return b.setContentText(reason).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_progress_why, step, pct, reason)))
-                    .setSubText(steps).setOngoing(true).addAction(pauseAction).build();
+                    .setShowWhen(false).setOngoing(true).addAction(pauseAction).build();
         }
         if (running || stopping) {
             long d = j.stepDone(i), t = j.stepTotal(i);
             if (t > 1) b.setProgress((int) Math.min(t, Integer.MAX_VALUE), (int) Math.min(d, t), false);
             else b.setProgress(100, pct, false);
-            if (stopping) return b.setContentText(step).setSubText(steps).setOngoing(true).build();   // no time left, no action: the tool stops at the shader in hand
+            b.setShowWhen(false).setOngoing(true);
+            if (stopping) return b.setContentText(step).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_step_big, steps, step)))
+                    .build();   // no time left, no action: the tool stops at the shader in hand
             if (etaMin >= 0) {
-                // Collapsed, Android 12+ shows a notification with a progress bar as one line, the title and then the subText, and no text under them (the phone
-                // test of 2026-11-14: "Preparing The…  • Step 4 of…  • now" and the bar): the time left goes first in the title, in short. Expanded, the title is
-                // the usual one and the text has the step and the time left in full
-                String left = Eta.text(etaMin).text();
-                b.setContentTitle(simulated(getString(R.string.prepare_note_running_left, Eta.shortText(etaMin).text(), name), sim))
-                        .setContentText(getString(R.string.prepare_note_running_eta, step, left))
+                // Collapsed: the state and the time left in short ("Hazırlanıyor · 45 dk"), and the game in the text (shown where a skin shows text beside a
+                // bar). Expanded: the usual title with the game, then the step line, the step and the time left in full
+                b.setContentTitle(simulated(getString(R.string.prepare_note_running_short, Eta.compactText(etaMin).text()), sim)).setContentText(name)
                         .setStyle(new Notification.BigTextStyle().setBigContentTitle(simulated(getString(R.string.prepare_note_running, name), sim))
-                                .bigText(getString(R.string.prepare_note_running_eta_big, step, left)));
-            } else b.setContentText(step);
-            b.setSubText(steps).setOngoing(true).addAction(pauseAction);
+                                .bigText(getString(R.string.prepare_note_running_eta_big, steps, step, Eta.text(etaMin).text())));
+            } else b.setContentText(step).setStyle(new Notification.BigTextStyle().bigText(getString(R.string.prepare_note_step_big, steps, step)));
+            b.addAction(pauseAction);
         } else {
             // a failure: the text of the packer's error code when it has one, else the English error (job.json)
             String why = state.equals("failed") ? j.errorText() : Job.reasonMsg(j.reason()).text();

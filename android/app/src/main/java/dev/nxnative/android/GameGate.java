@@ -24,6 +24,18 @@ final class GameGate {
         return "running".equals(state) || "paused".equals(state) && JobForm.waitsByItself(reason);
     }
 
+    /**
+     * Whether a game about to start asks the job's service first (PrepareGate.hold): the job may be working (pauseFirst), or it is paused by the user or by
+     * Android's daily limit while the process that ran it still runs. Such a pause is written into job.json at once (PackService.requestStop), before its tool
+     * has stopped, which takes up to 20 s; the game used to start at once on that job.json, beside the tool still running, and without asking, so the process
+     * the tool ran in was not ended for the game either (the review of work/rc1-fixes). Asked, the service answers once its worker has ended (PackService.game:
+     * NOTHING, then game_ready), and a process that ran a tool ends then. jobProcessRuns: a :pack process with the job's pid runs (any :pack process when
+     * job.json has no pid)
+     */
+    static boolean holds(String state, String reason, boolean jobProcessRuns) {
+        return pauseFirst(state, reason) || jobProcessRuns && "paused".equals(state) && ("user".equals(reason) || "timeout".equals(reason));
+    }
+
     /** What the service does when a game is about to start (ACTION_GAME) */
     enum Act {
         /** nothing works or will: the game starts at once */

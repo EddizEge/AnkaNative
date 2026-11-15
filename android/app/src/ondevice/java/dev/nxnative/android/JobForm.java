@@ -15,7 +15,7 @@ final class JobForm {
     enum Form {
         /** the worker runs the job: its step and progress, the time left, Pause */
         RUNNING,
-        /** a pause was asked for and the worker has not ended yet (the tool stops at the shader or file in hand): no time left, no action */
+        /** a pause was asked for and the worker's tool has not stopped yet (it stops at the shader or file in hand): no time left, no action */
         STOPPING,
         /** paused by the service's own policy (battery, heat, a game that runs): the worker waits and goes on by itself; ongoing, Pause */
         WAITING,
@@ -33,14 +33,36 @@ final class JobForm {
 
     /**
      * state, reason: job.json's; worker: the service's worker runs this job and goes on (false when the service is about to end its process, or has none);
-     * stopping: a pause was asked for and the worker has not ended yet
+     * stopAsked: a pause was asked for (user, timeout); toolRuns: the worker is inside a tool (PackService.inTool), which is what a pause waits for.
+     * <p>
+     * STOPPING only while both hold: a pause asked for while no tool runs (the worker waits for a game, the battery or the heat, or is between two steps) is
+     * paused at once, and once the tool has stopped the job is paused although the worker still lives for a moment (its last job.json write, then
+     * PackService.finished). The phone test of 2026-11-15 (rc1): STOPPING was decided from "the worker has not ended yet", so the worker's last write, made
+     * after the tool had exited, posted "Pausing" again a few milliseconds before finished() posted "Paused" (both on the main thread, in that order), and
+     * the shade kept the "Pausing" post (ongoing, no button) until the job was resumed or forgotten: 8 ms after the split's exit 130, and after a Pause of a
+     * job that waited for a game with no tool running. Why the system kept the earlier post is open (PackService.leaveNote); with this rule no post after
+     * the tool's end says "Pausing".
      */
-    static Form of(String state, String reason, boolean worker, boolean stopping) {
+    static Form of(String state, String reason, boolean worker, boolean stopAsked, boolean toolRuns) {
         if ("done".equals(state)) return Form.DONE;
         if ("failed".equals(state)) return Form.FAILED;
-        if (worker && stopping) return Form.STOPPING;
+        if (worker && stopAsked && toolRuns) return Form.STOPPING;
+        if (stopAsked) return Form.PAUSED;   // nothing left to stop: the worker ends with the job paused
         if (worker && "running".equals(state)) return Form.RUNNING;
         if (worker && "paused".equals(state) && waitsByItself(reason)) return Form.WAITING;
         return Form.PAUSED;
     }
+
+    /**
+     * Whether a start the service gets while its worker still lives is a Resume to keep for when the worker has ended (PackService.onStartCommand, finished).
+     * The form above is PAUSED, with Resume on the notification and the card, as soon as no tool runs, but the worker may still be stopping: before its first
+     * step (deleting an older build's results, which takes seconds on GB-sized trees after an app update), in a wait (the battery, the heat, a game) or between
+     * the tool's end and finished(). A Resume tapped then was dropped (the service only answered startForeground) and the job stayed paused.
+     * stopReason: the pause in hand (PackService.stopReason, null: none); user: the start is the user's (not a sticky restart, not the app's automatic one);
+     * sameJob: it names the job this worker runs. Only a pause the user asked for: Android's daily limit (timeout) stops the service for good
+     */
+    static boolean keepsResume(String stopReason, boolean user, boolean sameJob) { return "user".equals(stopReason) && user && sameJob; }
+
+    /** Whether the worker's job, once it has ended, goes on with a Resume kept by keepsResume: it ended paused by that pause (not done, not failed) */
+    static boolean resumesAtEnd(String state, String reason) { return "paused".equals(state) && "user".equals(reason); }
 }

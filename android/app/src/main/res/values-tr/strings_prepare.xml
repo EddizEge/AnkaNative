@@ -55,6 +55,8 @@
     <string name="prepare_label_delete_work">Çalışma dosyalarını sil</string>
     <string name="prepare_label_manage">Yönet</string>
     <string name="prepare_other_folder_job">Bu döküm için bitmemiş bir iş %1$s konumuna yazıyor: %2$s\n\nBaşka bir klasöre hazırlamadan önce işe karttan devam et ya da çalışma dosyalarını sil (⋯ › %3$s).</string>
+    <string name="prepare_other_folder_title">Başka klasörde bitmemiş iş</string>
+    <string name="prepare_button_show_job">İşi göster</string>
     <string name="prepare_busy">%1$s şu anda hazırlanıyor (%2$s). Önce duraklat, sonra yeniden dene.</string>
     <string name="prepare_redo_code_update">Oyun kodunu yeniden yazar (birkaç dakika). %1$s</string>
     <string name="prepare_redo_both">Oyun kodunu ve shader\'ları dökümden yeniden yapar (%1$s, arka planda).</string>
@@ -147,32 +149,25 @@
     <string name="prepare_note_none">Oyun hazırlanıyor</string>
     <string name="prepare_note_simulated">%1$s (benzetim)</string>
     <string name="prepare_note_starting">Başlatılıyor…</string>
-    <string name="prepare_note_done">%1$s oynamaya hazır</string>
+    <string name="prepare_note_done">Oynamaya hazır: %1$s</string>
     <string name="prepare_note_done_text">Anka Native uygulamasını aç ve %1$s düğmesine dokun.</string>
     <string name="prepare_note_running">Hazırlanıyor: %1$s</string>
     <string name="prepare_note_waiting">Bekliyor: %1$s</string>
     <string name="prepare_note_pausing">Duraklatılıyor: %1$s</string>
     <string name="prepare_note_failed">Hazırlanamadı: %1$s</string>
     <string name="prepare_note_paused">Duraklatıldı: %1$s</string>
-    <string name="prepare_eta_short_less">&lt;1 dk kaldı</string>
-    <plurals name="prepare_eta_short_minutes">
-        <item quantity="one">%1$d dk kaldı</item>
-        <item quantity="other">%1$d dk kaldı</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours">
-        <item quantity="one">%1$d sa kaldı</item>
-        <item quantity="other">%1$d sa kaldı</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours_minutes">
-        <item quantity="one">%1$d sa %2$d dk kaldı</item>
-        <item quantity="other">%1$d sa %2$d dk kaldı</item>
-    </plurals>
-    <string name="prepare_note_running_left">%1$s · Hazırlanıyor: %2$s</string>
+    <string name="prepare_eta_compact_less">&lt;1 dk</string>
+    <string name="prepare_eta_compact_minutes">%1$d dk</string>
+    <string name="prepare_eta_compact_hours">%1$d sa</string>
+    <string name="prepare_eta_compact_hours_minutes">%1$d sa %2$d dk</string>
+    <string name="prepare_note_running_short">Hazırlanıyor · %1$s</string>
     <string name="prepare_note_stopped">Yarıda kesildi: %1$s</string>
     <string name="prepare_note_stopped_text">Hazırlama yarıda kaldı (%1$s). Devam etmek için dokun.</string>
     <string name="prepare_note_step">Adım %1$d / %2$d · %%%3$d</string>
     <string name="prepare_note_progress">%1$s · %%%2$d</string>
     <string name="prepare_note_progress_why">%1$s · %%%2$d\n%3$s</string>
+    <string name="prepare_note_running_eta_big">%1$s\n%2$s\n%3$s</string>
+    <string name="prepare_note_step_big">%1$s\n%2$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors) -->
     <string name="prepare_error_step_killed">Android, %1$s adımını bitmeden %2$d kez durdurdu; büyük olasılıkla bellek yüzünden (en fazla %3$.1f GB gerekiyor). Diğer uygulamaları kapat, sonra %4$s düğmesine dokun</string>

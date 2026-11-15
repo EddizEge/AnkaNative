@@ -53,6 +53,8 @@
     <string name="prepare_label_delete_work">Eliminar archivos de trabajo</string>
     <string name="prepare_label_manage">Administrar</string>
     <string name="prepare_other_folder_job">Una preparación sin terminar de este volcado escribe en %1$s: %2$s\n\nReanúdala desde la tarjeta o elimina sus archivos de trabajo (⋯ › %3$s) antes de preparar el juego en otra carpeta.</string>
+    <string name="prepare_other_folder_title">Preparación sin terminar en otra carpeta</string>
+    <string name="prepare_button_show_job">Mostrar la preparación</string>
     <string name="prepare_busy">Se está preparando %1$s en este momento (%2$s). Pausa primero la preparación y luego vuelve a intentarlo.</string>
     <string name="prepare_redo_code_update">Reescribe el código del juego (unos minutos). %1$s</string>
     <string name="prepare_redo_both">Vuelve a crear el código del juego y los shaders a partir de tu volcado (%1$s, en segundo plano).</string>
@@ -143,35 +145,25 @@
     <string name="prepare_note_none">Preparando un juego</string>
     <string name="prepare_note_simulated">%1$s (simulado)</string>
     <string name="prepare_note_starting">Iniciando…</string>
-    <string name="prepare_note_done">Ya puedes jugar a %1$s</string>
+    <string name="prepare_note_done">Listo para jugar: %1$s</string>
     <string name="prepare_note_done_text">Abre Anka Native y toca %1$s.</string>
     <string name="prepare_note_running">Preparando %1$s</string>
     <string name="prepare_note_waiting">En espera: %1$s</string>
     <string name="prepare_note_pausing">Pausando: %1$s</string>
     <string name="prepare_note_failed">No se pudo preparar %1$s</string>
     <string name="prepare_note_paused">En pausa: %1$s</string>
-    <string name="prepare_eta_short_less">Queda &lt;1 min</string>
-    <plurals name="prepare_eta_short_minutes">
-        <item quantity="one">Queda %1$d min</item>
-        <item quantity="many">Quedan %1$d min</item>
-        <item quantity="other">Quedan %1$d min</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours">
-        <item quantity="one">Queda %1$d h</item>
-        <item quantity="many">Quedan %1$d h</item>
-        <item quantity="other">Quedan %1$d h</item>
-    </plurals>
-    <plurals name="prepare_eta_short_hours_minutes">
-        <item quantity="one">Quedan %1$d h %2$d min</item>
-        <item quantity="many">Quedan %1$d h %2$d min</item>
-        <item quantity="other">Quedan %1$d h %2$d min</item>
-    </plurals>
-    <string name="prepare_note_running_left">%1$s · Preparando %2$s</string>
+    <string name="prepare_eta_compact_less">&lt;1 min</string>
+    <string name="prepare_eta_compact_minutes">%1$d min</string>
+    <string name="prepare_eta_compact_hours">%1$d h</string>
+    <string name="prepare_eta_compact_hours_minutes">%1$d h %2$d min</string>
+    <string name="prepare_note_running_short">Preparando · %1$s</string>
     <string name="prepare_note_stopped">Se interrumpió: %1$s</string>
     <string name="prepare_note_stopped_text">La preparación se detuvo (%1$s). Toca para continuar.</string>
     <string name="prepare_note_step">Paso %1$d de %2$d · %3$d %%</string>
     <string name="prepare_note_progress">%1$s · %2$d %%</string>
     <string name="prepare_note_progress_why">%1$s · %2$d %%\n%3$s</string>
+    <string name="prepare_note_running_eta_big">%1$s\n%2$s\n%3$s</string>
+    <string name="prepare_note_step_big">%1$s\n%2$s</string>
 
     <!-- PackService: why a step failed (PrepareErrors) -->
     <string name="prepare_error_step_killed">Android detuvo %1$s %2$d veces antes de que terminara, probablemente por falta de memoria (necesita hasta %3$.1f GB). Cierra otras apps y luego toca %4$s</string>
