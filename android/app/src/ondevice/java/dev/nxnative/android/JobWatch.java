@@ -50,6 +50,13 @@ final class JobWatch implements ServiceConnection {
     /** The service's process id and whether its worker runs the job, as it last said (PackService MSG_STATE "pid", "alive") */
     private int pid = -1;
     private boolean alive;
+    /**
+     * The death link on the service's binder, which lives in the job's process: binderDied is the process's end. onServiceDisconnected is not: Android calls
+     * it also when the service stops cleanly while its process lives (ActiveServices.bringDownServiceLocked tells every binding connected(null, dead), which
+     * LoadedApk turns into onServiceDisconnected and then onBindingDied), and in the phone check of rc1 the watch took each such stop for a death: "the job's
+     * process N ended (no exit record)" after all 23 Pauses and 3 finished jobs, 0.5 s after each stop, with the process still working afterwards
+     */
+    private Death link;
     private final Runnable verify = this::verify;
 
     private JobWatch(Context c) { this.c = c; }
@@ -65,7 +72,31 @@ final class JobWatch implements ServiceConnection {
         if (!c.bindService(new Intent(c, PackService.class), this, 0)) Log.w(TAG, "job watch: Android did not let the launcher bind the Prepare service");
     }
 
+    /** One link to the binder of one service instance: the process it lives in, as the service last said it, and whether its worker ran then */
+    private final class Death implements IBinder.DeathRecipient {
+        final IBinder b;
+        int pid = -1;
+        boolean worker;
+
+        Death(IBinder b) { this.b = b; }
+
+        @Override public void binderDied() { h.post(() -> ended(this)); }   // a binder thread: decided on the main thread
+    }
+
     @Override public void onServiceConnected(ComponentName n, IBinder b) {
+        // a new service instance (in the same process after a clean stop, or in a new one): its binder is the one to watch; the old one's process, if it is
+        // another, was already reported (binderDied), and if it is this one, its death is this binder's too
+        if (link != null && link.b != b) link.b.unlinkToDeath(link, 0);
+        if (link == null || link.b != b) {
+            Death d = new Death(b);
+            try {
+                b.linkToDeath(d, 0);
+                link = d;
+            } catch (RemoteException e) {   // the process died between the connection and here: the same as its binderDied
+                link = null;
+                h.post(() -> ended(d));
+            }
+        }
         service = new Messenger(b);
         Message m = Message.obtain(null, PackService.MSG_REGISTER);
         m.replyTo = client;
@@ -77,23 +108,34 @@ final class JobWatch implements ServiceConnection {
         Bundle d = m.getData();
         pid = d.getInt("pid", pid);
         alive = d.getBoolean("alive");
+        if (link != null) {
+            link.pid = pid;
+            link.worker = alive;
+        }
         return true;
     }
 
-    /** The service's process ended (the service had been running in it): what job.json says decides, a moment later (the exit's record) */
+    /**
+     * The service went: a clean stop (its process lives on, cached) or its process's end. Only the binder's death (ended) says which, so nothing is decided
+     * here; the link stays on the old binder, whose death is still the process's
+     */
     @Override public void onServiceDisconnected(ComponentName n) {
         service = null;
-        int p = pid;
-        boolean was = alive;
         pid = -1;
         alive = false;
-        h.postDelayed(() -> died(p, was), 500);
     }
 
-    @Override public void onBindingDied(ComponentName n) {   // the app's package changed under it: bind again
+    /** The binding is dead (the service was taken down, cleanly or with its process, or the app's package changed): bind again for its next start */
+    @Override public void onBindingDied(ComponentName n) {
         c.unbindService(this);
         service = null;
         bind();
+    }
+
+    /** The job's process really ended (binderDied of the service's binder): what job.json says decides, a moment later (the exit's record) */
+    private void ended(Death d) {
+        if (link == d) link = null;
+        h.postDelayed(() -> died(d.pid, d.worker), 500);
     }
 
     private void died(int p, boolean worker) {

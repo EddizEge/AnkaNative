@@ -95,6 +95,21 @@ class Watch(unittest.TestCase):
         self.assertIn('JobDeath.after(j.state(), j.reason(), false, exit == null ? JobDeath.EXIT_UNKNOWN : exit.getReason(), PrepareGate.gameRunning(c))', died)
         self.assertIn('restart(c, j, "its process ended")', died)
 
+    def test_death_is_the_binders(self):
+        """The phone check of rc1 (2026-11-15): "the job's process N ended (no exit record)" after every clean stop of the service (23 Pauses, 3 finished
+        jobs) while the process lived on. A clean stop also calls onServiceDisconnected (and onBindingDied) for a binding without BIND_AUTO_CREATE; only the
+        death of the service's binder, which lives in the job's process, is that process's end"""
+        dis = body(self.w, '@Override public void onServiceDisconnected(ComponentName n)')
+        self.assertNotIn('died(', dis)
+        self.assertNotIn('postDelayed', dis)
+        con = body(self.w, '@Override public void onServiceConnected(ComponentName n, IBinder b)')
+        self.assertIn('b.linkToDeath(d, 0);', con)
+        self.assertIn('link.b.unlinkToDeath(link, 0);', con)
+        self.assertIn('h.post(() -> ended(d));', con)   # already dead when linked
+        self.assertIn('@Override public void binderDied() { h.post(() -> ended(this)); }', self.w)
+        self.assertIn('h.postDelayed(() -> died(d.pid, d.worker), 500);', body(self.w, 'private void ended(Death d)'))
+        self.assertEqual(self.w.count('died('), 2)   # the method and its one call, from ended
+
     def test_refused_start_tells_the_user(self):
         r = body(self.w, 'static void restart(Context c, Job j, String why)')
         self.assertIn('.putExtra(PackService.EXTRA_AUTO, true)', r)
