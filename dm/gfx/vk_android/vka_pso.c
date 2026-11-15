@@ -242,17 +242,10 @@ static void pc_open_once(void) {
     if (e && !strcmp(e, "0")) g_pc_path[0] = 0;
     else if (e && *e) snprintf(g_pc_path, sizeof g_pc_path, "%s", e);
     else if ((t && *t) || (home && *home)) {   // a custom driver (DM_VK_DRIVER) keeps its own file, so switching drivers leaves the system driver's cache alone
-        // With the raw global memory merge on, its own file (vka_pcguard.h vka_pc_default_name: one file for both kinds would hold two programs of nearly every game
-        // pipeline, all loaded at every start); the same driver's file without the merge is removed then (DM_VK_GMEM_MERGE=0 makes it again)
+        // With the raw global memory merge on (DM_VK_GMEM_MERGE=1), its own file (vka_pcguard.h vka_pc_default_name: one file for both kinds would hold two programs of
+        // nearly every game pipeline, all loaded at every start). The usual file stays as it is: a run without the switch reads it again
         const char *dt = vka_driver_tag(), *dir = t && *t ? t : home; int gm = vka_shader_gmem_on() ? VKA_GMEM_PASS : 0;
         if (!vka_pc_default_name(g_pc_path, sizeof g_pc_path, dir, dt, gm)) g_pc_path[0] = 0;
-        char off[1024];
-        if (gm && g_pc_path[0] && vka_pc_default_name(off, sizeof off, dir, dt, 0)) {
-            struct stat sb;
-            if (!stat(off, &sb) && !unlink(off))
-                VLOG("pipeline cache %s removed (%lld bytes): its programs are of the modules without the raw global memory merge, which this run and the next do not make "
-                     "(this run's file: %s; DM_VK_GMEM_MERGE=0 makes the other again)", off, (long long)sb.st_size, g_pc_path);
-        }
     }
     // The prewarm list (pw_*): the pipeline keys of earlier runs, whatever the driver (a key names shaders and state, not driver code). DM_VK_PREWARM_FILE overrides
     const char *pf = getenv("DM_VK_PREWARM_FILE");
@@ -1453,7 +1446,9 @@ static void mj_move_ahead(gval *g) {   // (under g_mj_mu) a form the prewarm lis
     else if (g_ah_cur && g_ah_cur->g == g && !g_ah_cur->drawn) { g_ah_cur->drawn = 1; atomic_fetch_add(&g_mj_drawn, 1); }   // (being made ahead: the frame rule counts it until made)
 }
 // ---------- Mesh forms made ahead (vka_memu_ahead.h) ----------
-// DM_VK_MEMU_AHEAD (restart; default 2048): the MemAvailable floor in MiB under which no form is started ahead; 0 = none made ahead (each at its first draw, as before).
+// DM_VK_MEMU_AHEAD=<MiB> (restart; off by default, 2048 is the value run on the phone): the MemAvailable floor under which no form is started ahead; 0 or unset = none
+// made ahead (each at its first draw). Off until two things seen on the POCO F8 Pro on 2026-11-15 are settled: with the cache holding the forms made ahead the second span
+// buffer sat 150-250 MiB higher at later starts, and one empty-cache start showed white specks at mark+5 s and +10 s that the start without the queue did not.
 // On a thread of its own (ah_main, nice 10 as this one), one at a time, only while this thread is idle (neither queue has a job, none being made), no graphics pipeline a
 // draw waits for is being made (DM_VK_PSO_ASYNC), the app is in front and the device is not lost. A form a draw asks for meanwhile is made here at once, beside the one
 // being made ahead (two compiles at most: the floor leaves the draw's compile what play has, 0.85-1.4 GB), so it never waits behind one; a draw that asks for the form
@@ -1463,7 +1458,7 @@ static uint64_t *g_ah_keys;          // the library's task / mesh shaders, in it
 static _Atomic int g_ah_req;         // 1: the cache is open, the queue starts at the next submission (ah_poke); 2: started or not to be
 static int ah_floor_env(void) {      // the switch, read once (a restart switch: vka_ctl.c g_restart)
     static _Atomic int v = -1; int x = atomic_load(&v);
-    if (x < 0) { int y = VKA_ENV("DM_VK_MEMU_AHEAD", 2048); x = y > 0 ? y : 0; int m = -1; if (!atomic_compare_exchange_strong(&v, &m, x)) x = m; }
+    if (x < 0) { int y = VKA_ENV("DM_VK_MEMU_AHEAD", 0); x = y > 0 ? y : 0; int m = -1; if (!atomic_compare_exchange_strong(&v, &m, x)) x = m; }
     return x;
 }
 static int ah_stage(void *c, uint64_t key) { (void)c; return vka_shader_lib_stage(key); }
@@ -1623,7 +1618,7 @@ static void ah_off(const char *why) {   // the queue is not to be: notes stop, n
 }
 static void ah_begin(void) {
     int v = ah_floor_env();
-    const char *off = !V.memu ? "" : v <= 0 ? "DM_VK_MEMU_AHEAD=0" : !mj_up() ? "DM_VK_MEMU_ASYNC=0: the forms are made on the frame path" : !vka_bindless_layout() ? "no pool set" : NULL;
+    const char *off = !V.memu ? "" : v <= 0 ? "" : !mj_up() ? "DM_VK_MEMU_ASYNC=0: the forms are made on the frame path" : !vka_bindless_layout() ? "no pool set" : NULL;
     uint32_t n = off ? 0 : vka_shader_lib_count(), nt = 0, nm = 0; uint64_t *keys = n ? malloc(n * sizeof *keys) : NULL; uint32_t nk = 0;
     for (uint32_t i = 0; keys && i < n; i++) { int st; uint64_t k = vka_shader_lib_entry(i, &st); if (vka_ahead_candidate(st, k)) { keys[nk++] = k; if (st == DMSH_VK_STAGE_TS) nt++; else nm++; } }
     if (!off && !nk) off = "no task or mesh shader in the library";

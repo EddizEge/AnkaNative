@@ -31,10 +31,10 @@ static inline const char *vka_pc_keep_blocker(const char *dispatch_skip) {
     return NULL;
 }
 // The pipeline cache file's default name in dir: vk_pipelines[-<driver>][-gm<pass>].bin. drv: vka_driver_tag (NULL: the system driver). gm: the raw global memory merge's
-// pass version when it is on (vka_gmem.h VKA_GMEM_PASS), 0 when it is off (DM_VK_GMEM_MERGE=0). The merge rewrites the modules of nearly every game pipeline, and the
+// pass version when it is on (DM_VK_GMEM_MERGE=1; vka_gmem.h VKA_GMEM_PASS), 0 when it is off (the default). The merge rewrites the modules of nearly every game pipeline, and the
 // driver keys a pipeline by its SPIR-V, so one file for both would hold two programs of each such pipeline after a run of each kind, and Turnip loads every program of
 // the file at every start (above: start time, memory, private memory sized over both). With its own file each kind loads only its own programs; the other kind's file
-// of the same driver is removed when the merge is on (vka_pso.c pc_open_once), as it would only take space. → 0 when the name does not fit
+// stays where it is (vka_pso.c pc_open_once): a run without the switch reads it again. → 0 when the name does not fit
 static inline int vka_pc_default_name(char *out, size_t n, const char *dir, const char *drv, int gm) {
     char g[16] = ""; if (gm > 0) snprintf(g, sizeof g, "-gm%d", gm);
     int k = snprintf(out, n, "%s/vk_pipelines%s%s%s.bin", dir, drv ? "-" : "", drv ? drv : "", g);

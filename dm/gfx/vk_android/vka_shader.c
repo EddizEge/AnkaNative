@@ -254,14 +254,15 @@ static void fb_own_set(uint64_t key, uint32_t *w, size_t nb) {
 // vertex shader: every module of it is made from its words with those inputs flat (vka_memu_fs_flat), so the variants and retypes made from them are too.
 // Raw global memory loads of one base address given one page lookup or pool search per group (vka_gmem.c), on every module the replay makes from the library: each
 // variant, the vertex input / colour output / blend guard rewrites, the geometry claim and the task / mesh shaders' compute forms all start from these words.
-// DM_VK_GMEM_MERGE=0 leaves the modules as the library has them; read once (at the first module), so a run's modules are all of one kind. A module the rewrite refuses or
+// Off by default (DM_VK_GMEM_MERGE=1 turns it on): on the POCO F8 Pro it took 2.0 ms off the 68.6 ms balcony frame and 4.3 ms off the village's, for about 150 MB more
+// GPU memory at every start (2026-11-15), and the game is short of memory before it is short of those. Read once (at the first module), so a run's modules are all of one kind. A module the rewrite refuses or
 // fails on is used as the library has it, with a red line. Totals: vka_shader_gmem_log
 static pthread_mutex_t g_gm_mu = PTHREAD_MUTEX_INITIALIZER;
 static vka_gmem_stats g_gm; static int g_gm_mods, g_gm_rew, g_gm_fail;
 static int gmem_on(void) {
     static _Atomic int on = -1;
     int v = atomic_load(&on);
-    if (v < 0) { v = VKA_ENV("DM_VK_GMEM_MERGE", 1) ? 1 : 0; int x = -1; if (!atomic_compare_exchange_strong(&on, &x, v)) v = x; }
+    if (v < 0) { v = VKA_ENV("DM_VK_GMEM_MERGE", 0) ? 1 : 0; int x = -1; if (!atomic_compare_exchange_strong(&on, &x, v)) v = x; }
     return v;
 }
 int vka_shader_gmem_on(void) { return gmem_on(); }
@@ -283,7 +284,8 @@ static uint32_t *gmem_merge(const dmsh_vk_entry *e, uint32_t *w, size_t *nb) {
     return o;
 }
 void vka_shader_gmem_log(const char *when) {
-    if (!gmem_on()) { VRED_ONCE("raw global memory loads: DM_VK_GMEM_MERGE=0: every module as the library has it (one page lookup or pool search per load)"); return; }
+    if (!gmem_on()) return;   // (the default: every module as the library has it, nothing to say)
+    VRED_ONCE("raw global memory loads: DM_VK_GMEM_MERGE=1: each group of loads from one base address takes one lookup, in a pipeline cache file of its own (about 150 MB more GPU memory on the POCO F8 Pro)");
     pthread_mutex_lock(&g_gm_mu); vka_gmem_stats t = g_gm; int mods = g_gm_mods, rew = g_gm_rew, fail = g_gm_fail; pthread_mutex_unlock(&g_gm_mu);
     VLOG("raw global memory loads (%s): %d modules with them made, %d rewritten: %d of %d loads take their group's lookup (%d groups; helpers: %d page index, %d pool search); "
          "left as they are: %d loads without enough neighbours, %d whose address is not base + constant (or not in the function's own variables), %d through %d helpers this rewrite does not prove (stores, other shapes), "
