@@ -203,10 +203,11 @@ JNIEXPORT jint JNICALL Java_dev_nxnative_android_Native_paused(JNIEnv *env, jcla
 JNIEXPORT void JNICALL Java_dev_nxnative_android_Native_audioInterrupt(JNIEnv *env, jclass cls, jboolean on) { (void)env; (void)cls; if (nxhost_audio_interrupt) nxhost_audio_interrupt(on); }
 JNIEXPORT void JNICALL Java_dev_nxnative_android_Native_audioRouteChanged(JNIEnv *env, jclass cls) { (void)env; (void)cls; if (nxhost_audio_route_changed) nxhost_audio_route_changed(); }
 
-// The overlay's frame rate (nxhost_fps): fills out (base fps, output fps, frame time ms, frame generation state, images per game frame, GPU ms a frame or -1); false = stale or not in this host
+// The overlay's frame rate (nxhost_fps): fills out (base fps, output fps, frame time ms, frame generation state, images per game frame, GPU ms a frame or -1, the 3D scene's
+// width and height, the presented picture's width and height: 0 when not known or in a host without them); false = stale or not in this host
 JNIEXPORT jboolean JNICALL Java_dev_nxnative_android_Native_fps(JNIEnv *env, jclass cls, jfloatArray out) {
     (void)cls; if (!nxhost_fps || !out) return JNI_FALSE;
-    float v[6] = {0, 0, 0, 0, 0, -1}; int n = (*env)->GetArrayLength(env, out); if (n > 6) n = 6;
+    float v[10] = {0, 0, 0, 0, 0, -1, 0, 0, 0, 0}; int n = (*env)->GetArrayLength(env, out); if (n > 10) n = 10;
     int r = nxhost_fps(v, n);
     (*env)->SetFloatArrayRegion(env, out, 0, n, v);
     return r ? JNI_TRUE : JNI_FALSE;
