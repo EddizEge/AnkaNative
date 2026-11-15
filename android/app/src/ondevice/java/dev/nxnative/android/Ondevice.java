@@ -69,10 +69,20 @@ final class Ondevice {
     /** What to do instead when this APK cannot prepare a game (available() is false), for the screen */
     static String unavailableText() { return Tr.s("prepare_unavailable"); }
 
-    /** Prepare the dump (MainActivity's Add game, a game card's Prepare again): checked off the main thread, then asked before anything is written */
+    /** Prepare the dump (MainActivity's Add game, a game card's Prepare): checked off the main thread, then asked before anything is written */
     static void prepare(MainActivity a, File dump, boolean again) {
         if (!available()) { a.error(unavailableText()); return; }
         if (panel != null && panel.a == a) panel.picked(dump, false, null, again);
+    }
+
+    /**
+     * A game card's Prepare again (its Manage sheet): the card's own pack is the one checked and kept, and what does not fit in it is redone there. The rc1
+     * phone check: it went through Folders.packFor, which with several pack folders in the work folder picked another one (the best that fits), found it
+     * ready, wrote a done job for it and moved the card to it, which the user never asked for
+     */
+    static void prepareAgain(MainActivity a, File dump, File cardPack) {
+        if (!available()) { a.error(unavailableText()); return; }
+        if (panel != null && panel.a == a) panel.picked(dump, false, cardPack, true);
     }
 
     /** Shaders a delta update of this pack translates (the profile's manifest rows for the pack's older libraries, ShaderLibs.toTranslate), -1 when the manifest has none of them */
@@ -461,8 +471,11 @@ final class Ondevice {
                     // DumpCheck says what is wrong
                 }
                 f.r = DumpCheck.check(dump, f.existing == null);
-                if (f.r.ok() && (packOverride == null || card)) {
-                    f.packDir = card ? packOverride : Folders.packFor(a, f.r.dump, f.r.titleId);
+                // the pack to check: a card's own (its automatic update, its Prepare again), else the one Folders finds for the dump; an adb test's
+                // ondevice_pack is a folder for a new job, never checked (a pack there is not adopted)
+                boolean cardPack = card || again && packOverride != null;
+                if (f.r.ok() && (packOverride == null || cardPack)) {
+                    f.packDir = cardPack ? packOverride : Folders.packFor(a, f.r.dump, f.r.titleId);
                     try {
                         Pack p = f.packDir == null ? null : Pack.read(f.packDir);
                         if (p != null && !p.simulated && p.titleId.equals(f.r.titleId)) {
@@ -488,12 +501,17 @@ final class Ondevice {
                     boolean same = j.dump().getPath().equals(r.dump.getPath()) && j.version() == r.version && (packOverride == null || packOverride.equals(j.pack()));
                     String s = j.state();
                     if (same && (s.equals("running") || s.equals("paused") || s.equals("failed") || s.equals("pending"))) {
-                        Job.remember(a, f.existing);
-                        job = j;
-                        show();
-                        if (start) startService(j);
+                        // remembered (Home's card shows it again) only once the user takes it: a job forgotten (Manage › Forget) and found again by a new pick,
+                        // as Forget says, stays forgotten when the question is cancelled (the rc1 phone check: Cancel brought the forgotten job back)
+                        Runnable take = () -> {
+                            Job.remember(a, f.existing);
+                            job = j;
+                            show();
+                            startService(j);
+                        };
+                        if (start) take.run();
                         else confirm(a.getString(R.string.prepare_resume_title), a.getString(R.string.prepare_resume_body, j.statusMsg(false).text()),
-                                a.getString(R.string.prepare_button_resume), () -> startService(j));
+                                a.getString(R.string.prepare_button_resume), take);
                         return;
                     }
                     if (!s.equals("done") && !s.isEmpty()) {   // unfinished, for another pack folder: never written over (its job.json is this dump's)
@@ -547,7 +565,7 @@ final class Ondevice {
             String which = r.version == 0 ? (other ? a.getString(R.string.prepare_what_base_code, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_base))
                     : other ? a.getString(R.string.prepare_what_update_code, version, prof.buildMsg(r.build).text()) : a.getString(R.string.prepare_what_update, version);
             String text = a.getString(R.string.prepare_ask_text, which, r.dlc, prof.shaderTotal, ShaderLibs.jobMinutesMsg(prof.shaderTotal, prof.split()).text(), r.free / 1073741824.0, r.work,
-                    AppStorage.pack(a, r.titleId));
+                    packOverride != null ? packOverride : AppStorage.pack(a, r.titleId));   // where the job writes the pack (go, below)
             Runnable go = () -> {
                 try {
                     Job j = Job.create(r, AppStorage.pack(a, r.titleId));

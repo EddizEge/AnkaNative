@@ -590,7 +590,7 @@ public final class MainActivity extends Activity {
         Ui.add(box, new Ui.Setting(this, "↩️", getString(R.string.home_restore_saves), v -> { d[0].dismiss(); SaveUi.restoreList(this, g); }).chevron(this).view, 0);
         Ui.add(box, new Ui.Setting(this, "📥", getString(R.string.home_import_save), v -> { d[0].dismiss(); SaveUi.importPick(this, g); }).chevron(this).view, 0);
         if (Ondevice.isDump(new File(g.gameDir)) && noProfile == null)
-            Ui.add(box, new Ui.Setting(this, "🔁", getString(R.string.home_prepare_again), v -> { d[0].dismiss(); Ondevice.prepare(this, new File(g.gameDir), true); }).value(getString(R.string.home_prepare_again_value)).chevron(this).view, 0);
+            Ui.add(box, new Ui.Setting(this, "🔁", getString(R.string.home_prepare_again), v -> { d[0].dismiss(); Ondevice.prepareAgain(this, new File(g.gameDir), new File(g.packDir)); }).value(getString(R.string.home_prepare_again_value)).chevron(this).view, 0);
         // The pack as one .zip, out and in (PackUi, PackZip): an import goes into the app's packs/<id> and is checked before it replaces anything
         Ui.add(box, new Ui.Setting(this, "📦", getString(R.string.home_export_pack), v -> { d[0].dismiss(); PackUi.exportPick(this, g); }).value(getString(R.string.home_export_pack_value)).chevron(this).view, 0);
         if (noProfile == null)
