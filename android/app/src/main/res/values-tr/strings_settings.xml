@@ -53,7 +53,7 @@
     <string name="settings_game_detail_full">Tam (oyunun çizdiği gibi)</string>
     <string name="settings_game_detail_reduced">Azaltılmış</string>
     <string name="settings_game_detail_lowest">En düşük</string>
-    <string name="settings_game_detail_about">Daha fazla hız için daha az ot ve küçük bitki, daha kısa mesafede çizilir; ekran efektleri azalır. Oyunun kendi ayarlarını kullanır. Bir sonraki başlatmada uygulanır; env.txt içindeki bir DM_DETAIL satırı önceliklidir.</string>
+    <string name="settings_game_detail_about">Azaltılmış: daha az ot, bitkiler daha yakına kadar çizilir. En düşük ayrıca bazı ekran efektlerini kapatır. Daha fazla hız için; oyunun kendi ayarlarını kullanır. Bir sonraki başlatmada uygulanır; env.txt içindeki bir DM_DETAIL satırı önceliklidir.</string>
     <string name="settings_game_detail_title">Bitkiler ve efektler · %1$s</string>
     <string name="settings_game_detail_gone">Tam (oyunun çizdiği gibi; kayıtlı %1$s değeri artık sunulmuyor)</string>
     <string name="settings_game_default_choice">Varsayılan (%1$s)</string>

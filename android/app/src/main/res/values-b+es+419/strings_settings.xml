@@ -51,7 +51,7 @@
     <string name="settings_game_detail_full">Completo (como lo dibuja el juego)</string>
     <string name="settings_game_detail_reduced">Reducido</string>
     <string name="settings_game_detail_lowest">Mínimo</string>
-    <string name="settings_game_detail_about">Menos pasto y plantas pequeñas, dibujadas hasta más cerca, y menos efectos de pantalla, para ganar velocidad. Usa los ajustes del propio juego. Se aplica en el próximo inicio; una línea DM_DETAIL en env.txt tiene prioridad.</string>
+    <string name="settings_game_detail_about">Reducido: menos pasto, y plantas dibujadas hasta más cerca. Mínimo también apaga algunos efectos de pantalla. Para ganar velocidad; usa los ajustes del propio juego. Se aplica en el próximo inicio; una línea DM_DETAIL en env.txt tiene prioridad.</string>
     <string name="settings_game_detail_title">Plantas y efectos · %1$s</string>
     <string name="settings_game_detail_gone">Completo (como lo dibuja el juego; el valor guardado %1$s ya no está disponible)</string>
     <string name="settings_game_default_choice">Predeterminado (%1$s)</string>

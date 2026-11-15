@@ -67,7 +67,7 @@
     <string name="settings_game_detail_full">Full (as the game draws it)</string>
     <string name="settings_game_detail_reduced">Reduced</string>
     <string name="settings_game_detail_lowest">Lowest</string>
-    <string name="settings_game_detail_about">Fewer grass blades and small plants, drawn less far away, and fewer screen effects, for more speed. Uses the game\'s own settings. Applies at the next start; a DM_DETAIL line in env.txt wins.</string>
+    <string name="settings_game_detail_about">Reduced: fewer grass blades, and plants drawn less far away. Lowest also turns off some screen effects. For more speed; uses the game\'s own settings. Applies at the next start; a DM_DETAIL line in env.txt wins.</string>
     <string name="settings_game_detail_title">Plants and effects · %1$s</string>
     <string name="settings_game_detail_gone">Full (as the game draws it; the stored %1$s is no longer offered)</string>
     <!-- %1$s: the default window size's name -->
