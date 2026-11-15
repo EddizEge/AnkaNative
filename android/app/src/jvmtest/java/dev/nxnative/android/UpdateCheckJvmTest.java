@@ -97,6 +97,7 @@ public final class UpdateCheckJvmTest {
         eq(1, Integer.signum(UpdateCheck.compare(UpdateCheck.tagVersion("v1.0.0"), UpdateCheck.tagVersion("v0.99.99"))), "major first");
         eq(-1, Integer.signum(UpdateCheck.compare(UpdateCheck.tagVersion("v0.2.0"), UpdateCheck.tagVersion("v0.10.0"))), "minor numeric");
         eq(0, UpdateCheck.compare(UpdateCheck.tagVersion("v0.1.3"), UpdateCheck.appVersion("0.1.3")), "equal");
+        eq("v0.3.0", pick(UpdateCheck.appVersion("0.2.2"), rel("v0.3.0", false, true, apk("v0.3.0")), rel("v0.2.2", false, true, apk("v0.2.2"))), "0.3.0 offered to 0.2.2");
 
         // picking
         int[] cur = UpdateCheck.appVersion("0.1.3");

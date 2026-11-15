@@ -3,7 +3,7 @@
 # Anka Native
 
 **Anka Native runs Switch 2 games' own code natively on Android, with their graphics rebuilt on Vulkan.** Released as
-**Anka Native by EddizEge**; this release is **Anka Native 0.1.0**.
+**Anka Native by EddizEge**; this release is **Anka Native 0.3.0**.
 
 It is not an emulator: the game's own ARM64 code runs directly on the phone's CPU. A small host answers the system calls the game
 makes, and the game's NVN graphics (including the Switch 2's task and mesh shaders) are replayed on Vulkan, with the game's shaders

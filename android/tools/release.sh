@@ -12,7 +12,7 @@
 #
 # Settings (environment):
 #   ANKA_GAMES          the games the APK runs (-PnxGames), default 0400486024DEC000 (Ocarina of Time)
-#   ANKA_VERSION        the version name (-PnxVersion), default 0.1.0; ANKA_VERSION_CODE the version code (-PnxVersionCode), default 1
+#   ANKA_VERSION        the version name (-PnxVersion), default 0.3.0; ANKA_VERSION_CODE the version code (-PnxVersionCode), default 6
 #   ANKA_PACK_ENGINE    native (default: the on-phone packer, from the stage NX_PACK_STAGE names) or fake (no packer: the app offers no Prepare)
 #   ANKA_RELEASE_DIR    where the APK and SHA256SUMS.txt go, default ~/anka-native-releases/<version>; must be outside this repository
 #   JAVA_HOME           a JDK 17-21 for Gradle (default /usr/lib/jvm/java-21-openjdk when it exists)
@@ -54,7 +54,7 @@ fi
 [ $# -eq 0 ] || die "usage: release.sh [--fingerprint]"
 
 GAMES=${ANKA_GAMES:-0400486024DEC000}
-VERSION=${ANKA_VERSION:-0.2.2}; CODE=${ANKA_VERSION_CODE:-5}
+VERSION=${ANKA_VERSION:-0.3.0}; CODE=${ANKA_VERSION_CODE:-6}
 ENGINE=${ANKA_PACK_ENGINE:-native}
 if [ "$ENGINE" = native ]; then
     [ -n "${NX_PACK_STAGE:-}" ] && [ -f "$NX_PACK_STAGE/lib/libnxpack.so" ] || die "set NX_PACK_STAGE to the on-phone packer's stage (android/ondevice/build.sh <work dir> makes <work dir>/stage), or ANKA_PACK_ENGINE=fake"
