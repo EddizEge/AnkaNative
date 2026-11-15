@@ -9,6 +9,7 @@
 #include "vka_aspick.h"
 #include "vka_pcguard.h"
 #include "vka_memu_abi.h"
+#include "vka_memu_ahead.h"
 #include "../nvn/nvn_mtl.h"
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +25,8 @@ static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 // Suspend (mtl_drain, the app going to the background): the prewarm and optimizer threads stop between pipelines until the game submits again (vka_pso_pause(0) at the next
 // submission), so a backgrounded app does not keep compiling on the CPU for minutes
 static _Atomic int g_pso_paused;
-void vka_pso_pause(int on) { atomic_store(&g_pso_paused, on != 0); }
+static void ah_paused(int on);
+void vka_pso_pause(int on) { atomic_store(&g_pso_paused, on != 0); ah_paused(on); }
 static void pause_point(void) { while (atomic_load_explicit(&g_pso_paused, memory_order_relaxed)) usleep(100000); }
 // The keys' hash, 8 bytes a step: the draw path hashes a pipeline key (about 1 KB) per draw, and FNV a byte at a time took 1 us of it on the Adreno 840 phone's cores
 static uint64_t fnv(const void *p, size_t n, uint64_t h) {
@@ -147,7 +149,7 @@ static uint64_t g_ngfx, g_ncs, g_nfail, g_ncs_over, g_create_ns, g_frame_made;  
 static uint64_t g_probe_hit, g_probe_miss, g_probe_miss_ns;          // GPL: the cache-only try before a link (VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT)
 static _Atomic uint64_t g_try_skipped;                              // cache-only tries left out (DM_VK_PSO_TRY)
 static _Atomic uint64_t g_save_ns_total, g_hy_draws, g_pw_wait_ns;
-static void pw_load(void); static void pw_start(void); static int pw_save(void); static int g_pw_dirty;
+static void pw_load(void); static void pw_start(void); static int pw_save(void); static int g_pw_dirty; static void ah_start(void);
 static uint32_t g_pw_ndve;   // records of the NDVE network pw_load left out (the files beside the list came from a run that made the network)
 // What this run keeps (vka_pcguard.h): a run with a diagnostic switch that changes which pipelines are made (DM_VK_DISPATCH_SKIP) writes neither the cache file nor
 // the prewarm list from then on. Turnip loads every program of the file at the next start, and a program only such a run made stays there: the NDVE network's private
@@ -177,7 +179,7 @@ static void save_soon(const char *why);
 // linked pipeline (vk-psopt) is counted for the next save but asks for none; and no save starts while a burst runs (pc_burst: prewarm threads still going, asynchronous
 // or optimizer jobs queued, or a pipeline made within DM_VK_PCACHE_QUIET_S, default 10 s), unless the oldest unsaved pipeline is 4 s periods old. The copy's buffer
 // takes 1/32 more than the size query instead of 1/4 (no compile runs beside a save then). Risk: up to s seconds of compiles lost when Android kills the app
-enum { PC_NEW, PC_HIT, PC_OPT };   // what pc_added was handed: a new pipeline or library, a cache hit, the optimized copy of a linked pipeline
+enum { PC_NEW, PC_HIT, PC_OPT, PC_AHEAD };   // what pc_added was handed: a new pipeline or library, a cache hit, the optimized copy of a linked pipeline, a mesh form made ahead
 static _Atomic uint64_t g_pc_last_save, g_pc_last_add, g_pc_unsaved_t0, g_pc_hits, g_pc_bytes, g_pc_deferred; static _Atomic uint32_t g_pc_nsaves;
 static size_t g_pc_read;   // bytes of the cache file taken at the start
 static int pc_policy(void) { return VKA_ENV("DM_VK_PCACHE_MIN_S", 0) > 0; }
@@ -196,6 +198,10 @@ static void pc_added(uint64_t ns, int what) {
     int pol = pc_policy();
     if (pol && what == PC_HIT) { atomic_fetch_add(&g_pc_hits, 1); return; }
     uint64_t t = now_ns(), z = 0;
+    // A mesh form made ahead (vka_memu_ahead.h): in the next save, which it does not ask for and does not put off. The queue compiles for minutes on a first start; as a
+    // new pipeline each form would ask for a save of the whole file a second of compiling (DM_VK_PCACHE_SAVE_MS) and, under DM_VK_PCACHE_MIN_S, keep a burst going
+    // (g_pc_last_add) that puts off the saves of the game's own pipelines. The DM_VK_PCACHE_SAVE_S timer saves it, and a suspend
+    if (what == PC_AHEAD) { atomic_fetch_add(&g_pc_gen, 1); atomic_compare_exchange_strong(&g_pc_unsaved_t0, &z, t); return; }
     atomic_fetch_add(&g_pc_gen, 1); atomic_store(&g_pc_last_add, t); atomic_compare_exchange_strong(&g_pc_unsaved_t0, &z, t);
     if (pol && what == PC_OPT) return;
     uint64_t un = atomic_fetch_add(&g_pc_unsaved_ns, ns) + ns;
@@ -267,6 +273,7 @@ static void pc_open_once(void) {
     pthread_t th;
     if (!pthread_create(&th, NULL, saver_main, NULL)) { pthread_detach(th); g_sv_up = 1; }
     pw_start();
+    ah_start();
 }
 static void pc_open(void) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthread_once(&once, pc_open_once); }   // (the prewarm threads it starts call it too: they wait for it)
 // The cache and the prewarm list to their files. vkGetPipelineCacheData runs without g_mu (the cache is internally synchronized): holding it there kept the replay thread's
@@ -320,9 +327,11 @@ static void *saver_main(void *a) {
 }
 // From the replay thread at each submission: a save is due DM_VK_PCACHE_SAVE_S seconds (default 20) after the last one when the cache gained pipelines or libraries since
 // (pc_added; a slow one is saved at once from there); it runs on the saver thread. force (the end of the run, the shader library check): now, on the caller's thread
+static void ah_poke(uint64_t t);
 void vka_pso_save(int force) {
     if (!g_pc) return;
     uint64_t t = now_ns();
+    if (!force) ah_poke(t);   // (the replay thread, a submission: a queue waiting for memory looks again)
     if (!force) {
         if (atomic_load(&g_pc_gen) == atomic_load(&g_pc_saved_gen) && !__atomic_load_n(&g_pw_dirty, __ATOMIC_RELAXED)) return;   // (a cache hit adds only a prewarm key)
         int s = VKA_ENV("DM_VK_PCACHE_SAVE_S", 20); if (s < 1) s = 1;
@@ -1121,6 +1130,7 @@ static _Atomic uint64_t g_as_cheap_n;   // jobs taken ahead of an older one of t
 static as_job *g_as_head, **g_as_tail = &g_as_head; static pthread_mutex_t g_as_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_as_cv = PTHREAD_COND_INITIALIZER;
 static _Atomic uint64_t g_as_queued, g_as_made, g_as_skips, g_as_ns, g_as_lat_max_ns, g_as_ahead, g_as_helped; static _Atomic int g_as_depth, g_as_depth_max;
 static void gfx_build(gval *g, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int async, uint64_t t_make);
+static void ah_wake(void);
 // One job made: the first by need (above). wait: block until there is one (as_main); else 0 when the queue is empty (a prewarm thread, pw_main)
 static int as_run(int wait) {
     pthread_mutex_lock(&g_as_mu);
@@ -1144,7 +1154,8 @@ static int as_run(int wait) {
     gfx_build(j->g, j->len, j->sh, &j->lay, &j->k, 0, 1, j->t0);
     uint64_t t1 = now_ns(), lat = t1 - j->t0, cur = atomic_load(&g_as_lat_max_ns);
     while (lat > cur && !atomic_compare_exchange_weak(&g_as_lat_max_ns, &cur, lat)) {}
-    atomic_fetch_add(&g_as_ns, t1 - t0); atomic_fetch_add(&g_as_made, 1); atomic_fetch_sub(&g_as_depth, 1);
+    atomic_fetch_add(&g_as_ns, t1 - t0); atomic_fetch_add(&g_as_made, 1);
+    if (atomic_fetch_sub(&g_as_depth, 1) == 1) ah_wake();   // (the mesh forms made ahead wait while a draw waits for a graphics pipeline)
     free(j);
     return 1;
 }
@@ -1305,7 +1316,7 @@ VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *
 // ---------- Compute pipelines ----------
 typedef struct { vka_shader *cs; VkPipelineLayout layout; } ckey;
 static kmap g_cs = {.klen = sizeof(ckey)};
-static void cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg);
+static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg);
 // The process's memory for a slow compile's line: its resident set now and its peak so far (/proc/self/status VmRSS, VmHWM), the driver's compiler included
 static const char *vka_rss_note(void) {
     static _Thread_local char b[64]; b[0] = 0;
@@ -1333,8 +1344,10 @@ static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, int prewarm, 
     *made = 1;
     return g->p;
 }
-// Make entry g's pipeline (busy until then). bg: on the background thread of mesh draws through compute (below): not the frame path's time, kept in the prewarm list
-static void cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg) {
+// Make entry g's pipeline (busy until then). bg: on the background thread of mesh draws through compute (below): not the frame path's time, kept in the prewarm list;
+// 2: a form made ahead there (vka_memu_ahead.h), kept out of the prewarm list (which keeps what the game drew) and saved without asking for a save (PC_AHEAD).
+// → 1 made, 2 from the pipeline cache (creation feedback), 0 not made
+static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg) {
     pc_open();
     uint64_t t0 = now_ns();
     uint32_t pin = (cs->e->flags & DMSH_VK_F_SUBGROUP) ? vka_shader_sg_pin(DMSH_VK_STAGE_CS) : 0;
@@ -1346,7 +1359,7 @@ static void cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm
         .stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .pNext = pin ? &rsg : NULL, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = vka_shader_cs_module(cs), .pName = "main",
                   .pSpecializationInfo = (cs->e->flags & DMSH_VK_F_TEXFB) && vka_tex_fb_spec() ? &tfb_si : NULL}};
     VkPipelineCreationFeedback cfb = {0}; VkPipelineCreationFeedbackCreateInfo cfi = {VK_STRUCTURE_TYPE_PIPELINE_CREATION_FEEDBACK_CREATE_INFO, .pPipelineCreationFeedback = &cfb};
-    if (pc_policy() || prewarm) ci.pNext = &cfi;   // (a hit is no reason to save; prewarm counts its hits)
+    if (pc_policy() || prewarm || bg == 2) ci.pNext = &cfi;   // (a hit is no reason to save; prewarm and the forms made ahead count their hits)
     VkPipeline p = VK_NULL_HANDLE; VkResult r; int over = 0;
     // The NDVE movie network (vka_pcguard.h; made only when no conversion was matched before it, or with DM_VK_NDVE_DIRECT=0): made outside the pipeline cache and kept
     // out of the prewarm list. Turnip loads every program of the cache file at the next start, and the network's private memory then took 1.3 GB more GPU memory at
@@ -1362,15 +1375,20 @@ static void cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm
         r = VK_ERROR_FEATURE_NOT_PRESENT; over = 1;
         static _Atomic int n; if (atomic_fetch_add(&n, 1) < 16) VRED("compute program %016llx takes %u bytes of shared memory, the device at most %u: not made, its dispatches are skipped (the first 16 are logged; the count is in the pipeline line)", (unsigned long long)cs->key, cs->e->shared, smax);
     } else { int bs = build_begin("compute pipeline", cs->key, 0); r = vk.vkCreateComputePipelines(V.dev, pc, 1, &ci, NULL, &p); build_end(bs); }
+    // A task / mesh shader's compute form (vka_memu.c) is made into one pipeline only (its entry here, by form and layout, is made once, made or not), so its module goes
+    // now: 235 KB of SPIR-V on average (Ocarina of Time's 515 forms: 121 MB, the largest 2.2 MB), which the driver keeps a copy of while the module lives
+    if (cs->memu == 1 && ci.stage.module) { vk.vkDestroyShaderModule(V.dev, ci.stage.module, NULL); cs->mods[DMSH_VK_MOD_BASE] = VK_NULL_HANDLE; }
     pthread_mutex_lock(&g_mu);
     if (over) { p = VK_NULL_HANDLE; g_ncs_over++; } else if (r) { p = VK_NULL_HANDLE; g_nfail++; } else { g_ncs++; g_made++; if (!prewarm && !bg) g_frame_made++; }
-    { uint64_t dns = now_ns() - t0; g_create_ms += dns / 1e6; if (!prewarm && !bg) g_create_ns += dns; if (!over && !r && pc) pc_added(dns, fb_hit(&cfb) ? PC_HIT : PC_NEW); }
+    int hit = !over && !r && fb_hit(&cfb);
+    { uint64_t dns = now_ns() - t0; g_create_ms += dns / 1e6; if (!prewarm && !bg) g_create_ns += dns; if (!over && !r && pc && !(bg == 2 && hit)) pc_added(dns, bg == 2 ? PC_AHEAD : hit ? PC_HIT : PC_NEW); }
     if (!over && !r && prewarm && (cfb.flags & VK_PIPELINE_CREATION_FEEDBACK_VALID_BIT)) atomic_fetch_add(fb_hit(&cfb) ? &g_pw_fb_hit : &g_pw_fb_miss, 1);
     g->p = p; g->busy = 0; pthread_cond_broadcast(&g_busy_cv);
     pthread_mutex_unlock(&g_mu);
     if (r && !over) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 16) VRED("compute pipeline %016llx: %d; its dispatches are skipped", (unsigned long long)cs->key, r); }
-    { double ms_ = (now_ns() - t0) / 1e6; static _Atomic int n; if (!r && ms_ > 50 && atomic_fetch_add(&n, 1) < 200) VLOG("compute pipeline %016llx took %.0f ms%s%s", (unsigned long long)cs->key, ms_, prewarm ? " (prewarm)" : bg ? " (in the background)" : "", vka_rss_note()); }
-    if (!prewarm && !over && !ndve) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }   // (one not made stays out of the prewarm list, and the NDVE network)
+    { double ms_ = (now_ns() - t0) / 1e6; static _Atomic int n; if (!r && ms_ > 50 && atomic_fetch_add(&n, 1) < 200) VLOG("compute pipeline %016llx took %.0f ms%s%s", (unsigned long long)cs->key, ms_, prewarm ? " (prewarm)" : bg == 2 ? " (made ahead)" : bg ? " (in the background)" : "", vka_rss_note()); }
+    if (!prewarm && !over && !ndve && bg != 2) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }   // (one not made stays out of the prewarm list, and the NDVE network)
+    return over || r ? 0 : hit ? 2 : 1;
 }
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay) { int made; return cs_obtain(cs, lay, 0, &made); }
 
@@ -1388,6 +1406,11 @@ static pthread_mutex_t g_mj_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_
 static _Atomic uint64_t g_mj_queued, g_mj_made, g_mj_ns, g_mj_lat_max_ns, g_mj_moved, g_mj_t_first; static _Atomic int g_mj_depth;
 static _Atomic int g_mj_drawn;   // forms a draw waits for, not made yet (in the drawn queue or being made): the launcher's note (nxhost_mesh_status) and the frame rule (vka_memu_forms_waited), not the prewarm list's
 static mj *g_mj_cur;             // the job being made (under g_mj_mu): a draw that asks for a form the prewarm list's job is making now counts it as waited for
+// The forms made ahead (vka_memu_ahead.h): on this thread, when neither queue has a job; the state under g_mj_mu
+static vka_ahead g_ah; static int g_ah_on, g_ah_floor, g_ah_ended; static uint32_t g_ah_lib_n, g_ah_cand;
+static _Atomic int g_ah_mem_wait;   // the thread waits for MemAvailable (ah_poke looks again)
+static _Atomic uint64_t g_ah_made, g_ah_hit, g_ah_had, g_ah_fail, g_ah_big, g_ah_prog, g_ah_libn, g_ah_ns, g_ah_t0, g_ah_drawn, g_ah_memw, g_ah_poke_t;
+
 static void mj_push(mj *j, int drawn) {   // (under g_mj_mu)
     j->next = NULL; j->drawn = drawn;
     if (drawn) { atomic_fetch_add(&g_mj_drawn, 1); *g_mjd_tail = j; g_mjd_tail = &j->next; } else { *g_mjp_tail = j; g_mjp_tail = &j->next; }
@@ -1408,13 +1431,106 @@ static void mj_move_ahead(gval *g) {   // (under g_mj_mu) a form the prewarm lis
     }
     if (g_mj_cur && g_mj_cur->g == g && !g_mj_cur->drawn) { g_mj_cur->drawn = 1; atomic_fetch_add(&g_mj_drawn, 1); }   // (being made from the prewarm list's queue)
 }
+// ---------- Mesh forms made ahead (vka_memu_ahead.h) ----------
+// DM_VK_MEMU_AHEAD (restart; default 2048): the MemAvailable floor in MiB under which no form is started ahead; 0 = none made ahead (each at its first draw, as before).
+// On the thread above, one at a time, when neither queue has a job, no graphics pipeline a draw waits for is being made (DM_VK_PSO_ASYNC) and the app is in front:
+// what the game waits for never waits behind them but for the one form being compiled (the longest seen on the phone 5.7 s, 013826b0bf7e1ee2). Not in the prewarm list (it keeps what the
+// game drew, in that order); in the pipeline cache as every pipeline (PC_AHEAD: saved by the timer and at suspend). A later start makes them again from the cache
+static uint64_t *g_ah_keys;          // the library's task / mesh shaders, in its order (ah_begin)
+static _Atomic int g_ah_req;         // 1: the cache is open, the queue starts at the next submission (ah_poke); 2: started or not to be
+static int ah_stage(void *c, uint64_t key) { (void)c; return vka_shader_lib_stage(key); }
+static uint64_t ah_lib_key(void *c, uint32_t i) { (void)c; return i < g_ah_lib_n ? g_ah_keys[i] : 0; }
+static long ah_avail_mib(void) {   // MemAvailable, -1 = not read
+    FILE *f = fopen("/proc/meminfo", "re"); if (!f) return -1;
+    char ln[128]; long kb = -1; while (fgets(ln, sizeof ln, f)) if (sscanf(ln, "MemAvailable: %ld kB", &kb) == 1) break;
+    fclose(f); return kb < 0 ? -1 : kb / 1024;
+}
+static void ah_wake(void) { pthread_mutex_lock(&g_mj_mu); pthread_cond_broadcast(&g_mj_cv); pthread_mutex_unlock(&g_mj_mu); }
+// (under g_mj_mu) whether a form may be started ahead now (*why: vka_ahead_turn's answer); MemAvailable is read only when nothing else stops it
+static int ah_ready(int *why) {
+    if (!g_ah_on) { *why = VKA_AHEAD_STOPPED; return 0; }
+    int jobs = g_mjd_head || g_mjp_head, as = atomic_load(&g_as_depth), pz = atomic_load(&g_pso_paused);
+    *why = vka_ahead_turn(&g_ah, jobs, as, pz, g_ah_floor, g_ah_floor);
+    if (*why == VKA_AHEAD_GO) {
+        long av = ah_avail_mib();
+        if (av < 0) VRED_ONCE("mesh draws through compute: /proc/meminfo has no MemAvailable: no form is made ahead (DM_VK_MEMU_AHEAD needs it)");
+        *why = vka_ahead_turn(&g_ah, jobs, as, pz, av, g_ah_floor);
+    }
+    return *why == VKA_AHEAD_GO;
+}
+static void ah_counts(char *b, size_t n) {
+    snprintf(b, n, "%llu made, %llu from the pipeline cache, %llu already made or being made (a draw's or the prewarm list's), %llu failed (each a [RED] line), "
+             "%llu left to their draw (a local memory array over %d bytes: Turnip's private memory for the whole device would grow with it), "
+             "%llu asked for by a draw while being made ahead; %llu from programs the game set up, %llu in the library's order; %.1f s since the queue started, %.1f s compiling; "
+             "%llu waits for MemAvailable", (unsigned long long)atomic_load(&g_ah_made), (unsigned long long)atomic_load(&g_ah_hit), (unsigned long long)atomic_load(&g_ah_had),
+             (unsigned long long)atomic_load(&g_ah_fail), (unsigned long long)atomic_load(&g_ah_big), VKA_AHEAD_PRIVATE_MAX, (unsigned long long)atomic_load(&g_ah_drawn), (unsigned long long)atomic_load(&g_ah_prog),
+             (unsigned long long)atomic_load(&g_ah_libn), atomic_load(&g_ah_t0) ? (now_ns() - atomic_load(&g_ah_t0)) / 1e9 : 0.0, atomic_load(&g_ah_ns) / 1e9,
+             (unsigned long long)atomic_load(&g_ah_memw));
+}
+static void ah_end(const char *why) {   // (under g_mj_mu) the queue ends: its line, its memory
+    if (g_ah_ended) return;
+    g_ah_ended = 1; g_ah_on = 0;
+    char b[600]; ah_counts(b, sizeof b);
+    VLOG("mesh draws through compute: forms made ahead ended (%s): %llu of the library's %u task / mesh forms: %s", why,
+         (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)), g_ah_cand, b);
+    vka_ahead_free(&g_ah); g_ah.stop = 1;
+}
+// Make one form ahead: the same derived shader, layout and compute map entry a draw of it takes (vka_memu_draw.inc MEMU_ADD, vka_memu_pipeline), so a draw finds it made
+// (or being made, then waited for as a prewarm list job is); nothing is made where that entry exists
+static void ah_make(uint64_t key, int src) {
+    atomic_fetch_add(src == VKA_AHEAD_PROGRAM ? &g_ah_prog : &g_ah_libn, 1);
+    const char *why = NULL; vka_layout lay; memset(&lay, 0, sizeof lay);
+    vka_shader *s = vka_shader_by_key(key), *cs = NULL;   // (refused: vka_shader_make logged why)
+    int st = s && s->e ? s->e->stage : vka_shader_lib_stage(key);
+    if (!s || !s->e) why = "the replay refuses the shader (its line above)";
+    else {
+        // A local memory array that would grow the device's private memory (vka_ahead_private_bytes): left to its draw, which pays for it only if the game draws it
+        size_t nb = 0; char err[160] = ""; uint32_t *w = vka_shader_memu_words(s, &nb, err, sizeof err); uint64_t pv = vka_ahead_private_bytes(w, nb / 4); free(w);
+        if (pv > VKA_AHEAD_PRIVATE_MAX) {
+            atomic_fetch_add(&g_ah_big, 1);
+            static _Atomic int nl; if (atomic_fetch_add(&nl, 1) < 32) VLOG("mesh draws through compute: %s shader %016llx not made ahead: a %llu-byte local memory array (over %d), which Turnip keeps in private memory sized for the whole device; made at its first draw",
+                                                                          st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key, (unsigned long long)pv, VKA_AHEAD_PRIVATE_MAX);
+            return;
+        }
+        // A mesh shader's form at the device's depth mode, a task shader's at 0, as MEMU_ADD asks (vka_memu_cs_of keeps the GL depth only for a module that has the constant)
+        cs = vka_memu_cs_of(s, s->e->stage == DMSH_VK_STAGE_MS ? !vka_depth_zero() : 0);
+        vka_shader *c5[VKA_NSTAGE] = {0}; c5[5] = cs;
+        if (!cs) why = "no compute form (its line above)";
+        else if (!vka_layout_of(c5, 1, &lay)) why = "no pipeline layout (its line above)";
+    }
+    if (why) { atomic_fetch_add(&g_ah_fail, 1); VRED("mesh draws through compute: %s shader %016llx not made ahead: %s; its draws are skipped as before", st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key, why); return; }
+    ckey k; memset(&k, 0, sizeof k); k.cs = cs; k.layout = lay.layout;
+    uint64_t h = fnv(&k, sizeof k, 1469598103934665603ull);
+    pthread_mutex_lock(&g_mu);
+    gval *g = km_get(&g_cs, &k, h);
+    if (g) { pthread_mutex_unlock(&g_mu); atomic_fetch_add(&g_ah_had, 1); return; }
+    g = calloc(1, sizeof *g); g->busy = 1; km_put(&g_cs, &k, h, g);
+    pthread_mutex_unlock(&g_mu);
+    mj job; memset(&job, 0, sizeof job); job.g = g; job.cs = cs; job.lay = lay; job.t0 = now_ns();
+    pthread_mutex_lock(&g_mj_mu); g_mj_cur = &job; pthread_mutex_unlock(&g_mj_mu);   // (a draw asking for it meanwhile waits for it: mj_move_ahead)
+    uint64_t t1 = now_ns(); int r = cs_build(g, cs, &lay, 0, 2); atomic_fetch_add(&g_ah_ns, now_ns() - t1);
+    pthread_mutex_lock(&g_mj_mu); g_mj_cur = NULL; int drawn = job.drawn; pthread_mutex_unlock(&g_mj_mu);
+    if (drawn) { atomic_fetch_sub(&g_mj_drawn, 1); atomic_fetch_add(&g_ah_drawn, 1); }
+    if (!r) { atomic_fetch_add(&g_ah_fail, 1); VRED("mesh draws through compute: %s shader %016llx: its compute form's pipeline made ahead failed (its line above); its draws are skipped as before", st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key); }
+    else atomic_fetch_add(r == 2 ? &g_ah_hit : &g_ah_made, 1);
+}
 static void *mj_main(void *a) {
     (void)a; pthread_setname_np(pthread_self(), "vk-memupso");
     setpriority(PRIO_PROCESS, 0, 10);   // (under the game's threads, as the prewarm threads)
     for (;;) {
         pthread_mutex_lock(&g_mj_mu);
-        mj *j;
-        while (!(j = mj_pop())) pthread_cond_wait(&g_mj_cv, &g_mj_mu);
+        mj *j; uint64_t ak = 0; int asrc = 0, why = 0;
+        // The game's own first (a form a draw waits for, then the prewarm list's), then a form made ahead when vka_ahead_turn allows one (else wait: a new job, the
+        // DM_VK_PSO_ASYNC queue running empty, the app resumed or MemAvailable seen above the floor at a submission wake this thread)
+        while (!(j = mj_pop())) {
+            if (ah_ready(&why) && (ak = vka_ahead_next(&g_ah, NULL, ah_stage, g_ah_lib_n, ah_lib_key, &asrc))) break;
+            if (g_ah_on && why == VKA_AHEAD_GO) ah_end("every form made or tried");   // (ready, and nothing left)
+            atomic_store(&g_ah_mem_wait, why == VKA_AHEAD_MEMORY);
+            if (why == VKA_AHEAD_MEMORY) atomic_fetch_add(&g_ah_memw, 1);
+            pthread_cond_wait(&g_mj_cv, &g_mj_mu);
+        }
+        atomic_store(&g_ah_mem_wait, 0);
+        if (!j) { pthread_mutex_unlock(&g_mj_mu); pause_point(); ah_make(ak, asrc); continue; }
         g_mj_cur = j;
         pthread_mutex_unlock(&g_mj_mu);
         pause_point();
@@ -1441,6 +1557,52 @@ static void mj_start(void) {
     VLOG("mesh draws through compute: compute pipelines %s (DM_VK_MEMU_ASYNC)", g_mj_up ? "made on one background thread, one at a time; their draws skipped until made" : "made on the frame path");
 }
 static int mj_up(void) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthread_once(&once, mj_start); return g_mj_up; }
+// The queue of forms made ahead: asked for when the pipeline cache is opened (pc_open_once, ah_start), begun at the next submission on the replay thread (ah_poke): by
+// then the frame's textures were prepared (vka_tex_prepare), so the pool set's layout, which every compute form's pipeline layout takes, is there
+static void ah_start(void) { int z = 0; atomic_compare_exchange_strong(&g_ah_req, &z, 1); }
+static void ah_begin(void) {
+    int v = VKA_ENV("DM_VK_MEMU_AHEAD", 2048);
+    const char *off = !V.memu ? "" : v <= 0 ? "DM_VK_MEMU_AHEAD=0" : !mj_up() ? "DM_VK_MEMU_ASYNC=0: the forms are made on the frame path" : !vka_bindless_layout() ? "no pool set" : NULL;
+    uint32_t n = off ? 0 : vka_shader_lib_count(), nt = 0, nm = 0; uint64_t *keys = n ? malloc(n * sizeof *keys) : NULL; uint32_t nk = 0;
+    for (uint32_t i = 0; keys && i < n; i++) { int st; uint64_t k = vka_shader_lib_entry(i, &st); if (vka_ahead_candidate(st, k)) { keys[nk++] = k; if (st == DMSH_VK_STAGE_TS) nt++; else nm++; } }
+    if (!off && !nk) off = "no task or mesh shader in the library";
+    pthread_mutex_lock(&g_mj_mu);
+    uint32_t noted = g_ah.n;
+    if (off) { vka_ahead_free(&g_ah); g_ah.stop = 1; g_ah_ended = 1; free(keys); keys = NULL; }
+    else { g_ah_keys = keys; g_ah_lib_n = nk; g_ah_cand = nk; g_ah_floor = v; g_ah_on = 1; atomic_store(&g_ah_t0, now_ns()); pthread_cond_broadcast(&g_mj_cv); }
+    pthread_mutex_unlock(&g_mj_mu);
+    if (off && *off) VLOG("mesh draws through compute: no compute forms made ahead (%s): each is made at its first draw", off);
+    else if (!off) VLOG("mesh draws through compute: the compute forms of the library's %u task / mesh shaders (%u task, %u mesh) are made ahead on the mesh pipeline thread, one at "
+                        "a time, behind every form a draw or the prewarm list waits for: first the shaders of programs the game has set up (%u keys noted so far), then the "
+                        "library's order; none is started while a graphics pipeline a draw waits for is being made, while the app is in the background, or under "
+                        "MemAvailable %d MiB (DM_VK_MEMU_AHEAD; 0 none); not in the prewarm list, in the pipeline cache", nk, nt, nm, noted, v);
+}
+static void ah_poke(uint64_t t) {
+    int one = 1;
+    if (atomic_load(&g_ah_req) == 1 && atomic_compare_exchange_strong(&g_ah_req, &one, 2)) ah_begin();
+    if (!atomic_load(&g_ah_mem_wait)) return;
+    uint64_t last = atomic_load(&g_ah_poke_t);   // (MemAvailable read at most once a second while the queue waits for it)
+    if (t - last < 1000000000ull || !atomic_compare_exchange_strong(&g_ah_poke_t, &last, t)) return;
+    long av = ah_avail_mib();
+    if (av >= g_ah_floor) ah_wake();
+}
+// The app to the background (mtl_drain: Stop, Home, the screen off; Android may end the process after it) or back: the thread starts no form ahead while paused
+// (ah_ready), finishing only the one in the compiler; the forms made so far are in the forced save that follows
+static void ah_paused(int on) {
+    if (!on) { if (g_ah_on) ah_wake(); return; }
+    pthread_mutex_lock(&g_mj_mu); int live = g_ah_on && !g_ah_ended; pthread_mutex_unlock(&g_mj_mu);
+    if (!live) return;
+    static _Atomic int n; if (atomic_fetch_add(&n, 1) >= 8) return;
+    char b[600]; ah_counts(b, sizeof b);
+    VLOG("mesh draws through compute: forms made ahead paused (the app in the background, or the run ending) after %llu of %u: %s",
+         (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)), g_ah_cand, b);
+}
+void vka_memu_ahead_note(uint64_t key, int stage) {
+    if (!VKA_ENV("DM_VK_MEMU_AHEAD", 2048)) return;
+    pthread_mutex_lock(&g_mj_mu);
+    if (vka_ahead_note(&g_ah, key, stage) && g_ah_on) pthread_cond_signal(&g_mj_cv);
+    pthread_mutex_unlock(&g_mj_mu);
+}
 VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw) {
     *pending = 0;
     if (!mj_up()) return vka_cs_pipeline(cs, lay);
@@ -1466,9 +1628,12 @@ VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending
 int vka_memu_forms_waited(void) { return g_mj_up ? atomic_load(&g_mj_drawn) : 0; }
 void vka_memu_pso_line(char *out, size_t n) {
     if (!atomic_load(&g_mj_queued)) { if (n) out[0] = 0; return; }
-    snprintf(out, n, "; their compute pipelines in the background: %llu queued, %llu made (%.0f ms compiling, longest wait from the first draw %.0f ms), %d waiting, %llu moved ahead for a draw",
-             (unsigned long long)atomic_load(&g_mj_queued), (unsigned long long)atomic_load(&g_mj_made), atomic_load(&g_mj_ns) / 1e6, atomic_load(&g_mj_lat_max_ns) / 1e6, atomic_load(&g_mj_depth),
-             (unsigned long long)atomic_load(&g_mj_moved));
+    int k = snprintf(out, n, "; their compute pipelines in the background: %llu queued, %llu made (%.0f ms compiling, longest wait from the first draw %.0f ms), %d waiting, %llu moved ahead for a draw",
+                     (unsigned long long)atomic_load(&g_mj_queued), (unsigned long long)atomic_load(&g_mj_made), atomic_load(&g_mj_ns) / 1e6, atomic_load(&g_mj_lat_max_ns) / 1e6, atomic_load(&g_mj_depth),
+                     (unsigned long long)atomic_load(&g_mj_moved));
+    if (atomic_load(&g_ah_t0) && k > 0 && (size_t)k < n)   // (the forms made ahead: vka_memu_ahead.h)
+        snprintf(out + k, n - (size_t)k, "; made ahead %llu of %u (%llu compiled, %llu from the pipeline cache, %llu failed)", (unsigned long long)(atomic_load(&g_ah_prog) + atomic_load(&g_ah_libn)),
+                 g_ah_cand, (unsigned long long)atomic_load(&g_ah_made), (unsigned long long)atomic_load(&g_ah_hit), (unsigned long long)atomic_load(&g_ah_fail));
 }
 // The launcher's note while mesh draws wait for their compute pipelines (GameActivity, Native.meshStatus): out[0] queued so far, out[1] made, out[2] those a draw waits
 // for now (the prewarm list's are not counted: they keep the queue busy for a while on every start, while nothing on screen is missing).

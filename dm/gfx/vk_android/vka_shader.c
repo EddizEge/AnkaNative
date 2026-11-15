@@ -452,6 +452,25 @@ int vka_shader_memu_key(uint64_t key) {
     }
     return 0;
 }
+// The library's entries for the mesh forms made ahead (vka_pso.c, vka_memu_ahead.h): how many (the library loaded first), the key of entry i in the library's order,
+// a key's stage (-1 not in the library). vka_shader_lib_stage_loaded answers VKA_AHEAD_STAGE_UNKNOWN (-2) instead of loading the library (the game's own threads)
+uint32_t vka_shader_lib_count(void) { pthread_mutex_lock(&g_mu); int ok = lib_load(); pthread_mutex_unlock(&g_mu); return ok ? g_lib.h->entry_count : 0; }
+uint64_t vka_shader_lib_entry(uint32_t i, int *stage) {
+    pthread_mutex_lock(&g_mu); int ok = lib_load(); pthread_mutex_unlock(&g_mu);
+    if (!ok || i >= g_lib.h->entry_count) { *stage = -1; return 0; }
+    *stage = g_lib.ent[i].stage; return g_lib.ent[i].key;
+}
+int vka_shader_lib_stage(uint64_t key) {
+    pthread_mutex_lock(&g_mu); int ok = lib_load(); pthread_mutex_unlock(&g_mu);
+    const dmsh_vk_entry *e = ok ? vka_shlib_find(&g_lib, key) : NULL;
+    return e ? e->stage : -1;
+}
+int vka_shader_lib_stage_loaded(uint64_t key) {
+    pthread_mutex_lock(&g_mu); int st = g_lib_state; pthread_mutex_unlock(&g_mu);
+    if (st == 0) return -2;
+    const dmsh_vk_entry *e = st > 0 ? vka_shlib_find(&g_lib, key) : NULL;   // (the library is not changed once loaded)
+    return e ? e->stage : -1;
+}
 // A task / mesh shader's base words for its compute form: the library's module, with the one-invocation subgroup rewrite where the device's compute stage needs it
 // (sg_plan's compute row, not the mesh stage's), and the texture-use feedback bitmap moved to its own set with DM_VK_TEXFB_SET as every other module of the entry
 // (fb_own_set: the compute form's layout then has no bitmap in set 1, vka_tex.c). malloc'd
@@ -512,7 +531,12 @@ void mtl_prog_release(prog_t *p) {
     if (!p || !p->serial) return;
     pthread_mutex_lock(&g_mu); prent *e = pr_find(p->serial); if (e) { e->serial = ~0ull; memset(&e->ps, 0, sizeof e->ps); } pthread_mutex_unlock(&g_mu);   // a tombstone
 }
-void mtl_prog_prefetch(const prog_t *p) { (void)p; }   // modules are made at the program's first draw (vka_prog_shaders)
+// A program the game has set up (nvnProgramSetShaders, the game's thread): modules are made at its first draw (vka_prog_shaders); its stage keys go to the queue of mesh
+// forms made ahead (vka_pso.c vka_memu_ahead_note), which takes the task and mesh shaders among them first, in the order the game set them up
+void mtl_prog_prefetch(const prog_t *p) {
+    if (!p) return;
+    for (unsigned i = 0; i < p->nstage && i < 6; i++) { uint8_t md[8]; if (prog_key(p, i, md)) { uint64_t k = vka_shlib_key(md); vka_memu_ahead_note(k, vka_shader_lib_stage_loaded(k)); } }
+}
 
 // DM_NVN_SHDUMP=directory (debugging): a stage missing from the library is saved as <key>.ctl + <key>.code, the Mac's form (nvn_mtl.m; shader_split.py nvn_dumps, runtime_shaders.py --dump),
 // once per key. The control section is hle_nvn.c's copy (nvnProgramSetShaders keeps one while SHDUMP is set), the code area is read in the game's memory pool at its address;
