@@ -393,6 +393,9 @@ typedef struct vka_shader {
     struct vka_vinmod *vin;             // vertex modules with integer-fed inputs retyped, by masks (vka_shader_vin_module)
     struct vka_vinmod *fout;            // pixel modules with float outputs retyped for integer targets, by masks (vka_shader_fout_module)
     struct vka_vinmod *bz;              // pixel modules with the zero blend weight guard, by modes word (vka_shader_bz_module; u = the modes)
+    struct vka_texmod *tex;             // compute modules with float-typed sampled texture bindings retyped to uint / int, by masks (vka_shader_tex_module)
+    uint64_t tex_u, tex_s;              // learned set-0 binding masks (0..63) where a float-typed sampled binding met a UINT / SINT texture
+    uint64_t tex_logged, tex_fail;      // bindings logged once / bindings whose retype failed (not retried)
     vka_span c1; VkDeviceSize c1_len;   // the c1 bytes in static memory (none when c1_len is 0)
     int bad;                            // refused: no module, an unknown binding, an NV-only capability (logged once with its key)
     int gs_fx;                          // a geometry shader's memory writes (vka_spv_gs_claim): above 0, its draws bind a claim buffer at VKA_GS_CLAIM_BINDING
@@ -427,6 +430,7 @@ VkShaderModule vka_shader_bz_module(vka_shader *s, uint32_t modes);   // the bas
 int vka_shader_fout_retyped(vka_shader *s, uint32_t umask, uint32_t smask);   // 1 when that module is a rewritten one (not the base module it falls back to)   // the base pixel module with those float outputs as uint / int vectors of their bits (vka_spv_fout_retype), made once per masks
 #define VKA_FS_RETYPE 4                  // vka_gkey.fs_variant beyond the library's pixel DMSH_VK_MOD_* (4 is DMSH_VK_MOD_SHUFFLE_LDS of compute modules, never a pixel variant): the base pixel module with its float outputs at integer attachments retyped (vka_pso.c fout_masks)
 VkShaderModule vka_shader_vin_module(vka_shader *s, uint32_t umask, uint32_t smask);   // the base module with those float inputs as uvec4 / ivec4 (vka_spv_vin_retype), made once per masks   // the module of that variant (DMSH_VK_MOD_*), made on first use; VK_NULL_HANDLE = the entry has none   // the shader of key in library L (the game's, or the selftest's own); NULL = not there or refused
+VkShaderModule vka_shader_tex_module(vka_shader *s, uint64_t umask, uint64_t smask, char *err, size_t errn);   // compute module with float-typed sampled texture bindings at umask / smask retyped to uint / int (vka_spv_tex_retype), cached per masks
 int vka_shlib_check_all(const vka_shlib *L);   // every module and compute pipeline of L made (DM_VK_SHLIB_CHECK=1): the failures
 int vka_static(VkDeviceSize n, VkDeviceSize align, vka_span *out);   // host-visible memory for the process's life (c1 bytes, the support and zero buffers)
 
@@ -444,6 +448,7 @@ typedef struct { VkPipelineLayout layout; VkDescriptorSetLayout set0; int push; 
 int vka_layout_of(vka_shader *const sh[VKA_NSTAGE], int compute, vka_layout *out);   // the set-0 layout of these stages' records with the pools' set 1
 VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k);
 VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay);
+VkPipeline vka_cs_pipeline_retyped(vka_shader *cs, const vka_layout *lay, uint64_t umask, uint64_t smask);
 VkPipeline vka_memu_pipeline(vka_shader *cs, const vka_layout *lay, int *pending, int draw);   // a mesh draw through compute's compute form: made in the background (pending: not yet); draw: a draw waits for it (made before the prewarm list's)
 void vka_memu_pso_line(char *out, size_t n);
 int vka_memu_forms_waited(void);   // compute forms of mesh draws through compute that a draw asked for and that are not made yet (0 when they are made on the frame path)
