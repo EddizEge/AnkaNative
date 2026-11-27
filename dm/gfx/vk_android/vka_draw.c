@@ -1055,7 +1055,7 @@ static void ld_dump(const vka_dstate *d, int st, const vka_shader *sh, const vka
     free(s0); free(cnt); free(srt); g_ld.n++;
 }
 // One stage's results as descriptor writes. 0 = the draw cannot run (logged)
-static int stage_writes(const vka_dstate *d, int st, const vka_shader *sh, const vka_res *r, int n, int pool, c0_at *c0) {
+static int stage_writes(const vka_dstate *d, int st, vka_shader *sh, const vka_res *r, int n, int pool, c0_at *c0) {
     for (int i = 0; i < n; i++) {
         if (g_w.n == 512) { VRED_ONCE("more than 512 descriptors in one draw"); return 0; }
         uint32_t k = g_w.n;
@@ -1118,7 +1118,46 @@ static int stage_writes(const vka_dstate *d, int st, const vka_shader *sh, const
             VkImageView v = VK_NULL_HANDLE; VkSampler s = VK_NULL_HANDLE; VkImageLayout lay = VK_IMAGE_LAYOUT_GENERAL;
             if (r[i].desc != VK_DESCRIPTOR_TYPE_SAMPLER) {
                 int tid = r[i].what == VKA_R_TEX || r[i].what == VKA_R_IMG ? r[i].tid : 0;
-                if (tid) v = vka_tex_id_view_rec(tid, g_cb, r[i].dim, storage, &lay);
+                uint8_t dim = r[i].dim;
+                if (!storage && st == 5 && r[i].binding < 64 && !(dim & (DMSH_VK_DIM_UINT | DMSH_VK_DIM_SINT))) {
+                    if ((sh->tex_u >> r[i].binding) & 1) dim |= DMSH_VK_DIM_UINT;
+                    else if ((sh->tex_s >> r[i].binding) & 1) dim |= DMSH_VK_DIM_SINT;
+                }
+                if (tid) v = vka_tex_id_view_rec(tid, g_cb, dim, storage, &lay);
+                // Integer texture bound to a float-typed sampled image (Maxwell returns integer bits regardless of shader type; Vulkan forbids it):
+                // learn the integer mask on the shader, rewrite the module (vka_spv_tex_retype) so the next dispatch runs the integer-typed pipeline,
+                // and leave this dispatch as before (no view: zeros): its pipeline, chosen before the walk (vka_dispatch), is still the float one, and an integer
+                // view under a float-typed image is undefined in Vulkan. learned: the binding was just learned, so no 'no view' report for it
+                int learned = 0;
+                if (tid && !v && !storage && st == 5 && r[i].binding < 64 && !(dim & (DMSH_VK_DIM_UINT | DMSH_VK_DIM_SINT)) && VKA_ENV("DM_VK_TEX_RETYPE", 1)) {
+                    int nf = vka_tex_id_fmt(tid, NULL); vka_fmt tf;
+                    if (nf && vka_fmt_of(nf, &tf) && (tf.kind == 1 || tf.kind == 2)) {
+                        uint64_t bit = 1ull << r[i].binding;
+                        if (!(sh->tex_fail & bit)) {
+                            uint8_t idim = dim | (uint8_t)(tf.kind == 1 ? DMSH_VK_DIM_UINT : DMSH_VK_DIM_SINT);
+                            VkImageView iv = vka_tex_id_view_rec(tid, g_cb, idim, 0, NULL);
+                            if (iv) {
+                                uint64_t nu = sh->tex_u | (tf.kind == 1 ? bit : 0), ns = sh->tex_s | (tf.kind == 2 ? bit : 0);
+                                char err[256] = "";
+                                if (vka_shader_tex_module(sh, nu, ns, err, sizeof err)) {
+                                    sh->tex_u = nu; sh->tex_s = ns; learned = 1;
+                                    if (!(sh->tex_logged & bit)) {
+                                        sh->tex_logged |= bit;
+                                        VLOG("integer texture at a float-typed binding: shader %016llx binding %u (format %#x / VkFormat %d): module retyped to %s (vka_spv_tex_retype)",
+                                             (unsigned long long)sh->key, r[i].binding, nf, (int)tf.vk, tf.kind == 1 ? "uint" : "int");
+                                    }
+                                } else {
+                                    sh->tex_fail |= bit;
+                                    if (!(sh->tex_logged & bit)) {
+                                        sh->tex_logged |= bit;
+                                        VLOG("integer texture at a float-typed binding: shader %016llx binding %u (format %#x / VkFormat %d): module not retyped (%s)",
+                                             (unsigned long long)sh->key, r[i].binding, nf, (int)tf.vk, err[0] ? err : "unknown error");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 // DM_VK_DISPATCH_LOG=2: each texture and image a dispatch binds, with its serial (nxctl.sh texshot <serial> then shows what a step read or wrote)
                 if (st == 5 && tid && VKA_ENV("DM_VK_DISPATCH_LOG", 0) >= 2) { char why[320]; vka_tex_id_desc(tid, why, sizeof why);
                     VLOG("dispatch %016llx binding %u: %s texture ID %d (%s)", (unsigned long long)sh->key, r[i].binding, storage ? "image" : "sampled", tid, why); }
@@ -1127,15 +1166,15 @@ static int stage_writes(const vka_dstate *d, int st, const vka_shader *sh, const
                     VLOG("draw stage %d %016llx binding %u: %s texture ID %d (%s)%s", st, (unsigned long long)sh->key, r[i].binding, storage ? "image" : "sampled", tid, tid ? why : "none", v ? "" : " NO VIEW"); }
                 // A 2D texture in a 3D or cube slot: what the game leaves bound where a shader's branch does not sample (DKB's materials keep a 1x1 2D texture in their volume slot 12).
                 // It reads as unbound, zeros, as nvn_mtl.m's zero 3D / zero cube fallback does; noted once. Other mismatches are reported
-                int dd = r[i].dim & DMSH_VK_DIM_MASK, tt = tid && !v ? vka_tex_id_target(tid) : -1;
-                if (tid && !v) atomic_fetch_add_explicit(&g_rch.noview, 1, memory_order_relaxed);
-                if (tid && !v && (dd == 2 || dd == 3) && (tt == NVN_TEXTURE_TARGET_2D || tt == NVN_TEXTURE_TARGET_2D_ARRAY)) {
+                int dd = dim & DMSH_VK_DIM_MASK, tt = tid && !v ? vka_tex_id_target(tid) : -1;
+                if (tid && !v && !learned) atomic_fetch_add_explicit(&g_rch.noview, 1, memory_order_relaxed);
+                if (tid && !v && !learned && (dd == 2 || dd == 3) && (tt == NVN_TEXTURE_TARGET_2D || tt == NVN_TEXTURE_TARGET_2D_ARRAY)) {
                     if (noview_new(sh->key, r[i].binding)) { char why[320]; vka_tex_id_desc(tid, why, sizeof why);
                         VLOG("%s binding fallback: shader %016llx binding %u, texture ID %d is a 2D texture (%s): it reads as zeros (the shader may leave it unused)", dd == 2 ? "3D" : "cube", (unsigned long long)sh->key, r[i].binding, tid, why); }
-                } else if (tid && !v) { if (noview_new(sh->key, r[i].binding)) { char why[320]; vka_tex_id_desc(tid, why, sizeof why);
-                    VRED("shader %016llx binding %u: texture ID %d has no view of shape %#x%s: it reads as unbound (%s)", (unsigned long long)sh->key, r[i].binding, tid, r[i].dim, storage ? " (storage)" : "", why); } }
-                if (!v && !V.null_desc) v = placeholder(r[i].dim, storage);
-                if (!v && !V.null_desc) { VRED_ONCE("an unbound image of shape %#x and no null descriptors: the draw is skipped", r[i].dim); return 0; }
+                } else if (tid && !v && !learned) { if (noview_new(sh->key, r[i].binding)) { char why[320]; vka_tex_id_desc(tid, why, sizeof why);
+                    VRED("shader %016llx binding %u: texture ID %d has no view of shape %#x%s: it reads as unbound (%s)", (unsigned long long)sh->key, r[i].binding, tid, dim, storage ? " (storage)" : "", why); } }
+                if (!v && !V.null_desc) v = placeholder(dim, storage);
+                if (!v && !V.null_desc) { VRED_ONCE("an unbound image of shape %#x and no null descriptors: the draw is skipped", dim); return 0; }
             }
             if (r[i].desc == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || r[i].desc == VK_DESCRIPTOR_TYPE_SAMPLER) {
                 s = r[i].sid ? vka_samp_id_rec(r[i].sid) : VK_NULL_HANDLE;
@@ -2037,7 +2076,9 @@ void vka_dispatch(vka_dstate *d, const p_dispatch *dp) {
     // agl's NDSR network replaced by its bilinear term (DM_VK_NDSR_STANDIN)
     if (ndsr_net(sh[5]->key) && ndsr_standin_on() && ndsr_standin(d, sh, dp)) { g_dispatches++; return; }
     vka_layout lay; if (!vka_layout_of(sh, 1, &lay)) SKIP("dispatch skipped: no pipeline layout");
-    VkPipeline p = vka_cs_pipeline(sh[5], &lay);
+    uint64_t tu = sh[5]->tex_u, ts = sh[5]->tex_s;
+    VkPipeline p = (tu | ts) ? vka_cs_pipeline_retyped(sh[5], &lay, tu, ts) : VK_NULL_HANDLE;
+    if (!p) { if (tu | ts) { sh[5]->tex_fail |= tu | ts; sh[5]->tex_u = sh[5]->tex_s = 0; } p = vka_cs_pipeline(sh[5], &lay); }
     if (vka_nan_on()) vka_tex_watch_dispatch(sh[5]->key);
     if (!p) { g_skipped++; return; }
     d->b.dispatch[0] = (uint32_t)dp->x; d->b.dispatch[1] = (uint32_t)dp->y; d->b.dispatch[2] = (uint32_t)dp->z; d->b.nvn2 = (uint32_t)vka_nvn2();

@@ -442,6 +442,41 @@ int vka_shader_fout_retyped(vka_shader *s, uint32_t umask, uint32_t smask) {
     VkShaderModule m = vka_shader_fout_module(s, umask, smask);
     return m && m != vka_shader_module(s, DMSH_VK_MOD_BASE);
 }
+// A compute module with float-typed sampled texture bindings at set 0 umask / smask retyped to uint / int (vka_spvpatch.c vka_spv_tex_retype): made once per pair of masks,
+// kept for the process. Returns VK_NULL_HANDLE on failure (cached so a failing pair is not retried; reason in err if non-NULL)
+struct vka_texmod { struct vka_texmod *next; uint64_t u, s; VkShaderModule mod; };
+VkShaderModule vka_shader_tex_module(vka_shader *s, uint64_t umask, uint64_t smask, char *err, size_t errn) {
+    if (err && errn) err[0] = 0;
+    if (s->memu || !s->lib) { if (err && errn) snprintf(err, errn, "not a library compute module"); return VK_NULL_HANDLE; }
+    pthread_mutex_lock(&g_mu);
+    for (struct vka_texmod *v = s->tex; v; v = v->next) if (v->u == umask && v->s == smask) { VkShaderModule m = v->mod; pthread_mutex_unlock(&g_mu); return m; }
+    pthread_mutex_unlock(&g_mu);
+    if (g_shuffle_lds < 0) shuffle_plan();
+    VkShaderModule mod = VK_NULL_HANDLE; char ebuf[256] = "";
+    const dmsh_vk_module *m = g_shuffle_lds ? vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_SHUFFLE_LDS) : NULL;
+    if (!m) m = vka_shlib_module(s->lib, s->e, DMSH_VK_MOD_BASE);
+    size_t nb = 0; uint32_t *w = m ? lib_words(s->lib, s->e, m, &nb, ebuf, sizeof ebuf) : NULL;
+    if (w && (s->e->flags & (DMSH_VK_F_SUBGROUP | DMSH_VK_F_TEXFB))) single_lane(s->key, s->e->stage, &w, &nb);
+    if (w && (s->e->flags & DMSH_VK_F_TEXFB)) fb_own_set(s->key, w, nb);
+    size_t on = 0; uint32_t *o = w ? vka_spv_tex_retype(w, nb / 4, umask, smask, &on, ebuf, sizeof ebuf) : NULL;
+    if (o) {
+        VkShaderModuleCreateInfo ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = on * 4, .pCode = o};
+        VkResult r = vk.vkCreateShaderModule(V.dev, &ci, NULL, &mod);
+        if (r) { snprintf(ebuf, sizeof ebuf, "vkCreateShaderModule %d", r); mod = VK_NULL_HANDLE; }
+    }
+    free(w); free(o);
+    if (!mod && err && errn) snprintf(err, errn, "%s", ebuf[0] ? ebuf : "no base module");
+    pthread_mutex_lock(&g_mu);
+    for (struct vka_texmod *x = s->tex; x; x = x->next) if (x->u == umask && x->s == smask) {
+        VkShaderModule had = x->mod; pthread_mutex_unlock(&g_mu);
+        if (mod && mod != had) vk.vkDestroyShaderModule(V.dev, mod, NULL);
+        return had;
+    }
+    struct vka_texmod *v = malloc(sizeof *v);
+    if (v) { *v = (struct vka_texmod){s->tex, umask, smask, mod}; s->tex = v; }
+    pthread_mutex_unlock(&g_mu);
+    return mod;
+}
 vka_shader *vka_shader_make(const vka_shlib *L, uint64_t key) {
     pthread_mutex_lock(&g_mu);
     shent *h = sh_find(key, L);

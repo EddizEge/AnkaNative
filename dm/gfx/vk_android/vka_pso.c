@@ -1001,7 +1001,7 @@ static void pw_explain(vka_shader *const sh[5], const vka_gkey *k, uint32_t klen
               ms, linked ? ", linked" : "", same_sh, d[0] ? d : "nothing: the same key (the prewarm threads had not reached it yet)");
 }
 static gval *gfx_obtain(const gkey_full *fk, uint64_t h, size_t len, vka_shader *const sh[VKA_NSTAGE], const vka_layout *lay, const vka_gkey *k, int prewarm, int *made);
-static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, int prewarm, int *made);
+static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, uint64_t tex_u, uint64_t tex_s, int prewarm, int *made);
 static int as_run(int wait);
 // DM_VK_PREWARM_OVERLAP=0 (restart; default 1 = each thread builds on its own, as before, on every driver): one prewarm build at a time, the A/B for Turnip. Banana
 // Native found Ocarina of Time on Turnip (Galaxy S25, Adreno 830) crashing about 16 s into a warm run: four prewarm builds started within one second, 11-12 s each, took
@@ -1061,7 +1061,7 @@ static void *pw_main(void *a) {
             if (one) pthread_mutex_unlock(&g_pw_one);   // (DM_VK_PREWARM_OVERLAP=0: nothing was built here, and the next record's build must not wait for a lock never released)
             continue;
         }
-        else if (r.kind == 1) { cs_obtain(sh[5], &lay, 1, &made); }
+        else if (r.kind == 1) { cs_obtain(sh[5], &lay, 0, 0, 1, &made); }
         else {
             vka_gkey k; memset(&k, 0, sizeof k); memcpy(&k, kb, r.klen < sizeof k ? r.klen : sizeof k);
             if (k.vin_static != (uint32_t)!V.vin_dyn) { atomic_fetch_add(&g_pw_bad, 1); }   // a list from a device with the other vertex input (not this one's keys)
@@ -1324,7 +1324,9 @@ VkPipeline vka_gfx_pipeline(vka_shader *const sh[VKA_NSTAGE], const vka_layout *
 // ---------- Compute pipelines ----------
 typedef struct { vka_shader *cs; VkPipelineLayout layout; } ckey;
 static kmap g_cs = {.klen = sizeof(ckey)};
-static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg);
+typedef struct { vka_shader *cs; VkPipelineLayout layout; uint64_t u, s; } ckey_rt;
+static kmap g_cs_rt = {.klen = sizeof(ckey_rt)};
+static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, VkShaderModule mod_ovr, int prewarm, int bg);
 static int ah_floor_env(void);
 // The process's memory for a slow compile's line: its resident set now and its peak so far (/proc/self/status VmRSS, VmHWM), the driver's compiler included
 static const char *vka_rss_note(void) {
@@ -1336,28 +1338,40 @@ static const char *vka_rss_note(void) {
     if (rss >= 0 && hwm >= 0) snprintf(b, sizeof b, " (process resident %ld MiB, peak %ld MiB)", rss >> 10, hwm >> 10);
     return b;
 }
-static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, int prewarm, int *made) {
+static VkPipeline cs_obtain(vka_shader *cs, const vka_layout *lay, uint64_t tex_u, uint64_t tex_s, int prewarm, int *made) {
     *made = 0;
-    ckey k; memset(&k, 0, sizeof k); k.cs = cs; k.layout = lay->layout;
-    uint64_t h = fnv(&k, sizeof k, 1469598103934665603ull);
+    int rt = (tex_u | tex_s) != 0;
+    ckey k; ckey_rt kr; const void *kp; uint64_t h; kmap *km;
+    if (rt) { memset(&kr, 0, sizeof kr); kr.cs = cs; kr.layout = lay->layout; kr.u = tex_u; kr.s = tex_s; kp = &kr; h = fnv(&kr, sizeof kr, 1469598103934665603ull); km = &g_cs_rt; }
+    else { memset(&k, 0, sizeof k); k.cs = cs; k.layout = lay->layout; kp = &k; h = fnv(&k, sizeof k, 1469598103934665603ull); km = &g_cs; }
     pthread_mutex_lock(&g_mu);
-    gval *g = km_get(&g_cs, &k, h);
+    gval *g = km_get(km, kp, h);
     if (g) {
         if (g->busy && prewarm) { pthread_mutex_unlock(&g_mu); return VK_NULL_HANDLE; }
         if (g->busy) busy_wait(g);
         VkPipeline p = g->p; pthread_mutex_unlock(&g_mu); return p;
     }
-    g = calloc(1, sizeof *g); g->busy = 1; g->pw = (uint8_t)(prewarm != 0); g->tid = prewarm ? gettid() : 0; km_put(&g_cs, &k, h, g);
+    g = calloc(1, sizeof *g); g->busy = 1; g->pw = (uint8_t)(prewarm != 0); g->tid = prewarm ? gettid() : 0; km_put(km, kp, h, g);
     pthread_mutex_unlock(&g_mu);
-    cs_build(g, cs, lay, prewarm, 0);
+    VkShaderModule mod = VK_NULL_HANDLE;
+    if (rt) {
+        mod = vka_shader_tex_module(cs, tex_u, tex_s, NULL, 0);
+        if (!mod) {
+            pthread_mutex_lock(&g_mu); g->p = VK_NULL_HANDLE; g->busy = 0; pthread_cond_broadcast(&g_busy_cv); pthread_mutex_unlock(&g_mu);
+            return VK_NULL_HANDLE;
+        }
+    }
+    cs_build(g, cs, lay, mod, prewarm, 0);
     *made = 1;
     return g->p;
 }
-// Make entry g's pipeline (busy until then). bg: on the background thread of mesh draws through compute (below): not the frame path's time, kept in the prewarm list;
+// Make entry g's pipeline (busy until then). mod_ovr: a retyped module (vka_shader_tex_module; kept out of the prewarm list), else VK_NULL_HANDLE for vka_shader_cs_module.
+// bg: on the background thread of mesh draws through compute (below): not the frame path's time, kept in the prewarm list;
 // 2: a form made ahead there (vka_memu_ahead.h), kept out of the prewarm list (which keeps what the game drew) and saved without asking for a save (PC_AHEAD).
 // → 1 made, 2 from the pipeline cache (creation feedback), 0 not made
-static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm, int bg) {
+static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, VkShaderModule mod_ovr, int prewarm, int bg) {
     pc_open();
+    int rt = mod_ovr != VK_NULL_HANDLE;
     uint64_t t0 = now_ns();
     uint32_t pin = (cs->e->flags & DMSH_VK_F_SUBGROUP) ? vka_shader_sg_pin(DMSH_VK_STAGE_CS) : 0;
     VkPipelineShaderStageRequiredSubgroupSizeCreateInfo rsg = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO, .requiredSubgroupSize = pin};
@@ -1365,7 +1379,7 @@ static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm,
     for (unsigned i = 0; i < cs->e->bind_count; i++) if (cs->b[i].kind == DMSH_VK_KIND_SHARED_SPILL) spill = 1;
     VkBool32 tfb_on = VK_TRUE; VkSpecializationMapEntry tfb_e = {DMSH_VK_SPEC_TEXFB, 0, sizeof(VkBool32)}; VkSpecializationInfo tfb_si = {1, &tfb_e, sizeof tfb_on, &tfb_on};   // (texture-use feedback, as pstate_fill)
     VkComputePipelineCreateInfo ci = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, .flags = spill ? VK_PIPELINE_CREATE_DISPATCH_BASE_BIT : 0, .layout = lay->layout,
-        .stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .pNext = pin ? &rsg : NULL, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = vka_shader_cs_module(cs), .pName = "main",
+        .stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .pNext = pin ? &rsg : NULL, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = rt ? mod_ovr : vka_shader_cs_module(cs), .pName = "main",
                   .pSpecializationInfo = (cs->e->flags & DMSH_VK_F_TEXFB) && vka_tex_fb_spec() ? &tfb_si : NULL}};
     VkPipelineCreationFeedback cfb = {0}; VkPipelineCreationFeedbackCreateInfo cfi = {VK_STRUCTURE_TYPE_PIPELINE_CREATION_FEEDBACK_CREATE_INFO, .pPipelineCreationFeedback = &cfb};
     if (pc_policy() || prewarm || bg == 2) ci.pNext = &cfi;   // (a hit is no reason to save; prewarm and the forms made ahead count their hits)
@@ -1397,10 +1411,11 @@ static int cs_build(gval *g, vka_shader *cs, const vka_layout *lay, int prewarm,
     pthread_mutex_unlock(&g_mu);
     if (r && !over) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 16) VRED("compute pipeline %016llx: %d; its dispatches are skipped", (unsigned long long)cs->key, r); }
     { double ms_ = (now_ns() - t0) / 1e6; static _Atomic int n; if (!r && ms_ > 50 && atomic_fetch_add(&n, 1) < 200) VLOG("compute pipeline %016llx took %.0f ms%s%s", (unsigned long long)cs->key, ms_, prewarm ? " (prewarm)" : bg == 2 ? " (made ahead)" : bg ? " (in the background)" : "", vka_rss_note()); }
-    if (!prewarm && !over && !ndve && bg != 2) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }   // (one not made stays out of the prewarm list, and the NDVE network)
+    if (!prewarm && !over && !ndve && !rt && bg != 2) { vka_shader *s5[5] = {cs, NULL, NULL, NULL, NULL}; pw_note(1, s5, "", 0); }   // (one not made or retyped stays out of the prewarm list, and the NDVE network)
     return over || r ? 0 : hit ? 2 : 1;
 }
-VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay) { int made; return cs_obtain(cs, lay, 0, &made); }
+VkPipeline vka_cs_pipeline(vka_shader *cs, const vka_layout *lay) { int made; return cs_obtain(cs, lay, 0, 0, 0, &made); }
+VkPipeline vka_cs_pipeline_retyped(vka_shader *cs, const vka_layout *lay, uint64_t umask, uint64_t smask) { int made; return cs_obtain(cs, lay, umask, smask, 0, &made); }
 
 // Mesh draws through compute (vka_memu_draw.inc): their compute forms are made on one background thread, one at a time, and their draws skipped until then, as an
 // asynchronous graphics pipeline's are. Turnip's compiler took up to 9 s and hundreds of MB for one of Ocarina of Time's converted mesh programs (docs/reference/shaders.md
@@ -1531,7 +1546,7 @@ static void ah_make(uint64_t key, int src) {
     if (!had) km_put(&g_cs, &k, h, g);
     pthread_mutex_unlock(&g_mu);
     if (had) { pthread_mutex_lock(&g_mj_mu); g_ah_cur = NULL; pthread_mutex_unlock(&g_mj_mu); free(g); atomic_fetch_add(&g_ah_had, 1); return; }
-    uint64_t t1 = now_ns(); int r = cs_build(g, cs, &lay, 0, 2); atomic_fetch_add(&g_ah_ns, now_ns() - t1);
+    uint64_t t1 = now_ns(); int r = cs_build(g, cs, &lay, VK_NULL_HANDLE, 0, 2); atomic_fetch_add(&g_ah_ns, now_ns() - t1);
     pthread_mutex_lock(&g_mj_mu); g_ah_cur = NULL; int drawn = job.drawn; pthread_mutex_unlock(&g_mj_mu);
     if (drawn) { atomic_fetch_sub(&g_mj_drawn, 1); atomic_fetch_add(&g_ah_drawn, 1); }
     if (!r) { atomic_fetch_add(&g_ah_fail, 1); VRED("mesh draws through compute: %s shader %016llx: its compute form's pipeline made ahead failed (its line above); its draws are skipped as before", st == DMSH_VK_STAGE_TS ? "task" : "mesh", (unsigned long long)key); }
@@ -1584,7 +1599,7 @@ static void *mj_main(void *a) {
         pthread_mutex_unlock(&g_mj_mu);
         pause_point();
         uint64_t t1 = now_ns();
-        cs_build(j->g, j->cs, &j->lay, 0, 1);
+        cs_build(j->g, j->cs, &j->lay, VK_NULL_HANDLE, 0, 1);
         uint64_t t2 = now_ns(), lat = t2 - j->t0, cur = atomic_load(&g_mj_lat_max_ns);
         while (lat > cur && !atomic_compare_exchange_weak(&g_mj_lat_max_ns, &cur, lat)) {}
         atomic_fetch_add(&g_mj_ns, t2 - t1); atomic_fetch_add(&g_mj_made, 1);
