@@ -1301,3 +1301,11 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Fix:** a workaround for the driver, for every driver: that first content is recorded into the submission being recorded when no pass is open there (`vka_tex.c` `ds_here`), not into the upload batch; a clear has no staging for the batch to retire. `DM_VK_DS_FIRST_HERE=0` (live) puts it in the upload batch as before. From Banana Native 1d2aec48 (MIT).
 - **Open:** the driver's cause; not yet checked on an Adreno 840 here (the reporters' phones).
 - **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game) (issues #5 / #9, Adreno 840).
+
+### Colour clears of integer targets dropped on the Vulkan replay
+
+- **Symptom:** (Android) `[RED] vk: color clear of a depth texture (format 0x3)` (or another unsigned or signed integer colour format) and the clear of that target is skipped.
+- **Cause:** `clear_color` (`dm/gfx/vk_android/vka_exec.c`) tested `if (f.kind)` instead of `if (f.kind >= 3)`, rejecting unsigned (`kind == 1`) and signed (`kind == 2`) integer colour formats as depth / stencil targets (`kind >= 3`). In addition, `hle_nvn.c` records `ClearColori` and `ClearColorui` as floats (`p_clear_color.rgba`), and `color_value` cast them directly to `uint32_t` / `int32_t`, which is undefined behaviour in C for out-of-range values (such as `(float)UINT32_MAX == 2^32`, `(float)INT32_MAX == 2^31`, negative values for `uint32_t`, or `NaN`).
+- **Fix:** `clear_color` rejects only depth / stencil formats (`f.kind >= 3`), matching `clear_tex` and `vka_draw.c`; `color_value` clamps float clear values to `[0, UINT32_MAX]` for unsigned integer formats and `[INT32_MIN, INT32_MAX]` (with `NaN` as `0`) for signed integer formats before casting.
+- **Check:** Android APK build (`-PnxGames=0400486024DEC000 -PnxPackEngine=fake`), `test_lint_c.py`, `test_vk_android_abi.py`, `test_vk_android_locate.py`. Observed on the phone on 2026-11-19 (Galaxy S26 Ultra, Adreno 840, Turnip) before this port; not re-run on the phone after porting to `main`.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game): its R8UI shading-rate image clear was dropped.
