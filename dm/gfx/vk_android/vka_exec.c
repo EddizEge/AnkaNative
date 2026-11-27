@@ -69,6 +69,7 @@ void mtl_set_frame(uint64_t f) {
           vka_enc_stats(pb, sizeof pb, n); if (pb[0]) VLOG("%s", pb);
           vka_floor_stats(pb, sizeof pb); if (pb[0]) VLOG("%s", pb);
           vka_rp_bar_stats(pb, sizeof pb, n); if (pb[0]) VLOG("%s", pb);
+          vka_rp_drop_stats(pb, sizeof pb, n); if (pb[0]) VLOG("%s", pb);
           { void vka_drv_memo_stats(char *b, size_t n); vka_drv_memo_stats(pb, sizeof pb); if (pb[0]) VLOG("%s", pb); }
           { char mb[900]; vka_memu_stats(mb, sizeof mb); if (mb[0]) VLOG("%s", mb); } }
         f0 = f; d0 = g_stat_draws; rp0 = vka_n_rp; b0 = vka_n_bar; ub0 = g_n_ub; s0 = g_n_sub; r0 = g_rec_ns; o0 = g_stat_ops; pc0 = g_n_pclear; ch0 = g_n_chunks;
@@ -617,6 +618,11 @@ void vka_clear_outside(const vka_pclear *c) {
         else clear_rect(im, im->f.vk, c->asp, c->lv, c->l0, c->nl, c->rc, &val);
     }
     vka_barrier(g_cb);
+    if (c->bdst) {
+        uint32_t w, h; level_size(im, c->lv, &w, &h);
+        vka_tex_block_copy(g_cb, im, c->lv, c->bdst, c->dlv, c->l0, c->nl, w, h);
+        vka_barrier(g_cb);
+    }
 }
 static void clear_color(const p_clear_color *c) {
     vka_rp_prep_clear(&S.rt, S.has_rt);
@@ -633,10 +639,16 @@ static void clear_color(const p_clear_color *c) {
     vka_tex_own(im, g_cb);   // (zero-shared: memory of its own before the clear, which may also become the next pass's loadOp)
     uint32_t lv, l0, nl; rt_range(im, v, hv, &lv, &l0, &nl);
     if (lv >= im->levels || !nl) return;
-    VkRect2D rc; int part = scissored(im, lv, &rc);
+    vka_img *aim = im, *bdst = NULL; uint32_t alv = lv;
+    if (!(im->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) && (im->f.bw > 1 || im->f.bh > 1) && f.bw == 1 && f.bh == 1 && f.bpb == im->f.bpb && vka_block_rt_on()) {
+        uint32_t slv, sw, shh;
+        vka_img *sh = vka_tex_block_shadow(im, &f, lv, l0, nl, g_cb, &slv, &sw, &shh);
+        if (sh) { aim = sh; alv = slv; bdst = im; }
+    }
+    VkRect2D rc; int part = scissored(aim, alv, &rc);
     if (!rc.extent.width) return;
     vka_fmt fl = f; fl.srgb = 0;   // in a pass the attachment is the sRGB view: the clear colour stays linear there
-    vka_pclear pc = {c->index, im, f.vk, VK_IMAGE_ASPECT_COLOR_BIT, lv, l0, nl, rc, !part, {.color = color_value(&f, c->rgba)}, {.color = color_value(&fl, c->rgba)}};
+    vka_pclear pc = {c->index, aim, f.vk, VK_IMAGE_ASPECT_COLOR_BIT, alv, l0, nl, rc, !part, {.color = cz}, {.color = f.srgb ? color_value(&fl, c->rgba) : cz}, bdst, lv};
     vka_img_written(im); vka_rtw_clear(im, zero, cz.uint32[0]); g_stat_ops++;
     if (!clear_in_pass(&pc)) vka_clear_outside(&pc);
 }
