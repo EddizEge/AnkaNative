@@ -42,7 +42,8 @@ static void fb_placed(uintptr_t lo, uintptr_t hi);           // File-backed pool
 static void fb_gone(uintptr_t lo, uintptr_t hi, int back);   // a pool's range finalized (back 1: its pieces go back to anonymous memory) or released (0: dropped)
 // sp: the span buffer the segment's memory is bound into (NULL: none). run, boff: a lookup's answer only (seg_view): where the run from the segment ends, and the
 // segment's offset in the buffer it answers with
-typedef struct { uintptr_t lo, hi; VkDeviceMemory mem; VkBuffer buf; VkDeviceAddress bda; int refs; span_t *sp; uintptr_t run; VkDeviceSize boff; } seg_t;
+// map0, map0_n: where the driver put the memory's first map (place: the copy's vkMapMemory) and its size (stale_map_drop)
+typedef struct { uintptr_t lo, hi; VkDeviceMemory mem; VkBuffer buf; VkDeviceAddress bda; int refs; span_t *sp; uintptr_t run; VkDeviceSize boff; uintptr_t map0; size_t map0_n; } seg_t;
 static seg_t *g_sg; static int g_nsg, g_sgcap;   // sorted by lo, disjoint
 // Bumped (under g_rw for writing) whenever a segment comes or goes: the replay's per-thread lookup cache (vka_addr, vka_addr_run) holds while it stands
 static _Atomic uint64_t g_sg_gen = 1;
@@ -500,6 +501,7 @@ static int place(uintptr_t lo, uintptr_t hi, VkDeviceSize *grow, span_t *sp) {
     swap_begin(lo, hi);
     prot_readonly(pr, npr);   // writers wait in the fault hook from here
     if (!vk.vkMapMemory(V.dev, s.mem, 0, VK_WHOLE_SIZE, 0, &p) && p) {
+        s.map0 = (uintptr_t)p; s.map0_n = (size_t)mr.size;
         copy_readable(p, lo, pr, npr);
         p3 = mono_ns(); g_ph[2] += p3 - p2; p2 = p3;
         vk.vkUnmapMemory(V.dev, s.mem);
@@ -590,6 +592,41 @@ static void detach(int i, segvec *v) {   // caller holds g_pl, and g_rw for writ
 // Memory the GPU is not known to be done with (the wait ran into the hang time, or a GPU hang was declared) is never freed: it stays allocated (leaked) behind the anonymous pages,
 // since a free under work the GPU still runs faults the GPU (freed anyway after 2 s before, on the way to a system restart on the phone)
 // (gpu: the GPU was known to be done, and only the span buffer's unbind did not run: logged by unplace)
+// The driver's first map of a pool's memory, left behind by its vkFreeMemory. A workaround of a driver fault, where the cause cannot be fixed (Adreno 840 system driver
+// 2150932499 on a Galaxy S26 Ultra, 2026-11-10): place maps the memory where the driver likes for the copy, unmaps it, then maps it placed. That driver keeps the first
+// map after vkUnmapMemory, and its vkFreeMemory takes down only the placed one, so the first map stayed, and with it the kernel's memory object: per-process GPU memory
+// (dumpsys gpu --gpumem) grew by a pool's size at every pool finalized, with VK_EXT_device_memory_report saying freed. Ocarina of Time's title screen makes and
+// finalizes a 48.2 MiB and an 8 MiB pool at each loop of its logo video: +56 MiB every 3 s, 560 MiB in 30 s, never given back.
+// Before the free, maps_at reads the placed map's line of /proc/self/maps (its file and offset: the kernel object); after it, a mapping that still starts at map0 with
+// the same file, the same offset and the memory's size is that first map and nothing else (the address was never free in between), and is unmapped here.
+// Limited to Qualcomm's proprietary driver (VK_DRIVER_ID_QUALCOMM_PROPRIETARY), where the fault was seen: other drivers (Turnip) do no maps scan and no unmap.
+// DM_VK_STALE_MAP=0 (read once; default 1 on Qualcomm): leave it (the leak as before, to measure it)
+typedef struct { uintptr_t end; unsigned long long off; char path[64]; } mapline;
+static int maps_at(uintptr_t a, mapline *o) {
+    FILE *f = fopen("/proc/self/maps", "re"); if (!f) return 0;
+    char ln[512]; int found = 0;
+    while (!found && fgets(ln, sizeof ln, f)) {
+        unsigned long lo, hi; unsigned long long off; char path[256]; path[0] = 0;
+        if (sscanf(ln, "%lx-%lx %*4s %llx %*s %*s %255s", &lo, &hi, &off, path) < 3 || lo != a) continue;
+        o->end = hi; o->off = off; snprintf(o->path, sizeof o->path, "%s", path); found = 1;
+    }
+    fclose(f); return found;
+}
+static _Atomic uint64_t g_stale_n, g_stale_bytes;
+static int stale_on(void) {
+    if (V.driver_id != VK_DRIVER_ID_QUALCOMM_PROPRIETARY) return 0;   // only Qualcomm's proprietary driver leaves the first kgsl map behind; Turnip and others need no scan or unmap
+    static int on = -1; if (on < 0) on = VKA_ENV("DM_VK_STALE_MAP", 1) != 0;
+    return on;
+}
+static void stale_map_drop(const seg_t *s, const mapline *placed) {
+    if (!stale_on() || !s->map0 || !s->map0_n || !placed->path[0] || s->map0 == s->lo) return;
+    mapline m; if (!maps_at(s->map0, &m) || strcmp(m.path, placed->path) || m.off != placed->off || !strstr(m.path, "kgsl")) return;
+    // The first map may be in pieces (a neighbour merged or a protection split it): only the whole memory in one mapping from map0 is taken
+    if (m.end - s->map0 != s->map0_n || munmap((void *)s->map0, s->map0_n)) return;
+    uint64_t k = atomic_fetch_add(&g_stale_n, 1) + 1, b = atomic_fetch_add(&g_stale_bytes, s->map0_n) + s->map0_n;
+    if (k <= 4 || !(k & 63)) VLOG("pool memory %#lx+%#zx freed: the driver left its first map at %#lx (%s offset %#llx); unmapped here, so the kernel frees the memory "
+                                  "(%llu so far, %.1f MiB; DM_VK_STALE_MAP)", (unsigned long)s->lo, (size_t)(s->hi - s->lo), (unsigned long)s->map0, m.path, m.off, (unsigned long long)k, (double)b / 1048576.0);
+}
 static void seg_free(const seg_t *s, int waited, int gpu, uint64_t fence) {
     if (waited) { vk.vkDestroyBuffer(V.dev, s->buf, NULL); vk.vkFreeMemory(V.dev, s->mem, NULL); return; }
     static _Atomic int nk; if (!gpu && atomic_fetch_add(&nk, 1) < 8) VRED("giving back pool memory %#lx+%#zx: the GPU is not known to be done with it (fence %llu%s): its Vulkan memory is kept, not freed",
@@ -615,12 +652,14 @@ static void unplace(const seg_t *sp) {
                 if (o) memcpy(t + (a - s.lo), (const void *)a, 4096);
             }
         }
+    mapline placed = {0}; int stale = waited && s.map0 && stale_on();
+    if (stale) maps_at(s.lo, &placed);   // (stale_map_drop)
     unmap_placed(s.mem);   // the CPU mapping only: the GPU's stays with the allocation
     // DM_VK_UNPLACE_REMAP=1 (experiment, off): map the memory again where the driver likes, so that the address the driver keeps is outside the guest range, then move the
     // pages in before the free (no hole, if the driver's free takes down only its last map). Checked after the free: a range the free took down anyway is [RED]
     void *elsewhere = NULL;
     if (waited && t != MAP_FAILED && VKA_ENV("DM_VK_UNPLACE_REMAP", 0) && (vk.vkMapMemory(V.dev, s.mem, 0, VK_WHOLE_SIZE, 0, &elsewhere) || !elsewhere)) elsewhere = NULL;
-    if (!elsewhere) seg_free(&s, waited, gpu, fence);
+    if (!elsewhere) { seg_free(&s, waited, gpu, fence); if (stale) stale_map_drop(&s, &placed); }
     // Open: from the driver's vkFreeMemory, which takes the range down (above), to this mremap the guest range has a hole, and another thread's mmap(NULL) (the driver's,
     // libc's malloc: calls this library does not see) could be given part of it. The window is the few microseconds between the two calls, and it cannot be closed here:
     // anything mapped into the range before the free (a reservation, these pages) is taken down by the free, and the free cannot wait until after (the bug above). What
@@ -634,7 +673,7 @@ static void unplace(const seg_t *sp) {
         sw_mmap_fixed(s.lo, n);
     }
     if (elsewhere) {
-        vk.vkUnmapMemory(V.dev, s.mem); seg_free(&s, waited, gpu, fence);
+        vk.vkUnmapMemory(V.dev, s.mem); seg_free(&s, waited, gpu, fence); if (stale) stale_map_drop(&s, &placed);
         if (msync((void *)s.lo, n, MS_ASYNC)) {   // the free took the range down after all: the bytes are lost
             static int nr; if (nr++ < 4) VRED("DM_VK_UNPLACE_REMAP: the driver's vkFreeMemory took down pool memory %#lx+%#zx after the anonymous pages moved in: the experiment fails on this driver (the bytes are lost)", (unsigned long)s.lo, n);
             sw_mmap_fixed(s.lo, n);
