@@ -10,7 +10,9 @@
 // stretch and 94-98 ms after 2.6 s of idle GPU: its clock follows load). DM_VK_ADPF_GPU=0 (live) reports CPU time only
 #if defined(__ANDROID__)
 #include "vka.h"
+#include "vka_thermal.h"
 #include <dlfcn.h>
+#include <math.h>
 #include <stdlib.h>
 #include <sys/resource.h>
 #include <time.h>
@@ -297,5 +299,47 @@ void mtl_gpu_extra(uint64_t f, char *out, size_t n) {
     if (g_tsq[q].f == f && g_tsq[q].state == 2 && g_tsq[q].s[0] && o < n) snprintf(out + o, n - o, "; %s", g_tsq[q].s);
     else if (g_tsq[q].f == f && g_tsq[q].state == 1 && o < n) snprintf(out + o, n - o, "; busiest threads: not read yet");
     pthread_mutex_unlock(&g_tsmu);
+}
+// The phone's thermal status for the frame step's thermal cap (hle_nvn.c thermal_capped: at 2 or more the step holds 30 fps until the device has been calmer for 30 s;
+// DM_THERMAL_CAP=0 turns the cap off) and the GPU-slowed gate (hle_nvn.c fstep_tick: dm_thermal_now() <= 1).
+// Off by default: DM_THERMAL_ANDROID=1 (read once) turns it on; when off, returns -1 exactly as hle_nvn.c's weak default without calling dlopen or AThermal.
+// The scale is iOS's (0 nominal, 1 fair, 2 serious, 3 critical; -1 unavailable), mapped by vka_thermal_map (vka_thermal.h):
+// - AThermal_getCurrentThermalStatus (API 30; 0 none -> 0, 1 light -> 1 so light does not turn off the GPU-slowed path, 2 moderate -> 2, 3 severe and above -> 3):
+//   at or above DM_THERMAL_ANDROID_AT (read once; default 2 = moderate; 0 disables) gives at least 2.
+// - AThermal_getThermalHeadroom (API 31; forecast 10 s; 1.0 = severe) at or above DM_THERMAL_ANDROID_HEADROOM (read once; default 0.85, matching the Android overlay's
+//   yellow dot in android/app/src/main/java/dev/nxnative/android/Overlay.java; 0 disables) gives at least 2. Asked every third read (the platform answers NaN when asked
+//   more than about once a second, and the launcher's overlay asks too); NaN keeps the last valid reading.
+// Why headroom as well as status: on a Galaxy S26 Ultra (skin thresholds 38 / 40 / 42 °C for light / moderate / severe) Ocarina of Time at DM_FPS_TARGET=60 took the skin
+// from 33.6 to 42.2 °C in 56 s and the system cut the GPU clock from 1200 to 902 MHz; the status turned light only at 40.3 °C, while headroom reached 0.85 near 39 °C (2026-11-10).
+int dm_thermal_now(void) {
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    static void *mgr; static int (*status)(void *); static float (*headroom)(void *, int);
+    static int state, at, n; static float hat, h = NAN;   // state: 0 not tried, 1 usable, -1 off or not available
+    pthread_mutex_lock(&mu);
+    if (!state) {
+        state = -1;
+        const char *en = getenv("DM_THERMAL_ANDROID");
+        if (en && atoi(en) > 0) {
+            const char *e = getenv("DM_THERMAL_ANDROID_AT"); at = e && *e ? atoi(e) : 2;
+            e = getenv("DM_THERMAL_ANDROID_HEADROOM"); hat = e && *e ? (float)atof(e) : 0.85f;
+            void *lib = dlopen("libandroid.so", RTLD_NOW);
+            void *(*acquire)(void) = lib ? dlsym(lib, "AThermal_acquireManager") : NULL;
+            status = lib ? dlsym(lib, "AThermal_getCurrentThermalStatus") : NULL;
+            headroom = lib ? dlsym(lib, "AThermal_getThermalHeadroom") : NULL;
+            if (acquire && (status || headroom) && (mgr = acquire())) {
+                state = 1;
+                VLOG("thermal status %d from the platform, headroom %s; the frame step holds 30 fps from status %d or headroom %.2f (DM_THERMAL_ANDROID=1, DM_THERMAL_ANDROID_AT, DM_THERMAL_ANDROID_HEADROOM, DM_THERMAL_CAP)",
+                     status ? status(mgr) : -1, headroom ? "read" : "not available", at, hat);
+            } else VRED("no thermal status from the platform (AThermal): the frame step has no thermal cap");
+        }
+    }
+    int r = -1;
+    if (state > 0) {
+        int s = status ? status(mgr) : -1;
+        if (headroom && hat > 0.0f && n++ % 3 == 0) { float v = headroom(mgr, 10); if (v == v) h = v; }
+        r = vka_thermal_map(s, h, at, hat);
+    }
+    pthread_mutex_unlock(&mu);
+    return r;
 }
 #endif

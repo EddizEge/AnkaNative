@@ -90,6 +90,8 @@ t_fstep: t_fstep.c ../nvn/nvn_fstep.h
 	clang -O1 -Wall -o $@ t_fstep.c
 t_thermal: t_thermal.c $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_thermal.c $(MTL_T_SRC) ../nvn/nvn_mtl.m $(FW)
+t_thermal_android: t_thermal_android.c ../vk_android/vka_thermal.h
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Werror -o $@ $<
 t_thermal_tsan: t_thermal.c $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -fsanitize=thread -o $@ t_thermal.c $(MTL_T_SRC) ../nvn/nvn_mtl.m $(FW)
 .PHONY: check_t_thermal thermal-tsan
